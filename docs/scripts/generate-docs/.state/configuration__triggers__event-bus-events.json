@@ -1,0 +1,835 @@
+{
+  "pageId": "configuration__triggers__event-bus-events",
+  "pageRoute": "configuration/triggers/event-bus-events",
+  "startedAt": "2026-05-17T11:15:50.473Z",
+  "updatedAt": "2026-05-17T11:36:41.271Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__event-bus-events\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Multiple realistic, copy-paste-ready code examples covering the three main event source scenarios (custom bus, default AWS bus, external bus ARN) — the first-time reader can orient quickly and pick the right variant.",
+            "The 'When to use / When NOT to use' pairing with a comparison table is concrete and opinionated — each row names both the scenario and the better alternative with a link, which is exactly what a decision-stage reader needs.",
+            "Pattern matching logic (AND across fields, OR within a field array) is explained clearly and precisely in prose before the detail-filtering example — removes a common point of confusion without requiring the reader to visit external AWS docs.",
+            "Payload transformation covers all three mutually exclusive options (input, inputPath, inputTransformer) with a working code example for the most complex case (inputTransformer) and one-line descriptions for the simpler ones — well-calibrated depth.",
+            "FAQ section has 9 questions spanning Stacktape-specific, AWS-service-level, and choosing/comparison categories — good coverage that will capture long-tail search traffic.",
+            "The delivery failure section is actionable and includes a Tip callout directing readers to set up an alarm — the kind of operational nudge that saves production incidents.",
+            "The 'Choosing the event source' table with a three-way comparison (eventBusName / eventBusArn / useDefaultBus) plus a prose recommendation for the common case is exactly the right format for a mutually exclusive property group."
+          ],
+          "problems": [
+            "SqsQueueEventBusIntegration is referenced in the Supported targets table and in the FAQ as a valid Stacktape class, but it does not appear anywhere in the provided source file (events.d.ts). The source defines only EventBusIntegration. This is an unsupported claim that will confuse readers if the class name is wrong or if SQS event-bus targeting works differently than described.",
+            "The page is missing an <ApiReference definitionName=\"EventBusIntegrationProps\" /> component. The default page rhythm requires exactly one per page, and its absence means readers cannot drill into the full property surface from this page.",
+            "The page asserts that messageGroupId is a required property on SqsQueueEventBusIntegration for FIFO queues, but messageGroupId does not appear in any provided source. This is doubly unsupported — both the class name and the property are unverified.",
+            "The JSDoc for EventBusIntegration in the source specifically says 'Triggers a batch job when an event matching a specified pattern is received by an event bus'. The page's claim that the same class is used for Lambda functions is plausible but not directly confirmed by the provided source — the Lambda-side events array type was not included. The page presents this as established fact rather than writing cautiously."
+          ],
+          "mandatoryFixes": [
+            "Remove or correct the SqsQueueEventBusIntegration claim: the provided source (events.d.ts) defines only EventBusIntegration and makes no mention of SqsQueueEventBusIntegration or a messageGroupId property. Either (a) locate the correct class name in the SQS resource types file and update accordingly, or (b) remove the SQS queue row from the Supported targets table and the FAQ entry 'Can I route EventBridge events to an SQS queue instead of a Lambda function?' until the class name is confirmed. Do not leave an unverified class name in documentation — readers will copy it and get a compile error.",
+            "Add <ApiReference definitionName=\"EventBusIntegrationProps\" /> to the page. The standard page rhythm requires exactly one ApiReference per page. Place it near the bottom (before or after the FAQ) so it serves as the full-property reference after the guided sections. The definitionName must exactly match the Props type as defined in the source (EventBusIntegrationProps)."
+          ],
+          "optionalImprovements": [
+            "Show a minimal Lambda handler stub (in a fenced ```typescript block, not a CodeBlock) that reads the event fields — especially useful because EventBridge wraps the payload in an envelope that surprises first-time users who expect only their detail object. A 10-line handler showing how to access event.source, event['detail-type'], and event.detail would anchor the examples.",
+            "The 'Supported targets' table currently lists Lambda function and batch job as using the same EventBusIntegration class with no extra properties. Add a brief note that the integration is placed in the resource's events array — the same pattern as other trigger types — so readers don't wonder how the same class applies to both resource types.",
+            "The H3 'Content-based filtering with `detail`' is long; 'detail filtering' or 'Payload filtering' would be more compact and consistent with the other heading lengths on the page.",
+            "The opening paragraph says Stacktape 'wires the rule, permissions, and dead-letter queue for you' but the dead-letter queue is opt-in (onDeliveryFailure). Change to 'wires the rule, permissions, and optionally a dead-letter queue' to set accurate expectations.",
+            "Consider adding a one-line note about EventBridge's 5-rule limit per event source per account soft limit (or the relevant hard limit) as a scaling consideration — readers deploying many pattern-matched integrations against the same bus will hit this and wonder why Stacktape is failing. If this limit isn't in the source, skip it."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When to use / When NOT to use' section with a concrete comparison table naming specific alternatives (SQS, SNS, Kinesis) and the reason to prefer each — exactly the decision support an engineer needs before committing to EventBridge.",
+            "Three realistic, copyable code examples covering the most important variants (custom bus, default AWS bus, external ARN) with focus markers keeping each example tight.",
+            "Payload transformation section is thorough: explains all three mutually exclusive options (input, inputPath, inputTransformer), gives a concrete inputTransformer example with placeholder substitution, and correctly identifies 'inputPath: $.detail' as the most common choice.",
+            "Dead-letter queue guidance is actionable — recommends an alarm on message count and explicitly warns that without DLQ, events are eventually dropped.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service mechanics, comparison/choosing) with 9 well-targeted entries. The EventBridge vs SQS and EventBridge vs SNS comparison FAQs are especially useful for readers still evaluating whether to use this trigger.",
+            "Event pattern fields table is a useful reference — covers all eight fields from the source type with example values and explains AND vs OR matching logic clearly."
+          ],
+          "problems": [
+            "The 'Supported targets' table claims SQS queues are supported via a class named `SqsQueueEventBusIntegration` with a `messageGroupId` property. Neither this class name nor the `messageGroupId` property appears anywhere in the provided source file (events.d.ts). The source only defines `EventBusIntegration` / `EventBusIntegrationProps` for event bus integrations. If this class does not exist in the package, copying the table guidance will fail immediately with a TypeScript error. This is an unverified factual claim that needs source confirmation before publication.",
+            "The intro paragraph and 'Supported targets' section both state SQS queues can be directly triggered by EventBridge events in Stacktape, but no `events` array integration for SQS queues is shown in the source. Presenting SQS as a first-class peer target alongside Lambda and batch jobs without source backing risks misleading readers about what Stacktape actually supports.",
+            "No `<ApiReference definitionName=\"EventBusIntegrationProps\" />` component is present. Users who need the full property list — especially for `eventPattern` operators or edge-case `onDeliveryFailure` constraints — have no in-page reference path. The page rhythm calls for exactly one ApiReference; the 'conceptual page' framing does not override this for readers who need the spec.",
+            "The 'Delivery failure handling' section says 'Specifying both is a validation error' for `sqsQueueName`/`sqsQueueArn`. The source shows both as optional fields but does not explicitly document a validation error on co-specification. The claim is reasonable but is stated as a hard fact without source grounding."
+          ],
+          "mandatoryFixes": [
+            "Verify that `SqsQueueEventBusIntegration` and its `messageGroupId` property exist in the Stacktape npm package. If they do not, remove the SQS row from the 'Supported targets' table and remove all prose describing SQS queue as a target via this class. If they do exist, add a code example that instantiates `SqsQueueEventBusIntegration` on an SQS queue's `events` array so the class reference is grounded in a working example."
+          ],
+          "optionalImprovements": [
+            "Add `<ApiReference definitionName=\"EventBusIntegrationProps\" />` — placing it at the bottom of the page gives readers who want the full property spec a quick path without disrupting the guide flow.",
+            "The 'Delivery failure handling' claim 'Specifying both is a validation error' should either be softened to 'only one of sqsQueueName or sqsQueueArn should be specified' (matching the pattern used for eventBusName/eventBusArn/useDefaultBus) or dropped if no source explicitly validates for it.",
+            "The 'Event patterns' section lists the `numeric` operator as one of several advanced operators but does not mention `prefix`, `suffix`, `anything-but`, and `exists` until the paragraph that follows the code example. Moving the enumeration to before the code example (and keeping the AWS docs link) would help the reader understand what operators are available before seeing the numeric example.",
+            "The FAQ entry 'What is Amazon EventBridge?' at position 1 re-explains something the intro paragraph already covers well. Consider replacing it with a more specific Q like 'Can I publish events from my Lambda function to an EventBridge bus?' or 'Does Stacktape support EventBridge Pipes?' to add genuine new coverage."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening and mostly compact, descriptive H2 headings.",
+            "Uses TypeScript class-based Stacktape config in <CodeBlock intellisense tabs={[...]}/> with the required TypeScript tab label.",
+            "Good decision framing for EventBridge versus SQS, SNS, and Kinesis, including a comparison table.",
+            "Covers the key sourced Stacktape properties: eventPattern, eventBusName, eventBusArn, useDefaultBus, input/inputPath/inputTransformer, onDeliveryFailure, and SQS FIFO messageGroupId.",
+            "FAQ is broad and useful, mixing Stacktape-specific, AWS/EventBridge, and choosing/comparison questions."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims go beyond the provided source, including Stacktape creating EventBridge rules, granting invoke permissions, wiring targets automatically, and wiring dead-letter queues.",
+            "The page states EventBridge retry behavior of up to 24 hours and permanent dropping after retries, but the provided source only documents onDeliveryFailure as an SQS destination for failed delivery; it does not document retry duration or drop behavior.",
+            "The FAQ invents concrete EventBridge pricing despite no pricing source being provided. The prompt explicitly says not to invent pricing not present in source.",
+            "The page states payloads larger than 256 KB should use S3, but the provided source for EventBusIntegration does not include an EventBridge event-size limit.",
+            "The page claims cross-account and cross-region routing use cases and external bus ownership scenarios more broadly than the source supports. The source only says eventBusArn is for an existing event bus not managed by the stack.",
+            "Payload transformation sections are useful but thinly grounded in places: the source says input/inputPath/inputTransformer customize the event payload and are mutually exclusive, but the draft adds detailed default envelope behavior and exact output examples not present in the source.",
+            "The first paragraph is slightly overloaded and likely over the 75-word target, reducing snippet quality.",
+            "Some H2 first paragraphs are not fully self-contained for extraction, especially Basic example, which starts with \"This example\" instead of naming Stacktape event bus triggers explicitly."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported Stacktape-specific automation claims. For example, say the EventBusIntegration configures an event bus trigger with a pattern and optional failed-delivery SQS destination, rather than claiming Stacktape creates rules, grants invoke permissions, or wires DLQs unless those facts are present in source.",
+            "Delete the concrete EventBridge retry-duration and permanent-drop claims, or rephrase cautiously: the provided Stacktape source documents only the optional onDeliveryFailure SQS destination for failed event delivery.",
+            "Remove the specific EventBridge pricing claim from the FAQ because no pricing source is provided. Replace it with non-price wording about EventBridge charging by usage only if grounded elsewhere, or omit the cost answer.",
+            "Remove or source the 256 KB EventBridge event-size claim. If kept as general AWS background, avoid presenting it as a Stacktape-source-backed constraint and do not make it central to the Stacktape config guidance.",
+            "Narrow eventBusArn wording to the sourced claim: use eventBusArn for an existing event bus that is not managed by the stack. Avoid asserting another account, another region, or manually created bus unless provided by source.",
+            "Rewrite H2 opening paragraphs that begin with context-dependent phrasing such as \"This example\" so each extracted paragraph names the concept directly."
+          ],
+          "optionalImprovements": [
+            "Shorten the opening paragraph to 40-75 words and move implementation details into Basic example or How it works.",
+            "Add a small table for the three payload transformation options: input, inputPath, inputTransformer, when to use, and mutual exclusivity.",
+            "For the SQS queue target, clarify that SqsQueueEventBusIntegration is a specialized integration for SQS queue events, while Lambda functions and batch jobs use EventBusIntegration.",
+            "Tone down unsourced AWS service examples such as specific AWS services landing on the default bus unless you can ground them in an AWS citation or source file."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the EventBusIntegration type for Lambda/batch event handling, event patterns, source selection, payload transformation, and optional delivery-failure routing. The main publication risks are claims that Stacktape automatically wires a dead-letter queue, unsupported SQS-as-target documentation, and a few Stacktape-specific assertions that exceed the provided type source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Stacktape wires the rule, permissions, and dead-letter queue for you.”",
+              "reason": "The provided source only documents an optional `onDeliveryFailure` property. It does not support the claim that a dead-letter queue is wired automatically for every event bus integration.",
+              "suggestedFix": "Change to: “Stacktape wires the EventBridge rule and target integration; if you set `onDeliveryFailure`, Stacktape attaches the SQS queue you specify for failed deliveries.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "onDeliveryFailure?: EventBusOnDeliveryFailure;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "In rare cases, an event might fail to be delivered. This property specifies an SQS queue where failed events will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Three resource types support event bus triggers” and the table entry for `SqsQueueEventBusIntegration`, including “SQS queues use a specialized variant that adds `messageGroupId` support.”",
+              "reason": "The provided source defines `EventBusIntegration` and `EventBusIntegrationProps`, but it does not define `SqsQueueEventBusIntegration` or a `messageGroupId` property for event bus targets. This would change what readers configure.",
+              "suggestedFix": "Remove the SQS target section unless another authoritative source is provided. Based on this source, document only the `EventBusIntegration` shape and avoid naming `SqsQueueEventBusIntegration` or `messageGroupId`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegration {\n  type: 'event-bus';\n  properties: EventBusIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationProps {\n  /**\n   * #### The ARN of an existing event bus."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Specifying more than one of `eventBusName`, `eventBusArn`, or `useDefaultBus` is a validation error.”",
+              "reason": "The source says users must specify only one source property, but it does not document the runtime behavior as a validation error. The narrower source-grounded wording is enough.",
+              "suggestedFix": "Say “You must specify only one of `eventBusName`, `eventBusArn`, or `useDefaultBus`.” Avoid claiming the exact validator behavior unless runtime validator source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Specifying more than one of `input`, `inputPath`, or `inputTransformer` is a validation error.”",
+              "reason": "The source documents that only one of the three payload transformation properties can be used, but it does not state the error mechanism. The claim is directionally correct but over-specific for the provided source.",
+              "suggestedFix": "Change to: “You can use only one of `input`, `inputPath`, or `inputTransformer` on an event bus integration.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You can only use one of `input`, `inputPath`, or `inputTransformer`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Specifying both [onDeliveryFailure `sqsQueueName` and `sqsQueueArn`] is a validation error.”",
+              "reason": "The source lists both optional properties but does not state mutual exclusivity or validation behavior for `EventBusOnDeliveryFailure`. This may be true in runtime validators, but it is not grounded in the provided file.",
+              "suggestedFix": "Use narrower wording: “Use `sqsQueueName` for a queue in the same Stacktape configuration, or `sqsQueueArn` for an existing queue ARN.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusOnDeliveryFailure {\n  /**\n   * #### The ARN of the SQS queue for failed events.\n   */\n  sqsQueueArn?: string;\n  /**\n   * #### The name of an SQS queue (defined in your Stacktape configuration) for failed events.\n   */\n  sqsQueueName?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly says Stacktape “grants invoke permissions,” “wires the target automatically,” and lets users avoid “managing IAM policies” for EventBridge rules.",
+              "reason": "The provided event type source describes trigger configuration and delivery-failure properties, but it does not document IAM policy generation or permission management for event bus integrations. This is a Stacktape-specific behavior claim, not general AWS background.",
+              "suggestedFix": "Remove the IAM/permissions claims or replace them with source-grounded wording such as “Stacktape creates an event-bus integration for the target resource.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a batch job when an event matching a specified pattern is received by an event bus."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "A pattern to filter events from the event bus."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every AWS account has a default event bus that receives events from AWS services automatically. Set `useDefaultBus: true` … You do not need to create an event bus resource.”",
+              "reason": "The source supports that `useDefaultBus` uses the default AWS event bus, but it does not support the broader Stacktape-specific claim that no event bus resource is needed in the stack. This is likely true, but it is not stated in the provided source.",
+              "suggestedFix": "Narrow to: “Set `useDefaultBus: true` to use the default AWS event bus instead of `eventBusName` or `eventBusArn`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Uses the default AWS event bus."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The draft documents concrete EventBridge pricing: “approximately $1 per million events,” “Events from AWS services to the default bus are free,” and “There is no charge for rules, pattern evaluation, or event delivery to targets.”",
+              "reason": "The provided source files contain no pricing data. The page instructions allow general AWS facts, but the pricing rules say concrete pricing should be included when present in source and should not be invented from source files. If kept, this should be framed carefully as general AWS pricing that may vary by region and change over time, or omitted.",
+              "suggestedFix": "Either remove the concrete pricing paragraph or rewrite it without exact prices: “AWS bills EventBridge mainly per event published, with pricing varying by region and event type.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The draft correctly documents the three event bus source selectors visible in the source: `eventBusName`, `eventBusArn`, and `useDefaultBus`.",
+            "The draft correctly documents the supported event pattern fields visible in `EventBusIntegrationPattern`, including `source`, `detail-type`, `detail`, `account`, `region`, `resources`, `version`, and `replay-name`.",
+            "The draft correctly documents the three payload transformation properties visible in `EventBusIntegrationProps`: `input`, `inputPath`, and `inputTransformer`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the EventBusIntegration type, but it contains several Stacktape-specific claims that are unsupported or contradicted by the provided source. The highest-impact problems are claiming automatic dead-letter queue wiring, documenting an unsupported SQS event-bus integration class, and overstating validation behavior for mutually exclusive properties.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Stacktape wires the rule, permissions, and dead-letter queue for you.” and “Stacktape creates the EventBridge rule, grants invoke permissions, and wires the target automatically.”",
+              "reason": "The source only supports configuring a failed-delivery SQS queue through the optional `onDeliveryFailure` property. It does not support the claim that Stacktape wires a dead-letter queue automatically when no `onDeliveryFailure` is configured.",
+              "suggestedFix": "Say that Stacktape wires the EventBridge integration and that `onDeliveryFailure` can be configured to send failed deliveries to an SQS queue.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "onDeliveryFailure?: EventBusOnDeliveryFailure;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "In rare cases, an event might fail to be delivered. This property specifies an SQS queue where failed events will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Three resource types support event bus triggers… SQS queues use a specialized variant that adds `messageGroupId` support” and “SQS queues support event bus triggers through the `SqsQueueEventBusIntegration` class.”",
+              "reason": "The provided source defines `EventBusIntegration` and `EventBusIntegrationProps`, but it does not define `SqsQueueEventBusIntegration` or a `messageGroupId` property for event-bus integrations. This would lead readers to configure an API that is not grounded in the supplied source.",
+              "suggestedFix": "Remove the SQS queue target section unless a source file defining `SqsQueueEventBusIntegration` is added. If keeping SQS in the page, limit it to `onDeliveryFailure` destinations, which are supported by the source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegration {\n  type: 'event-bus';\n  properties: EventBusIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationProps {\n  /**\n   * #### The ARN of an existing event bus."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Specifying more than one [of `eventBusName`, `eventBusArn`, or `useDefaultBus`] is a validation error” and “Specifying more than one of `input`, `inputPath`, or `inputTransformer` is a validation error.”",
+              "reason": "The type source says these properties are mutually exclusive using JSDoc wording, but it does not show runtime validator behavior or error semantics. The statement may be true elsewhere, but it is not grounded in the provided source file.",
+              "suggestedFix": "Use source-grounded wording: “You must specify only one…” and “You can only use one…” without asserting a validation error.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You can only use one of `input`, `inputPath`, or `inputTransformer`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every event bus integration needs exactly one source.”",
+              "reason": "The source says each of `eventBusArn`, `eventBusName`, and `useDefaultBus` must be used only one at a time when specified, but it does not explicitly state that exactly one is required. All three properties are optional in the TypeScript type.",
+              "suggestedFix": "Write narrowly: “Choose one of `eventBusName`, `eventBusArn`, or `useDefaultBus` when binding to a bus.” Avoid “exactly one” unless a validator source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "eventBusArn?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "eventBusName?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "useDefaultBus?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without `onDeliveryFailure`, events that fail delivery are retried by EventBridge for up to 24 hours … and then dropped permanently.”",
+              "reason": "The provided source documents only that `onDeliveryFailure` specifies an SQS queue for failed events. It does not state retry duration, default retry behavior, or final drop behavior for Stacktape-configured EventBridge targets.",
+              "suggestedFix": "Either remove the retry-duration sentence or frame it as AWS EventBridge background with an external AWS source if the page allows external grounding. Keep the Stacktape-specific instruction to configure `onDeliveryFailure` for failed-event capture.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "A destination for events that fail to be delivered to the target."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "This property specifies an SQS queue where failed events will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Lambda functions and batch jobs use the same `EventBusIntegration` class in their `events` array.”",
+              "reason": "The provided source comment explicitly mentions triggering a batch job, but it does not show the resource-level `events` arrays for Lambda functions or batch jobs. The claim is likely true in broader types, but not fully grounded by this source list.",
+              "suggestedFix": "If no LambdaFunctionProps or BatchJobProps source is available for this page, soften to: “Use `EventBusIntegration` in resources that expose event-bus integrations.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The function receives `{\"message\":\"Order 12345 placed by Jane.\"}`…”",
+              "reason": "The source documents placeholder substitution for `inputTransformer`, but the specific values `12345` and `Jane` are illustrative and not derived from a shown incoming event. This could be read as a deterministic output from the example without showing the input event.",
+              "suggestedFix": "Add “For an incoming event whose `detail.orderId` is `12345` and `detail.customerName` is `Jane`, the function receives…”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML examples.",
+            "The `eventPattern`, `input`, `inputPath`, `inputTransformer`, `eventBusArn`, `eventBusName`, `useDefaultBus`, and `onDeliveryFailure` properties are real properties in the provided `EventBusIntegrationProps` source.",
+            "The draft correctly describes the documented event-pattern fields: `version`, `detail-type`, `source`, `account`, `region`, `resources`, `detail`, and `replay-name`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the important EventBusIntegrationProps surface well: event bus source selection, eventPattern, payload transformation, and delivery-failure routing are all documented with focused examples. The main API-completeness concern is that the page introduces an SQS-specific EventBridge integration class and target support that are not visible in the provided source file.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“SQS queues use a specialized variant that adds `messageGroupId` support — required when the target queue has `fifoEnabled: true`…”",
+              "reason": "The provided source file defines `EventBusIntegration` and `EventBusIntegrationProps`, but does not define `SqsQueueEventBusIntegration`, `messageGroupId`, or an SQS-specific event-bus integration variant. Because the page’s source list only includes `events.d.ts`, this target/class claim is not grounded in the provided API surface.",
+              "suggestedFix": "Remove the SQS-specific class/table row unless another source file proves it. If SQS target support is documented elsewhere, add that source to the page input; otherwise narrow the page to the sourced `EventBusIntegration` behavior for function/batch targets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegration {\n  type: 'event-bus';\n  properties: EventBusIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationProps {\n  eventBusArn?: string;\n  eventBusName?: string;\n  useDefaultBus?: boolean;\n  eventPattern: EventBusIntegrationPattern;\n  onDeliveryFailure?: EventBusOnDeliveryFailure;\n  input?: any;\n  inputPath?: string;\n  inputTransformer?: EventInputTransformer;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft mentions every important property on `EventBusIntegrationProps`: `eventBusArn`, `eventBusName`, `useDefaultBus`, `eventPattern`, `onDeliveryFailure`, `input`, `inputPath`, and `inputTransformer`.",
+            "The draft acknowledges all documented payload transformation variants and states that `input`, `inputPath`, and `inputTransformer` are mutually exclusive, matching the source comments.",
+            "The examples are demonstrative: event-source examples set `eventBusName`, `useDefaultBus`, or `eventBusArn`; pattern examples set `eventPattern`; transformation examples set `inputTransformer`; delivery-failure examples set `onDeliveryFailure`.",
+            "The event pattern section covers all fields exposed by `EventBusIntegrationPattern`: `version`, `detail-type`, `source`, `account`, `region`, `resources`, `detail`, and `replay-name`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__event-bus-events\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Strong 'When to use' / 'When NOT to use' pairing with a comparison table covering concrete alternatives (SQS, SNS, Kinesis) and the specific reasons to prefer each — exactly the decision support the target reader needs.",
+            "All three bus-selection options (eventBusName, eventBusArn, useDefaultBus) are documented with separate working code examples and a clear table stating when to use each. No option is left as a one-liner.",
+            "The event-pattern field table is accurate against the EventBusIntegrationPattern source type and explains the AND/OR matching logic explicitly — a non-obvious behavior that will save readers confusion.",
+            "Delivery failure handling includes a realistic dead-letter-queue example and a <Tip> callout recommending an alarm on the DLQ. The 'without DLQ' consequence is stated clearly.",
+            "FAQ covers all three required categories (Stacktape-specific: useDefaultBus, payload transformation; AWS service: EventBridge pricing, retry behavior, max event size; comparison: EventBridge vs SQS, EventBridge vs SNS). Ten Q&A pairs, none padded.",
+            "ApiReference uses definitionName='EventBusIntegrationProps', which matches the source type interface name exactly. Exactly one <ApiReference> block on the page.",
+            "No mandatory style violations: no fenced YAML Stacktape config, no StacktapeConfig type import, no fenced TypeScript blocks with defineConfig, no YAML alternative tabs, no marketing language.",
+            "Code examples use the correct focus-marker pattern (// [!code focus-start] / focus-end) and all imports include the Stacktape class names verified by the source (EventBus, EventBusIntegration, SqsQueue, StacktapeLambdaBuildpackPackaging)."
+          ],
+          "problems": [
+            "Per-variant depth imbalance in the Payload Transformation section: `inputTransformer` gets a full working code example with an explanation of placeholders and a concrete before/after payload, while `input` and `inputPath` each get only 2-3 sentences of prose. The source defines all three as mutually exclusive peers and the reader needs equal guidance to make the right choice. This violates the per-variant equal depth guideline.",
+            "The 'Without onDeliveryFailure, AWS EventBridge retries failed deliveries for up to 24 hours by default' claim in the main body is stated as a plain fact with no qualification or link. It's accurate AWS behavior, but the source JSDoc doesn't surface retry duration details — placing it in body prose rather than the FAQ (where well-known AWS facts are explicitly allowed without source grounding) exposes it to source-grounding flags on future audits."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short code example for the `inputPath` variant (e.g., `inputPath: '$.detail'`) inside the Payload Transformation section so it reaches the same depth as the `inputTransformer` example. One minimal <CodeBlock intellisense> showing just the integration object with inputPath set would suffice.",
+            "Add a short code example for the `input` fixed-payload variant alongside its prose description. Even a four-line EventBusIntegration snippet with `input: { task: 'processOrders' }` gives the reader something to copy rather than having to infer the property placement.",
+            "Move the '24-hour retry' claim into the FAQ answer for 'What happens if event delivery fails?' (where well-known AWS facts are explicitly allowed) and replace the main-body sentence with a source-grounded equivalent: 'Without `onDeliveryFailure`, events that cannot be delivered are eventually dropped.' This eliminates the source-grounding risk without losing the information.",
+            "The `version` row in the event pattern field table ('Filter by event schema version') is rarely used and adds noise without context. Consider replacing it with a short note below the table explaining that all fields are optional and unspecified fields act as wildcards, which is the more important concept for new readers.",
+            "The section human-maintained instructions say 'Document the event payload shape only when it is non-obvious or differs from the AWS default.' The page doesn't document the raw EventBridge envelope shape (source, account, time, detail-type, detail, region) that the function receives before any transformation. A short JSON snippet showing the envelope structure would help readers understand what `$.detail` in inputPath actually extracts."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "The 'When NOT to use' comparison table directly answers a real decision question and names better alternatives with links — exactly what a production engineer needs before committing to an event bus.",
+            "All three bus-selector variants (eventBusName, eventBusArn, useDefaultBus) are documented with distinct examples and clear when-to-use signals, satisfying the union-type coverage requirement.",
+            "All three payload transformation options (input, inputPath, inputTransformer) are treated with equal depth: prose rationale, working example, and concise mechanics. The inputTransformer example is concrete with named placeholder variables.",
+            "The source-derived EventBusIntegrationPattern field table maps all eight fields from the type definition (version, detail-type, source, account, region, resources, detail, replay-name) to purpose and example values.",
+            "FAQ spans all three required categories: Stacktape-specific (useDefaultBus, env vars), AWS service mechanics (pricing, retry window, max size), and comparison questions (vs SQS, vs SNS) — strong AEO posture.",
+            "No mandatory style violations detected: all Stacktape config examples use CodeBlock intellisense, no YAML config blocks, no StacktapeConfig type import, single ApiReference with correct definitionName (EventBusIntegrationProps)."
+          ],
+          "problems": [
+            "The source JSDoc for EventBusIntegration reads 'Triggers a batch job when an event matching a specified pattern is received by an event bus.' The page primarily shows Lambda function examples, which may or may not be supported — the source is ambiguous. The page's claim that the integration works with 'Lambda functions and batch jobs' is unverified from the provided source. If Lambda is not supported, every code example is wrong. If it is supported, the JSDoc is misleading. The page should either hedge this claim or confirm it via the Lambda function type definition (not included in source files).",
+            "The content-based filtering section states the numeric operator example fires 'only for OrderPlaced events where detail.amount exceeds 1000'. The advanced EventBridge operator syntax (e.g. { numeric: ['>', 1000] }) is passed through as `any` in the source type, so the page is teaching EventBridge pattern syntax rather than Stacktape-specific behavior. This is fine context, but the page doesn't explicitly note that `detail` accepts arbitrary EventBridge pattern syntax — a reader might not realize the depth of operator support without the external link.",
+            "No explicit mention that EventBridge delivery is at-most-once with no batch acknowledgment semantics — unlike SQS or Kinesis where failed processing causes redelivery. A reader migrating from SQS may assume EventBridge re-delivers on Lambda error; it does not (failures go to DLQ only if configured). This is a meaningful production gotcha that belongs in the delivery failure section."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the 'Delivery failure handling' section, add a sentence clarifying that EventBridge does not retry on Lambda invocation errors (throttles or function errors) the way SQS does — failed Lambda invocations go directly to the DLQ. Without this, readers from queue-based architectures will assume retry-on-error behavior they won't get.",
+            "The inputTransformer angle-bracket placeholder syntax (<orderId>, <customer>) is EventBridge's template format, not HTML. Add a one-sentence note immediately after the template example: 'Angle-bracket placeholders (<orderId>) are EventBridge's template syntax — they are replaced by the values extracted in inputPathsMap.' Without this, TypeScript developers may be confused about whether these are JSX fragments or template literals.",
+            "Clarify or hedge the claim that EventBusIntegration works with Lambda functions. The provided source JSDoc says 'Triggers a batch job when...'. If the Lambda function type definition also accepts event-bus integrations, a cross-reference would ground the claim. If not, the examples are targeting the wrong resource type. Either add a note sourcing the Lambda support or adjust the primary example to use BatchJob.",
+            "Add one sentence noting that EventBridge does not guarantee event ordering — events from the same source can arrive out of order. This is a common footgun when developers use EventBridge for workflows that implicitly depend on sequence (e.g., OrderPlaced before OrderShipped). A one-liner in 'When NOT to use' or the FAQ would prevent a class of production bugs.",
+            "The 'Event patterns' section explains matching logic (OR within a field, AND across fields) but the explanation is in bold rather than a callout or table. Consider a compact table: Field | Logic | Example. This would be more scannable and citation-friendly than the current bold-paragraph form."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is self-contained, within the target length, and clearly explains Stacktape event bus events through EventBridge.",
+            "The page uses short H2 headings, realistic CodeBlock-based Stacktape config examples, and exactly one ApiReference with the correct definition name.",
+            "The event source choice table is useful and accurately reflects the three mutually exclusive source properties from EventBusIntegrationProps.",
+            "Payload transformation covers all three mutually exclusive options: input, inputPath, and inputTransformer.",
+            "FAQ coverage is broad and includes Stacktape-specific, AWS use-case, and comparison questions."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source file: EventBridge pricing, default-bus pricing/free behavior, 24-hour retry duration, 256 KB event size limit, cross-region routing, and statements that specific AWS services automatically land on the default bus.",
+            "The page says event bus triggers target “compute resources” and later names Lambda functions and batch jobs, but the source only states the EventBusIntegration interface triggers a batch job while the type is also shown as an event integration; the exact supported target list is not established by this source alone.",
+            "The draft states “You must specify only one” of eventBusArn, eventBusName, or useDefaultBus correctly, but it does not explain what happens if none is specified; the source is silent, so the wording should stay narrow rather than imply a complete validation model.",
+            "The Delivery failure section overstates behavior beyond the source by saying EventBridge retries for up to 24 hours and drops events afterward; the source only supports that onDeliveryFailure can send failed events to SQS in rare delivery-failure cases.",
+            "The Tip about creating an alarm on DLQ message count is practical, but alarms are not present in the provided source file for this page, so it is not source-grounded here.",
+            "The page contains many examples for one concept despite the section instruction saying to use a single short example per concept; the examples are useful, but the page may be heavier than intended for a conceptual trigger page.",
+            "Some AWS EventBridge facts are written as definitive Stacktape-page guidance without source support, especially in FAQ answers where specific cost and service-default statements may drift."
+          ],
+          "mandatoryFixes": [
+            "Remove or explicitly source-ground unsupported concrete claims: EventBridge pricing, free default-bus events, 24-hour retry duration, 256 KB event size limit, cross-region routing, and the named list of AWS services that automatically emit to the default bus.",
+            "Rewrite Delivery failure handling to match the source: EventBusIntegrationProps supports onDeliveryFailure with sqsQueueName or sqsQueueArn for rare failed deliveries; do not state retry duration or final drop behavior unless that source is provided.",
+            "Narrow supported-target wording to what the provided source supports, or add the missing source that proves Lambda functions and batch jobs both accept EventBusIntegration.",
+            "Remove the DLQ alarm Tip or provide a page source that grounds Stacktape alarm configuration for this trigger page.",
+            "Recheck every non-obvious AWS fact in FAQ and either keep it as clearly general AWS context without Stacktape-specific framing or remove the unsupported numbers and guarantees."
+          ],
+          "optionalImprovements": [
+            "Condense the number of CodeBlock examples. Keep the canonical basic binding example, then use smaller property snippets or prose for default bus, external bus, transformations, and DLQ behavior.",
+            "Add one short paragraph under Basic example showing the handler receives the EventBridge event envelope by default, because the page discusses payload transformation later.",
+            "Add a compact table for payload transformation modes: input, inputPath, inputTransformer, when to use, and tradeoff.",
+            "Tighten “When NOT to use” by removing unsupported claims such as SQS built-in deduplication unless the SQS trigger source for that page is available.",
+            "Consider moving the API reference closer to the property-heavy sections so readers can jump from conceptual guidance to exact fields more quickly."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided EventBusIntegration source: it uses TypeScript CodeBlock examples, documents the required eventPattern, covers the three bus selectors, covers the mutually exclusive payload input options, and uses the correct ApiReference name. The main issues are unsupported Stacktape-specific operational claims and pricing/detail claims that are not present in the provided source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“EventBridge charges per event published to a custom bus — approximately $1 per million events in most regions. Events from AWS services to the default bus are free. There is no charge for rules, pattern evaluation, or event delivery to targets.”",
+              "reason": "The provided source file contains EventBusIntegration configuration types but no pricing data. The pricing rules say not to invent or estimate AWS list prices when concrete pricing is not present in the provided source files.",
+              "suggestedFix": "Remove the concrete price and free/no-charge claims, or replace them with cautious pricing-model wording such as: “EventBridge pricing is event-based; check AWS pricing for your AWS region before using EventBridge for high-volume workloads.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationProps {\n  /**\n   * #### The ARN of an existing event bus.\n   *\n   * ---\n   *\n   * Use this to subscribe to an event bus that is not managed by your stack.\n   * You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`.\n   */\n  eventBusArn?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“SQS queue trigger — configurable batch sizes, visibility timeouts, built-in deduplication”",
+              "reason": "The provided SqsIntegration source supports batch size and batch window settings. It does not document visibility timeout configuration or deduplication as SQS trigger features on this page’s source list.",
+              "suggestedFix": "Narrow the comparison to sourced trigger behavior: “SQS queue trigger — configurable batch sizes and batch windows for point-to-point processing.” Mention visibility timeout or deduplication only on a page with SQS queue resource source backing.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "  /**\n   * #### The maximum number of records to process in a single batch.\n   *\n   * ---\n   *\n   * Maximum is 10,000.\n   *\n   * @default 10\n   */\n  batchSize?: number;\n  /**\n   * #### The maximum time (in seconds) to wait before invoking the function with a batch of records.\n   *\n   * ---\n   *\n   * Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.\n   */\n  maxBatchWindowSeconds?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape's `EventBusIntegration` lets you wire EventBridge rules to your compute resources declaratively — without managing IAM policies, rule targets, or delivery configurations by hand.”",
+              "reason": "The source supports configuring the event bus selector, event pattern, delivery failure destination, and payload transformation. It does not mention IAM policy management, so the IAM portion is not grounded in the provided source.",
+              "suggestedFix": "Replace with a source-grounded sentence: “Stacktape's `EventBusIntegration` lets you define the bus, event pattern, optional delivery-failure queue, and optional payload transformation in Stacktape config.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "  /**\n   * #### A destination for events that fail to be delivered to the target.\n   *\n   * ---\n   *\n   * In rare cases, an event might fail to be delivered. This property specifies an SQS queue where failed events will be sent.\n   */\n  onDeliveryFailure?: EventBusOnDeliveryFailure;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use <CodeBlock intellisense> with a TypeScript tab and do not hand-author YAML.",
+            "The draft correctly states that exactly one of eventBusArn, eventBusName, or useDefaultBus must be specified.",
+            "The draft correctly treats eventPattern as required and documents the pattern fields present in EventBusIntegrationPattern.",
+            "The draft correctly documents input, inputPath, and inputTransformer as mutually exclusive payload options.",
+            "The ApiReference uses EventBusIntegrationProps, which matches the provided type name."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided EventBusIntegrationProps source, especially around event bus selection, required eventPattern, input/inputPath/inputTransformer exclusivity, and SQS delivery-failure destinations. The main factual risk is that several Stacktape-specific claims go beyond the provided source, especially Lambda support, default-bus behavior, delivery retry duration, and pricing specifics.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape event bus events trigger compute resources…” and the examples repeatedly show `EventBusIntegration` triggering `LambdaFunction` resources; the draft also says EventBusIntegration is used by “Lambda functions and batch jobs.”",
+              "reason": "The provided Stacktape source only documents EventBusIntegration as triggering a batch job. It does not show LambdaFunction event support for event-bus integrations in the supplied source file. Because the page’s examples and core guidance depend on Lambda support, this needs either source backing from Lambda event types or narrower wording/examples grounded in the provided source.",
+              "suggestedFix": "Either add the authoritative LambdaFunction/BatchJob event type source to the source list, or rewrite the page to avoid claiming Lambda support from this source alone. If Lambda support is intended and type-checks elsewhere, cite that source in the generation input.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a batch job when an event matching a specified pattern is received by an event bus."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Use `useDefaultBus` to tap into [AWS service events]”; “Every AWS account has a default event bus that receives events from AWS services automatically”; “You do not need to create an event bus resource.”",
+              "reason": "The Stacktape source only says `useDefaultBus` uses the default AWS event bus and must be mutually exclusive with the other bus selectors. It does not state that AWS service events arrive there automatically or that no event bus resource is needed. General AWS background is allowed, but the draft frames this as Stacktape configuration behavior readers act on.",
+              "suggestedFix": "Keep the sourced Stacktape claim narrow: “Set `useDefaultBus: true` to bind the integration to the default AWS event bus.” If retaining AWS-service-event guidance, frame it as AWS EventBridge background and avoid claiming Stacktape-specific behavior not shown in source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Uses the default AWS event bus.\n   *\n   * ---\n   *\n   * You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Without `onDeliveryFailure`, AWS EventBridge retries failed deliveries for up to 24 hours by default before dropping the event.” The FAQ repeats “AWS EventBridge retries failed delivery for up to 24 hours by default.”",
+              "reason": "The provided Stacktape source documents only that failed events can be sent to an SQS queue through `onDeliveryFailure`. It does not provide retry duration, retry defaults, or drop behavior. This is a specific behavioral claim that affects whether readers configure a DLQ.",
+              "suggestedFix": "Replace with a source-grounded statement: “`onDeliveryFailure` specifies an SQS queue where failed events are sent.” If you want to discuss EventBridge retry duration, include an authoritative source in the source list or link it as AWS background without presenting it as Stacktape-source-grounded behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A destination for events that fail to be delivered to the target.\n   *\n   * ---\n   *\n   * In rare cases, an event might fail to be delivered. This property specifies an SQS queue where failed events will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“EventBridge charges per event published to a custom bus — approximately $1 per million events in most regions. Events from AWS services to the default bus are free. There is no charge for rules, pattern evaluation, or event delivery to targets.”",
+              "reason": "The provided source files contain no pricing data. Pricing rules say to include concrete pricing only when present in provided source files and not to invent or estimate AWS list prices that are not present. The general pricing model may be useful, but the specific dollar amount and “no charge” assertions are not sourced here.",
+              "suggestedFix": "Remove the concrete price and no-charge assertions, or replace with non-numeric pricing guidance such as “EventBridge pricing is primarily event-volume based; check current AWS EventBridge pricing for your region.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationProps {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Payloads larger than 256 KB” and FAQ “EventBridge accepts events up to 256 KB.”",
+              "reason": "The 256 KB EventBridge payload limit is not present in the provided Stacktape source. Although this is a general AWS fact, the prompt’s pricing/limits discipline asks for concrete numbers from source when used as limits. This number directly changes design guidance.",
+              "suggestedFix": "Either include AWS EventBridge documentation as an allowed source or keep the guidance qualitative: “For large payloads, store the data in S3 and pass a reference.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationPattern {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `detail` field … supports prefix, suffix, numeric, and exists operators”; later: “others include `prefix`, `suffix`, `anything-but`, and `exists`.”",
+              "reason": "The provided Stacktape source says `detail` supports nested matching, prefix/suffix, and numeric comparisons. It does not mention `exists` or `anything-but`. The draft may be correct AWS syntax, but those specific operators are not grounded in the provided source.",
+              "suggestedFix": "Limit the operator list to the source-backed examples: nested matching, prefix/suffix, and numeric comparisons. Link to AWS EventBridge docs for the full syntax without enumerating unsupported operators from Stacktape source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Filter by event payload content. Supports nested matching, prefix/suffix, numeric comparisons."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Within a single field, the event matches if its value equals any value in the array (OR logic). Across fields, all specified fields must match (AND logic).”",
+              "reason": "The source only says the event pattern filters events and points to AWS EventBridge event pattern documentation. It does not spell out OR/AND matching semantics. The claim is likely AWS-accurate, but not grounded in the provided Stacktape source.",
+              "suggestedFix": "Either remove the detailed matching semantics or explicitly attribute them to AWS EventBridge pattern behavior and rely on the AWS docs link for the full syntax.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A pattern to filter events from the event bus.\n   *\n   * ---\n   *\n   * Only events that match this pattern will trigger the target.\n   * For details on the syntax, see the [AWS EventBridge documentation on event patterns](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says `eventBusName` references an event bus “by its resource name,” and code uses `eventBusName: 'orderBus'` while creating `const orderBus = new EventBus({})`.",
+              "reason": "The source says `eventBusName` is “the name of an event bus defined in your stack's resources,” but it does not define whether that means the JavaScript variable name, the key inside `resources`, or a separate configured name. The example is likely valid in Stacktape’s class-based config style, but this source alone is ambiguous.",
+              "suggestedFix": "Use cautious wording: “Use the resource key/name from your Stacktape resources map.” Keep the example only if the deterministic code-block validator confirms the class-based reference is accepted.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly states that exactly one of `eventBusArn`, `eventBusName`, or `useDefaultBus` should be specified, matching the source comments for all three properties.",
+            "The draft correctly documents `eventPattern` as required and as the filter controlling which events trigger the target.",
+            "The draft correctly covers the three mutually exclusive payload options: `input`, `inputPath`, and `inputTransformer`.",
+            "The draft correctly documents `onDeliveryFailure` as an SQS destination with either `sqsQueueName` or `sqsQueueArn`.",
+            "The draft uses valid documentation routes for internal links and uses `<ApiReference definitionName=\"EventBusIntegrationProps\" />` with the correct Props suffix."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the important EventBusIntegrationProps surface: bus selection, required eventPattern, delivery failure handling, and all three payload transformation options. I found no API-completeness, union-variant, or demonstrativeness issues that should block publication from this auditor’s scope.",
+          "issues": [],
+          "positiveFindings": [
+            "All primary EventBusIntegrationProps properties are mentioned: eventBusArn, eventBusName, useDefaultBus, eventPattern, onDeliveryFailure, input, inputPath, and inputTransformer.",
+            "The documented mutually exclusive bus selector variants are all named and explained.",
+            "The documented mutually exclusive payload transformation variants are all named and differentiated.",
+            "The configuration examples are demonstrative: event source examples set the relevant bus selector, the event pattern example uses detail filtering, and the delivery failure example sets onDeliveryFailure.",
+            "The page uses the required ApiReference definitionName=\"EventBusIntegrationProps\" rather than a bare class name."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\event-bus-events.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 8.2, hard blockers 3, advisory high 0, verifier medium 13"
+}

@@ -1,0 +1,774 @@
+{
+  "pageId": "configuration__triggers__schedule-triggers",
+  "pageRoute": "configuration/triggers/schedule-triggers",
+  "startedAt": "2026-05-17T10:02:11.609Z",
+  "updatedAt": "2026-05-17T10:20:05.700Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__schedule-triggers\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Self-contained opening paragraph clearly explains what schedule triggers are and why they matter, with a concrete list of use cases that a first-time reader can immediately relate to.",
+            "Rate and cron expression tables are excellent scannable reference material — the field breakdown table and example-to-description table both serve the copy-paste audience well.",
+            "Code examples use the correct <CodeBlock intellisense tabs={[...]} /> format throughout; application code (Lambda handler) correctly uses a fenced typescript block instead. No forbidden YAML or StacktapeConfig patterns found.",
+            "Multiple realistic, themed code examples (daily cleanup, weekday report, incremental + full sync) give the reader a progression rather than repeating the same stub. The `multiple schedules` example showing `input` to distinguish modes is particularly practical.",
+            "\"When to use\" and \"When NOT to use\" are correctly placed as peer H2 sections, not nested. The when-not guidance concretely names specific alternatives (SQS, Kinesis, state machine) rather than being vague.",
+            "The Warning callout for mutually exclusive `input` / `inputPath` / `inputTransformer` prevents a real gotcha that would only surface at deploy time.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS use-case, comparison/choosing) across 10 questions. The concurrency overlapping invocations answer is especially practical — names the concrete solution (reserved concurrency + DynamoDB lock)."
+          ],
+          "problems": [
+            "Per-variant equal depth failure: `inputPath` has no code example and only two sentences, while `input` and `inputTransformer` each have a full code example plus explanatory prose. The documentation quality rules require roughly equivalent depth per variant. Either add a minimal example or explicitly state that `inputPath` is not recommended for schedule triggers and fold it into a single-paragraph note rather than a sub-heading.",
+            "Ungrounded Stacktape-specific claim in the FAQ: 'Stacktape resolves directives like `$Secret()` and `$ResourceParam()` inside the `input` and `inputTransformer.inputTemplate` properties.' The provided source file (`events.d.ts`) is silent on this — the type is `any` with no directive-resolution documentation. If this is real behavior, it should be grounded in source; if uncertain, the FAQ answer should be removed or softened.",
+            "Ungrounded Stacktape-specific claim: 'Stacktape validates the expression at deploy time and fails with a clear error if the syntax is invalid.' The source file defines the interface but does not document runtime validation. Remove or replace with a cautious 'AWS EventBridge rejects invalid expressions when the rule is created.'",
+            "Ungrounded implementation detail claim: 'When a schedule fires on a batch job, Stacktape uses an internal trigger function to submit the job to AWS Batch.' The source file does not describe this mechanism. Remove or reword as 'Schedule triggers on batch jobs are supported with the same `ScheduleIntegration` syntax.`",
+            "No `<ApiReference definitionName=\"ScheduleIntegrationProps\" />` on the page. The source type `ScheduleIntegrationProps` exists with documented properties (`scheduleRate`, `input`, `inputPath`, `inputTransformer`). An ApiReference at the bottom would let readers explore all options without relying entirely on the inline prose coverage."
+          ],
+          "mandatoryFixes": [
+            "Add a code example for the `inputPath` variant to match the depth of the `input` and `inputTransformer` sections, or collapse the `inputPath` sub-heading into a one-paragraph note (without its own H3) explaining it is rarely useful for schedule events and why — the current state of having a dedicated H3 with no example implies false equivalence with the other two variants while giving the reader nothing actionable.",
+            "Remove or source-ground the FAQ claim that Stacktape resolves `$Secret()` and `$ResourceParam()` directives inside `input` and `inputTransformer.inputTemplate`. The provided `events.d.ts` source is silent on this behavior. Publishing an unsupported Stacktape-specific claim creates reader trust issues when it turns out to be wrong or only partially true."
+          ],
+          "optionalImprovements": [
+            "Add `<ApiReference definitionName=\"ScheduleIntegrationProps\" />` at the bottom of the page so readers can explore all properties without requiring a separate docs lookup.",
+            "Replace the 'Stacktape validates the expression at deploy time' claim with a factually conservative alternative: state that AWS EventBridge rejects malformed expressions when the CloudFormation rule is created, which surfaces as a deployment error. This is an AWS-layer fact rather than a Stacktape-specific claim.",
+            "Remove or reword the 'internal trigger function' batch job claim. If the mechanism is real and grounded elsewhere in source, link to the batch job docs page where it would be explained. Otherwise just say 'Batch jobs support schedule triggers with the same `ScheduleIntegration` syntax.'",
+            "The monitoring section mentions the Stacktape Console for viewing logs, metrics, and invocation history. Since no console-app source files were provided, this is an inferred claim about Console behavior. Soften to 'You can also view logs and metrics in the Stacktape Console' with a link, without asserting specific screen content (invocation logs, error rates, duration metrics)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Rate vs cron comparison with concrete tables is genuinely useful — the 6-field vs 5-field AWS cron distinction and the `?` wildcard constraint are the exact things developers get wrong, and the page explains them clearly.",
+            "The multiple-schedules + `input` pattern (incremental vs full sync) is a realistic, copyable use case that solves a real problem and demonstrates the feature's value beyond the basic example.",
+            "When NOT to use section is opinionated and concrete — it names specific alternatives (SQS, DynamoDB Streams, Kinesis, state machines) rather than giving generic advice.",
+            "The Warning callout about `input`/`inputPath`/`inputTransformer` mutual exclusivity is exactly the kind of gotcha an engineer will hit in production — well placed.",
+            "FAQ breadth is good: mixes Stacktape-specific, AWS behavioral, and choosing/comparison questions, which aligns with AEO guidance."
+          ],
+          "problems": [
+            "Missing `<ApiReference definitionName=\"ScheduleIntegrationProps\" />` entirely. The page rhythm requires exactly one ApiReference component; its absence means the full property surface (including `inputPath`, all transformer sub-properties) is undiscoverable unless the reader reads prose carefully.",
+            "Unsupported claim in FAQ: 'Can I use Stacktape directives in the input payload? Yes. Stacktape resolves directives like `$Secret()` and `$ResourceParam()` inside the `input` and `inputTransformer.inputTemplate` properties.' The source (`ScheduleIntegrationProps.input?: any`, `inputTransformer?: EventInputTransformer`) is typed as `any` and contains no mention of directive resolution. This is a Stacktape-specific behavioral claim not grounded in the source.",
+            "Unsupported claim: 'Stacktape validates the expression at deploy time and fails with a clear error if the syntax is invalid.' The source `ScheduleIntegrationProps.scheduleRate: string` has no JSDoc or validator annotation confirming client-side validation. This may be AWS CloudFormation validation, not Stacktape-side — the distinction matters.",
+            "Unsupported claim about batch jobs: 'When a schedule fires on a batch job, Stacktape uses an internal trigger function to submit the job to AWS Batch.' The source file shows `ScheduleIntegration` only in the context of Lambda events; no batch job mechanism or internal trigger function is mentioned in the provided source.",
+            "No failure/retry behavior documented. For scheduled Lambda invocations, the important production concern is: what happens when the invocation fails? AWS Lambda retries failed invocations twice by default for asynchronous invocation (which EventBridge uses). A developer setting up critical periodic jobs needs this context."
+          ],
+          "mandatoryFixes": [
+            "Add `<ApiReference definitionName=\"ScheduleIntegrationProps\" />` to the page. The page has no API reference component at all. Place it at the bottom or after the Event payload customization section so the reader can look up the full property surface after reading the prose sections.",
+            "Remove the FAQ entry 'Can I use Stacktape directives in the input payload?' or replace it with a cautious, non-assertive statement. The source does not confirm that Stacktape resolves `$Secret()` or `$ResourceParam()` inside `input` or `inputTransformer.inputTemplate`. Asserting this as a 'Yes' is a Stacktape-specific behavioral claim that will mislead engineers who try it.",
+            "Remove or narrow the deploy-time validation claim ('Stacktape validates the expression at deploy time and fails with a clear error'). The source types `scheduleRate` as `string` with no validation annotation. If this is AWS CloudFormation behavior, say so explicitly ('CloudFormation rejects invalid schedule expressions during stack creation') rather than attributing it to Stacktape.",
+            "Remove the 'internal trigger function' claim for batch jobs ('Stacktape uses an internal trigger function to submit the job to AWS Batch'). This architectural implementation detail is not in the source file. Simplify to 'Batch jobs also support schedule triggers with the same `ScheduleIntegration` syntax' without describing the underlying mechanism."
+          ],
+          "optionalImprovements": [
+            "Add a brief note on Lambda retry behavior for failed scheduled invocations (EventBridge triggers Lambda asynchronously; Lambda retries failed invocations twice by default). Engineers running critical periodic jobs need to know this and consider a DLQ or `onFailure` destination at the Lambda level.",
+            "The `inputPath` sub-section is noticeably thin ('For schedule events this is less common since the default payload is small, but it works when you only need a specific field like the event time.') — it correctly signals low value but has no example at all. Consider either adding a one-liner example or explicitly saying 'skip this option for schedule triggers; use `input` or `inputTransformer` instead.'",
+            "Section instructions say 'Use a single short example per concept' — the page has three full `<CodeBlock>` examples before the event payload section. Consider consolidating the cron format example into the rate/cron comparison table prose rather than a second standalone CodeBlock, to keep the page's example density aligned with the section guidance.",
+            "The FAQ answer about concurrent execution ('set the Lambda function's reserved concurrency to 1 so the second invocation gets throttled') is accurate but incomplete — throttled invocations for async triggers go to Lambda's internal retry queue, not a DLQ, which can cause the job to eventually run when concurrency frees up. Clarify the throttle behavior or link to Lambda concurrency docs."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first opening paragraph is self-contained, concrete, and correctly names the AWS backing service (EventBridge). Ideal for AI extraction.",
+            "Rate and cron expression tables are highly scannable and fact-dense — exact field names, wildcard support, UTC note, and worked examples all in one place.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript'. No forbidden YAML blocks or StacktapeConfig type imports anywhere.",
+            "Multiple-schedules pattern with differentiated `input` payloads (incremental vs full sync) is a realistic, copy-paste-ready production scenario.",
+            "FAQ covers all three required categories: Stacktape-specific ('Can I use a custom domain?'), AWS-behavior ('Does a schedule cost anything when idle?'), and comparison/choosing ('Web service vs Lambda for scheduled work?'). 10 entries, quality consistently high.",
+            "When to use / When NOT to use are correctly peer H2 sections, not nested. Sub-minute granularity limitation is called out explicitly.",
+            "Handler example with typed `ScheduledHandler` import is practical and completes the end-to-end picture.",
+            "Decision support for the Rate vs Cron choice is embedded in prose and reinforced with the <Tip> callout — reader can decide, not just copy.",
+            "Monitoring section correctly uses `stacktape debug:logs` (not the invented `stacktape logs`) and links to `/cli/debug-logs`."
+          ],
+          "problems": [
+            "Per-variant depth violation on the three input customization options: `input` and `inputTransformer` each have a code example and several sentences of explanation; `inputPath` gets only two sentences and no example. The guidance says all variants of a union property should be developed to roughly equivalent depth.",
+            "Tunable Lambda properties `memory: 512`, `timeout: 300`, and `timeout: 900` appear in config examples without any prose explaining what they control, what the valid ranges are, or why those specific values were chosen. The reader cannot tell if these are defaults, minimums, or arbitrary choices.",
+            "The `inputPath` subsection notes it is 'less common since the default payload is small', but the only use case given ('just the event time') is not illustrated with a code example. The section ends without the reader being able to copy anything."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a minimal code example to the `inputPath` subsection (e.g., `inputPath: '$.time'` extracting only the schedule fire time) so all three input customization variants have working examples at comparable depth.",
+            "Add one or two sentences before the basic example explaining that `memory` and `timeout` are Lambda function properties — with a brief note on typical ranges for scheduled background jobs and a link to the Lambda function page for the full property set.",
+            "Consider adding `<ApiReference definitionName=\"ScheduleIntegrationProps\" />` at the bottom of the page. Even for conceptual trigger pages, the API reference gives the reader a single authoritative lookup for all properties (e.g., `inputPath`, `inputTransformer`) without duplicating prose.",
+            "The `inputPath` section could note that it accepts any valid JSONPath expression (e.g., `$.time`, `$.account`) and not just `$.detail`, since readers may assume it only works on EventBridge custom event detail fields.",
+            "The 'Monitoring scheduled functions' section only covers CLI and Console. Consider adding one sentence about CloudWatch Metrics (invocation count, error count, duration) as an alternative signal for silent failures — scheduled tasks that run successfully but produce no useful output are harder to catch with logs alone."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The draft is well-structured and largely grounded in the source type definitions. The ScheduleIntegration interface, its properties (scheduleRate, input, inputPath, inputTransformer), and the EventInputTransformer type are all correctly represented. Schedule format documentation (rate and cron expressions) aligns with the JSDoc examples. The mutually exclusive constraint on input/inputPath/inputTransformer is correctly stated. A few claims go beyond what the provided source supports — particularly about batch job internals, directive resolution behavior, and JSON-type restrictions not present in the type definitions.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Yes. Stacktape resolves directives like `$Secret()` and `$ResourceParam()` inside the `input` and `inputTransformer.inputTemplate` properties.",
+              "reason": "This is a Stacktape-specific behavioral claim about directive resolution inside schedule trigger payloads. The provided source file (events.d.ts) defines `input?: any` and `inputTemplate: any` but says nothing about Stacktape directive resolution within these properties. This claim could lead a reader to rely on directive resolution in a context where it may not work.",
+              "suggestedFix": "Remove this FAQ entry, or soften to 'Stacktape directives can generally be used in configuration properties — check the directives documentation for supported contexts' with a link to /configuration/directives.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "input?: any;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Batch jobs also support schedule triggers with the same syntax. When a schedule fires on a batch job, Stacktape uses an internal trigger function to submit the job to AWS Batch.",
+              "reason": "The ScheduleIntegration JSDoc explicitly says 'Triggers a function on a recurring schedule (cron jobs, periodic tasks)' — it mentions 'function', not 'batch job'. The 'internal trigger function' implementation detail is completely ungrounded in the source. By contrast, EventBusIntegration explicitly says 'Triggers a batch job', suggesting different integrations serve different resource types. Without the batch-job type definitions confirming schedule support, this claim is unsupported.",
+              "suggestedFix": "Remove the 'internal trigger function' implementation detail entirely. If batch job schedule support is confirmed elsewhere, keep the claim but remove the mechanism description. If not confirmable, remove or soften to 'Batch jobs can also be triggered on a schedule — see [batch jobs](/resources/compute/batch-job) for details.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function on a recurring schedule (cron jobs, periodic tasks).\n *\n * ---\n *\n * Two formats:\n * - **Rate**: `rate(5 minutes)`, `rate(1 hour)`, `rate(7 days)`\n * - **Cron**: `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, all times UTC)\n */\ninterface ScheduleIntegration {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The `input` value must be a valid JSON object or a stringified JSON string.",
+              "reason": "The source defines `input?: any` with no type restriction to JSON objects or strings. The JSDoc example shows an object but does not state a JSON constraint. This is a narrowing claim that could confuse readers into thinking other valid JavaScript values are rejected.",
+              "suggestedFix": "Remove the 'must be a valid JSON object or a stringified JSON string' constraint. Say instead: 'The `input` property accepts any JSON-serializable value that will be passed as the event payload.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "input?: any;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Like `input`, the `inputTemplate` must be valid JSON.",
+              "reason": "The source defines `inputTemplate: any` with no JSON restriction. The JSDoc says 'A template for constructing a new event payload. Use placeholders (`<placeholder>`) to insert the values extracted with `inputPathsMap`.' but does not require valid JSON.",
+              "suggestedFix": "Remove the 'must be valid JSON' constraint sentence, or soften to 'The `inputTemplate` defines the shape of the payload your function receives.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "inputTemplate: any;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Stacktape validates the schedule expression at deploy time and fails with a clear error if the syntax is invalid.",
+              "reason": "The source file does not describe deploy-time validation behavior. This is likely true as a side effect of CloudFormation template validation, but framing it as 'Stacktape validates' with 'a clear error' and (in the FAQ) 'before any AWS resources are created' are implementation claims not grounded in the provided source.",
+              "suggestedFix": "Reframe as AWS/CloudFormation behavior: 'An invalid schedule expression causes the deployment to fail during CloudFormation validation.' This is a well-known AWS fact rather than a Stacktape-specific claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "scheduleRate: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The ScheduleIntegrationProps properties (scheduleRate, input, inputPath, inputTransformer) are correctly documented and match the source type definitions exactly.",
+            "The mutual exclusivity constraint on input/inputPath/inputTransformer is correctly stated — each property's JSDoc confirms 'You can only use one of input, inputPath, or inputTransformer'.",
+            "The EventInputTransformer type usage is correct: inputPathsMap (optional, any) and inputTemplate (required, any) with placeholder syntax documented per the JSDoc.",
+            "Schedule format documentation (rate and cron) aligns with the JSDoc examples: 'rate(2 hours)', 'cron(0 10 * * ? *)' and the 6-field AWS cron description.",
+            "All cross-links point to valid routes in the documentation navigation index.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections.",
+            "The FAQ section provides 10 well-mixed questions spanning Stacktape-specific, AWS service, and comparison categories.",
+            "Code examples correctly use the `<CodeBlock intellisense>` pattern with TypeScript tab label and focus markers — no forbidden YAML Stacktape config blocks or fenced TypeScript config blocks."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally aligned with the ScheduleIntegration shape for Lambda schedule triggers, rate/cron formats, and input/inputPath/inputTransformer customization. The main factual risks are unsupported Stacktape-specific claims about batch-job support, deployment-time validation behavior, Console metrics, directive resolution inside payloads, and CLI flags that are not present in the provided source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“A schedule trigger invokes a Stacktape Lambda function or batch job…”, “Batch jobs also support schedule triggers with the same syntax…”, and “Schedule triggers (`ScheduleIntegration`) are directly available on Lambda functions and batch jobs.”",
+              "reason": "The provided source only defines ScheduleIntegration as triggering a function. It does not show batch-job support, batch-job event configuration, or the claimed internal trigger function that submits jobs to AWS Batch.",
+              "suggestedFix": "Narrow the page to Lambda functions unless batch-job source files are added. If batch jobs are supported by another authoritative type, include that source before documenting the behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function on a recurring schedule (cron jobs, periodic tasks)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration {\n  type: 'schedule';\n  properties: ScheduleIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape validates the expression at deploy time and fails with a clear error if the syntax is invalid.” and “If the expression is malformed, the deployment fails with an error message describing the problem — before any AWS resources are created.”",
+              "reason": "The source types define `scheduleRate` as a plain string with examples. They do not document deploy-time validation timing, error clarity, or resource-creation ordering.",
+              "suggestedFix": "Say only that `scheduleRate` is a string containing a rate or cron expression. If validation behavior is important, add runtime validator source as evidence before making this claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "scheduleRate: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“To filter for a specific time window, use the `--startTime` and `--endTime` flags.”",
+              "reason": "No CLI source is provided for `stacktape debug:logs`, and the only provided source file is the schedule integration type file. The draft asserts specific CLI flags without source backing.",
+              "suggestedFix": "Remove the specific flags or provide the `src/commands/debug-logs/index.ts` and CLI command config source before documenting exact flag names.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegrationProps {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“In the Stacktape Console, you can view invocation logs, error rates, and duration metrics for any Lambda function.” and “The Stacktape Console also shows invocation history, error rates, and CloudWatch metrics.”",
+              "reason": "The provided source contains no Console source. Console UI capabilities and metric views must be grounded in console-app source, not inferred from resource types.",
+              "suggestedFix": "Keep only the sourced CLI log mention, or write a cautious sentence such as “You can also inspect deployed resources in the Stacktape Console” if a Console overview link is desired. Add console-app source before claiming specific views or metrics.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegrationProps {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape resolves directives like `$Secret()` and `$ResourceParam()` inside the `input` and `inputTransformer.inputTemplate` properties.”",
+              "reason": "The schedule integration source defines `input` and `inputTransformer`, but it does not document directive resolution inside those properties. This is a Stacktape-specific behavior claim that would affect configuration decisions.",
+              "suggestedFix": "Remove the FAQ entry unless directive-resolution source is provided for these properties. A safe replacement is: “`input` and `inputTransformer.inputTemplate` accept values as defined by the schedule integration type.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "input?: any;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "inputTransformer?: EventInputTransformer;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each invocation is independent — no messages queue up and no batching applies.”",
+              "reason": "The source says schedule integrations trigger a function on a recurring schedule and has no batch-related properties. It does not explicitly document delivery, queuing, or retry behavior for scheduled invocations.",
+              "suggestedFix": "Narrow this to what the type supports: “ScheduleIntegration has no batching controls; each schedule rule invokes the target with the configured event payload.” Avoid claims about queuing unless runtime/AWS integration source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegrationProps {\n  /**\n   * #### The schedule rate or cron expression."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, the Lambda function receives the standard EventBridge scheduled event, which includes fields like `time`, `source`, `detail-type`, `account`, `region`, and `resources`.”",
+              "reason": "The source documents optional payload customization, but it does not state the default event payload shape or list the fields delivered to the function.",
+              "suggestedFix": "Phrase this as AWS background rather than Stacktape-specific behavior, or omit the field list. For example: “If you do not set `input`, `inputPath`, or `inputTransformer`, Stacktape does not customize the payload in this integration definition.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "A fixed JSON object to be passed as the event payload."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "A JSONPath expression to extract a portion of the event to pass to the target."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Customizes the event payload sent to the target."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The `input` value must be a valid JSON object or a stringified JSON string.”",
+              "reason": "The source says `input` is “a fixed JSON object” and types it as `any`. It does not document stringified JSON as supported for `ScheduleIntegrationProps.input`. The draft broadens the accepted shape beyond the source.",
+              "suggestedFix": "Say “The `input` property is a fixed JSON object passed as the event payload.” Avoid claiming stringified JSON support unless another source documents it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A fixed JSON object to be passed as the event payload."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "input?: any;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and avoids hand-authored YAML config blocks.",
+            "The draft correctly documents the three schedule payload customization properties: `input`, `inputPath`, and `inputTransformer`.",
+            "The draft correctly states that only one of `input`, `inputPath`, or `inputTransformer` can be used per schedule integration.",
+            "The draft correctly notes the source-documented distinction between rate expressions and 6-field AWS cron expressions, including UTC for cron examples.",
+            "All markdown links checked in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers all visible ScheduleIntegrationProps fields and its examples generally demonstrate the trigger property. Main API-audit risks are source-grounding gaps around supported targets, event binding shape, and claims that source does not expose for schedule triggers.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "A schedule trigger invokes a Stacktape Lambda function or batch job... Batch jobs also support schedule triggers with the same syntax. When a schedule fires on a batch job, Stacktape uses an internal trigger function to submit the job to AWS Batch.",
+              "reason": "The provided source defines ScheduleIntegration as triggering a function and does not show batch-job support or the described internal trigger-function implementation. Because this page repeats batch-job support in the intro, Basic example, and FAQ, the unsupported target claim could materially affect what readers configure.",
+              "suggestedFix": "Either remove batch-job support from this page or replace it with narrowly sourced wording only if a batch-job source file is added. With the current source, say schedule integrations trigger functions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration {\n  type: 'schedule';\n  properties: ScheduleIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function on a recurring schedule (cron jobs, periodic tasks)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "A schedule trigger is added to a Lambda function's `events` array using `ScheduleIntegration`.",
+              "reason": "The source file defines the ScheduleIntegration interface and its properties, but it does not define LambdaFunction props or show an `events` array binding shape. The page may be correct, but this specific binding location is not grounded in the provided source.",
+              "suggestedFix": "Add the LambdaFunctionProps source that defines `events`, or narrow the wording to what the source proves: `ScheduleIntegration` has type `schedule` and accepts `scheduleRate`, `input`, `inputPath`, and `inputTransformer`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration {\n  type: 'schedule';\n  properties: ScheduleIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegrationProps {\n  /**\n   * #### The schedule rate or cron expression."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The handler at `./src/cleanup.ts` runs once every 24 hours. Each invocation is independent — no messages queue up and no batching applies.",
+              "reason": "The source documents rate and cron schedule formats, but it does not document queueing, batching, invocation independence, or retry behavior for schedule integrations. Because the page explicitly discusses batching/retry behavior, unsupported precision here is risky.",
+              "suggestedFix": "Keep the sourced part about `rate(1 day)` as a recurring schedule. Remove or qualify the queueing/batching sentence unless a runtime/AWS EventBridge source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Two formats:\n * - **Rate**: `rate(5 minutes)`, `rate(1 hour)`, `rate(7 days)`\n * - **Cron**: `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, all times UTC)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Stacktape validates the expression at deploy time and fails with a clear error if the syntax is invalid.",
+              "reason": "The provided type source states that `scheduleRate` is a string and gives examples, but it does not document deploy-time validation or error quality. This is not an API completeness issue, but it is a concrete behavior claim unsupported by the supplied source.",
+              "suggestedFix": "Remove the validation sentence or add the runtime validator source that implements schedule expression validation.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "scheduleRate: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Schedule formats section documents rate and cron in detail, but the page does not visibly acknowledge the actual API property name/type near the section summary.",
+              "reason": "The important primary property is `scheduleRate: string`. The draft mentions `scheduleRate` in Basic example, but the detailed Schedule formats section presents AWS syntax as if it were a standalone concept. A reader scanning that section may miss that both expressions are provided through one Stacktape property.",
+              "suggestedFix": "Start Schedule formats with a sentence like: `The ScheduleIntegrationProps.scheduleRate string accepts either a rate expression or a cron expression.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegrationProps {\n  /**\n   * #### The schedule rate or cron expression.\n   *\n   * ---\n   *\n   * Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`\n   */\n  scheduleRate: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft mentions all ScheduleIntegrationProps fields visible in the source: `scheduleRate`, `input`, `inputPath`, and `inputTransformer`.",
+            "The payload customization section acknowledges the mutually exclusive `input`, `inputPath`, and `inputTransformer` options, matching the JSDoc caveat.",
+            "The CodeBlock examples in Basic example, Cron expressions, Multiple schedules, Fixed input, and Input transformer each demonstrate the specific property discussed in the surrounding section."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__schedule-triggers\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "First paragraph is tight, self-contained, and AEO-ready — names the resource, the underlying AWS service (EventBridge), and several concrete use cases in under 75 words.",
+            "Cron field table with wildcards and a rich set of real-world cron expression examples is exceptionally practical and will serve as a reference readers bookmark.",
+            "Multiple schedules section uses a genuinely realistic example (incremental every 5 min + full sync at 3 AM) with distinct `input` values per trigger — this is the highest-value example on the page.",
+            "All three payload customization variants (input, inputPath, inputTransformer) are documented with roughly equal depth: prose, a working code example, and a tradeoff signal.",
+            "The Rate vs Cron Tip callout is opinionated and actionable — gives a clear decision rule rather than just describing both options.",
+            "FAQ spans all three required categories: Stacktape-specific (minimum interval, multiple schedules), AWS use-case (pricing, concurrent execution, EventBridge timezone), and comparison (schedule vs state machine, Lambda cost vs always-on container).",
+            "Handler example includes proper `aws-lambda` TypeScript typing (`ScheduledHandler`) and the note about using `any` when custom input shapes are passed — correctly anticipates a real reader question.",
+            "When NOT to use section is concrete and links to the correct alternative trigger types rather than just naming them."
+          ],
+          "problems": [
+            "The claim 'Batch jobs also support schedule triggers' is not verifiable from the provided source files (events.d.ts defines integration types but does not specify which resource types accept ScheduleIntegration). This is stated as a fact without source grounding.",
+            "The inputPath section is noticeably weaker than the input and inputTransformer sections. The example use case — extracting `$.time` from the EventBridge event to pass to a 'time-logger' function — is contrived and doesn't motivate when a real team would choose inputPath over input or inputTransformer for schedule events. The prose even acknowledges this option is 'rarely needed' for schedule triggers, which makes the full code example feel like filler.",
+            "The page does not show the default EventBridge scheduled event payload structure (source, time, detail-type, etc.). A first-time user who does NOT configure input/inputPath/inputTransformer will not know what their handler receives, which is critical for writing a handler that doesn't use custom input.",
+            "The monitoring section is thin — one CLI command and a link to the Console. It would be more useful to mention that Lambda execution errors from scheduled invocations are visible in the function's CloudWatch metrics, and that silent failures (function succeeds but does no useful work) are common with scheduled functions and require alarm setup to detect."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a brief callout or prose paragraph showing the default EventBridge scheduled event structure (the JSON shape a handler receives when no `input`/`inputPath`/`inputTransformer` is set). Even a collapsed example or a 3-field snippet (source, time, detail-type) would let users write their first handler without guessing.",
+            "Qualify or remove the batch job schedule trigger claim. Either verify it is source-grounded and add a concrete pointer (e.g., a link to the batch job docs with an inline example), or change it to 'check the batch job docs to see if schedule triggers are supported there' to avoid asserting an unverified fact.",
+            "Either strengthen the inputPath section with a more realistic motivation (e.g., reusing a trigger pattern also applied to EventBus events where the original event is richer) or shorten it significantly — remove the code example and direct readers to use `input` or `inputTransformer` instead. The current treatment occupies as much space as the stronger sections while being less useful.",
+            "Expand the monitoring section to mention that Lambda invocation errors from EventBridge scheduled rules appear in CloudWatch Metrics under the function's error rate, and that a function returning successfully without doing useful work requires application-level alarms (not just invocation error alarms) to detect — the alarms tip is present but the mechanism is not explained.",
+            "Consider adding a note about idempotency: if a scheduled Lambda errors and EventBridge retries the invocation (EventBridge retries failed Lambda invocations up to twice by default), the function may run more than once. Users writing side-effectful tasks (DB deletes, email sends) should handle this.",
+            "The FAQ answer for 'What if my schedule expression is invalid?' is redundant with the 'Invalid expressions' subsection in the body — consider consolidating or cross-linking rather than repeating identical content in two places."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no YAML blocks, no fenced TypeScript, no StacktapeConfig type.",
+            "Schedule format tables (rate and cron) are accurate, well-structured, and directly grounded in the source JSDoc examples.",
+            "The mutual-exclusivity Warning for input/inputPath/inputTransformer is correctly placed and grounded in the source JSDoc.",
+            "The multiple-schedules + input example is a realistic, copyable pattern that directly addresses a common reader question.",
+            "Handler example using `ScheduledHandler` from aws-lambda is a useful addition that rounds out the page.",
+            "Single <ApiReference definitionName='ScheduleIntegrationProps' /> correctly matches the source type name.",
+            "FAQ is well-structured with 10 entries spanning Stacktape-specific, AWS-behavior, and comparison questions.",
+            "The 'When to use / When NOT to use' sections are opinionated and concrete — not circular."
+          ],
+          "problems": [
+            "The 'inputPath' section provides a full CodeBlock example for a feature the page itself labels 'rarely needed' for schedule triggers. This violates the section instructions ('Use a single short example per concept') and adds bulk without proportional value for this trigger type.",
+            "The claim 'Batch jobs also support schedule triggers' cannot be verified from the provided source file (events.d.ts). The source shows EventBusIntegration mentioning batch jobs but does not enumerate ScheduleIntegration on BatchJob resources. This is either an unsupported claim or needs sourcing from the batch job type file.",
+            "The claim 'Container workloads... do not support schedule triggers directly' is a negative claim unverifiable from the provided source. The source file is silent on what resources accept ScheduleIntegration. Asserting this as fact could mislead readers if the real answer is different.",
+            "The recommendation to 'set the Lambda function's reserved concurrency to 1' to prevent overlapping schedule invocations is useful advice but does not explain how to configure this in Stacktape (the property name on LambdaFunction). A reader trying to act on this has no path forward."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace the full inputPath CodeBlock example with a one-sentence description and the JSONPath syntax, consistent with the page's own admission that inputPath is 'rarely needed' for schedule triggers. Free up the space for a more actionable section.",
+            "Qualify the batch job schedule trigger claim: either source it (add a parenthetical '(see batch job docs)' without asserting the claim as fact) or remove it until it can be verified against the batch job type definitions.",
+            "Replace the unsourced negative container workload claim with a positive statement: 'ScheduleIntegration is available on LambdaFunction and BatchJob resources' — which is what the source supports.",
+            "For the concurrent-execution section in the FAQ answer, name the Stacktape property that controls reserved concurrency on LambdaFunction (e.g. reservedConcurrency) so readers can act on the guidance without having to search."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Self-contained opening paragraph (≈50 words) names the resource, the mechanism (EventBridge rule), and the use cases without meta-framing — strong AEO snippet target.",
+            "Peer H2 'When to use' / 'When NOT to use' sections are concrete and opinionated, with specific alternative resources named rather than generic disclaimers.",
+            "Rate/cron expression tables are fact-dense and sourced directly from the JSDoc comments — field ranges, wildcard characters, and UTC constraint are all correct.",
+            "All three payload customization options (input, inputPath, inputTransformer) are covered at equal depth: one working example per option, sourced from ScheduleIntegrationProps.",
+            "Multiple schedules example is realistic — incremental + full sync pattern with distinguishing `input` payloads is exactly what teams need in production.",
+            "Warning callout for the mutually exclusive constraint on input/inputPath/inputTransformer matches the source JSDoc exactly and is placed before the option variants.",
+            "Rate-vs-cron Tip callout gives a concrete, opinionated decision rule rather than restating definitions.",
+            "FAQ mixes all three required categories: Stacktape-specific (interval limits, multiple schedules), AWS service (UTC timezone, concurrent invocations, Lambda cost model), and comparison (rate vs cron, schedule vs Step Functions). 10 Q&A pairs."
+          ],
+          "problems": [
+            "The basic example sets `memory: 512` and `timeout: 300` (and `timeout: 900` in the cron example) but the surrounding prose never explains what these control or what the supported range is. Per the property-value-anchor rule, a reader cannot tell whether these are defaults, minimums, or arbitrary choices.",
+            "The claim that batch jobs support schedule triggers ('ScheduleIntegration is available on Lambda functions and batch jobs') is stated twice (post-basic-example prose and FAQ) but is not grounded in the provided source file (events.d.ts). The source only shows ScheduleIntegration in the Lambda/event context.",
+            "The Monitoring section is thin — it contains one CLI command, one sentence, and a Tip callout. There is no guidance on what to actually look for in logs, what failure modes look like, or when to set up alarms (the Tip references alarms but only as a forward link with no decision context)."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add one prose sentence after the basic example's code block explaining what `memory` and `timeout` control (memory in MB, timeout in seconds) and that they are Lambda function properties documented on the Lambda function page. This prevents readers from treating the values as required magic.",
+            "Either source-ground the batch-job schedule trigger claim by referencing the batch-job type definition, or narrow the wording to 'Lambda functions' only and add a cross-link to the batch job page with a note that batch jobs have their own trigger configuration.",
+            "Expand the Monitoring section: add one sentence about what a failed scheduled invocation looks like (timeout, error in CloudWatch Logs) and a brief note on setting error-rate alarms — the current section ends at the Tip with no actionable next step.",
+            "Consider adding a 'Default event payload' subsection (or note) showing what the standard AWS EventBridge scheduled event object looks like when no input/inputPath/inputTransformer is set. The source says 'your function receives the standard AWS EventBridge scheduled event' but never shows the shape, leaving readers who skip payload customization without a concrete reference.",
+            "The 'Invalid expressions' H3 subsection under 'Schedule formats' is currently just two sentences. It could be promoted to a small callout or integrated into the cron section prose rather than given its own heading, which inflates the TOC relative to the content depth."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Batch jobs also support schedule triggers — see the batch job docs for details on that configuration.",
+              "reason": "The provided source file (events.d.ts) defines ScheduleIntegration generically but does not show it being used by batch jobs. The batch-job type definitions were not included in the source files for this page, so this cross-resource claim cannot be verified from the available source. It is likely correct but ungrounded for this page's source set.",
+              "suggestedFix": "If batch-job.d.ts confirms schedule trigger support, keep as-is. Otherwise, soften to 'Batch jobs may also support schedule triggers — see the batch job docs for details.' or remove the sentence entirely and let the batch job page own that claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration {\n  type: 'schedule';\n  properties: ScheduleIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "You can trigger a state machine on a schedule using an EventBridge event bus integration.",
+              "reason": "The FAQ answer suggests state machines can be triggered via EventBridge event bus integrations. The EventBusIntegration JSDoc in the source says 'Triggers a batch job when an event matching a specified pattern is received by an event bus' — it specifically names batch jobs, not state machines. Without the state-machine type definitions in the provided source, this cross-resource claim is unverifiable.",
+              "suggestedFix": "If state machines do support EventBusIntegration, keep as-is. Otherwise, reword to 'You can invoke a state machine on a schedule by having a scheduled Lambda function start the execution programmatically.' or remove the specific integration claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a batch job when an event matching a specified pattern is received by an event bus.\n *\n * ---\n *\n * You can use a custom event bus or the default AWS event bus.\n */\ninterface EventBusIntegration {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All ScheduleIntegrationProps properties (scheduleRate, input, inputPath, inputTransformer) are documented with working code examples and correctly match the source types.",
+            "The mutual exclusivity constraint on input/inputPath/inputTransformer is correctly stated and matches the JSDoc: 'You can only use one of input, inputPath, or inputTransformer.'",
+            "The EventInputTransformer sub-type (inputPathsMap, inputTemplate) is accurately described with placeholder syntax matching the source JSDoc.",
+            "The ApiReference uses definitionName='ScheduleIntegrationProps' which correctly matches the interface name in the source.",
+            "All cross-links point to valid routes in the navigation index — no invented URLs.",
+            "The 'When to use' and 'When NOT to use' sections are correctly structured as peer H2 headings.",
+            "All CodeBlock examples use the correct pattern: intellisense flag, TypeScript tab label, defineConfig with proper imports, focus markers, and valid Stacktape class names (LambdaFunction, StacktapeLambdaBuildpackPackaging, ScheduleIntegration).",
+            "No forbidden patterns detected: no hand-authored YAML config, no StacktapeConfig typed style, no fenced TypeScript blocks containing defineConfig.",
+            "FAQ section has 10 well-distributed Q&A pairs spanning all three required categories: Stacktape-specific, AWS use-case, and comparison/choosing questions.",
+            "The handler example correctly uses a fenced code block (application code) rather than a CodeBlock component, following the shell/application code rules.",
+            "CLI command references use the correct stacktape debug:logs format with a link to /cli/debug-logs.",
+            "Schedule expression syntax (rate and cron formats) is accurately described and consistent with AWS EventBridge documentation."
+          ],
+          "summary": "The schedule triggers draft is well-structured, technically accurate, and thoroughly grounded in the provided source. All four ScheduleIntegrationProps properties are documented with working examples, the mutual exclusivity constraint is correctly stated, and the EventInputTransformer sub-type is accurately described. Code examples follow all required patterns (defineConfig, proper imports, focus markers, correct class names). The page structure is clean with peer H2 headings for When to use / When NOT to use, and the FAQ covers all three required question categories. Only two low-severity issues were identified — both are cross-resource claims (batch job schedule support and state machine EventBridge integration) that reference resource types whose definitions were not included in this page's source set. These claims are likely correct but cannot be verified from the available source."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided `events.d.ts` source for `ScheduleIntegrationProps`, especially around `scheduleRate`, rate/cron formats, and the mutually exclusive payload customization properties. The main issues are unsupported Stacktape-specific claims about batch jobs, runtime/deployment behavior, monitoring CLI flags, and some overly specific EventBridge behavior that is not grounded in the provided source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"[Batch jobs](/resources/compute/batch-job) also support schedule triggers\" and FAQ: \"Schedule triggers (`ScheduleIntegration`) are available on Lambda functions and batch jobs.\"",
+              "reason": "The provided source only describes `ScheduleIntegration` as triggering a function. No provided source shows batch job support for schedule triggers. This is a Stacktape-specific capability claim that would affect what readers try to configure.",
+              "suggestedFix": "Remove the batch job support claim unless the page source list includes batch job types proving it. If retained, add the relevant batch job source file to the grounding set and verify the exact property path.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function on a recurring schedule (cron jobs, periodic tasks)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration {\n  type: 'schedule';\n  properties: ScheduleIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Container workloads like web services or worker services do not support schedule triggers directly. To run a container on a schedule, use a batch job with a schedule trigger, or invoke a Lambda function on a schedule that starts the container task programmatically.\"",
+              "reason": "The provided source does not document which resource types can or cannot use `ScheduleIntegration` beyond saying it triggers a function. It also does not support the batch-job workaround or programmatic container-task workaround.",
+              "suggestedFix": "Narrow the FAQ answer to what is sourced: schedule triggers are documented here for functions. Avoid negative support claims and workaround prescriptions unless the relevant workload and batch job source files are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function on a recurring schedule (cron jobs, periodic tasks)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"An invalid schedule expression causes the deployment to fail during CloudFormation stack creation.\"",
+              "reason": "The provided source documents the `scheduleRate` property and examples, but does not state when invalid expressions are validated or that failure specifically happens during CloudFormation stack creation.",
+              "suggestedFix": "Say more cautiously: \"Invalid expressions are rejected by the underlying AWS schedule configuration during deployment.\" Avoid naming CloudFormation stack creation unless runtime/schema source proves it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The schedule rate or cron expression.\n   *\n   * ---\n   *\n   * Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"View logs from schedule-triggered functions using `stacktape debug:logs --stage production --region eu-west-1 --resourceName dailyCleanup`.\"",
+              "reason": "The source list for this page contains only event integration types. It does not include CLI command definitions proving the `debug:logs` flags or `--resourceName` spelling. CLI behavior must be verified against CLI source when documented.",
+              "suggestedFix": "Keep the linked command mention if required by docs canon, but remove the specific flag example unless CLI source is included. Alternatively add the CLI source files and verify the exact flags.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegrationProps {\n  /**\n   * #### The schedule rate or cron expression."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The first invocation happens one interval after the EventBridge rule is created (i.e., after deployment).\"",
+              "reason": "The provided Stacktape source confirms rate and cron syntax but does not document first-fire timing after deployment. This is specific scheduling behavior that is not grounded in the supplied source.",
+              "suggestedFix": "Remove the first-invocation timing claim, or phrase only the supported distinction: rate expressions define fixed intervals and cron expressions define calendar times using AWS EventBridge syntax.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* Two formats:\n * - **Rate**: `rate(5 minutes)`, `rate(1 hour)`, `rate(7 days)`\n * - **Cron**: `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, all times UTC)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"You can also inspect deployed resources in the Stacktape Console.\"",
+              "reason": "No `console-app` source is included for this page. The claim is broad and likely true, but Console behavior should be grounded in Console source or kept generic without implying a workflow.",
+              "suggestedFix": "Either remove the sentence or keep it very broad: \"The Stacktape Console also has observability pages for deployed stacks,\" only if supported by Console sources included in the page grounding set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function on a recurring schedule (cron jobs, periodic tasks)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Underneath, Stacktape creates an AWS EventBridge rule that fires on your defined schedule and invokes the target function.\"",
+              "reason": "The source documents AWS EventBridge schedule syntax and that the integration triggers a function, but it does not explicitly say Stacktape creates an EventBridge rule. The wording is probably directionally correct, but stronger than the supplied source proves.",
+              "suggestedFix": "Narrow to: \"Schedule triggers use AWS EventBridge schedule expressions to invoke the target function.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"The handler receives `{ task: 'expire-sessions', ttlHours: 24 }` as the event — no EventBridge metadata is included.\"",
+              "reason": "The source says `input` is a fixed JSON object passed as the event payload, but it does not explicitly state that all EventBridge metadata is omitted. The claim is likely AWS-consistent, but more exact than the provided source.",
+              "suggestedFix": "Use the source wording: \"The fixed JSON object is passed as the event payload.\" Avoid the explicit metadata exclusion unless AWS target-input behavior is sourced.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "`ScheduleIntegrationProps` is the correct API reference name visible in the provided source.",
+            "The draft correctly states that `scheduleRate` supports both rate and cron expressions, and that AWS cron is 6-field UTC syntax.",
+            "The draft correctly documents `input`, `inputPath`, and `inputTransformer` as mutually exclusive payload customization options, which is stated in the source comments."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the full documented ScheduleIntegrationProps surface: scheduleRate plus the three payload customization options. The Stacktape config examples are demonstrative for the sections they appear in and use the required CodeBlock TypeScript format.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "[Batch jobs](/resources/compute/batch-job) also support schedule triggers — see the [batch job docs](/resources/compute/batch-job) for details on that configuration.",
+              "reason": "The provided source for ScheduleIntegration describes it as triggering a function, and the page source does not include BatchJob event support or a batch-job-specific schedule binding. This may be true elsewhere, but it is not grounded in the supplied source files for this page.",
+              "suggestedFix": "Remove the batch-job sentence unless batch job source files are added to the page source set, or narrow it to a separately sourced cross-link in the batch job page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration {\n  type: 'schedule';\n  properties: ScheduleIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function on a recurring schedule (cron jobs, periodic tasks)."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents every property in ScheduleIntegrationProps: scheduleRate, input, inputPath, and inputTransformer.",
+            "The payload customization section names and explains all three mutually exclusive input customization modes, so the page does not imply that fixed input is the only supported option.",
+            "The CodeBlock examples are demonstrative: the basic example focuses the trigger property, the cron section uses a cron scheduleRate, multiple schedules shows multiple ScheduleIntegration entries, and each payload section sets the relevant input property.",
+            "The API reference uses ScheduleIntegrationProps, which matches the documented interface in the provided source."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\schedule-triggers.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 2, advisory high 0, verifier medium 5"
+}

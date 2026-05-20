@@ -1,0 +1,358 @@
+{
+  "pageId": "resources__frontend__astro",
+  "pageRoute": "resources/frontend/astro",
+  "startedAt": "2026-05-14T04:56:39.763Z",
+  "updatedAt": "2026-05-14T05:00:47.861Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__frontend__astro\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.4-mini",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Clear first-pass structure for a first-time reader: decision sections, a small basic example, feature sections, and a 10-question FAQ are all present.",
+            "Most of the core Astro source-backed knobs are explained well: `appDirectory`, `buildCommand`, `serverLambda`, `customDomains`, `useFirewall`, `dev`, and `connectTo`.",
+            "The page stays scannable with short noun-form headings, realistic use cases, and a good mix of prose and code examples.",
+            "The FAQ is well balanced across Stacktape-specific questions, AWS behavior, and comparison questions, which is exactly what this audience will search for."
+          ],
+          "problems": [
+            "The static-only alternative is not source-accurate: the Astro source says to use `hosting-bucket` with `hostingContentType: 'astro-static-website'`, but the page says generic \"static hosting\" instead.",
+            "The `connectTo` example invents database construction details (`RdsEnginePostgres`, `version: 16`, `instanceClass: 'db.t4g.micro'`) that are not grounded in the provided Astro sources.",
+            "The `fileOptions` example invents nested properties (`pathPattern`, `cacheControl`) that are not present in the provided source bundle, so the example is not safely copyable as written.",
+            "The `CDN and firewall` section is a little thin on decision support for the opt-in CDN/cache knobs; it explains the feature, but it does not yet clearly separate when the default is enough from when the reader should tune `cdn` or `fileOptions`."
+          ],
+          "mandatoryFixes": [
+            "Replace the static-only Astro alternative with the source-backed `hosting-bucket` + `hostingContentType: 'astro-static-website'` wording in both `When NOT to use` and the FAQ.",
+            "Remove the ungrounded `RdsEnginePostgres` / `instanceClass: 'db.t4g.micro'` details from the `connectTo` example, or replace the example with a fully source-grounded resource snippet.",
+            "Remove or ground the `fileOptions` example properties (`pathPattern`, `cacheControl`); the provided Astro source only supports the fact that `fileOptions` sets custom headers for matching static files, not those nested field names."
+          ],
+          "optionalImprovements": [
+            "Add one short sentence that explicitly distinguishes `cdn` from `fileOptions` so readers understand they are separate attachment paths with different purposes.",
+            "If you want the page to feel more opinionated, say more directly that most teams should keep the default `appDirectory`, `buildCommand`, and Lambda settings unless they hit a monorepo or VPC requirement.",
+            "Consider a grounded `cdn` example once the nested schema is available in source, since the current section mentions the feature but does not show a concrete configuration path."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The page uses the required TypeScript class-based Stacktape config examples inside <CodeBlock intellisense tabs={[...]}/> and avoids forbidden YAML or StacktapeConfig patterns.",
+            "The core happy path is clear: Astro SSR app, default appDirectory, buildCommand override, Lambda SSR tuning, custom domains, CDN/firewall, connectTo, dev mode, and logging.",
+            "The page correctly keeps the firewall constraint scoped to the Astro CDN attachment path: useFirewall references a web-app-firewall with scope: 'cdn'.",
+            "The FAQ has exactly 10 Q&A pairs and covers Stacktape-specific, AWS-underpinning, and comparison questions."
+          ],
+          "problems": [
+            "The Server Lambda section says set joinDefaultVpc only for databases or Redis, but the example connects to a relational database using connectTo without showing joinDefaultVpc. Because the source explicitly says joinDefaultVpc is for VPC resources such as databases and Redis, this can mislead a production reader configuring database access from Astro SSR.",
+            "The Connecting resources example uses RelationalDatabase and RdsEnginePostgres, but the provided source set for this page does not include relational-database type details or confirm the class constructor shape. The connectTo behavior is grounded, but the database resource example is not grounded in the provided Astro sources.",
+            "The Logging section correctly uses stacktape debug:logs per project rules, but the source file itself says serverLambda.logging logs are viewed with stacktape logs or AWS console. The page should avoid implying that the Stacktape Console log path is sourced here unless supported by the provided files or global rule.",
+            "The CDN section is somewhat thin for a production reader: it says the exact CDN cache-control shape is in the API reference, but does not give a concrete SSR cache example or explain what default behavior readers get when cdn is omitted.",
+            "The page does not include a Referenceable parameters section. If Astro exposes referenceable parameters in the generated schema/navigation, the sibling example pattern would expect <ReferenceableParams resource=\"astro-web\" />; if it exposes none, omission is fine, but the draft does not make that evident."
+          ],
+          "mandatoryFixes": [
+            "Align the database-access guidance: either add serverLambda.joinDefaultVpc: true to the database connection example and explain the internet-access tradeoff, or narrow the example to a non-VPC resource so it does not contradict the Server Lambda guidance.",
+            "Replace the RelationalDatabase/RdsEnginePostgres example unless the relational database constructor shape is available in the provided source for this page; keep the connectTo example grounded to sourced resource-access behavior."
+          ],
+          "optionalImprovements": [
+            "Add one concrete cdn example if the SsrWebCdnConfig source is available; otherwise keep the wording narrow and say the page only documents that cdn exists for SSR routes and path patterns.",
+            "Add a short note in Connecting resources that connectTo injects variables into the SSR function specifically, since Astro static assets and CDN behavior are separate from Lambda runtime configuration.",
+            "Consider mentioning that the source does not provide concrete Astro pricing, so no pricing context is quoted near the top. The FAQ already handles this well, but a near-top sentence would prevent readers from hunting for prices.",
+            "If Astro exposes referenceable parameters, add a final Referenceable parameters section matching the example page pattern."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.4-mini",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph that quickly explains what Astro is doing in Stacktape and why the reader would use it.",
+            "The page covers the real decision points from the source: project location, SSR Lambda tuning, custom domains, CDN/firewall controls, connectTo, dev mode, and logging.",
+            "Code examples are copyable and stay on the documented Stacktape config path with `defineConfig` and class-based resources.",
+            "The FAQ is broad and useful, and it includes the required mix of Stacktape-specific, AWS-service, and comparison questions."
+          ],
+          "problems": [
+            "MDX palette drift: the sibling example uses `Info` and `Warning` callouts for tradeoffs and cautions, but this draft keeps those notes entirely in prose, which makes the page less scannable.",
+            "Source-grounding is a bit loose in `When NOT to use`: the Lambda fallback rationale and the preview-stage guidance go beyond what the provided Astro source states.",
+            "The static-only fallback is less precise than the source wording because it avoids the canonical `hosting-bucket` / `hostingContentType: 'astro-static-website'` terminology.",
+            "The CDN/firewall section would benefit from a more explicit decision split between `cdn`, `fileOptions`, and `useFirewall` so readers can tell which knob solves which problem."
+          ],
+          "mandatoryFixes": [
+            "Match the example's MDX component palette. Add the sibling page's `Info`/`Warning` callout treatment for caveats and tradeoffs, or rewrite the page consistently if you intend to diverge from that pattern.",
+            "Narrow the `When NOT to use` guidance to source-backed alternatives. Remove or clearly label as opinion the Lambda fallback rationale and the preview-stage advice unless you can anchor them in the provided Astro source.",
+            "Replace the generic static-only fallback wording with the source terms `hosting-bucket` and `hostingContentType: 'astro-static-website'` so the alternative is named precisely."
+          ],
+          "optionalImprovements": [
+            "Add a short decision table for `appDirectory` vs `buildCommand` vs `dev.command` to make the setup knobs easier to scan.",
+            "Consider an `Info` callout in the server Lambda section for the 1,769 MB = 1 vCPU relationship, since that value matters when sizing SSR memory.",
+            "If you want even faster scanning, split the CDN/fileOptions/firewall section into two short subsections: one for cache/header behavior and one for WAF attachment."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "summary": "The draft is mostly grounded in the provided AstroWeb type source and follows the required structure, CodeBlock pattern, route links, FAQ count, and ApiReference naming. I found three issues worth fixing: one high-impact Stacktape-specific CLI/logging mismatch inherited from lower-priority source text, one unsupported example property shape, and one unsupported concrete database engine class/property example outside the provided source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Astro SSR logs are Lambda logs sent to CloudWatch according to the `serverLambda.logging` configuration. Use [`stacktape debug:logs`](/cli/debug-logs) to inspect runtime output from the CLI, or use the Stacktape Console for log viewing.\"",
+              "reason": "The provided authoritative AstroWeb type only states CloudWatch logging and says logs can be viewed with `stacktape logs` or in the AWS console. The global instructions require `stacktape debug:logs`, but that command behavior is not present in the provided source files, and the Stacktape Console log-viewing claim is also not supported by the provided source. Because this is a CLI/observability behavior claim, it needs source support or narrower wording.",
+              "suggestedFix": "Narrow the section to the source-grounded fact: `serverLambda.logging` configures Lambda logging and logs are sent to CloudWatch. If retaining `stacktape debug:logs`, cite/ensure CLI source is provided; otherwise omit the CLI/Console viewing sentence in this draft.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "#### Logging config. Logs are sent to CloudWatch. View with `stacktape logs` or in the AWS console."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The CDN/firewall example sets `fileOptions: [{ pathPattern: 'assets/*', cacheControl: 'public, max-age=31536000, immutable' }]`, and the prose says \"The `fileOptions` example sets headers for static files matching a path pattern.\"",
+              "reason": "The AstroWeb source says `fileOptions` is `DirectoryUploadFilter[]` and can set custom headers for static files matching a pattern, but the provided source files do not define `DirectoryUploadFilter` or prove that `pathPattern` and `cacheControl` are valid property names. This could break the TypeScript example even if the concept is correct.",
+              "suggestedFix": "Either provide the `DirectoryUploadFilter` source and verify the property names, or remove the concrete `fileOptions` object from the code example and keep the prose at the level supported by `fileOptions?: DirectoryUploadFilter[]`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "fileOptions?: DirectoryUploadFilter[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "#### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The connecting-resources example imports `RdsEnginePostgres` and configures `engine: new RdsEnginePostgres({ version: 16 }), instanceClass: 'db.t4g.micro'`.",
+              "reason": "The provided source files do not include the relational database type definitions or database engine class definitions, so this specific class name, constructor shape, and `instanceClass` property are not grounded in the provided source set. The page can still discuss `connectTo` with a database because `ResourceAccessProps` supports relational databases, but the concrete database config needs source support.",
+              "suggestedFix": "Use a simpler example with an already-declared resource only if the database source is not available, or provide the relational database source and verify `RdsEnginePostgres`, `version`, and `instanceClass`. Keep the grounded `mainDatabase` environment variable names if the resource name remains `mainDatabase`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "connectTo?: string[];"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses the required class-based `defineConfig` style inside `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab, and it does not hand-author YAML Stacktape config.",
+            "`<ApiReference definitionName=\"AstroWebProps\" />` matches the page resource props type from `astro-web.d.ts`.",
+            "The draft correctly keeps `When to use` and `When NOT to use` as peer H2 sections.",
+            "The draft correctly describes the Astro resource as Lambda SSR, S3 static assets, and CloudFront CDN, and correctly points static-only Astro sites to static hosting.",
+            "The FAQ has exactly 10 Q&A pairs and uses only routes present in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "summary": "The draft is mostly grounded in the AstroWeb type source and follows the required CodeBlock, heading, FAQ, and ApiReference rules. The main factual problems are around log-viewing wording and a few claims that imply behavior beyond the Astro source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Astro SSR logs are Lambda logs sent to CloudWatch according to the `serverLambda.logging` configuration. Use [`stacktape debug:logs`](/cli/debug-logs) to inspect runtime output from the CLI, or use the Stacktape Console for log viewing.”",
+              "reason": "The Astro source supports CloudWatch logging and AWS console viewing, but it does not support the claim that this Astro logging surface is viewable in the Stacktape Console. The source text says AWS console. The CLI command in the draft follows the docs rule, but the Console claim is not grounded in the provided Astro source.",
+              "suggestedFix": "Change the second sentence to: “Use [`stacktape debug:logs`](/cli/debug-logs) to inspect runtime output from the CLI, or use the AWS console for the underlying CloudWatch logs.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "#### Logging config. Logs are sent to CloudWatch. View with `stacktape logs` or in the AWS console."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape expects an Astro project directory containing `astro.config.mjs`, runs the Astro build command, serves static output from S3, and sends SSR traffic through a Lambda function behind the CDN.”",
+              "reason": "The source supports the project directory containing `astro.config.mjs`, the default/override Astro build command, Lambda for server rendering, S3 for static assets, and CloudFront CDN. It does not explicitly state the traffic path “SSR traffic through a Lambda function behind the CDN.” That phrasing could over-specify routing internals beyond the provided type comments.",
+              "suggestedFix": "Narrow the claim to the sourced abstraction: “Stacktape expects an Astro project directory containing `astro.config.mjs`, runs the Astro build command, deploys Lambda for server rendering, stores static assets in S3, and configures a CloudFront CDN.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "Deploy an Astro SSR app with Lambda for server rendering, S3 for static assets, and CloudFront CDN."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "#### Directory containing your `astro.config.mjs`. For monorepos, point to the Astro workspace."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "#### Override the default `astro build` command."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“Use `appDirectory` when `astro.config.mjs` lives outside the Stacktape config directory.”",
+              "reason": "The source says `appDirectory` is the directory containing `astro.config.mjs` and defaults to `.`. It does not define `.` as “the Stacktape config directory” in the Astro source. That may be true elsewhere, but it is not grounded in the provided Astro type file.",
+              "suggestedFix": "Use the source wording: “Use `appDirectory` when `astro.config.mjs` lives outside the default `.` app directory, such as an Astro workspace in a monorepo.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "#### Directory containing your `astro.config.mjs`. For monorepos, point to the Astro workspace.\n   *\n   * @default \".\""
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The exact CDN cache-control shape is available in the API reference through `cdn`; use it for SSR route caching and path-specific cache behavior rather than trying to handle those rules inside application code.”",
+              "reason": "The source supports that `cdn` configures SSR routes and path patterns, but it does not contain enough detail to verify “exact CDN cache-control shape” or the recommendation against application-code handling. The recommendation is plausible, but the wording should be narrower because only the high-level `cdn?: SsrWebCdnConfig` property is present in the supplied source.",
+              "suggestedFix": "Change to: “Use `cdn` for the Stacktape-supported SSR route and path-pattern CDN controls shown in the API reference; keep application code focused on response behavior unless the app itself must set headers dynamically.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[{ label: 'TypeScript' ... }]} />` for every Stacktape configuration example and does not include hand-authored YAML Stacktape config.",
+            "The `ApiReference` component uses `AstroWebProps`, which matches the source type name.",
+            "The `When to use` and `When NOT to use` sections are peer H2 headings, not nested incorrectly.",
+            "The draft correctly scopes `useFirewall` to the Astro CDN attachment path and states that the referenced web application firewall must use `scope: 'cdn'`.",
+            "The `connectTo` environment variable examples correctly use the resource-name-dependent `STP_MAIN_DATABASE_*` naming pattern for the `mainDatabase` example."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "summary": "The draft covers the main AstroWebProps surface well: appDirectory, buildCommand, environment, customDomains, serverLambda, useFirewall, dev, fileOptions, cdn, connectTo, and iamRoleStatements are all mentioned. I found one medium issue: the CDN section introduces CDN cache controls but the example does not demonstrate the actual cdn property.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "In the “CDN and firewall” section, the prose says the Astro resource includes CDN controls for SSR routes and path patterns, but the adjacent CodeBlock only configures useFirewall and fileOptions.",
+              "reason": "The example does not demonstrate the section’s CDN topic. Readers may reasonably expect the section’s Stacktape config example to show the `cdn` property, because `fileOptions` only covers static-file headers while `cdn` is the property for SSR route and path-pattern cache controls.",
+              "suggestedFix": "Either add a focused `cdn` property to the CodeBlock, or split the section so the current example is clearly about static-file headers and firewall only. If adding `cdn`, keep the example grounded in the available SsrWebCdnConfig source before naming specific nested fields.",
+              "evidence": [
+                {
+                  "file": "Draft page — section “CDN and firewall”",
+                  "quote": "The Astro resource includes CDN controls for SSR routes and specific path patterns, plus static-file header controls through `fileOptions`."
+                },
+                {
+                  "file": "Draft page — section “CDN and firewall” CodeBlock",
+                  "quote": "useFirewall: 'firewall',\n    fileOptions: [\n      {\n        pathPattern: 'assets/*',\n        cacheControl: 'public, max-age=31536000, immutable'\n      }\n    ]"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts",
+                  "quote": "cdn?: SsrWebCdnConfig;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses exactly one ApiReference component with the correct definitionName `AstroWebProps`.",
+            "All AstroWebProps properties that are likely important for most users are at least mentioned in prose, examples, or links.",
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and class-based `defineConfig` style.",
+            "The draft keeps `useFirewall` correctly scoped to the Astro CDN attachment path and states that the referenced firewall must use `scope: 'cdn'`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "codex:gpt-5.5",
+    "first-time-user-reviewer": "codex:gpt-5.4-mini",
+    "production-engineer-reviewer": "codex:gpt-5.5",
+    "ai-consumer-reviewer": "codex:gpt-5.4-mini",
+    "factual-accuracy-verifier": "codex:gpt-5.5",
+    "source-grounding-verifier": "codex:gpt-5.5",
+    "api-completeness-auditor": "codex:gpt-5.5",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\frontend\\astro.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-14T05:00:47.861Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\astro-web.d.ts": "b68732467af078acda6d3c1204b3685b676fb9c6",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\config-ref\\astro-web.md": "4344f1a3878ce3c57dc86418e54d176726f101f5"
+  },
+  "styleGuideHash": "5bfa5b4c6981088376a91bf6595269b227cedc63"
+}

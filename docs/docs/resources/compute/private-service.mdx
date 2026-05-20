@@ -1,37 +1,35 @@
 ---
 title: 'Private Service'
 order: 32
-seoTitle: 'Private Service: Internal Containers on AWS | Stacktape Docs'
-seoDescription: 'Deploy always-on internal containers reachable only within your stack or VPC. Automatic service discovery, auto-scaling, and container-to-container communication on AWS ECS Fargate.'
+seoTitle: 'Private Service - Internal Container on AWS | Stacktape'
+seoDescription: 'Deploy always-on internal containers reachable only within your stack or VPC. Stacktape handles service discovery, health checks, and auto-scaling for microservices and gRPC servers.'
 ---
 
 # Private Service
 
-A private service is an always-on container with no public endpoint, reachable only from other resources in your stack or VPC. Built on AWS ECS Fargate, use it for internal APIs, microservices, gRPC servers, and any workload that handles internal traffic continuously. Other container-based resources reach it by name, such as `http://myService:3000`.
+A Stacktape private service runs always-on containers with no public endpoint, reachable only from other resources in your stack or VPC. Use it for internal microservices, gRPC backends, or any service that should never be exposed to the internet. Stacktape handles service discovery, health checks, and horizontal scaling.
 
-**Pricing**: A minimal Fargate task (0.25 vCPU, 512 MB) costs ~$9/month. Service Connect networking adds ~$0.50/month. If you choose an Application Load Balancer instead, add ~$18/month. ARM (Graviton) tasks cost ~20% less. Fargate cannot scale to zero.
+**Pricing context:** A minimal Fargate task (0.25 vCPU, 512 MB) costs approximately **~$9/month** for compute. The default `service-connect` networking adds approximately **~$0.50/month**. Switching to an Application Load Balancer adds approximately **~$18/month** in base fees.
 
-## When should I use a private service?
+## When to use
 
-**Use a private service when:**
+A Stacktape private service is the right choice when your stack has internal components that other workloads call but that should never be reachable from the public internet:
 
-- Your workload handles HTTP, HTTP/2, or gRPC traffic from other resources in your stack — not from the public internet
-- You're building a microservices architecture with internal service-to-service communication
-- You need an internal API for data processing, authentication, or orchestration that should not be publicly exposed
-- You want automatic service discovery so containers can find each other by name
+- **Internal microservices** — payment processors, auth validators, or email senders called only by your own services
+- **gRPC backends** — low-latency RPC services consumed by other containers in the same stack
+- **Data pipelines** — aggregation or transformation services invoked by other workloads
+- **Background APIs** — services triggered by other stack resources, not by end users
 
-**Use something else when:**
+## When NOT to use
 
-| Situation | Better option |
-|-----------|---------------|
-| Need a public HTTPS URL | [Web service](/resources/compute/web-service) — public endpoint with TLS |
-| No inbound traffic at all | [Worker service](/resources/compute/worker-service) — background processing |
-| Spiky or near-zero traffic | [Lambda function](/resources/compute/lambda-function) — scales to zero, pay per request |
-| Lambda functions need to call this service | Private service with `application-load-balancer` load balancing (the default `service-connect` is container-only) |
+- **Public-facing APIs** — use a [web service](/resources/compute/web-service) for containers that need a public HTTPS endpoint
+- **Background workers without inbound calls** — use a [worker service](/resources/compute/worker-service) (no load balancing overhead)
+- **Sporadic or event-driven workloads** — use a [Lambda function](/resources/compute/lambda-function) for pay-per-request pricing and scale-to-zero behavior
+- **One-off or batch workloads** — use a [batch job](/resources/compute/batch-job) for tasks that run to completion and stop
 
 ## Basic example
 
-This deploys an internal Node.js API that other resources in the stack can reach at `http://internalapi:3000`:
+This example deploys an internal API using the [Stacktape image buildpack](/packaging/containers/stacktape-buildpack), which builds a container image from your source code automatically. The service listens on port `3000` by default (injected as the `PORT` environment variable). Use `connectTo` on any calling resource to have Stacktape inject the service address automatically.
 
 <CodeBlock
   intellisense
@@ -62,60 +60,13 @@ export default defineConfig(() => {
   ]}
 />
 
-```typescript
-// src/internal-api.ts
-import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
+## Compute resources
 
-const app = new Hono();
-app.get('/health', (c) => c.text('ok'));
-app.post('/process', async (c) => {
-  const body = await c.req.json();
-  // internal processing logic
-  return c.json({ processed: true });
-});
+Every private service task runs with a fixed CPU and memory allocation. Stacktape supports two compute engines: Fargate (default) and EC2.
 
-serve({ fetch: app.fetch, port: Number(process.env.PORT) || 3000 });
-```
+### Fargate
 
-The `PORT` environment variable (default `3000`) and `HOST=0.0.0.0` are injected automatically. The Stacktape image buildpack builds a container image from your source code. For other packaging options (custom Dockerfile, prebuilt image, Nixpacks), see [container packaging](/packaging/containers/).
-
-## How do other resources reach this service?
-
-With the default `service-connect` load balancing, other container-based resources in the same stack can reach this service using the address `http://{lowercased-resource-name}:{port}`. For example, a private service named `internalApi` listening on port 3000 is reachable at `http://internalapi:3000`.
-
-There are two ways to use this address in your application code:
-
-**Using `connectTo` (recommended)** — when another resource lists this private service in its `connectTo`, Stacktape injects `STP_{RESOURCE_NAME}_ADDRESS` as an environment variable. For a private service named `internalApi`, the variable `STP_INTERNAL_API_ADDRESS` contains the address.
-
-**Hardcoding the address** — you can also construct the URL directly in your code. The alias is always the lowercased resource name, and the port defaults to `3000`.
-
-<Info>With the default `service-connect` load balancing, only container-based resources (web services, private services, worker services, multi-container workloads) can reach this service. Lambda functions and other non-container resources cannot use service-connect addresses. If you need Lambda-to-service communication, use `application-load-balancer` load balancing instead.</Info>
-
-## Load balancing
-
-The `loadBalancing` property determines how other resources connect to this service. This is the most important architectural decision for a private service — it affects which resources can reach it and the networking cost.
-
-<FeatureComparisonTable
-  columns={["Service Connect", "Application Load Balancer"]}
-  features={[
-    { name: "Pricing", values: { "Service Connect": "~$0.50/month", "Application Load Balancer": "~$18/month + usage" } },
-    { name: "Reachable from containers", values: { "Service Connect": true, "Application Load Balancer": true } },
-    { name: "Reachable from Lambda functions", values: { "Service Connect": false, "Application Load Balancer": true } },
-    { name: "Reachable from any VPC resource", values: { "Service Connect": false, "Application Load Balancer": true } },
-    { name: "Best for", values: { "Service Connect": "Container-to-container microservices", "Application Load Balancer": "Mixed compute (Lambda + containers)" } }
-  ]}
-/>
-
-### Service Connect (default)
-
-The default when `loadBalancing` is omitted. Direct container-to-container communication with automatic service discovery. At ~$0.50/month, it's the cheapest networking option. Other container-based resources reach the service by name (e.g., `http://internalapi:3000`).
-
-The limitation: only container-based resources in the same stack can reach it. Lambda functions, bastion hosts, and resources in other stacks cannot connect.
-
-### Application Load Balancer
-
-Use `application-load-balancer` when non-container resources (like Lambda functions) need to reach this service, or when you need the service accessible from any resource in the VPC. The ALB creates an internal HTTP load balancer — it is still not publicly accessible.
+**Fargate** is the default — serverless containers where you specify `cpu` and `memory` and AWS manages the underlying instances. Valid `cpu` values are `0.25`, `0.5`, `1`, `2`, `4`, `8`, and `16` vCPU. Memory is specified in MB. Set `architecture` to `arm64` to use Graviton processors at ~20% lower cost than the default `x86_64`.
 
 <CodeBlock
   intellisense
@@ -130,10 +81,165 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './src/internal-api.ts'
     }),
+    // [!code focus-start]
     resources: {
-      cpu: 0.5,
-      memory: 1024
-    },
+      cpu: 1,
+      memory: 2048,
+      architecture: 'arm64'
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { internalApi } };
+});
+`
+    }
+  ]}
+/>
+
+Fargate bills per vCPU-hour and per GB-hour of memory. As a rough reference, compute costs approximately ~$7.29/month per 0.25 vCPU and ~$1.60/month per 512 MB of memory in us-east-1. A minimal task at 0.25 vCPU + 512 MB runs at approximately ~$9/month. ARM (Graviton) tasks are ~20% less.
+
+<Info>Fargate bills for every running task — it cannot scale to zero. You pay for the full `minInstances` floor at all times.</Info>
+
+### EC2
+
+**EC2** gives you more control over instance type and can lower cost at sustained scale. Specify `instanceTypes` (e.g., `t3.medium`, `c6g.large`) instead of `cpu`/`memory`. For most internal services, Fargate is the simpler and recommended starting point. Switch to EC2 only when you have concrete cost or capability requirements that Fargate can't meet.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const internalApi = new PrivateService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/internal-api.ts'
+    }),
+    // [!code focus-start]
+    resources: {
+      instanceTypes: ['t3.medium']
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { internalApi } };
+});
+`
+    }
+  ]}
+/>
+
+## Scaling
+
+Stacktape private services auto-scale horizontally — adding or removing container instances based on CPU and memory utilization. Traffic is automatically distributed across all running instances.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const internalApi = new PrivateService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/internal-api.ts'
+    }),
+    resources: { cpu: 0.5, memory: 1024 },
+    // [!code focus-start]
+    scaling: {
+      minInstances: 2,
+      maxInstances: 10,
+      scalingPolicy: {
+        keepAvgCpuUtilizationUnder: 70,
+        keepAvgMemoryUtilizationUnder: 80
+      }
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { internalApi } };
+});
+`
+    }
+  ]}
+/>
+
+`minInstances` sets the always-running floor — because Fargate cannot scale to zero, you pay for at least this many tasks at all times. `maxInstances` caps burst capacity. `keepAvgCpuUtilizationUnder` and `keepAvgMemoryUtilizationUnder` set the average utilization targets that trigger scale-out events.
+
+<Warning>Setting `minInstances` and `maxInstances` to the same value disables auto-scaling. You pay for all running instances even during low traffic.</Warning>
+
+## Load balancing
+
+The `loadBalancing` property controls how other resources in your stack reach the private service. Two modes are available, with different cost and reachability tradeoffs.
+
+<FeatureComparisonTable
+  columns={['Service Connect', 'Application Load Balancer']}
+  features={[
+    { name: 'Monthly cost', values: { 'Service Connect': '~$0.50/month', 'Application Load Balancer': '~$18/month base + usage' } },
+    { name: 'Default', values: { 'Service Connect': true, 'Application Load Balancer': false } },
+    { name: 'Reachable from container workloads', values: { 'Service Connect': true, 'Application Load Balancer': true } },
+    { name: 'Reachable from any VPC resource', values: { 'Service Connect': false, 'Application Load Balancer': true } },
+    { name: 'Direct container-to-container', values: { 'Service Connect': true, 'Application Load Balancer': false } }
+  ]}
+/>
+
+**Service Connect (default)** is the right choice for most teams. At ~$0.50/month it provides direct container-to-container connectivity with built-in load balancing and service discovery. Only container-based workloads in the same stack — web services, private services, worker services, and multi-container workloads — can reach the service.
+
+**Application Load Balancer** is needed when non-container VPC resources must also reach the private service — for example, a Lambda function running inside the VPC, a [bastion host](/resources/security/bastion-host), or EC2 instances. It adds a ~$18/month base fee plus usage charges. For most internal service-to-service calls between containers, paying that base fee is unnecessary.
+
+### Using Service Connect
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const internalApi = new PrivateService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/internal-api.ts'
+    }),
+    resources: { cpu: 0.25, memory: 512 },
+    // [!code focus-start]
+    loadBalancing: {
+      type: 'service-connect'
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { internalApi } };
+});
+`
+    }
+  ]}
+/>
+
+With Service Connect, other containers in the stack can reach this service via built-in service discovery. Use `connectTo` on the calling resource to have Stacktape inject the service address as an environment variable — this is the recommended approach rather than hard-coding addresses or hostnames.
+
+### Using an Application Load Balancer
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const internalApi = new PrivateService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/internal-api.ts'
+    }),
+    resources: { cpu: 0.5, memory: 1024 },
     // [!code focus-start]
     loadBalancing: {
       type: 'application-load-balancer'
@@ -141,22 +247,28 @@ export default defineConfig(() => {
     // [!code focus-end]
   });
 
-  return {
-    resources: { internalApi }
-  };
-});`
+  return { resources: { internalApi } };
+});
+`
     }
   ]}
 />
 
-## Resources and compute
+With an ALB, the private service gets a stable internal DNS hostname reachable from any resource in the same VPC. Any resource that `connectTo`s this service receives the `ADDRESS` parameter injected as `STP_[RESOURCE_NAME]_ADDRESS`.
 
-The `resources` property sets CPU, memory, and the compute engine for your containers.
+## Packaging
 
-Two compute engines are available:
+Stacktape supports five container packaging modes. Choose the one that fits your workflow. For detailed configuration, see the [packaging overview](/packaging/overview).
 
-- **Fargate** (default) — serverless. Specify `cpu` and `memory`. AWS manages the underlying infrastructure.
-- **EC2** — specify `instanceTypes` for more control and potentially lower cost on steady workloads.
+| Mode | When to use |
+|------|-------------|
+| [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) | Zero-config, works with JS/TS, Python, Java, Go |
+| [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Full control over the container environment |
+| [Prebuilt image](/packaging/containers/prebuilt-image) | Use an existing image from Docker Hub or a private registry |
+| [Nixpacks](/packaging/containers/nixpacks) | Auto-detects language and builds an optimized image |
+| [External buildpack](/packaging/containers/external-buildpack) | Use Cloud Native Buildpacks (buildpacks.io) |
+
+### Using a custom Dockerfile
 
 <CodeBlock
   intellisense
@@ -164,88 +276,31 @@ Two compute engines are available:
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, PrivateService, CustomDockerfilePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './src/internal-api.ts'
-    }),
     // [!code focus-start]
-    resources: {
-      cpu: 0.5,
-      memory: 1024
-    }
+    packaging: new CustomDockerfilePackaging({
+      buildContextPath: '.',
+      dockerfilePath: './Dockerfile'
+    }),
     // [!code focus-end]
+    resources: { cpu: 0.5, memory: 1024 }
   });
 
-  return {
-    resources: { internalApi }
-  };
-});`
+  return { resources: { internalApi } };
+});
+`
     }
   ]}
 />
 
-Fargate CPU and memory must use valid combinations. Common sizes and approximate monthly costs (us-east-1, single container):
-
-| vCPU | Memory | ~Cost/month |
-|------|--------|-------------|
-| 0.25 | 512 MB | ~$9 |
-| 0.5 | 1024 MB | ~$18 |
-| 1 | 2048 MB | ~$36 |
-| 2 | 4096 MB | ~$71 |
-| 4 | 8192 MB | ~$142 |
-
-<Tip>Set `architecture: 'arm64'` to use ARM (Graviton) tasks for ~20% lower compute cost. The default is `x86_64`.</Tip>
-
-## Scaling
-
-Auto-scaling adds or removes container instances based on CPU and memory utilization. Traffic is distributed across all running instances automatically.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './src/internal-api.ts'
-    }),
-    resources: {
-      cpu: 0.5,
-      memory: 1024
-    },
-    // [!code focus-start]
-    scaling: {
-      minInstances: 2,
-      maxInstances: 5,
-      scalingPolicy: {
-        keepAvgCpuUtilizationUnder: 70
-      }
-    }
-    // [!code focus-end]
-  });
-
-  return {
-    resources: { internalApi }
-  };
-});`
-    }
-  ]}
-/>
-
-Without scaling configured, a single container handles all traffic (`minInstances` and `maxInstances` both default to `1`). For production workloads, configure at least `minInstances: 2` so your service stays available if one container fails.
-
-Scaling policy defaults: scale out when average CPU or memory exceeds 80%, scale in when utilization drops below the target.
+The `dockerfilePath` is relative to `buildContextPath`. If omitted, Stacktape looks for a `Dockerfile` in the build context directory.
 
 ## Connecting to other resources
 
-Use `connectTo` to grant your private service access to databases, buckets, queues, and other resources in your stack. Stacktape automatically grants IAM permissions, opens network access (security group rules for databases and Redis), and injects environment variables with connection details.
+Use `connectTo` to give your private service access to other resources in your stack. Stacktape automatically grants IAM permissions, opens network access (security groups for databases and Redis), and injects environment variables with connection details. For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
 
 <CodeBlock
   intellisense
@@ -260,41 +315,26 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './src/internal-api.ts'
     }),
-    resources: {
-      cpu: 0.5,
-      memory: 1024
-    },
+    resources: { cpu: 0.25, memory: 512 },
     // [!code focus-start]
     connectTo: ['myDatabase', 'myBucket']
     // [!code focus-end]
   });
 
-  return {
-    resources: { internalApi }
-  };
-});`
+  return { resources: { internalApi } };
+});
+`
     }
   ]}
 />
 
-Environment variables are injected in the format `STP_[RESOURCE_NAME]_[PARAM]`. For example, connecting to a relational database named `myDatabase` injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, `STP_MY_DATABASE_PORT`, and more.
+When you connect to a relational database, the private service receives variables like `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, and `STP_MY_DATABASE_PORT`. For a bucket, it receives `STP_MY_BUCKET_NAME` and `STP_MY_BUCKET_ARN`.
 
-For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
+Other resources that call this private service can reference it the same way. A resource with `connectTo: ['internalApi']` receives the service's `ADDRESS` parameter injected as `STP_INTERNAL_API_ADDRESS`. For permissions not covered by `connectTo` (e.g., accessing AWS Bedrock), add raw IAM statements via `iamRoleStatements`.
 
-For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, SES), use `iamRoleStatements` to add raw IAM policy statements.
+## Health checks
 
-## Side containers
-
-Run helper containers alongside your main container using the `sideContainers` property:
-
-- **`run-on-init`** — runs to completion before the main container starts. Must exit with code 0. Use for database migrations, cache warming, or configuration setup.
-- **`always-running`** — runs for the entire lifecycle alongside the main container. If it crashes, the whole task fails. Use for log forwarders, monitoring agents, or sidecar proxies. Reachable from the main container via `localhost`.
-
-Each side container has its own packaging, environment variables, and resource allocation.
-
-## Static outbound IP
-
-By default, your container's outbound IP address changes with each deployment. To get a static outbound IP — for IP whitelisting with third-party APIs or partner services — enable private subnets with NAT:
+A Stacktape private service supports an internal container health check configured via `internalHealthCheck`. ECS runs a command inside the container on a regular interval and replaces the container if it fails repeatedly — catching cases where the process is alive but not functioning correctly.
 
 <CodeBlock
   intellisense
@@ -309,49 +349,173 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './src/internal-api.ts'
     }),
-    resources: {
-      cpu: 0.5,
-      memory: 1024
-    },
+    resources: { cpu: 0.25, memory: 512 },
     // [!code focus-start]
-    usePrivateSubnetsWithNAT: true
+    internalHealthCheck: {
+      healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/health || exit 1'],
+      intervalSeconds: 30,
+      timeoutSeconds: 5,
+      retries: 3,
+      startPeriodSeconds: 60
+    }
     // [!code focus-end]
   });
 
-  return {
-    resources: { internalApi },
-    stackConfig: {
-      vpc: {
-        nat: { availabilityZones: 2 }
-      }
-    }
-  };
-});`
+  return { resources: { internalApi } };
+});
+`
     }
   ]}
 />
 
-All outbound traffic routes through NAT Gateways, each with a static Elastic IP that persists across deployments. Configure the number of NAT Gateways (1–3) in `stackConfig.vpc.nat`.
+`startPeriodSeconds` gives the container a grace period before health check failures start counting against the retry limit — useful for services with slow initialization. See the [API reference](#api-reference) for the full set of supported properties and their defaults.
 
-<Warning>Each NAT Gateway costs ~$32/month plus data processing fees. Only enable this when you need a static outbound IP.</Warning>
+## Side containers
 
-## Health checks
+Side containers run alongside your main container within the same task. Two modes are available, each with distinct lifecycle behavior.
 
-The `internalHealthCheck` property runs a command inside the container to verify it's healthy. If a container fails the check, ECS terminates and replaces it automatically.
+### run-on-init
 
-Defaults: interval `30s`, timeout `5s`, `3` retries before marking unhealthy.
+A `run-on-init` sidecar runs to completion before the main container starts. Use this for database migrations, cache warming, or any setup that must succeed before your service handles traffic. The container must exit with code 0; a non-zero exit aborts the entire task.
 
-For most private services, this is the primary health check mechanism. If you use `application-load-balancer` load balancing, the ALB also performs its own health checks.
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const internalApi = new PrivateService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/internal-api.ts'
+    }),
+    resources: { cpu: 0.5, memory: 1024 },
+    // [!code focus-start]
+    sideContainers: [
+      {
+        name: 'migrate',
+        containerType: 'run-on-init',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/migrate.ts'
+        })
+      }
+    ]
+    // [!code focus-end]
+  });
+
+  return { resources: { internalApi } };
+});
+`
+    }
+  ]}
+/>
+
+### always-running
+
+An `always-running` sidecar runs for the entire lifetime of the task alongside the main container. Use this for log forwarders, monitoring agents, or sidecar proxies. The sidecar can communicate with the main container via `localhost`.
+
+<Warning>If an always-running sidecar crashes, ECS terminates the entire task — including the main container. Ensure always-running sidecars are stable; use a resilient base image or process supervisor for anything that could exit unexpectedly.</Warning>
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  PrivateService,
+  StacktapeImageBuildpackPackaging,
+  PrebuiltImagePackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const internalApi = new PrivateService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/internal-api.ts'
+    }),
+    resources: { cpu: 0.5, memory: 1024 },
+    // [!code focus-start]
+    sideContainers: [
+      {
+        name: 'otel-collector',
+        containerType: 'always-running',
+        packaging: new PrebuiltImagePackaging({
+          image: 'otel/opentelemetry-collector:latest'
+        })
+      }
+    ]
+    // [!code focus-end]
+  });
+
+  return { resources: { internalApi } };
+});
+`
+    }
+  ]}
+/>
+
+## Private subnets
+
+By default, private service containers run in public subnets with direct internet access for outbound calls. Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outbound traffic routes through a NAT Gateway. This gives you a static outbound IP that external services can whitelist.
+
+<Warning>NAT Gateways add approximately ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateways (1–3 AZs) in `stackConfig.vpc.nat`.</Warning>
 
 ## Logging
 
-Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with `stacktape logs` or in the Stacktape Console. Adjust retention with the `logging.retentionDays` property.
+Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview). You can also set up [log forwarding](/observability/log-forwarding) to external services like Datadog.
 
-## Remote debugging
+Set `protocol` to `http`, `http2`, or `grpc` to enable protocol-specific CloudWatch metrics — for example, HTTP 5xx error rate tracking for HTTP services or request count metrics for gRPC servers.
 
-Enable `enableRemoteSessions: true` to allow SSH-like access to running containers via `stacktape container:session`. This installs a small SSM agent using minimal CPU/memory. Useful for debugging issues that only reproduce in the deployed environment.
+## Remote sessions
 
-## API reference
+Set `enableRemoteSessions: true` to allow interactive shell access to running containers via [`stacktape container:session`](/cli/container-session). This adds a small SSM agent sidecar that uses minimal CPU and memory. Useful for debugging production issues without needing a public endpoint, but disabled by default to minimize attack surface.
+
+## FAQ
+
+### How do I connect to a private service from a web service?
+
+Add the private service name to the web service's `connectTo` array. Stacktape injects the service's `ADDRESS` parameter as `STP_[RESOURCE_NAME]_ADDRESS` and automatically opens network access. Use that environment variable as the base URL for HTTP or gRPC calls. No manual DNS configuration is needed. See [connecting resources](/configuration/connecting-resources).
+
+### When should I use `application-load-balancer` vs `service-connect`?
+
+Use `service-connect` (the default, ~$0.50/month) when only container-based workloads in the same stack need to reach the service. Switch to `application-load-balancer` (~$18/month base fee) when non-container VPC resources also need access — such as a Lambda function running inside the VPC, a [bastion host](/resources/security/bastion-host), or EC2 instances. The cost difference makes `service-connect` the right default for most teams.
+
+### Does a private service scale to zero?
+
+No. Like all Fargate-based Stacktape workloads, a private service requires at least one running task. Fargate cannot scale to zero — you pay for compute at all times. If the service is called infrequently, a [Lambda function](/resources/compute/lambda-function) scales to zero and charges only on invocation.
+
+### How much does a private service cost to run?
+
+The main costs are Fargate compute and networking. Compute runs approximately ~$7.29/month per 0.25 vCPU and ~$1.60/month per 512 MB of memory (us-east-1 list prices). A minimal 0.25 vCPU / 512 MB task costs ~$9/month total. The default `service-connect` networking adds ~$0.50/month. Switching to an Application Load Balancer adds ~$18/month in base fees. ARM (Graviton) tasks cut Fargate compute costs by ~20%.
+
+### Can I run a gRPC server as a private service?
+
+Yes. Set `port` to your gRPC server's listening port (e.g., `50051`) and set `protocol: 'grpc'` to enable gRPC-specific CloudWatch metrics such as request count. Other containers in the stack connect using `connectTo` to receive the injected `ADDRESS` environment variable. The Stacktape image buildpack supports Node.js, Python, Java, and Go gRPC servers.
+
+### How fast does a Fargate private service cold-start?
+
+Cold-start typically takes 30–90 seconds from scaling event to task healthy. Image size and ECR pull time are the main factors. To eliminate cold-start impact entirely, keep `minInstances` at 1 or higher so a warm instance is always available. New instances launched during scale-out take the same time, so set auto-scaling thresholds conservatively for latency-sensitive internal services.
+
+### Private service vs worker service — which should I use?
+
+Use a **private service** when other parts of your stack need to actively call it over HTTP, gRPC, or TCP — it accepts and routes inbound connections. Use a [worker service](/resources/compute/worker-service) when the workload only consumes messages from a queue, stream, or event source and never needs to respond to inbound requests. Worker services have no load balancing cost at all.
+
+### Private service vs Lambda function for internal APIs — which is cheaper?
+
+It depends on call volume. A Lambda function charges only when invoked and scales to zero — typically cheaper for infrequent calls. A private service charges for Fargate compute 24/7 regardless of traffic. For high-throughput, consistent internal traffic, the flat Fargate cost beats per-invocation Lambda pricing. The break-even point varies by request duration, but sustained high-frequency services (thousands of requests per minute continuously) generally favor a private service.
+
+### How do I run database migrations before the main container starts?
+
+Use a `sideContainers` entry with `containerType: 'run-on-init'`. The init container runs to completion (exit code 0) before the main container starts, making it safe to run schema migrations, seed scripts, or cache warming without the main application processing requests simultaneously.
+
+### Can I expose a private service to the public internet later?
+
+Not directly — there is no property on a private service that adds a public endpoint. To give a service a public URL, use a [web service](/resources/compute/web-service) instead, which is the same container model with public load balancing added. If you are unsure whether a service will eventually need a public endpoint, start with a web service and restrict access at the application layer.
+
+## API Reference
 
 <ApiReference definitionName="PrivateServiceProps" />
 

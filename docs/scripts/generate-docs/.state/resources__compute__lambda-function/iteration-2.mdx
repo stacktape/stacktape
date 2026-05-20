@@ -1,60 +1,75 @@
 ---
 title: 'Lambda Function'
 order: 30
-seoTitle: 'Lambda Function: Serverless Compute on AWS | Stacktape Docs'
-seoDescription: 'Deploy serverless Lambda functions on AWS with Stacktape. Auto-scaling, pay-per-use pricing, and zero-config packaging for Node.js, Python, Go, Java, and more.'
+seoTitle: 'Deploy Lambda Functions with Stacktape | Stacktape Docs'
+seoDescription: 'Deploy AWS Lambda functions with Stacktape using buildpack packaging, event triggers, URLs, VPC access, concurrency controls, and safe rollouts.'
 ---
 
 # Lambda Function
 
-A Stacktape Lambda function is a serverless compute resource that runs your code in response to events — HTTP requests, file uploads, queue messages, schedules, and more. Functions scale automatically, and you pay only for the compute time consumed. Stacktape handles packaging, permissions, triggers, and deployment automatically.
+A Stacktape Lambda function runs short-lived, stateless code in response to events such as HTTP requests, schedules, queue messages, file uploads, and alarms. Use Lambda functions when work is bursty, event-driven, or idle most of the time: Stacktape packages the code, configures trigger permissions, and lets AWS scale invocations automatically.
 
-**Pricing**: You pay only for compute time consumed — no charge when idle. `arm64` (Graviton) is ~20% cheaper per GB-second than the default `x86_64`.
+**Pricing context:** Lambda billing is based on consumed compute time. `arm64` is approximately ~20% cheaper than `x86_64`, while provisioned concurrency bills even when instances are idle.
 
-## When should I use a Lambda function?
+## When to use
 
-**Use a Lambda function when:**
+A Lambda function is the right default for event-driven code that finishes within minutes, does not need a continuously running process, and can run without local disk state between invocations. Common use cases:
 
-- Your code runs in response to events (HTTP requests, file uploads, queue messages, schedules, database changes)
-- Individual executions complete within 15 minutes
-- You want automatic scaling with no always-on compute costs
-- You prefer pay-per-use over always-on containers
-- You don't need persistent in-memory state between requests
+- **HTTP endpoints with spiky traffic** — attach an [HTTP API Gateway](/resources/networking/http-api-gateway) trigger or enable a function URL for a single-function HTTPS endpoint.
+- **Background event handlers** — react to [SQS](/configuration/triggers/sqs-events), [SNS](/configuration/triggers/sns-events), [S3](/configuration/triggers/s3-events), DynamoDB stream, Kinesis, EventBridge, CloudWatch log, Kafka topic, or alarm events.
+- **Scheduled tasks** — run cron-like cleanup, reporting, and polling jobs with a [schedule trigger](/configuration/triggers/schedule-triggers).
+- **Pay-per-use workloads** — run code that sits idle for long periods without paying for an always-on container.
+- **Simple resource automation** — use function destinations, alarms, and async event handling when the workflow is mostly event routing rather than a long-running server.
 
-**Use something else when:**
+## When NOT to use
 
-| Situation | Better option |
-|-----------|---------------|
-| Execution takes longer than 15 minutes | [Batch job](/resources/compute/batch-job) or [worker service](/resources/compute/worker-service) |
-| Always-on HTTP with WebSocket or gRPC | [Web service](/resources/compute/web-service) — supports long-lived connections |
-| Steady high traffic where always-on containers cost less | [Web service](/resources/compute/web-service) — flat-rate compute |
-| Need VPC access AND external internet access simultaneously | [Web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) — Lambda in a VPC loses internet access |
-| Internal-only traffic, no public URL needed | [Private service](/resources/compute/private-service) |
-| Next.js, Remix, Astro, Nuxt, SvelteKit, SolidStart, or TanStack | Use the matching [frontend framework resource](/resources/frontend/) |
+- **Tasks longer than 15 minutes** — Lambda functions have a maximum `timeout` of `900` seconds. Use a [batch job](/resources/compute/batch-job) or [worker-service](/resources/compute/worker-service) for longer processing.
+- **Always-on HTTP servers** — use a [web-service](/resources/compute/web-service) when you need a continuously running container, direct internet egress while also reaching VPC resources, or a container-native web framework deployment model.
+- **Connection-heavy VPC workloads** — `joinDefaultVpc` lets a function reach VPC-only resources, but the function loses direct internet access except for Stacktape-created S3 and DynamoDB VPC endpoints.
+- **Large stateful processing** — `/tmp` storage is ephemeral per invocation. Use [EFS](/resources/storage/efs-filesystem), [S3 bucket](/resources/storage/s3-bucket), a database, or a container workload when data must persist beyond one invocation.
+- **Continuously running processes** — use a container resource when your workload depends on long-lived background processes, server lifecycle control, or work that may exceed the Lambda timeout.
 
-## How to deploy a Lambda function with Stacktape
+## Basic example
 
-This deploys a function with a public HTTPS URL:
+This example creates a Lambda function and exposes it through an HTTP API Gateway route. Stacktape builds the function from `./src/get-user.ts`, attaches the gateway integration, and configures the permissions needed for the gateway to invoke the function.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  HttpApiGateway,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const api = new LambdaFunction({
+  const apiGateway = new HttpApiGateway({});
+
+  const getUser = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
+      entryfilePath: './src/get-user.ts'
     }),
-    url: { enabled: true }
+    events: [
+      {
+        type: 'http-api-gateway',
+        properties: {
+          httpApiGatewayName: 'apiGateway',
+          method: 'GET',
+          path: '/users/{id}'
+        }
+      }
+    ],
+    memory: 1024,
+    timeout: 30
   });
 
   return {
-    resources: { api }
+    resources: { apiGateway, getUser }
   };
 });
 // [!code focus-end]`
@@ -62,329 +77,353 @@ export default defineConfig(() => {
   ]}
 />
 
-```typescript
-// src/handler.ts
-// Event shape depends on the trigger type (function URL, API Gateway, S3, SQS, etc.)
-export const handler = async (event: Record<string, unknown>) => {
+`entryfilePath` points to the function source file relative to the Stacktape config file. `memory` is measured in MB and also controls CPU power; `timeout` is the maximum runtime in seconds before AWS stops the invocation.
+
+A minimal TypeScript handler can export a function named `handler`. Set `handlerFunction` in the buildpack packaging configuration when your exported handler uses a different name.
+
+```ts
+export async function handler(event: { pathParameters?: { id?: string } }) {
   return {
     statusCode: 200,
-    body: JSON.stringify({ message: 'Hello from Lambda!' })
+    body: JSON.stringify({ id: event.pathParameters?.id })
   };
-};
+}
 ```
 
-When you enable a function URL, it uses the format `https://{id}.lambda-url.{region}.on.aws`.
+## Packaging
 
-The Stacktape Lambda buildpack builds, bundles, and uploads your code automatically. The language runtime is auto-detected from your source file extension. Supported languages: JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. Override the detected runtime with the `runtime` property when you need a specific version (e.g., `nodejs22.x`, `python3.13`).
+A Stacktape Lambda function supports two packaging modes: `stacktape-lambda-buildpack` and `custom-artifact`. Use the Stacktape Lambda buildpack for most JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET functions; use a custom artifact when your CI pipeline already produces a Lambda deployment package.
 
-For other packaging options (pre-built zip), see [Lambda packaging](/packaging/function/).
+| Mode | When to use |
+|------|-------------|
+| [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) | Point Stacktape at a source file and let Stacktape bundle, upload, and configure the function. |
+| [Custom artifact](/packaging/function/custom-artifact) | Provide a pre-built package path; Stacktape uploads it and zips directories or unzipped files when needed. |
 
-## Environment variables
-
-Set custom environment variables using the `environment` property. Use these for API keys, feature flags, configuration values, and other runtime settings.
+The buildpack path is the better default because the source file, handler, language runtime, and selected architecture stay in one Stacktape resource. `languageSpecificConfig` is a nested buildpack tuning option for runtime-specific settings such as Node version, Python version, Java build tool, or source map behavior; see [language-specific config](/packaging/function/language-specific-config) when the default build is not enough.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, LambdaFunction, CustomArtifactLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
+  const processor = new LambdaFunction({
     // [!code focus-start]
-    environment: [
-      { name: 'STAGE', value: 'production' },
-      { name: 'LOG_LEVEL', value: 'info' },
-      { name: 'MAX_RETRIES', value: 3 }
-    ]
+    packaging: new CustomArtifactLambdaPackaging({
+      packagePath: './dist/processor.zip',
+      handler: 'index.js:handler'
+    }),
+    runtime: 'nodejs22.x'
     // [!code focus-end]
   });
 
-  return {
-    resources: { api }
-  };
+  return { resources: { processor } };
 });`
     }
   ]}
 />
 
-Values can be static strings, numbers, or booleans. For secrets, use the `$Secret()` directive. For values from other resources, use `$ResourceParam()`.
+With `custom-artifact`, set `runtime` explicitly because the provided source only documents runtime auto-detection for `stacktape-lambda-buildpack`. If you set `architecture: 'arm64'` with a custom artifact, pre-compile any native dependencies for `arm64`; the Stacktape Lambda buildpack handles that build target automatically.
 
-Variables injected by `connectTo` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`) are added automatically alongside your custom variables.
+## Triggers
 
-## How does Lambda memory affect CPU and performance?
+A Lambda function receives work through its `events` array. Stacktape supports HTTP API Gateway, S3, schedule, SNS, SQS, Kinesis, DynamoDB stream, CloudWatch log, Application Load Balancer, EventBridge event bus, Kafka topic, and CloudWatch alarm integrations, and Stacktape configures the trigger permissions for each integration.
 
-The `memory` property (128–10,240 MB) is the primary performance lever for Lambda functions. Lambda allocates CPU proportionally to memory: **1,769 MB gives 1 vCPU**, 3,538 MB gives 2 vCPUs, and so on.
+Use trigger-specific pages for deeper event-shape and retry behavior: [HTTP triggers](/configuration/triggers/http-triggers), [schedule triggers](/configuration/triggers/schedule-triggers), [S3 events](/configuration/triggers/s3-events), [SQS events](/configuration/triggers/sqs-events), [SNS events](/configuration/triggers/sns-events), [DynamoDB streams](/configuration/triggers/dynamodb-streams), [Kinesis events](/configuration/triggers/kinesis-events), [EventBridge events](/configuration/triggers/event-bus-events), [CloudWatch logs](/configuration/triggers/cloudwatch-logs), [alarms as triggers](/configuration/triggers/alarms-as-triggers), and [Kafka topics](/configuration/triggers/kafka-topics).
 
-If your function is slow, increasing memory gives it more CPU — which often makes it faster *and* cheaper because execution time drops.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'stacktape.ts',
-      lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    // [!code focus-start]
-    memory: 1024,
-    timeout: 30
-    // [!code focus-end]
-  });
-
-  return {
-    resources: { api }
-  };
-});`
-    }
-  ]}
-/>
-
-The maximum timeout is 900 seconds (15 minutes). Default is `10` seconds. If your workload needs more than 15 minutes, use a [batch job](/resources/compute/batch-job) or [worker service](/resources/compute/worker-service).
-
-<Tip>Set `architecture: 'arm64'` to use Graviton processors for ~20% lower cost per GB-second. Works with most code when using the Stacktape Lambda buildpack — Stacktape builds for the selected architecture automatically.</Tip>
-
-## What events can trigger a Lambda function?
-
-Triggers define what invokes your function. Stacktape auto-configures permissions for each trigger type. The event payload your function receives depends on the trigger type.
-
-| Trigger type | Use case |
-|---|---|
-| `http-api-gateway` | HTTP requests via API Gateway |
-| `application-load-balancer` | HTTP via ALB with advanced routing |
-| `s3` | File uploads or deletions in a bucket |
-| `sqs` | Queue message processing |
-| `sns` | Pub/sub notifications |
-| `kinesis-stream` | Real-time data stream processing |
-| `dynamo-db-stream` | Database change capture (CDC) |
-| `schedule` | Cron jobs and periodic tasks |
-| `event-bus` | EventBridge event routing |
-| `kafka-topic` | Kafka message consumption |
-| `cloudwatch-log` | Log event processing |
-| `cloudwatch-alarm` | Alarm state changes |
-
-For detailed configuration of each trigger type, see [triggers](/configuration/triggers/).
-
-### HTTP API Gateway
-
-A common pattern is to route all HTTP requests from an API Gateway to a single function.
+For queue and stream triggers, batch size and batch window settings control how many records a function receives per invocation. Keep handlers idempotent when using Kinesis or DynamoDB stream sources because the source documents that failed batches can be retried, including records that were already processed successfully.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, HttpApiGateway } from 'stacktape';
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  SqsQueue,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
 
 export default defineConfig(() => {
-  const gateway = new HttpApiGateway({});
+  const jobs = new SqsQueue({});
 
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
+  const worker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
     // [!code focus-start]
     events: [
       {
-        type: 'http-api-gateway',
+        type: 'sqs',
         properties: {
-          httpApiGatewayName: 'gateway',
-          method: '*',
-          path: '/{proxy+}'
+          sqsQueueName: 'jobs',
+          batchSize: 10,
+          maxBatchWindowSeconds: 30
         }
       }
     ]
     // [!code focus-end]
   });
 
-  return {
-    resources: { gateway, api }
-  };
+  return { resources: { jobs, worker } };
 });`
     }
   ]}
 />
 
-The `/{proxy+}` greedy path catches all routes, and `*` matches all HTTP methods. Your handler receives the full request context and handles routing internally (e.g., with Hono or Express).
+`batchSize` is the maximum number of SQS records delivered to one invocation; the SQS maximum is `10,000`, and the Stacktape default is `10`. `maxBatchWindowSeconds` waits up to the configured number of seconds before invoking the function with a partial batch, with a maximum of `300` seconds. Use one consumer function per SQS queue; for fan-out to multiple handlers, publish through SNS or EventBridge instead.
 
-### Function URL
+## Function URLs
 
-A function URL gives your Lambda its own public HTTPS endpoint without requiring an API Gateway. Simpler and cheaper than an API Gateway for single-function endpoints.
+A Lambda function URL gives one function its own HTTPS endpoint without defining an API Gateway. Use `url.enabled` for simple single-function endpoints, webhooks, or internal tools where a full gateway resource would add routing configuration you do not need.
+
+Function URLs can be public with `authMode: 'NONE'` or limited to AWS users and roles with invoke permission by using `authMode: 'AWS_IAM'`; the default is `NONE`. Enable CORS only when browser clients call the URL directly, because function URL CORS settings override CORS headers returned by your function code.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 
 export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
+  const webhook = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/webhook.ts' }),
     // [!code focus-start]
     url: {
       enabled: true,
+      authMode: 'NONE',
       cors: {
         enabled: true,
-        allowedOrigins: ['https://myapp.com'],
-        allowCredentials: true
+        allowedOrigins: ['https://app.example.com'],
+        allowedMethods: ['POST']
       }
     }
     // [!code focus-end]
   });
 
-  return {
-    resources: { api }
-  };
+  return { resources: { webhook } };
 });`
     }
   ]}
 />
 
-By default, the URL is public (`authMode: 'NONE'`). Set `authMode: 'AWS_IAM'` to restrict access to authenticated AWS users and roles.
+When `cors.enabled` is true with no other CORS fields, Stacktape uses permissive `*` defaults for origins and methods; set `allowedOrigins` and `allowedMethods` for browser-facing endpoints. Use an [HTTP API Gateway](/resources/networking/http-api-gateway) instead when you need multiple routes, route authorizers, or a shared API surface across several functions.
 
-Enable `responseStreamEnabled: true` to stream responses progressively instead of buffering. This improves Time to First Byte and increases the maximum response size from 6 MB to 20 MB. Requires the AWS streaming handler pattern in your code.
+<Info>`responseStreamEnabled` streams the response progressively, improving Time to First Byte and increasing the maximum response size from `6 MB` to `20 MB`. Your handler must use the AWS streaming handler pattern for response streaming.</Info>
 
-<Info>For multi-route APIs with path-based routing, use an [HTTP API Gateway](/resources/networking/http-api-gateway) instead of a function URL.</Info>
+## Runtime resources
 
-## How do I reduce Lambda cold starts?
+Lambda runtime resources are mostly controlled by `runtime`, `architecture`, `memory`, `timeout`, and `storage`. Stacktape can auto-detect the runtime from the source file extension when using the Stacktape Lambda buildpack, but you can override `runtime` when you need a specific language version.
 
-### Provisioned concurrency
-
-When a function hasn't been called recently, the first request takes 1–5+ seconds while AWS initializes a new execution environment ("cold start"). Provisioned concurrency keeps instances warm so they avoid most cold-start initialization delay.
+`memory` accepts `128` to `10,240` MB and also determines CPU power. Lambda allocates CPU proportionally to memory: `1,769` MB equals `1` vCPU, and `3,538` MB equals `2` vCPUs. Increasing memory can reduce total cost for CPU-bound functions when shorter execution time offsets the higher per-millisecond rate.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 
 export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    memory: 1024,
+  const imageProcessor = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/image-processor.ts' }),
     // [!code focus-start]
-    provisionedConcurrency: 5
+    runtime: 'nodejs22.x',
+    architecture: 'arm64',
+    memory: 2048,
+    timeout: 120,
+    storage: 2048
     // [!code focus-end]
   });
 
-  return {
-    resources: { api }
-  };
+  return { resources: { imageProcessor } };
 });`
     }
   ]}
 />
 
-Use provisioned concurrency for user-facing APIs and web/mobile backends where response time matters. Skip it for background jobs, cron tasks, and data pipelines.
+`architecture` is `x86_64` by default; `arm64` is cheaper per GB-second and often faster according to the source comments. `storage` controls the size of the ephemeral `/tmp` directory from `512` to `10,240` MB; use it for temporary downloads or intermediate files, not persistent data.
 
-<Warning>You pay for each provisioned instance even when idle. Provisioned concurrency also increases deploy time by ~2–5 minutes.</Warning>
+<Warning>A Lambda function is stopped when it exceeds `timeout`. The default timeout is `10` seconds and the maximum is `900` seconds; use a batch job or worker service when work can exceed 15 minutes.</Warning>
 
-### Reserved concurrency
+## Concurrency
 
-Reserved concurrency caps the maximum number of concurrent executions for a function. It reserves that many execution slots exclusively — other functions in the same AWS account can't use them, and this function can't exceed the limit. No additional cost.
+Lambda concurrency controls protect both user experience and downstream systems. `reservedConcurrency` caps and reserves execution slots for one function at no additional cost, while `provisionedConcurrency` keeps a configured number of function instances warm and bills for those instances even when idle.
 
-Common uses:
-
-- Prevent overwhelming a database with too many connections
-- Guarantee capacity for critical functions
-- Throttle expensive downstream API calls
-
-## How do I connect a Lambda function to a database or bucket?
-
-Use `connectTo` to grant your function access to databases, buckets, queues, and other resources in your stack. Stacktape automatically grants IAM permissions, opens network access (security group rules for databases and Redis), and injects environment variables with connection details.
+Use `reservedConcurrency` when a database, third-party API, or queue consumer must not receive unlimited parallel traffic. Use `provisionedConcurrency` for latency-sensitive user-facing paths where cold starts are unacceptable; skip provisioned concurrency for background jobs, cron tasks, and data pipelines where a cold start is usually tolerable.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 
 export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
+  const checkout = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/checkout.ts' }),
     // [!code focus-start]
-    connectTo: ['myDatabase', 'myBucket']
+    reservedConcurrency: 25,
+    provisionedConcurrency: 3
     // [!code focus-end]
   });
 
-  return {
-    resources: { api }
-  };
+  return { resources: { checkout } };
 });`
     }
   ]}
 />
 
-Environment variables are injected in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME]`. For example, connecting to a relational database named `myDatabase` injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, `STP_MY_DATABASE_PORT`, and more.
+`reservedConcurrency: 25` means the function cannot scale beyond 25 concurrent executions, and those execution slots are reserved for that function rather than being available to other functions. `provisionedConcurrency: 3` keeps three instances pre-warmed, which can reduce cold starts but also increases deployment time by approximately `2-5` minutes.
 
-SES email sending permissions are available via `connectTo: ['aws:ses']`.
+## Environment and permissions
 
-For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
-
-For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, Textract), use `iamRoleStatements` to add raw IAM policy statements.
-
-## When does a Lambda function need VPC access?
-
-By default, Lambda functions run outside your VPC and have full internet access. Set `joinDefaultVpc: true` to place the function inside your VPC so it can reach databases, Redis, and other VPC-only resources.
-
-**You usually don't need to set this manually.** Stacktape will tell you if a resource in your `connectTo` requires it (e.g., a database with `accessibilityMode: 'vpc'`, or any Redis cluster).
-
-<Warning>VPC-connected Lambda functions cannot make outbound internet calls — requests to external APIs (Stripe, OpenAI, third-party webhooks) will fail. S3 and DynamoDB still work because Stacktape auto-creates VPC endpoints for these services. If you need both VPC access and external internet access simultaneously, use a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) instead.</Warning>
-
-VPC access is also required when mounting EFS volumes via `volumeMounts`.
-
-## Gradual deployments
-
-Shift traffic gradually from the old version to the new one during deployments. If issues arise, traffic rolls back automatically.
-
-Available strategies:
-
-- **Canary** — send 10% of traffic to the new version first, then shift all traffic after a validation window (`Canary10Percent5Minutes`, `Canary10Percent10Minutes`, `Canary10Percent15Minutes`, `Canary10Percent30Minutes`)
-- **Linear** — increase traffic by 10% at regular intervals (`Linear10PercentEvery1Minute`, `Linear10PercentEvery2Minutes`, `Linear10PercentEvery3Minutes`, `Linear10PercentEvery10Minutes`)
-- **AllAtOnce** — instant switch with automatic rollback on failure
-
-You can optionally run validation functions before and after the traffic shift using `beforeAllowTrafficFunction` and `afterTrafficShiftFunction`. These are Lambda functions that run automated smoke tests and signal success or failure to AWS CodeDeploy (the underlying deployment service that manages the traffic shift). If the before-traffic function fails, the deployment rolls back automatically.
-
-## How do I add a CDN to a Lambda function?
-
-Add a CDN (CloudFront) in front of your function for edge caching and lower latency worldwide. Caches responses at edge locations, reducing function invocations and bandwidth costs.
+A Lambda function can receive explicit runtime variables through `environment`, and variables from `connectTo` are added automatically. Use `environment` for static configuration values, feature flags, and directive-backed values; use [secrets](/configuration/secrets) and [directives](/configuration/directives) for values that should not be committed directly.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    // [!code focus-start]
+    environment: [
+      { name: 'APP_STAGE', value: 'production' },
+      { name: 'ENABLE_RECOMMENDATIONS', value: true }
+    ],
+    iamRoleStatements: [
+      {
+        Action: ['bedrock:InvokeModel'],
+        Resource: ['*']
+      }
+    ]
+    // [!code focus-end]
+  });
+
+  return { resources: { api } };
+});`
+    }
+  ]}
+/>
+
+Prefer `connectTo` when a Lambda function needs another Stacktape resource, because Stacktape can grant IAM permissions, open supported network access, and inject connection variables. Use `iamRoleStatements` for direct AWS service access not covered by `connectTo`, such as Rekognition, Textract, or Bedrock permissions.
+
+## Networking
+
+A Lambda function normally does not need VPC attachment. Set `joinDefaultVpc: true` only when the function must reach VPC-only resources such as a relational database with `accessibilityMode: 'vpc'`, a Redis cluster, or an EFS mount.
+
+The main tradeoff is outbound internet access. When `joinDefaultVpc` is enabled, the function loses direct access to external APIs such as payment providers or AI APIs; Stacktape still creates VPC endpoints for S3 and DynamoDB access. If a workload needs both VPC access and direct internet egress, prefer a [web-service](/resources/compute/web-service) or [worker-service](/resources/compute/worker-service).
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  RelationalDatabase,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const myDatabase = new RelationalDatabase({});
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    // [!code focus-start]
+    connectTo: ['myDatabase'],
+    joinDefaultVpc: true
+    // [!code focus-end]
+  });
+
+  return { resources: { myDatabase, api } };
+});
+`
+    }
+  ]}
+/>
+
+`connectTo` grants permissions, opens network access for supported resources, and injects environment variables. For a relational database resource named `myDatabase`, Stacktape injects variables such as `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, and `STP_MY_DATABASE_PORT`. For the full injected-variable list and supported resource behavior, see [connecting resources](/configuration/connecting-resources).
+
+## Storage
+
+A Lambda function has two storage paths: ephemeral `/tmp` storage controlled by `storage`, and persistent EFS storage configured through `volumeMounts`. Use `/tmp` for temporary files during one invocation; use an [EFS filesystem](/resources/storage/efs-filesystem) when data must persist or be shared across functions.
+
+EFS mounts require `joinDefaultVpc: true` and the `mountPath` must start with `/mnt/`. EFS is useful for large shared assets, generated files that must survive function replacement, or workloads that need POSIX-style file access; skip EFS when object storage or a database is a better fit.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  EfsFilesystem,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const sharedFiles = new EfsFilesystem({});
+
+  const renderer = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/renderer.ts' }),
+    joinDefaultVpc: true,
+    // [!code focus-start]
+    volumeMounts: [
+      {
+        type: 'efs',
+        properties: {
+          efsFilesystemName: 'sharedFiles',
+          rootDirectory: '/renders',
+          mountPath: '/mnt/renders'
+        }
+      }
+    ]
+    // [!code focus-end]
+  });
+
+  return { resources: { sharedFiles, renderer } };
+});`
+    }
+  ]}
+/>
+
+`rootDirectory` restricts the mount to a subdirectory of the filesystem and defaults to `/` when omitted. `mountPath` is the path inside the Lambda runtime where the EFS volume appears.
+
+## CDN
+
+A Lambda function can be placed behind a CDN configuration when responses benefit from edge caching. Use `cdn` for cacheable function responses or globally distributed read-heavy endpoints; skip it for highly personalized responses, write-heavy APIs, or handlers where every request must execute function code.
+
+The CDN path uses CloudFront in front of the function and can reduce function invocations when cache behavior matches your application. The tradeoff is cache invalidation and propagation complexity: incorrect cache rules can serve stale or over-shared responses, so most teams start without a CDN and add one after identifying cacheable traffic.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const catalog = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/catalog.ts' }),
+    url: { enabled: true },
     // [!code focus-start]
     cdn: {
       enabled: true
@@ -392,117 +431,129 @@ export default defineConfig(() => {
     // [!code focus-end]
   });
 
-  return {
-    resources: { api }
-  };
+  return { resources: { catalog } };
 });`
     }
   ]}
 />
 
-The `cdn` property attaches a CDN to the function for edge caching and lower latency. See the [CDN documentation](/resources/networking/cdn) for the full option set.
+Keep CDN configuration narrow on function endpoints. Cache public, repeatable responses such as product catalogs or generated public pages; do not cache authenticated user data unless the cache key and headers are deliberately designed for that use case.
 
-## Storage
+## Deployments
 
-### Ephemeral storage (`/tmp`)
+Lambda deployment strategies control how traffic shifts from the previous function version to the new version. Use gradual deployments for production functions where an all-at-once failure would affect users, and use `AllAtOnce` for development stages or low-risk functions where deployment speed matters more.
 
-Each function invocation gets a private `/tmp` directory. Default size is 512 MB, configurable up to 10,240 MB via the `storage` property. Data in `/tmp` is ephemeral — it does not persist across invocations (though it may be reused if the same execution environment handles consecutive requests).
-
-### Persistent storage (EFS)
-
-Mount an [EFS filesystem](/resources/storage/efs-filesystem) for persistent storage shared across invocations and functions. Data persists indefinitely. Requires `joinDefaultVpc: true`.
+Available strategies are `Canary10Percent5Minutes`, `Canary10Percent10Minutes`, `Canary10Percent15Minutes`, `Canary10Percent30Minutes`, `Linear10PercentEvery1Minute`, `Linear10PercentEvery2Minutes`, `Linear10PercentEvery3Minutes`, `Linear10PercentEvery10Minutes`, and `AllAtOnce`. Canary strategies send 10% of traffic first; linear strategies shift 10% of traffic at regular intervals.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    joinDefaultVpc: true,
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
     // [!code focus-start]
-    volumeMounts: [
+    deployment: {
+      strategy: 'Canary10Percent5Minutes'
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { api } };
+});`
+    }
+  ]}
+/>
+
+Optional `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` identify functions to run before traffic shifting begins or after all traffic has shifted. They must signal success or failure to CodeDeploy; a failing pre-traffic hook rolls the deployment back.
+
+## Observability
+
+Lambda function logs from `stdout` and `stderr` are sent to CloudWatch Logs unless logging is disabled. `logging.retentionDays` defaults to `180`, and function-specific alarms can monitor Lambda error rate or duration while global alarms from the Stacktape Console are merged with the function configuration.
+
+Set a shorter retention period for high-volume functions when old logs are not needed, and keep longer retention for audit-heavy production paths. Disable logging only for narrow cases where another observability path captures the same data; otherwise debugging failures becomes harder.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    // [!code focus-start]
+    logging: {
+      retentionDays: 30
+    },
+    alarms: [
       {
-        type: 'efs',
-        properties: {
-          efsFilesystemName: 'myStorage',
-          mountPath: '/mnt/data'
+        trigger: {
+          type: 'lambda-error-rate',
+          properties: { thresholdPercent: 5 }
         }
       }
     ]
     // [!code focus-end]
   });
 
-  return {
-    resources: { api }
-  };
+  return { resources: { api } };
 });`
     }
   ]}
 />
 
-The mount path must start with `/mnt/`.
+Lambda function alarms support `lambda-error-rate` and `lambda-duration` triggers. Alarm evaluation settings control period length, evaluated periods, and breached periods; see [alarms](/observability/alarms) for notification targets and broader monitoring patterns.
 
-## Logging
+## FAQ
 
-Function output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 180 days by default. View logs with `stacktape logs` or in the Stacktape Console. Adjust retention with the `logging.retentionDays` property.
+### Does a Stacktape Lambda function scale to zero?
 
-Set `logging.disabled: true` to turn off CloudWatch logging entirely.
+Yes. A Lambda function is event-driven and only runs when invoked, so idle functions do not need a running instance. Provisioned concurrency is the exception: Stacktape keeps the configured number of instances warm and AWS bills those instances even when idle.
 
-Log forwarding is available to send logs to external services (Datadog, Highlight.io, or any HTTP endpoint) via the `logging.logForwarding` property.
+### What is the maximum runtime for a Stacktape Lambda function?
 
-## Destinations
+A Stacktape Lambda function can set `timeout` up to `900` seconds, which is 15 minutes. The default timeout is `10` seconds. Use a [batch job](/resources/compute/batch-job) or [worker-service](/resources/compute/worker-service) when processing may exceed that limit.
 
-Destinations route the results of asynchronous Lambda invocations to SQS, SNS, an EventBus, or another Lambda function. Set `onSuccess` and `onFailure` to destination ARNs.
+### Can I expose a Lambda function without API Gateway?
 
-Destinations apply only to **asynchronous invocations** — events from S3 triggers, SNS, EventBridge, scheduled triggers, and SDK async invocations. They do not apply to synchronous calls from API Gateway or function URLs.
+Yes. Set `url.enabled: true` to give one Lambda function its own HTTPS URL. Function URLs are simpler for single-function endpoints, while [HTTP API Gateway](/resources/networking/http-api-gateway) is a better fit for multi-route APIs, authorizers, and shared API surfaces.
 
-Use `onFailure` for dead-letter processing: capture failed invocation details (error message, stack trace, event payload) and route them to an SQS queue or SNS topic for retry logic, alerting, or debugging.
+### Which Lambda packaging modes does Stacktape support?
 
-## Alarms
+Stacktape supports `stacktape-lambda-buildpack` and `custom-artifact` packaging for Lambda functions. The buildpack is the recommended path for most teams because Stacktape builds and uploads from source; custom artifacts fit teams that already produce Lambda deployment packages in CI. See [function packaging](/packaging/overview) for the packaging overview.
 
-Attach alarms to your function to monitor error rate and execution duration. Lambda-specific alarm triggers:
+### How do I give a Lambda function database access?
 
-- **`lambda-error-rate`** — fires when the percentage of failed invocations exceeds a threshold
-- **`lambda-duration`** — fires when execution time exceeds a threshold (in milliseconds)
+Use `connectTo` to connect the Lambda function to the database resource and inject connection variables. If the database is VPC-only, set `joinDefaultVpc: true`; the tradeoff is losing direct outbound internet access except for Stacktape-created S3 and DynamoDB VPC endpoints. See [connecting resources](/configuration/connecting-resources).
 
-Alarms can send notifications to Slack, Microsoft Teams, Discord, email, or a webhook. Configure alarms inline on the function via the `alarms` property, or globally via the Stacktape Console. Use `disabledGlobalAlarms` to exclude specific global alarms from a function.
+### When should I use Lambda instead of a web service?
 
-## Layers
+Use a Lambda function for event-driven or bursty work that can finish within 15 minutes and does not need an always-running process. Use a [web-service](/resources/compute/web-service) for containerized HTTP servers, long-lived connections, or workloads that need both VPC access and direct internet egress.
 
-Attach up to 5 Lambda layers to include shared libraries, native binaries, or custom runtimes. Layers are zip archives mounted into the function at runtime. Provide the layer ARN via the `layers` property.
+### How much memory should I give a Lambda function?
 
-Common uses: shared native libraries (sharp, Puppeteer, FFmpeg), custom runtimes, or shared utility code managed outside your deployment package.
+Start with the smallest memory value that meets latency needs, then increase memory for CPU-bound handlers. Lambda CPU scales with memory: `1,769` MB equals `1` vCPU, and higher memory can sometimes reduce total cost by shortening execution time. Stacktape accepts `memory` from `128` to `10,240` MB.
 
-## Frequently asked questions
+### How do Lambda cold starts affect APIs?
 
-### What is the maximum Lambda execution time?
+A cold start happens when AWS creates a new function instance before running your handler. Stacktape exposes `provisionedConcurrency` for user-facing paths where cold-start latency matters; skip it for background work because provisioned instances bill while idle and can add deployment time.
 
-900 seconds (15 minutes). Set the `timeout` property — default is 10 seconds. For longer tasks, use a [batch job](/resources/compute/batch-job) or [worker service](/resources/compute/worker-service).
+### Can a Lambda function use persistent file storage?
 
-### How much memory can a Lambda function use?
+Yes. Configure `volumeMounts` with an [EFS filesystem](/resources/storage/efs-filesystem) and set `joinDefaultVpc: true`. Use EFS when files must persist across invocations or be shared across functions; use `storage` for temporary `/tmp` space that is only needed during an invocation.
 
-128 MB to 10,240 MB via the `memory` property. Lambda allocates CPU proportionally: 1,769 MB = 1 vCPU, 3,538 MB = 2 vCPUs, and so on.
+### What can trigger a Stacktape Lambda function?
 
-### How do I avoid Lambda cold starts?
+A Stacktape Lambda function can be triggered by HTTP API Gateway, S3, schedules, SNS, SQS, Kinesis, DynamoDB streams, CloudWatch logs, Application Load Balancer, EventBridge event buses, Kafka topics, and CloudWatch alarms. The `events` array selects the trigger, and Stacktape configures the required permissions. See [triggers overview](/configuration/triggers/overview).
 
-Set `provisionedConcurrency` to keep a number of function instances warm. You pay for provisioned instances even when idle, so use this only for latency-sensitive workloads like user-facing APIs.
-
-### Can a Lambda function access a VPC database?
-
-Yes. Set `joinDefaultVpc: true` (or add the database to `connectTo` — Stacktape will prompt you if VPC access is needed). The tradeoff: VPC-connected functions lose direct internet access.
-
-### What languages does Stacktape support for Lambda?
-
-JavaScript, TypeScript, Python, Go, Java, Ruby, PHP, and .NET. The runtime is auto-detected from your source file extension when using the Stacktape Lambda buildpack.
-
-## API reference
+## API Reference
 
 <ApiReference definitionName="LambdaFunctionProps" />
 

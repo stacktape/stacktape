@@ -1,0 +1,216 @@
+{
+  "pageId": "cli__logout",
+  "pageRoute": "cli/logout",
+  "startedAt": "2026-05-17T23:26:57.320Z",
+  "updatedAt": "2026-05-17T23:29:08.854Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__logout\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurate one-paragraph opener grounded in the source — correctly describes the command as removing the stored API key and naming when re-authentication is needed.",
+            "The 'When to use' section gives three concrete, realistic scenarios (account switch, shared machine, credential rotation) rather than abstract guidance.",
+            "Correct use of `<CliCommandsApiReference command='logout' sortedArgs={...}/>` — auto-generated flags table, no hand-authored alternatives.",
+            "'Related commands' section links exactly the two most relevant siblings (login, info:whoami) with appropriate one-line descriptions.",
+            "No forbidden YAML config blocks, no StacktapeConfig-type examples, no marketing language — clean on all mandatory style checks."
+          ],
+          "problems": [
+            "**Padded backbone section**: The 'Examples' section contains only `stacktape logout` under the label 'Log out from the current Stacktape session' — this is identical to the content already shown in the 'Usage' block. The section adds zero information and violates the rule against restated backbone content.",
+            "Section ordering deviates from the CLI section instructions, which specify: intro paragraph → usage example → auto-generated reference → examples (only if non-obvious) → related commands. The 'When to use' section is inserted between 'Usage' and 'Examples', and 'Command reference' appears after 'Examples' rather than immediately after 'Usage'."
+          ],
+          "mandatoryFixes": [
+            "Remove the 'Examples' section entirely. It duplicates the 'Usage' block with no new information. The CLI section instructions specify examples only when non-obvious patterns exist; `stacktape logout` (no flags) is not a non-obvious pattern. If a second example is genuinely needed (e.g. using `--apiKey` or `--outputFormat jsonl` in an automation context), replace the current one with that instead."
+          ],
+          "optionalImprovements": [
+            "Reorder sections to match CLI section instructions: intro paragraph → Usage → Command reference → (no Examples needed) → Related commands. The 'When to use' content can be folded into the intro paragraph or kept as a short section between Usage and Command reference, but the reference table should not come after examples.",
+            "Consider noting that `logout` can be run without an active API key (it is listed in `commandsNotRequiringApiKey` in the source). This reassures users on a fresh or already-logged-out machine that the command is safe to call.",
+            "The claim 'No network request is made' is almost certainly correct based on the source (`globalStateManager.saveApiKey({ apiKey: null })` is a local save), but since the internals of `globalStateManager` are not in the provided source files, soften to 'it only modifies local credential storage' to stay strictly within what the source confirms.",
+            "The `apiKey` flag in the sortedArgs is inherited from universalArgs but its purpose on a logout command is unintuitive. A brief parenthetical in the intro (e.g. 'all flags are optional; the command requires no arguments') would reduce confusion for first-time readers scanning the flags table."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Accurate and source-grounded: the implementation (`commandLogout` sets the API key to null and prints confirmation) is faithfully described in the intro paragraph.",
+            "The 'When to use' section adds genuine decision support — switching accounts, shared machines, and the pre-check with `info:whoami` are all practical scenarios a real user would encounter.",
+            "CliCommandsApiReference is used correctly with the right command name and arg list matching the source.",
+            "Related commands are correctly chosen and linked (login, info:whoami).",
+            "No forbidden patterns: no YAML Stacktape config blocks, no StacktapeConfig type imports, no marketing language, no multi-command bash blocks."
+          ],
+          "problems": [
+            "The 'Examples' section (under its own H2) duplicates the 'Usage' section exactly — both show the identical `stacktape logout` invocation with no added context, flags, or non-obvious patterns. This is restated content padding a backbone section. Per the section instructions, 'Examples' should only appear 'if there are non-obvious patterns'; this command has none. This is a mandatory fix."
+          ],
+          "mandatoryFixes": [
+            "Remove the 'Examples' H2 section entirely. The section is identical to 'Usage' (same single `stacktape logout` command, no flags, no variant patterns). The section instructions explicitly say to include Examples only for non-obvious patterns — this command has none. Its presence is restated-content padding; trim it."
+          ],
+          "optionalImprovements": [
+            "The prose claim 'No network request is made — it only affects local credential storage' is a reasonable inference from the source (the implementation only calls `globalStateManager.saveApiKey({ apiKey: null })` and emits a TUI outro), but it is not explicitly stated in any source file. Consider weakening to 'The command sets the stored API key to null locally' to stay strictly source-grounded.",
+            "The `apiKey` optional argument on `logout` (visible in the CliCommandsApiReference) will confuse readers — it is also accepted by this command per the source, but the prose never mentions it. A one-sentence note explaining that `--apiKey` on logout is accepted but has no effect (or explaining its actual purpose if there is one) would prevent confusion.",
+            "Consider folding the 'When to use' content into the lead paragraph, per the CLI section-instruction rhythm ('Lead with one short paragraph stating what the command does and when you'd use it'). The current two-section split inflates a page for a trivially simple command."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The page documents exactly one command and uses the required <CliCommandsApiReference command=\"logout\" ... /> component instead of hand-authoring the flags table.",
+            "The usage example is copyable and correctly shows that `stacktape logout` has no required arguments.",
+            "The main behavior is grounded in source: `commandLogout` saves a null API key and prints a logged-out confirmation."
+          ],
+          "problems": [
+            "The opening paragraph is under the 40-75 word target, so it is less suitable as an answer-engine snippet.",
+            "The `Usage` section's explanatory paragraph starts with “The command” instead of explicitly naming `stacktape logout`, which weakens extracted-section clarity.",
+            "The statement that `deploy`, `delete`, `dev`, and other authenticated commands “will fail” after logout is directionally reasonable but slightly stronger than the provided sources. The source shows logout removes the API key and that those commands are not in `commandsNotRequiringApiKey`; it does not show the exact failure behavior.",
+            "The page says `stacktape logout` is useful for switching accounts, organizations, or revoking access on a shared machine, but those are practical recommendations rather than behavior visible in the provided source.",
+            "There is no FAQ. For a narrow CLI reference this is not a blocker, but a short FAQ would improve extractability for questions like whether logout contacts Stacktape or removes AWS credentials."
+          ],
+          "mandatoryFixes": [
+            "Expand the opening paragraph to 40-75 words and keep it self-contained: state that `stacktape logout` removes the locally stored Stacktape API key, requires no flags, and is used before logging in again with a different key.",
+            "Rewrite the first prose paragraph under `Usage` to explicitly name `stacktape logout` instead of starting with “The command”.",
+            "Narrow the post-logout authentication claim to what the source supports, for example: “Commands that require a Stacktape API key will need credentials to be configured again with `stacktape login`.”"
+          ],
+          "optionalImprovements": [
+            "Add a short note that `logout` itself does not require an API key, grounded in `commandsNotRequiringApiKey`.",
+            "Add a compact FAQ with 3-4 practical questions: whether `logout` removes AWS profiles, whether it contacts the Stacktape Console, whether it deletes projects or stacks, and how to log in again.",
+            "Move the “No network request is made” sentence closer to the opening or add “locally” there, because that is one of the most useful facts for readers deciding whether the command affects deployed resources."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly grounded in the provided logout command sources. I found no publication-blocking factual issues.",
+          "issues": [],
+          "positiveFindings": [
+            "The core behavior is supported by src/commands/logout/index.ts: the command saves a null API key and prints a removal confirmation.",
+            "The command name, no-required-args usage, and allowed argument reference align with src/config/cli/commands.ts for logout.",
+            "Cross-links to /cli/login and /cli/info-whoami exist in the provided documentation navigation index.",
+            "The page avoids forbidden Stacktape configuration patterns: no hand-authored YAML, no StacktapeConfig typed object style, and no fenced TypeScript config example."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is well grounded in the provided logout command definition and implementation. I found no publication-blocking factual, routing, CLI-reference, or MDX issues.",
+          "issues": [],
+          "positiveFindings": [
+            "The main behavior is supported by `src/config/cli/commands.ts` and `src/commands/logout/index.ts`: `logout` removes the Stacktape API key from the current system by saving `apiKey: null`.",
+            "The usage example `stacktape logout` matches the generated CLI reference source.",
+            "The related links point to valid routes in the provided documentation navigation index.",
+            "The `<CliCommandsApiReference command=\"logout\" ... />` component targets the correct command name for this CLI page."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly complete for a narrow CLI reference page. It follows the required page shape, uses one command per shell block, includes the generated CLI reference component, and the central behavior is grounded in the command implementation.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "\"when revoking local access on a shared machine\"",
+              "reason": "The command removes the API key stored on the current system, but the source does not show token revocation or server-side invalidation. \"Revoking local access\" could be read as invalidating the API key itself, which is broader than the implemented behavior.",
+              "suggestedFix": "Reword to \"when removing local credentials from a shared machine\" or \"when you want this machine to stop using the stored API key.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\logout\\index.ts",
+                  "quote": "await globalStateManager.saveApiKey({ apiKey: null });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\logout\\index.ts",
+                  "quote": "tuiManager.outro('Logged out. API key removed.');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"After logging out, commands that require authentication (deploy, delete, dev, and others) will fail until you run stacktape login again.\"",
+              "reason": "The source confirms that logout removes the stored API key and that deploy/delete/dev are not in the commandsNotRequiringApiKey list. However, the provided source does not show the runtime failure behavior, error message, or whether passing --apiKey directly can authenticate without first running login. The sentence is directionally useful but too absolute for the provided source.",
+              "suggestedFix": "Narrow the claim: \"After logging out, commands that need a Stacktape API key no longer have a stored key to use. Run stacktape login again before using commands such as deploy, delete, or dev without an explicit API key.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\logout\\index.ts",
+                  "quote": "await globalStateManager.saveApiKey({ apiKey: null });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "export const commandsNotRequiringApiKey: StacktapeCommand[] = [\n  'login',\n  'logout',\n  'mcp',\n  'mcp:add',\n  'version',\n  'help',\n  'defaults:list',\n  'defaults:configure',\n  'upgrade',\n  'init'\n];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "logout: {\n    description: `Removes the Stacktape API key from the current system.`,\n    args: {\n      ...universalArgs,\n      apiKey: apiKey.optional()\n    },\n    requiredArgs: [] as const\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one command, `logout`, as required for CLI reference pages.",
+            "The usage example is realistic and includes all required flags; the source shows `requiredArgs: []`, so `stacktape logout` is complete.",
+            "The draft uses `<CliCommandsApiReference command=\"logout\" ... />` instead of hand-authoring a flags table.",
+            "The draft avoids forbidden Stacktape configuration examples and contains no hand-authored YAML or plain-object `StacktapeConfig` style.",
+            "The claim that logout removes the local API key is directly grounded in both the CLI command definition and the command implementation."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\logout.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T23:29:08.854Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\logout\\index.ts": "194a17f078d9857edacfbf990248e66495984d44",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\logout.md": "7de1e3071e9d32c6369618c142af933da43be899"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

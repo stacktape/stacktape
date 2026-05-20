@@ -1,0 +1,226 @@
+{
+  "pageId": "cli__issues__reopen",
+  "pageRoute": "cli/issues-reopen",
+  "startedAt": "2026-05-18T00:44:53.333Z",
+  "updatedAt": "2026-05-18T00:46:54.009Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__issues__reopen\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurate command description grounded directly in source: the intro matches the `commandDefinitions['issues:reopen'].description` verbatim in spirit and the implementation file confirms the OPEN status transition.",
+            "Every bash block contains exactly one command — no copy-button trap issues.",
+            "All three realistic example invocations (basic, alias, agent mode) demonstrate non-obvious usage patterns a first-time user would benefit from.",
+            "Arguments Reference uses the correct `<CliCommandsApiReference>` component with properly shaped `sortedArgs`, matching the CLI section instructions.",
+            "Related commands section links to the three closest siblings and adds brief differentiating descriptions — useful for a first-time user deciding which command to use."
+          ],
+          "problems": [
+            "Structural deviation from CLI page rhythm. The CLI section instructions specify: intro paragraph → usage example → auto-generated reference → Examples → Related commands. The draft inserts 'When to use' and 'Important flags' H2 sections between the usage example and the Arguments Reference. For a command with a single required argument, these sections add bulk without proportionate value.",
+            "The 'Important flags' section is redundant. It describes `--issueId` (alias `-iid`) and `--agent` — information that is fully covered by the `<CliCommandsApiReference>` section that follows. Pre-empting the reference table with a prose summary of it is duplication.",
+            "Ungrounded claim about alert channels: 'resumes generating alerts through your configured alert channels' is not supported by the source. The implementation (`src/commands/issues-reopen/index.ts`) only calls `reopenIssue` and prints a success message. The source is silent on what alert behavior follows."
+          ],
+          "mandatoryFixes": [
+            "Remove the ungrounded alert channels claim: 'resumes generating alerts through your configured alert channels'. The source only confirms the issue is set back to OPEN status and a success message is printed. Replace with the source-grounded fact: once reopened, the issue status returns to OPEN and it appears in `issues:list` with OPEN status.",
+            "Collapse or remove the 'Important flags' and 'When to use' H2 sections to restore the CLI page rhythm (intro → usage → reference → examples → related). The 'When to use' bullets can be condensed into the intro paragraph; the 'Important flags' content is already covered by the Arguments Reference."
+          ],
+          "optionalImprovements": [
+            "The intro paragraph could mention the distinction between resolving and ignoring more precisely: a resolved issue reopens automatically on new occurrences (per `issues:resolve` description), while an ignored issue does not — making `issues:reopen` particularly relevant for ignored issues. This adds decision-making context without adding length.",
+            "The Usage section's prose note about requiring a Stacktape API key could link directly to `/cli/login` on first mention of authentication rather than the second paragraph — minor improvement to the first-time user flow.",
+            "Consider dropping the `## When to use` section entirely and folding its best bullet (the 'teammate resolved prematurely' scenario) into the intro paragraph alongside the already-present 'fix didn't hold' and 'ignored during incident' cases. Three motivating reasons in the intro is sufficient for a narrow-scope CLI reference page."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurately sources all four args (issueId, agent, logLevel, outputFormat) from the CLI source; sortedArgs in the CliCommandsApiReference component matches the command definition exactly.",
+            "Each example is in its own fenced block with a prose sentence above it — no copy-button trap.",
+            "The lead paragraph is self-contained and names both trigger states (resolved and ignored), matching the source description ('Reopens a resolved or ignored issue, setting its status back to OPEN').",
+            "The 'Related commands' section links the three sibling issues commands with accurate one-line descriptions that match their source descriptions.",
+            "Correctly notes the API key requirement — issues:reopen is absent from commandsNotRequiringApiKey, so this claim is source-grounded.",
+            "Short alias example (-iid) is accurate per the argAliases source."
+          ],
+          "problems": [
+            "Section ordering deviates from the CLI section instructions, which prescribe: lead paragraph → usage example → auto-generated reference → Examples → Related commands. The draft inserts 'When to use' and 'Important flags' between the usage and the Arguments reference, then places the Arguments reference block after Examples rather than before. This buries the canonical reference below the examples.",
+            "The 'Important flags' section largely restates information that the auto-generated Arguments reference table already covers (issueId alias, agent JSONL behavior). For a command with only four args, this section adds noise rather than signal.",
+            "The claim 'resumes generating alerts through your configured alert channels' is not supported by the provided source files. The source (commands.ts, issues-reopen/index.ts) only states that the issue is set back to OPEN. Alert resumption behavior is plausible but ungrounded here.",
+            "The link /observability/alert-channels is not derivable from the provided source files. If this route does not exist in the published docs, the link will 404."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reorder sections to match the CLI page rhythm: lead paragraph → Usage (example) → Arguments reference (CliCommandsApiReference) → Examples (non-obvious patterns) → Related commands. Move 'When to use' content into the lead paragraph or a short prose paragraph before the Usage section, rather than as a standalone H2.",
+            "Remove or collapse the 'Important flags' H2 section. The required flag (--issueId) and agent mode are already covered by the Arguments reference table; a one-sentence note in the lead paragraph or Usage section is sufficient.",
+            "Replace 'resumes generating alerts through your configured alert channels' with a narrower, source-grounded statement such as 'Once reopened, the issue appears in issues:list with OPEN status.' Leave alert behavior unspecified unless the source documents it.",
+            "Verify the /observability/alert-channels route exists before publishing, or remove the link entirely."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concise, and clearly states that `issues:reopen` changes a resolved or ignored issue back to OPEN status.",
+            "Usage examples are copyable, each shell block contains one command, and all required flags are shown.",
+            "The page uses the required `<CliCommandsApiReference command=\"issues:reopen\" />` component instead of hand-authoring the flags table.",
+            "Related commands are relevant and help readers understand the issue lifecycle."
+          ],
+          "problems": [
+            "Several claims go beyond the provided source files: reopening because a fix did not hold, restoring normal alerting, appearing in `issues:list`, and alert channels are plausible but not directly grounded in the sources shown.",
+            "The `Usage`, `Examples`, `Arguments reference`, and `Related commands` H2 sections do not open with self-contained prose. Some sections start with a code block or a fragment, which weakens answer-engine extractability.",
+            "The page says users can find issue IDs with `issues:list`, but the provided `issues:list` command description does not explicitly say it prints issue IDs.",
+            "The `When to use` section is useful but mostly scenario prose; it should explicitly anchor those scenarios to the source-grounded behavior: setting a resolved or ignored issue back to OPEN.",
+            "The page omits source-grounded behavior from the implementation: `issues:reopen` initializes the Stacktape API client with the current API key, calls `reopenIssue({ issueId })`, and prints `Issue <id> reopened.` on success."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported alerting claims with narrower wording grounded in the provided command descriptions. For example, say `issues:ignore` marks issues as ignored and ignored issues do not reopen on new occurrences or generate alerts; `issues:reopen` sets a resolved or ignored issue back to OPEN.",
+            "Add or rewrite the first paragraph under each H2 so it is self-contained. `Usage` should explain the command shape before the code block; `Arguments reference` should state that the table lists accepted flags for `issues:reopen`; `Related commands` should name the issue-lifecycle commands.",
+            "Do not state that `issues:list` shows issue IDs unless that is available from another source. If no source is added, phrase cautiously: `Use the issue ID from your issues workflow, or inspect issues with issues:list where available.`",
+            "Ground the success behavior explicitly: the command calls the Stacktape API with `issueId` and prints `Issue <issueId> reopened.` when the API call succeeds."
+          ],
+          "optionalImprovements": [
+            "Move `Arguments reference` before `Examples` if the documentation set prefers usage, reference, examples, related commands; otherwise the current order is acceptable.",
+            "Mention `--outputFormat jsonl` as the more direct machine-readable output option alongside `--agent`, since the generated reference says `--agent` implies JSONL but `outputFormat` can also be set directly.",
+            "Trim repeated examples if the page needs to be shorter; the `--issueId` and `--agent` examples carry more value than the short alias example."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation, but it overstates alerting behavior after reopening. The source confirms reopening sets the issue back to OPEN and prints a success message; it does not document alert delivery resuming as a direct effect of the command.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The page says reopening an ignored issue will “resume alerting,” and that once reopened the issue “resumes generating alerts through your configured alert channels.”",
+              "reason": "The provided source only states that `issues:reopen` sets a resolved or ignored issue back to OPEN and calls the `reopenIssue` API. It does not document that reopening immediately resumes alert generation or how alert channels behave after reopening. The `issues:ignore` description says ignored issues do not generate alerts, but the inverse behavior is not explicitly documented for reopened issues.",
+              "suggestedFix": "Narrow the claim to the source-backed behavior: reopening sets the issue back to OPEN. If mentioning alerts, phrase cautiously, for example: “Use it when an ignored issue should be tracked as open again.” Avoid claiming resumed alert generation unless a source explicitly documents that behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:reopen': {\n    description: `Reopens a resolved or ignored issue, setting its status back to OPEN.`,"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\issues-reopen\\index.ts",
+                  "quote": "await stacktapeTrpcApiManager.apiClient.reopenIssue({ issueId: issueId! });\n  tuiManager.success(`Issue ${tuiManager.makeBold(issueId!)} reopened.`);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:ignore': {\n    description: `Marks an issue as ignored. Ignored issues will not reopen on new occurrences and won't generate alerts.`,"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The command name, route, metadata, and `<CliCommandsApiReference command=\"issues:reopen\" ... />` match the page subject.",
+            "The basic usage examples include the required `--issueId` flag, which matches `requiredArgs: ['issueId']`.",
+            "The page correctly states that the command calls the Stacktape API and prints a confirmation on success, matching the implementation in `src/commands/issues-reopen/index.ts`.",
+            "All internal links used in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided CLI command sources: `issues:reopen` exists, `issueId` is required, the command calls the Stacktape API, and the success message is grounded. The main factual risk is that the page describes alerting behavior that is not shown in the provided sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"resuming alerts\", \"restore normal alerting\", and \"resumes generating alerts through your configured alert channels\" after `issues:reopen`.",
+              "reason": "The provided sources support that `issues:reopen` sets a resolved or ignored issue back to OPEN and calls `reopenIssue`, but they do not show that reopening resumes alert generation or how alert channels behave for reopened issues. The source only states the inverse behavior for ignored issues, which is not enough to document alert resumption as a Stacktape-specific guarantee.",
+              "suggestedFix": "Narrow the wording to the sourced behavior: reopening sets the issue status back to OPEN. If alert behavior must be mentioned, phrase it cautiously or remove it unless a source for issue alerting is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:reopen': {\n    description: `Reopens a resolved or ignored issue, setting its status back to OPEN.`,"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\issues-reopen\\index.ts",
+                  "quote": "await stacktapeTrpcApiManager.apiClient.reopenIssue({ issueId: issueId! });\n  tuiManager.success(`Issue ${tuiManager.makeBold(issueId!)} reopened.`);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:ignore': {\n    description: `Marks an issue as ignored. Ignored issues will not reopen on new occurrences and won't generate alerts.`,"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The command name, purpose, and required `issueId` argument match `src/config/cli/commands.ts`.",
+            "The statement that the command calls the Stacktape API and prints a success confirmation is supported by `src/commands/issues-reopen/index.ts`.",
+            "The `<CliCommandsApiReference command=\"issues:reopen\" ... />` component uses the correct command for this page.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "Shell examples follow the one-command-per-block rule."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page is API-complete for the documented `issues:reopen` command. The draft covers the required `issueId` argument, acknowledges the relevant optional output-mode controls, uses the generated CLI reference component, and includes demonstrative examples with the required flag shown.",
+          "issues": [],
+          "positiveFindings": [
+            "The usage and examples include the required `--issueId` argument, matching `requiredArgs: ['issueId']` for `issues:reopen`.",
+            "The draft uses `<CliCommandsApiReference command=\"issues:reopen\" ... />` rather than hand-authoring a flags table.",
+            "The examples demonstrate the main invocation, the `-iid` alias, and `--agent`, and each shell block contains a single command.",
+            "Related commands are the closest siblings: `issues:list`, `issues:resolve`, and `issues:ignore`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\issues-reopen.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-18T00:46:54.009Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\issues-reopen\\index.ts": "cbea48b5c129135f8f8f0f207dec4e70ede7ad9a"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

@@ -1,0 +1,560 @@
+---
+title: 'Hooks and Scripts'
+order: 14
+seoTitle: 'Hooks and Scripts - Lifecycle Automation | Stacktape Docs'
+seoDescription: 'Automate deployment lifecycle tasks with Stacktape hooks and scripts. Run database migrations after deploy, build steps before deploy, and cleanup before delete — locally or through bastion tunnels.'
+---
+
+# Hooks and Scripts
+
+Stacktape hooks and scripts let you run custom commands at specific points in the deployment lifecycle — database migrations after deploy, frontend builds before deploy, data exports before delete. Scripts are reusable shell commands or code files defined once in your config, then triggered manually or automatically by hooks.
+
+## Why hooks and scripts exist
+
+Most real-world deployments need pre- and post-processing. A database migration must run after the schema is created but before traffic arrives. A frontend must be compiled before assets are synced. Cleanup tasks should fire before a stack is removed. Without lifecycle automation, these steps require manual intervention or fragile CI scripts that duplicate stack knowledge.
+
+Stacktape scripts encode these tasks alongside your infrastructure config so they share the same `connectTo` permissions, environment variables, and resource references. Hooks wire scripts to lifecycle events — eliminating forgotten manual steps.
+
+## When to use hooks vs deployment scripts
+
+Stacktape offers two mechanisms for running code around deployments:
+
+| | Hooks + Scripts | Deployment Scripts |
+|---|---|---|
+| **Where it runs** | Your local machine or CI runner | AWS Lambda in your stack |
+| **Use when** | You need local tools (npm, prisma CLI, build commands) or access to your filesystem | You need direct VPC access, long-running migrations, or consistent cloud execution |
+| **Timeout** | No hard limit (bounded by CI timeout) | 15 minutes max |
+| **VPC access** | Via bastion tunneling only | Native with `joinDefaultVpc` |
+| **Trigger** | Any lifecycle event (before/after deploy, delete, dev, bucket sync) | `after:deploy` or `before:delete` only |
+
+For most teams, **hooks + local scripts** handle 90% of needs — building, migrating, seeding. Use [deployment scripts](/resources/advanced/deployment-scripts) when the script needs to run inside your VPC or when you want guaranteed execution independent of the developer's machine.
+
+## Scripts
+
+A script defines a reusable command or code file that can be run manually with [`stacktape script:run`](/cli/script-run) or attached to a hook. Scripts support three execution modes depending on where the command runs and what network access it needs.
+
+### Local script
+
+A local script runs on the machine executing the Stacktape command — your laptop during development, or the CI runner in production. This is the most common type, used for builds, migrations, linting, and seed scripts.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    })
+  });
+
+  return {
+    resources: { api },
+    scripts: {
+      migrateDb: {
+        type: 'local-script',
+        properties: {
+          executeCommand: 'npx prisma migrate deploy',
+          connectTo: ['mainDatabase'],
+          environment: [{ name: 'NODE_ENV', value: 'production' }]
+        }
+      },
+      buildFrontend: {
+        type: 'local-script',
+        properties: {
+          executeCommands: ['npm install', 'npm run build'],
+          cwd: './frontend'
+        }
+      }
+    }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+**Key properties:**
+
+- `executeCommand` — a single shell command to run.
+- `executeCommands` — a list of commands run sequentially. Each command runs in a separate shell process.
+- `executeScript` — path to a JS, TS, or Python file to execute.
+- `executeScripts` — a list of script files run sequentially.
+- `connectTo` — resources whose connection details are injected as environment variables (e.g., `STP_MAIN_DATABASE_CONNECTION_STRING`).
+- `cwd` — working directory for execution. Defaults to the directory where the Stacktape command was run.
+- `pipeStdio` — pipes script output to your terminal. Defaults to `true`.
+
+You must use exactly one of `executeCommand`, `executeCommands`, `executeScript`, or `executeScripts`.
+
+### Local script with bastion tunneling
+
+This variant runs locally but establishes an encrypted tunnel through a [bastion host](/resources/security/bastion-host) to reach VPC-only resources like private databases or Redis clusters. The environment variables injected by `connectTo` are automatically adjusted to use the tunneled endpoints.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase, Bastion, RdsEnginePostgresql16 } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgresql16({
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    })
+  });
+
+  const bastion = new Bastion({});
+
+  return {
+    resources: { mainDatabase, bastion },
+    scripts: {
+      migrateViaBastion: {
+        type: 'local-script-with-bastion-tunneling',
+        properties: {
+          bastionResource: 'bastion',
+          executeCommand: 'npx prisma migrate deploy',
+          connectTo: ['mainDatabase']
+        }
+      }
+    }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Use this when your database has no public endpoint and you need to run migration tools from your local machine. The tunneling is transparent — your CLI tools connect to `localhost` on a forwarded port, and traffic is routed through the bastion.
+
+### Bastion script
+
+A bastion script runs remotely on the bastion host inside your VPC. Logs stream back to your terminal in real-time. Use this when you need direct network access to VPC resources without installing local tools.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bastion, RedisCluster } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({});
+  const bastion = new Bastion({});
+
+  return {
+    resources: { cache, bastion },
+    scripts: {
+      flushCache: {
+        type: 'bastion-script',
+        properties: {
+          bastionResource: 'bastion',
+          executeCommand: 'redis-cli -h $STP_CACHE_HOST -p $STP_CACHE_PORT FLUSHALL',
+          connectTo: ['cache']
+        }
+      }
+    }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Bastion scripts only support `executeCommand` or `executeCommands` (not file-based execution). They run with whatever tools are installed on the bastion host.
+
+## Running scripts manually
+
+Run any defined script with the [`stacktape script:run`](/cli/script-run) command:
+
+```bash
+stacktape script:run --scriptName migrateDb --stage production --region eu-west-1
+```
+
+You can pass additional environment variables at runtime:
+
+```bash
+stacktape script:run --scriptName migrateDb --stage production --env VERBOSE=true --env DRY_RUN=1
+```
+
+The `--assumeRoleOfResource` flag lets the script assume the IAM role of a deployed resource, granting it the same AWS permissions:
+
+```bash
+stacktape script:run --scriptName seedData --stage production --assumeRoleOfResource api
+```
+
+## Hooks
+
+Hooks attach scripts to lifecycle events. When the event fires, the referenced scripts run sequentially. Define hooks in the top-level `hooks` section by referencing script names from your `scripts` section.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    })
+  });
+
+  return {
+    resources: { api },
+    scripts: {
+      buildFrontend: {
+        type: 'local-script',
+        properties: {
+          executeCommand: 'npm run build',
+          cwd: './frontend'
+        }
+      },
+      migrateDb: {
+        type: 'local-script',
+        properties: {
+          executeCommand: 'npx prisma migrate deploy',
+          connectTo: ['mainDatabase']
+        }
+      }
+    },
+    hooks: {
+      beforeDeploy: [{ scriptName: 'buildFrontend' }],
+      afterDeploy: [{ scriptName: 'migrateDb' }]
+    }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+### Available lifecycle events
+
+| Hook | When it fires |
+|------|------|
+| `beforeDeploy` | Before the deployment starts. Use for builds, linting, asset preparation. |
+| `afterDeploy` | After deployment completes. Use for migrations, seeding, cache warming. |
+| `beforeDelete` | Before stack deletion. Use for data export, cleanup. Only runs when `--configPath` and `--stage` are provided. |
+| `afterDelete` | After stack deletion. Only runs when `--configPath` and `--stage` are provided. |
+| `beforeDev` | Before dev mode starts. Use for local setup, dependency installation. |
+| `afterDev` | After dev mode exits. Use for cleanup. |
+| `beforeBucketSync` | Before bucket content sync. |
+| `afterBucketSync` | After bucket content sync. |
+
+### Hook failure behavior
+
+Hook failure behavior depends on the lifecycle phase:
+
+- **`beforeDeploy`** — failure aborts the deployment. Nothing is deployed.
+- **`afterDeploy`** — failure does NOT roll back the deployment. The stack is deployed, but a warning is displayed indicating the post-deploy hook failed. This avoids rolling back a successful infrastructure change because of a non-critical script failure.
+- **`beforeDelete`** — failure aborts the deletion.
+- **`afterDelete`** — failure is reported as a warning; the stack is already deleted.
+
+<Warning>
+If your `afterDeploy` migration fails, your infrastructure is deployed but your database schema may be out of sync. Monitor hook output and re-run the script manually with `stacktape script:run` if needed.
+</Warning>
+
+### Conditional execution
+
+Each hook entry supports `skipOnCI` and `skipOnLocal` flags to control where it runs:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    })
+  });
+
+  return {
+    resources: { api },
+    scripts: {
+      openBrowser: {
+        type: 'local-script',
+        properties: { executeCommand: 'open https://my-app.example.com' }
+      },
+      notifySlack: {
+        type: 'local-script',
+        properties: { executeCommand: 'curl -X POST $SLACK_WEBHOOK -d "Deployed!"' }
+      }
+    },
+    hooks: {
+      afterDeploy: [
+        { scriptName: 'openBrowser', skipOnCI: true },
+        { scriptName: 'notifySlack', skipOnLocal: true }
+      ]
+    }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+- `skipOnCI: true` — skips the hook in CI environments (CodeBuild, GitHub Actions, GitLab CI). Useful for interactive or local-only actions like opening a browser.
+- `skipOnLocal: true` — skips the hook when running locally. Useful for CI-only tasks like uploading test reports or sending notifications.
+
+## Environment variables in scripts
+
+Scripts receive environment variables from three sources:
+
+1. **`connectTo`** — auto-injected connection details for each listed resource (e.g., `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_CACHE_HOST`). See [connecting resources](/configuration/connecting-resources) for the full injection table.
+2. **`environment`** — explicitly defined variables in the script config. Values support [directives](/configuration/directives) like `$Secret()` and `$ResourceParam()`.
+3. **Hook context variables** — when a script runs as a hook, additional variables are injected:
+   - `STP_HOOK_TYPE` — `before` or `after`
+   - `STP_HOOK_TRIGGER` — the full trigger name (e.g., `beforeDeploy`, `afterDeploy`)
+   - `STP_COMMAND` — the CLI command being executed (e.g., `deploy`, `delete`)
+
+## Assuming IAM roles
+
+Scripts can assume the IAM role of a deployed resource using `assumeRoleOfResource`. This grants the script the same AWS permissions as the specified resource — useful for running AWS SDK operations locally with the correct permissions.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: ['uploads']
+  });
+
+  const uploads = new Bucket({});
+
+  return {
+    resources: { api, uploads },
+    scripts: {
+      seedBucket: {
+        type: 'local-script',
+        properties: {
+          executeCommand: 'node scripts/seed-bucket.js',
+          assumeRoleOfResource: 'api',
+          connectTo: ['uploads']
+        }
+      }
+    }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The script inherits the `api` function's permissions (which include access to the `uploads` bucket via `connectTo`). Stacktape injects temporary AWS credentials as environment variables, which are automatically picked up by AWS SDKs.
+
+Supported resource types for role assumption: Lambda functions, web services, private services, worker services, multi-container workloads, batch jobs, and all SSR frontend resources (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix).
+
+## Common patterns
+
+### Database migrations after deploy
+
+The most common hook pattern — run Prisma, Drizzle, or raw SQL migrations after infrastructure is ready:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  RelationalDatabase,
+  RdsEnginePostgresql16,
+  WebService,
+  CustomDockerfilePackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgresql16({
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    })
+  });
+
+  const api = new WebService({
+    packaging: new CustomDockerfilePackaging({
+      dockerfilePath: './Dockerfile'
+    }),
+    resources: { cpu: 0.25, memory: 512 },
+    connectTo: ['mainDatabase']
+  });
+
+  return {
+    resources: { mainDatabase, api },
+    scripts: {
+      migrate: {
+        type: 'local-script',
+        properties: {
+          executeCommand: 'npx prisma migrate deploy',
+          connectTo: ['mainDatabase']
+        }
+      }
+    },
+    hooks: {
+      afterDeploy: [{ scriptName: 'migrate' }]
+    }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+<Tip>
+If your database is private (no public endpoint), use `local-script-with-bastion-tunneling` instead. The connection string is automatically rewritten to use the local tunnel port.
+</Tip>
+
+### Build step before deploy
+
+Run a frontend build or code generation before deployment packages are created:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, HostingBucket } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const website = new HostingBucket({
+    uploadDirectoryPath: './frontend/dist'
+  });
+
+  return {
+    resources: { website },
+    scripts: {
+      build: {
+        type: 'local-script',
+        properties: {
+          executeCommands: ['npm ci', 'npm run build'],
+          cwd: './frontend'
+        }
+      }
+    },
+    hooks: {
+      beforeDeploy: [{ scriptName: 'build' }]
+    }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+### Data export before delete
+
+Back up critical data before tearing down a stage:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgresql16 } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgresql16({
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    })
+  });
+
+  return {
+    resources: { mainDatabase },
+    scripts: {
+      exportData: {
+        type: 'local-script',
+        properties: {
+          executeCommand: 'pg_dump $STP_MAIN_DATABASE_CONNECTION_STRING > backup.sql',
+          connectTo: ['mainDatabase']
+        }
+      }
+    },
+    hooks: {
+      beforeDelete: [{ scriptName: 'exportData' }]
+    }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+## Deployment scripts vs hooks
+
+[Deployment scripts](/resources/advanced/deployment-scripts) are a separate Stacktape resource type that runs as a Lambda function in AWS. They complement hooks for cases where local execution isn't suitable:
+
+- **Run inside your VPC** — direct access to private databases without bastion tunneling.
+- **Consistent environment** — same Lambda runtime regardless of who triggers the deploy.
+- **Automatic rollback** — an `after:deploy` deployment script failure triggers CloudFormation rollback of the entire deployment.
+
+Use deployment scripts when migration reliability is critical and you want failed migrations to roll back the infrastructure change. Use hooks when you need local tools, filesystem access, or more than 15 minutes of execution time.
+
+## FAQ
+
+### Can I run multiple scripts in a single hook?
+
+Yes. Each hook property (`beforeDeploy`, `afterDeploy`, etc.) accepts an array of script references. Scripts run sequentially in the order listed. If any script fails, subsequent scripts in the same hook are not executed.
+
+### What happens if my afterDeploy hook fails?
+
+The deployment itself is NOT rolled back. Stacktape reports the hook failure as a warning. Your infrastructure is deployed and running, but the post-deploy task (e.g., migration) needs manual attention. Re-run it with `stacktape script:run --scriptName <name> --stage <stage>`.
+
+### How do I access a private database from a hook script?
+
+Use the `local-script-with-bastion-tunneling` type. It establishes an SSH tunnel through your [bastion host](/resources/security/bastion-host) to the private resource. The `connectTo` environment variables are automatically adjusted to point at the local tunnel endpoint. Alternatively, use a [deployment script](/resources/advanced/deployment-scripts) with `joinDefaultVpc: true` to run directly inside the VPC.
+
+### Can hooks run in parallel?
+
+No. Hook scripts within a single lifecycle event run sequentially. If you need parallel execution, combine your commands into a single script that spawns background processes.
+
+### What tools are available in bastion scripts?
+
+Bastion scripts run on the bastion EC2 instance, which is a minimal Amazon Linux environment. Standard Unix tools are available. If you need specific tools (like `redis-cli` or `psql`), install them via a preceding `executeCommands` entry or use a local script with bastion tunneling instead.
+
+### How do deployment scripts differ from hooks running after deploy?
+
+Deployment scripts run as Lambda functions in AWS and integrate with CloudFormation — a failure triggers an automatic rollback of the entire deployment. Hook scripts run on your local machine or CI runner and do NOT cause rollback on failure. Deployment scripts are limited to 15 minutes; local hook scripts have no hard timeout.
+
+### Can I use directives like $Secret() in script environment variables?
+
+Yes. The `environment` property in scripts supports all Stacktape [directives](/configuration/directives) — `$Secret()`, `$ResourceParam()`, `$Var()`, and custom directives. Values are resolved at execution time.
+
+### Do hooks run during `stacktape dev`?
+
+Yes. The `beforeDev` hook runs before dev mode starts, and `afterDev` runs after dev mode exits. Use `beforeDev` for local setup tasks like installing dependencies or starting a local database.

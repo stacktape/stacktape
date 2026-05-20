@@ -1,0 +1,728 @@
+{
+  "pageId": "configuration__triggers__s3-events",
+  "pageRoute": "configuration/triggers/s3-events",
+  "startedAt": "2026-05-17T10:30:28.956Z",
+  "updatedAt": "2026-05-17T10:58:35.816Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__s3-events\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive event type table enumerates all 17 event types from the source type union — gives the reader a definitive reference without needing to guess.",
+            "The 'Avoiding infinite loops' section is exactly the kind of production gotcha a first-time user will hit; it's concrete, actionable, and covers three distinct prevention strategies.",
+            "URL-encoding warning on object keys in the event payload is a genuine, easy-to-miss bug — surfaced early and with a concrete fix.",
+            "FAQ section covers all three required categories: Stacktape-specific questions, AWS service mechanics (delivery guarantees, retry behavior, notification latency), and choosing/comparison questions (Lambda vs batch job). 9 quality entries with no padding.",
+            "Handler code example in a fenced TypeScript block (application code, not config) is realistic and copyable — correctly separated from the CodeBlock intellisense config examples.",
+            "Clear 'When NOT to use' H2 with specific alternatives (SQS for batching, batch job for long-running work, SNS/EventBridge for fan-out) rather than vague guidance.",
+            "Both Lambda and batch job trigger targets are covered with dedicated working examples."
+          ],
+          "problems": [
+            "Missing `<ApiReference>` component — the default page rhythm (item 7) requires exactly one `<ApiReference definitionName=\"...\" />` per page. The source type is `S3IntegrationProps`, which covers `bucketArn`, `s3EventType`, and `filterRule`. Its absence means the reader has no structured drill-down for property discovery.",
+            "'Why use S3 triggers' is an H2 heading in question-initiating form ('Why…'). The style guide requires noun-form H2 labels (1–5 words, e.g., 'Overview', 'Use cases'). The equivalent structured content lives naturally as the intro paragraph rather than a separate H2.",
+            "`cors: { enabled: true }` on the `Bucket` in the basic example is unrelated to S3 trigger configuration and introduces an unexplained property that the reader may think is required for triggers to work."
+          ],
+          "mandatoryFixes": [
+            "Add `<ApiReference definitionName=\"S3IntegrationProps\" />` to the page (bottom is the conventional placement for tutorial-style pages). The default page rhythm requires exactly one per page — it is currently absent entirely."
+          ],
+          "optionalImprovements": [
+            "Remove `cors: { enabled: true }` from the basic example Bucket — it is unrelated to trigger wiring and silently implies CORS is needed for S3 triggers.",
+            "Rename 'Why use S3 triggers' to a compact noun-form label such as 'Overview' or fold the paragraph into the opening section, eliminating the extra H2 that breaks the noun-form heading convention.",
+            "In the paragraph describing `connectTo`, add a one-sentence note that connecting to a bucket also injects bucket connection details (ARN, name) as environment variables into the Lambda, using the `STP_[RESOURCE_NAME]_*` naming pattern — currently the prose only mentions IAM permissions.",
+            "The basic example uses `imagesBucket.arn` as the `bucketArn` value but the surrounding prose explains this only one paragraph later. Move the explanation of `.arn` resolution (or a brief parenthetical) into the code comment zone or directly above the example so readers aren't left wondering on first read.",
+            "Consider adding a brief callout or note that the S3 notification configuration supports only one Lambda destination per event type + filter combination per bucket — this constraint is mentioned in the 'When NOT to use' section and the FAQ, but a prominent callout near the filtering section would help readers who skim past the top."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Complete and accurate event-type table covering all 17 S3 event types verbatim from the source, with plain-English descriptions of each.",
+            "'Avoiding infinite loops' section is genuinely production-useful — explains the failure mode, names concrete prevention strategies, and pairs it with a <Tip> that reinforces the advice.",
+            "URL-encoding warning on object keys is a real gotcha that trips up most first-time implementers; flagging it with a <Warning> and showing the decode pattern is the right call.",
+            "Retry-behavior section correctly describes S3's asynchronous invocation model (at-least-once, three total attempts) and gives actionable idempotency guidance.",
+            "FAQ mixes all three required categories — Stacktape-specific, AWS-general, and choosing/comparison — and answers are concise enough to work as featured snippets.",
+            "CodeBlock usage is correct throughout: TypeScript class-based syntax with defineConfig, proper focus markers, no hand-authored YAML tabs.",
+            "Filter-rule section is clear and well-scoped, with a working example that shows prefix+suffix together and a prose explanation of the AND-semantics."
+          ],
+          "problems": [
+            "Missing <ApiReference definitionName=\"S3IntegrationProps\" /> entirely. The backbone requires exactly one ApiReference on every trigger/resource page, and this page has none. Readers cannot drill into the full property list without navigating elsewhere.",
+            "Overly long H2 headings violate the 1-5 word noun-form label rule: 'Why use S3 triggers' (question-form, 4 words but reads like a sentence) and 'When NOT to use S3 triggers' (6 words, clearly a sentence). Shorter labels work better here.",
+            "The claim that S3 events can trigger batch jobs is not grounded in the provided source. The S3Integration JSDoc says 'Triggers a function when files are created, deleted, or restored in an S3 bucket' — 'function' only, no mention of batch jobs. Without BatchJob source confirming S3Integration is accepted in its events array, this is an unverified claim.",
+            "The basic example includes `cors: { enabled: true }` on the Bucket with no explanation. CORS controls browser access, not Lambda trigger behavior. Including it in a trigger-focused example suggests it is required or relevant to triggering, which it is not. It adds noise without documentation.",
+            "The FAQ answer about external buckets says 'this may require manual bucket policy adjustments on the external bucket.' The actual requirement is configuring the bucket's notification configuration (event notifications), not its bucket policy. These are different AWS constructs; the wording is inaccurate."
+          ],
+          "mandatoryFixes": [
+            "Add <ApiReference definitionName=\"S3IntegrationProps\" /> to the page — place it at the bottom after the FAQ, or wherever fits the flow. The backbone requires exactly one ApiReference on every trigger page.",
+            "Shorten H2 headings to compact noun-form labels: change 'Why use S3 triggers' to 'When to use' and 'When NOT to use S3 triggers' to 'When not to use'. Both currently read as sentences; the style guide mandates 1-5 word noun-form labels (e.g., 'Scaling', 'Networking', 'When to use').",
+            "Either remove the 'Using with batch jobs' section and all batch-job references in the intro/FAQ, or ground the claim in the BatchJob type source showing that S3Integration is accepted in a batch job's events array. The S3Integration JSDoc in the provided source says 'Triggers a function' — not a batch job. Publishing an unverified claim that S3 events can trigger batch jobs will mislead users who try it and encounter a type error or runtime failure."
+          ],
+          "optionalImprovements": [
+            "Remove `cors: { enabled: true }` from the Bucket in the basic example. It has nothing to do with S3 event triggers and will confuse readers into thinking it is required.",
+            "Correct the FAQ answer about external buckets: replace 'bucket policy adjustments' with 'bucket event notification configuration'. The external bucket needs a notification configuration pointing to the Lambda ARN, not a bucket policy change. These are different AWS constructs.",
+            "The 'Throughput and retry behavior' section states that the dead-letter queue must be configured 'on the Lambda function'. Consider noting that Stacktape exposes this via the Lambda function's `onFailure` destination property (if source-grounded) so readers know where to configure it without leaving the page.",
+            "The FAQ answer 'Can I filter S3 events by object size or content type?' could note that AWS EventBridge S3 notifications (a separate AWS feature, not covered here) do support richer metadata filtering — this gives readers a forward path if they need it, without inflating the page.",
+            "Consider adding a one-sentence note near the `bucketArn` field explanation that covers the ARN form expected (e.g., `arn:aws:s3:::my-bucket`) for readers who use external buckets and are unsure of the format."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "Stacktape config examples use <CodeBlock intellisense> with a TypeScript tab and class-based defineConfig style.",
+            "Event type coverage matches the S3Integration union in the provided source and is easy to scan in a table.",
+            "Filtering section explains prefix and suffix behavior clearly and uses a focused, copyable trigger example.",
+            "FAQ is broad and includes Stacktape-specific, AWS-behavior, and choosing/comparison questions."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source, especially S3 triggers for batch jobs. The source only describes S3Integration as triggering a function, not BatchJob.",
+            "The page claims cost behavior such as “no idle cost” and “pay only for Lambda invocations or batch job runs” without pricing source files.",
+            "Throughput and retry behavior is mostly AWS background rather than provided-source material. The source has no S3 batching, retry count, at-least-once, or dead-letter queue details for S3Integration.",
+            "The external bucket section claims manual bucket policy or notification configuration requirements that are not present in the source.",
+            "The page uses <Tip> and <Warning> callouts, but no example-page guidance is provided; this is not automatically wrong, but the payload warning depends on AWS behavior outside the supplied source.",
+            "The “Using with batch jobs” section is a major unsupported practical example because the configured source does not show S3Integration as valid on BatchJob events.",
+            "Some FAQ answers introduce unsourced numeric limits or claims, including Lambda 6 MB payload limit, 15-minute timeout, GPU access, and more than 10 GB memory for batch jobs. These may be true elsewhere, but they are not grounded in this page’s provided source."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow all claims that S3Integration can trigger batch jobs unless a source file showing BatchJob accepts S3Integration is provided. Replace the batch job example with a Lambda-only pattern or explicitly mark batch-job use only if sourced.",
+            "Revise “Throughput and retry behavior” to include only behavior grounded in the supplied source, or add the authoritative source files for AWS Lambda/S3 event retry and batching behavior. Do not state retry counts, DLQ behavior, or at-least-once delivery as Stacktape-specific facts from the current source.",
+            "Remove unsupported pricing language such as “no idle cost” unless pricing or billing source files are provided.",
+            "Remove or source the external-bucket permission/configuration claim. From the supplied source, only `bucketArn: string` is grounded.",
+            "Trim or source FAQ claims that rely on limits not present in the supplied source, especially Lambda timeout, payload size, GPU access, and batch job memory thresholds."
+          ],
+          "optionalImprovements": [
+            "Add a compact “Supported properties” table for `bucketArn`, `s3EventType`, and `filterRule` to make the source-backed API shape extractable before the examples.",
+            "Rename “Why use S3 triggers” to “Use cases” or “When to use” for consistency with resource-page rhythm and stronger decision support.",
+            "In the filtering example, add one sentence that `filterRule` is optional and that omitting it means every object matching the selected `s3EventType` can trigger the function.",
+            "Consider replacing the long event type table with grouped rows for ObjectCreated, ObjectRemoved, ObjectRestore, Replication, and ReducedRedundancy if the table feels too reference-heavy for a conceptual trigger page."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The S3 Events draft is well-structured and mostly accurate. The event type table, filter rule properties, and S3IntegrationProps are all correctly grounded in the source union type. Cross-links are valid, heading hierarchy is correct, code examples use proper CodeBlock format, and the FAQ section has good category coverage. Two issues found: an overstated claim about event type coverage and an unconfirmed batch job support claim.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Stacktape supports the full set of S3 event notification types.",
+              "reason": "The source file defines a specific union type for s3EventType that does NOT include all AWS S3 event notification types. AWS supports additional event types such as s3:ObjectTagging:*, s3:ObjectTagging:Put, s3:ObjectTagging:Delete, s3:LifecycleExpiration:*, s3:LifecycleTransition, s3:IntelligentTiering, and s3:ObjectAcl:Put — none of which appear in the source union. Claiming 'the full set' is a Stacktape-specific overstatement that would mislead a reader into trying an unsupported event type.",
+              "suggestedFix": "Replace 'Stacktape supports the full set of S3 event notification types' with 'The s3EventType property determines which bucket operations trigger the function. Stacktape supports the following S3 event notification types:' — letting the table speak for itself without overclaiming completeness.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "s3EventType:\n    | 's3:ReducedRedundancyLostObject'\n    | 's3:ObjectCreated:*'\n    | 's3:ObjectCreated:Put'\n    | 's3:ObjectCreated:Post'\n    | 's3:ObjectCreated:Copy'\n    | 's3:ObjectCreated:CompleteMultipartUpload'\n    | 's3:ObjectRemoved:*'\n    | 's3:ObjectRemoved:Delete'\n    | 's3:ObjectRemoved:DeleteMarkerCreated'\n    | 's3:ObjectRestore:*'\n    | 's3:ObjectRestore:Post'\n    | 's3:ObjectRestore:Completed'\n    | 's3:Replication:*'\n    | 's3:Replication:OperationFailedReplication'\n    | 's3:Replication:OperationNotTracked'\n    | 's3:Replication:OperationMissedThreshold'\n    | 's3:Replication:OperationReplicatedAfterThreshold';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "An S3 event trigger invokes a Lambda function or batch job when objects are created, deleted, or restored in an S3 bucket. / S3 events can also trigger batch jobs.",
+              "reason": "The S3Integration JSDoc in the source says 'Triggers a function when files are created, deleted, or restored in an S3 bucket' — it mentions 'function' only, not 'batch job.' The BatchJob type definition is not in the provided source, so batch job support for S3 events cannot be confirmed or denied from the available evidence. The claim may be correct at runtime (the code-block-validator would catch an invalid events property), but the source-level grounding is absent.",
+              "suggestedFix": "If the code-block-validator confirms the BatchJob + S3Integration example type-checks, keep the claim. Otherwise, remove batch job references and the 'Using with batch jobs' section.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when files are created, deleted, or restored in an S3 bucket.\n */\ninterface S3Integration {\n  type: 's3';\n  properties: S3IntegrationProps;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Event type table exactly matches the source union type — all 17 s3EventType values are listed with accurate descriptions.",
+            "S3IntegrationProps properties (bucketArn, s3EventType, filterRule) are correctly documented with accurate types and optionality.",
+            "S3FilterRule properties (prefix, suffix) match the source definition exactly, and the prose correctly describes both as optional.",
+            "All cross-links point to valid routes in the navigation index — /resources/compute/lambda-function, /resources/compute/batch-job, /resources/storage/s3-bucket, /resources/messaging/sqs-queue, /resources/messaging/sns-topic, /resources/messaging/event-bus, /configuration/directives, /configuration/connecting-resources.",
+            "Heading hierarchy is correct: 'When NOT to use S3 triggers' is a peer H2, not nested under another section.",
+            "Code examples properly use <CodeBlock intellisense> for Stacktape config and fenced blocks for application handler code. Focus markers are balanced.",
+            "No forbidden patterns detected: no hand-authored YAML config, no StacktapeConfig type, no marketing language, no fenced TypeScript blocks with defineConfig.",
+            "FAQ section has 9 Q&A pairs with good coverage across all three required categories: Stacktape-specific, AWS service, and choosing/comparison questions.",
+            "The practical 'Avoiding infinite loops' section provides three concrete prevention strategies — a high-value addition for readers new to S3 event patterns.",
+            "Import statements are present in code blocks for type-checking but hidden via focus markers — follows the config example canon correctly."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft uses the required CodeBlock pattern and correctly lists the S3Integration properties and enum values from the provided type source, but several Stacktape-specific behavior claims go beyond the supplied source. The largest issues are batch-job support, unsupported assertions about runtime behavior, and wording that implies support for every AWS S3 notification type rather than the specific Stacktape union.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"An S3 event trigger invokes a Lambda function or batch job...\" and the \"Using with batch jobs\" section shows `new BatchJob({ ... events: [new S3Integration(...)] })` with the claim that \"The configuration is the same as for Lambda functions.\"",
+              "reason": "The provided source defines `S3Integration` as triggering a function and does not show that `BatchJob` accepts S3 integrations. This would materially affect what readers configure.",
+              "suggestedFix": "Narrow the page to Lambda functions unless a BatchJob source file proves that S3Integration is accepted there. Remove the BatchJob example or replace it with cautious wording backed by the relevant BatchJob type source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when files are created, deleted, or restored in an S3 bucket.\n */\ninterface S3Integration {\n  type: 's3';\n  properties: S3IntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Stacktape supports the full set of S3 event notification types.\"",
+              "reason": "The source defines a fixed `s3EventType` string union. Claiming the full AWS set is broader than the Stacktape type and may mislead readers into using event names not accepted by the config type.",
+              "suggestedFix": "Say Stacktape supports the S3 event types listed by the `s3EventType` property, then keep the table as the authoritative list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "s3EventType:\n    | 's3:ReducedRedundancyLostObject'\n    | 's3:ObjectCreated:*'\n    | 's3:ObjectCreated:Put'\n    | 's3:ObjectCreated:Post'\n    | 's3:ObjectCreated:Copy'\n    | 's3:ObjectCreated:CompleteMultipartUpload'\n    | 's3:ObjectRemoved:*'\n    | 's3:ObjectRemoved:Delete'\n    | 's3:ObjectRemoved:DeleteMarkerCreated'\n    | 's3:ObjectRestore:*'\n    | 's3:ObjectRestore:Post'\n    | 's3:ObjectRestore:Completed'\n    | 's3:Replication:*'\n    | 's3:Replication:OperationFailedReplication'\n    | 's3:Replication:OperationNotTracked'\n    | 's3:Replication:OperationMissedThreshold'\n    | 's3:Replication:OperationReplicatedAfterThreshold';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The `connectTo` on the Lambda function grants it read/write access to the bucket. Without it, the function can receive the event but cannot read the uploaded object.\"",
+              "reason": "The provided source file does not document `connectTo` permissions for buckets or the behavior of an S3 trigger without `connectTo`. This is a Stacktape-specific permission claim and should be grounded in `ResourceAccessProps.connectTo` or the bucket access source, which is not included here.",
+              "suggestedFix": "Either provide and cite the connectTo helper source, or narrow the wording to say that the example uses `connectTo: [imagesBucket]` so the handler can access the bucket, with a link to Connecting resources for the detailed permission model.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {\n  /**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;\n  /**\n   * #### The type of S3 event that will trigger the function.\n   */\n  s3EventType:"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For external buckets, pass the ARN string directly\" and \"You also need to ensure the external bucket's notification configuration allows your Lambda function to be invoked — this may require manual bucket policy adjustments on the external bucket.\"",
+              "reason": "The source supports `bucketArn: string`, but it does not document external-bucket setup, manual notification configuration, or bucket policy adjustments. Those are Stacktape-specific deployment behavior claims, not just AWS background.",
+              "suggestedFix": "Keep only the source-grounded part: `bucketArn` is the ARN of the bucket to monitor. If external buckets are supported, cite a source that documents the external-bucket deployment behavior before explaining policy or notification requirements.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"There is no idle cost — you pay only for the Lambda invocations or batch job runs that the events produce.\"",
+              "reason": "The source documents the configuration shape for S3Integration, not pricing behavior. General AWS Lambda event pricing context is acceptable, but including batch job runs repeats the unsupported BatchJob trigger claim and presents a pricing model not grounded in the provided Stacktape source.",
+              "suggestedFix": "Change this to a narrower AWS-context sentence for Lambda, such as: \"For Lambda targets, S3 events avoid a polling worker; AWS charges for the Lambda work that actually runs.\" Remove batch-job pricing unless BatchJob trigger support is sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when files are created, deleted, or restored in an S3 bucket.\n */\ninterface S3Integration {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"S3 event notifications are asynchronous... Each qualifying S3 event produces one Lambda invocation\" and \"If the Lambda function returns an error, AWS retries the invocation twice... If all attempts fail, the event is discarded unless you configure a dead-letter queue on the Lambda function.\"",
+              "reason": "The source for S3Integration does not document batching, retry behavior, dead-letter queues, or one-invocation-per-event behavior. The page instructions ask to note throughput/retry behavior when present in source; this behavior is not present in the supplied source.",
+              "suggestedFix": "Either remove the Stacktape-specific retry/dead-letter wording or frame it clearly as AWS Lambda asynchronous invocation behavior with an AWS docs link, while stating that S3Integration itself exposes only `bucketArn`, `s3EventType`, and `filterRule` in Stacktape config.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {\n  /**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;\n  /**\n   * #### The type of S3 event that will trigger the function.\n   */\n  s3EventType:\n    | 's3:ReducedRedundancyLostObject'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The Lambda function receives the standard AWS S3 event notification payload\" followed by a specific TypeScript payload shape.",
+              "reason": "The source only says S3Integration triggers a function when files are created, deleted, or restored. It does not document the runtime event payload shape. The draft should not present a Stacktape-specific payload contract without source or should frame it as AWS S3's standard payload.",
+              "suggestedFix": "Keep the section only if framed as AWS S3's standard event payload and avoid implying Stacktape transforms or guarantees additional fields. Consider shortening it because the page guidance says to document payload shape only when it is non-obvious or differs from the AWS default.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when files are created, deleted, or restored in an S3 bucket.\n */\ninterface S3Integration {\n  type: 's3';\n  properties: S3IntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The page has no `<ApiReference definitionName=\"...\" />` or `<ReferenceableParams ... />` section.",
+              "reason": "The style guide says resource pages conventionally include API reference and referenceable parameters where applicable, but this route is a conceptual trigger page and the page-specific instructions say these pages are conceptual, not reference. This is likely acceptable, but if the publication template expects API reference on trigger pages, the omission could reduce usefulness.",
+              "suggestedFix": "No mandatory change if trigger pages intentionally omit API reference. If trigger pages include API references elsewhere, add exactly one component with the correct type name for the relevant integration props, such as `S3IntegrationProps`, only if that schema definition exists.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab and do not hand-author YAML.",
+            "The draft correctly uses `defineConfig` and class-based resources rather than the plain-object `StacktapeConfig` style.",
+            "The `filterRule` discussion is grounded in the source: `S3FilterRule` exposes only optional `prefix` and `suffix` properties.",
+            "The event type table includes the literal `s3EventType` values present in the provided union type."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page covers the core S3IntegrationProps API well: bucketArn, s3EventType, and filterRule are all documented, and the main CodeBlock examples focus the trigger property. The main completeness gap is not a missing S3 property, but an over-broad event-type claim that could mislead readers about what Stacktape accepts.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Stacktape supports the full set of S3 event notification types.”",
+              "reason": "The source defines a closed union of accepted s3EventType string values. The draft's table matches that union, but the phrase “full set” implies every AWS S3 notification type is accepted, which is broader than the provided Stacktape type supports.",
+              "suggestedFix": "Change to narrower wording such as: “Stacktape supports the S3 event notification types listed below.” Keep the table as the authoritative list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "s3EventType:\n    | 's3:ReducedRedundancyLostObject'\n    | 's3:ObjectCreated:*'\n    | 's3:ObjectCreated:Put'\n    | 's3:ObjectCreated:Post'\n    | 's3:ObjectCreated:Copy'\n    | 's3:ObjectCreated:CompleteMultipartUpload'\n    | 's3:ObjectRemoved:*'\n    | 's3:ObjectRemoved:Delete'\n    | 's3:ObjectRemoved:DeleteMarkerCreated'\n    | 's3:ObjectRestore:*'\n    | 's3:ObjectRestore:Post'\n    | 's3:ObjectRestore:Completed'\n    | 's3:Replication:*'\n    | 's3:Replication:OperationFailedReplication'\n    | 's3:Replication:OperationNotTracked'\n    | 's3:Replication:OperationMissedThreshold'\n    | 's3:Replication:OperationReplicatedAfterThreshold';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft documents all important S3IntegrationProps properties: bucketArn, s3EventType, and filterRule.",
+            "The draft acknowledges every s3EventType union member present in the source file.",
+            "The Basic example, Filtering events example, and Batch job example each demonstrate the section topic by focusing the events array and S3Integration configuration.",
+            "The filtering section correctly documents both S3FilterRule variants, prefix and suffix, and shows a realistic combined example."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__s3-events\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "No mandatory style violations — all Stacktape config examples correctly use <CodeBlock intellisense> with a TypeScript tab; no fenced YAML config, no StacktapeConfig type pattern, no YAML alternative tabs.",
+            "Comprehensive event types table covering every source-defined s3EventType value, making the reference section genuinely useful alongside the prose.",
+            "Dedicated 'Avoiding infinite loops' section addresses the most common production pitfall for this trigger type — concrete, actionable, with three named mitigation strategies.",
+            "Well-structured FAQ covering all three required categories: Stacktape-specific questions, AWS use-case questions (delivery guarantees, S3 pricing model), and comparison/choosing questions (S3 vs SQS, S3 vs EventBridge).",
+            "When to use / When not to use correctly placed as peer H2 sections, not nested.",
+            "URL-encoding warning on the event payload is a source-relevant, non-obvious gotcha that saves developers real debugging time.",
+            "Lambda vs batch job decision support is explicit — the page tells readers when Lambda is better (lightweight ops) and when to reach for BatchJob (>15 min timeout, GPU needs), which is exactly the decision support the style guide requires.",
+            "connectTo usage is explained with a link to the connecting-resources page rather than left as unexplained boilerplate."
+          ],
+          "problems": [
+            "The batch job code example uses specific values `cpu: 4, memory: 16000` without any prose anchoring what those values control or what the supported ranges/alternatives are. Per documentation-quality discipline, tunable property values in examples must be explained — a reader cannot tell whether 4 is the minimum, a common default, or an arbitrary choice.",
+            "The 'When to use' section opens with mechanism description ('S3 event triggers eliminate polling') rather than a direct decision signal. The common-use-case list redeems it, but the entry sentence should answer 'use this when X' more directly.",
+            "'Delivery and retries' section repeats retry-count information (retry twice, three total attempts, dead-letter queue) that also appears verbatim in two FAQ answers. Duplication dilutes each occurrence and wastes scroll space.",
+            "The <Error> MDX component is used in 'Avoiding infinite loops' but no example page was provided to verify it is part of the established component palette for this docs system. If it is not a valid component, the callout will render incorrectly."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the batch job section, add one sentence after the cpu/memory example explaining the units and typical ranges (e.g., 'cpu is in vCPU units; memory is in MB'), or add a link to the BatchJob reference page for the full set of supported values. This satisfies the property-value-anchor rule without requiring exhaustive coverage.",
+            "Rewrite the first sentence of 'When to use' from mechanism to decision: for example, 'Use S3 event triggers when your workload needs to react to individual file uploads, deletions, or restores as they happen — image processing, data ingestion, and file validation are the most common cases.'",
+            "Trim 'Delivery and retries' to a shorter paragraph (the retry-count details and dead-letter queue mention) and remove the duplicate sentences, since the FAQ already provides the same information. The FAQ is the right place for the deeper Q&A treatment; the prose section should be the quick summary.",
+            "Verify that <Error> is an available MDX component in this docs system. If only <Warning> and <Info> are available, replace the <Error> callout in 'Avoiding infinite loops' with a <Warning>. The content itself is correct and should stay.",
+            "Move the <Tip> about prefix filtering for infinite-loop prevention from the 'Filtering events' section into the 'Avoiding infinite loops' section where it is most discoverable, and remove the duplicate content from the earlier section."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Event types table is directly and exhaustively grounded in the source union type — all 17 variants are present with correct spellings.",
+            "The 'Avoiding infinite loops' section addresses a real production gotcha that engineers actually hit and that most trigger docs skip entirely.",
+            "The URL-encoding warning in the Event payload section is a concrete, actionable gotcha that prevents subtle bugs.",
+            "filterRule behavior is explained precisely: prefix matches the beginning of the key, suffix matches the end — not left for the reader to guess.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-service behavior, and choosing/comparison) with substantive answers.",
+            "Focus markers on all CodeBlock examples keep the rendered diff tight without hiding required context.",
+            "The 'When not to use' section is a peer H2 as required — not nested under 'When to use'.",
+            "The Tip callout for prefix-based loop prevention and the Error callout for stopping a live loop are positioned at the right moment in the page flow."
+          ],
+          "problems": [
+            "The 'Using with batch jobs' section, and the page's opening sentence, claim that S3Integration can trigger a BatchJob. The provided source file's S3Integration JSDoc says 'Triggers a function when files are created, deleted, or restored in an S3 bucket.' — 'function' in Stacktape context means Lambda. Contrast this with EventBusIntegration, which explicitly says 'Triggers a batch job'. Without the BatchJob type definition in scope, the batch-job S3-trigger claim is unsupported by the provided source and may mislead engineers who try to wire it up.",
+            "The 'Delivery and retries' section and the FAQ entry 'What happens if my Lambda function fails processing an S3 event?' both explain the async invocation retry model in nearly identical terms. The duplication is minor but the FAQ entry could just reference the section instead of restating the full count.",
+            "The 'When to use' section does not answer 'why does this exist?' in the conceptual sense (eliminating polling infrastructure entirely, versus a rate(1 minute) Lambda that polls the bucket). The section lists common use cases well but does not contrast with the polling alternative at all, leaving the 'when is the default—no trigger—fine?' question unanswered."
+          ],
+          "mandatoryFixes": [
+            "Verify that BatchJob accepts S3Integration in its events array against the BatchJob type definition (types/stacktape-config/batch-job.d.ts or equivalent). The S3Integration source comment says 'Triggers a function' — 'function' is Lambda in Stacktape's type vocabulary, while EventBusIntegration explicitly names 'batch job'. If BatchJob does not accept S3Integration, remove the 'Using with batch jobs' section and the 'or batch job' phrase from the opening sentence and replace with a note that heavy processing requiring more than 15 minutes should route through an intermediate SQS queue into a batch job. If BatchJob does accept S3Integration, add a sentence citing the BatchJob type as confirmation so the claim is source-grounded in the prose."
+          ],
+          "optionalImprovements": [
+            "The 'When to use' section could add one sentence contrasting S3 events with a scheduled polling Lambda (e.g., 'Compared to a Lambda running on a schedule that lists bucket objects every minute, S3 events react within seconds and incur zero cost when no uploads occur.') — this completes the conceptual case for the feature.",
+            "The FAQ entry for retry behavior ('What happens if my Lambda function fails...') could be shortened to two sentences and link to the 'Delivery and retries' section above rather than restating the three-attempt model.",
+            "The 'Delivery and retries' section could briefly mention that Lambda concurrency limits act as a natural cost cap in runaway-loop scenarios, complementing the Error callout about manually removing the notification.",
+            "Consider adding a brief note in the filterRule section that AWS enforces a maximum of 10 filter rules per bucket notification configuration — a practical limit engineers hit when setting up many fine-grained triggers on one bucket (if this is grounded in AWS docs you choose to cite as a well-known AWS fact)."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clear about the core use case.",
+            "Headings are compact and easy to scan, with strong sections for event types, filtering, payloads, delivery, and infinite-loop avoidance.",
+            "Stacktape configuration examples use <CodeBlock intellisense> with class-based TypeScript config and no hand-authored YAML.",
+            "The event type table is concrete and useful, and the FAQ covers Stacktape-specific, AWS-service, and comparison questions."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source file, especially BatchJob support for S3Integration, connectTo permission behavior, external bucket ARN support beyond the string type, and Lambda dead-letter queue configuration.",
+            "The page states delivery, retry, at-least-once, async invocation, latency, S3 notification pricing, and S3 fan-out constraints as confident facts, but these are not present in the provided Stacktape source. Some are AWS background facts, but the page should separate AWS behavior from Stacktape-configured behavior more carefully.",
+            "The 'Using with batch jobs' section contains important tunable values that are not sufficiently anchored: CustomDockerfilePackaging, cpu: 4, memory: 16000, and the claimed Lambda thresholds need source-backed explanation or removal.",
+            "The page says S3 events can trigger Lambda functions or batch jobs, but the provided S3Integration source only says it triggers a function. The batch-job path may be true elsewhere, but it is not grounded in the supplied source list.",
+            "The Basic example says connectTo injects environment variables via the linked connecting-resources page, but the provided source does not include connectTo JSDoc. This risks violating the canonical connectTo grounding rules.",
+            "The payload section is practical, but most payload-shape details and URL-decoding behavior come from AWS docs, not the provided source. The page should make clear this is AWS S3 event payload behavior rather than Stacktape-specific behavior."
+          ],
+          "mandatoryFixes": [
+            "Ground or narrow the BatchJob support claims. If the provided source list remains only events.d.ts, remove or heavily qualify the BatchJob section because S3IntegrationProps only documents the S3 trigger shape and does not prove BatchJob accepts S3Integration.",
+            "Replace the connectTo sentence with source-grounded wording or remove it unless ResourceAccessProps/connectTo source is included. Do not claim environment-variable injection from connectTo on this page without the relevant source.",
+            "Rewrite delivery and retry wording to distinguish Stacktape configuration from AWS Lambda/S3 behavior. Keep only source-grounded Stacktape claims for S3Integration: bucketArn, s3EventType, and filterRule with prefix/suffix.",
+            "Either source or remove numeric Lambda/Batch thresholds in the batch-job section, including 15 minutes, 10 GB memory, configurable GPU resources, and cpu/memory values as guidance.",
+            "Add brief prose anchors for non-obvious tunable values in the batch-job example, or simplify the example so the page focuses only on the S3Integration trigger property as instructed."
+          ],
+          "optionalImprovements": [
+            "Move the API reference closer to the event type/filtering sections if readers are likely to compare supported values while configuring the trigger.",
+            "Shorten the FAQ slightly by merging near-overlapping fan-out questions if the page needs to be more focused.",
+            "Add one sentence before the event type table stating that the listed literals come from S3IntegrationProps.s3EventType, which strengthens extractability and source grounding.",
+            "Replace 'standard approach' and 'cost-effective' with more concrete wording to avoid claims that sound broader than the supplied source supports."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided S3Integration shape for bucketArn, s3EventType, and filterRule, and it avoids the forbidden YAML/plain-object config patterns. The main blockers are Stacktape-specific claims about batch-job support and Lambda runtime controls that are not grounded in the provided source file, plus one unsupported S3 event enum value.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The Event types table lists `s3:Replication:OperationReplicatedAfterThreshold` as a supported `s3EventType`.",
+              "reason": "The provided `S3IntegrationProps.s3EventType` union does not include `s3:Replication:OperationReplicatedAfterThreshold`. Including it would lead readers to configure a value that is not accepted by the documented type.",
+              "suggestedFix": "Remove `s3:Replication:OperationReplicatedAfterThreshold` from the supported event type table, or only include it if a higher-priority source adds it to `S3IntegrationProps.s3EventType`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "s3EventType:\n    | 's3:ReducedRedundancyLostObject'\n    | 's3:ObjectCreated:*'\n    | 's3:ObjectCreated:Put'\n    | 's3:ObjectCreated:Post'\n    | 's3:ObjectCreated:Copy'\n    | 's3:ObjectCreated:CompleteMultipartUpload'\n    | 's3:ObjectRemoved:*'\n    | 's3:ObjectRemoved:Delete'\n    | 's3:ObjectRemoved:DeleteMarkerCreated'\n    | 's3:ObjectRestore:*'\n    | 's3:ObjectRestore:Post'\n    | 's3:ObjectRestore:Completed'\n    | 's3:Replication:*'\n    | 's3:Replication:OperationFailedReplication'\n    | 's3:Replication:OperationNotTracked'\n    | 's3:Replication:OperationMissedThreshold';"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“An S3 event trigger invokes a Lambda function or batch job…” and the “Using with batch jobs” section claims `BatchJob` accepts `S3Integration` in its `events` array.",
+              "reason": "The provided source describes `S3Integration` as triggering a function, not a batch job, and no provided `BatchJob` event union confirms that `S3Integration` is accepted by batch jobs. This is a Stacktape-specific configuration claim that would change what readers try to configure.",
+              "suggestedFix": "Remove batch-job support from this page unless a source file for `BatchJobProps` or its event union confirms `S3Integration` is valid. If unsupported by current sources, say S3 events are documented here for Lambda function triggers only.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when files are created, deleted, or restored in an S3 bucket.\n */\ninterface S3Integration {\n  type: 's3';\n  properties: S3IntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Retry behavior and dead-letter queue settings are part of the Lambda function configuration” and “You can configure a dead-letter queue on the Lambda function…”",
+              "reason": "The provided source for `S3IntegrationProps` contains only `bucketArn`, `s3EventType`, and `filterRule`. It does not provide Lambda function properties or confirm that Stacktape exposes dead-letter queue settings for Lambda functions in this configuration layer.",
+              "suggestedFix": "Keep the AWS asynchronous invocation retry explanation if desired, but remove Stacktape-specific DLQ configuration claims unless the Lambda function source is included and confirms the relevant property name and behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {\n  /**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;\n  /**\n   * #### The type of S3 event that will trigger the function.\n   */\n  s3EventType:\n    | 's3:ReducedRedundancyLostObject'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `bucketArn` property accepts any valid S3 bucket ARN… For buckets outside your stack, pass the ARN string directly.”",
+              "reason": "The type confirms `bucketArn` is a string and describes it as the ARN of the bucket to monitor, but it does not explicitly distinguish same-stack resource ARNs from external bucket ARNs or say any valid S3 bucket ARN is accepted. The claim is plausible but broader than the provided source.",
+              "suggestedFix": "Narrow the wording to the source-grounded fact: “`bucketArn` is the ARN of the S3 bucket to monitor. For a Stacktape bucket resource, use its `.arn` value.” Only mention external buckets if another source confirms that path.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The example uses `connectTo: [imagesBucket]` so the Lambda function has the IAM permissions needed to read and write objects in the bucket… grants permissions and injects environment variables.”",
+              "reason": "The provided source file does not define `connectTo`, its IAM behavior, or any injected environment variables. The claim may be true elsewhere, but it is not grounded in the source list for this page.",
+              "suggestedFix": "Either remove the connectTo behavior explanation from this page or add the authoritative `ResourceAccessProps.connectTo` source to the page’s source list and state only the permissions/env vars it documents.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {\n  /**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;\n  /**\n   * #### The type of S3 event that will trigger the function.\n   */\n  s3EventType:"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly uses `new S3Integration(...)` as a class-based config API.",
+              "reason": "The provided source defines `S3Integration` as an interface with `type: 's3'` and `properties: S3IntegrationProps`; it does not show an exported `S3Integration` class. The class may exist in the package, but it is not visible in the provided source list.",
+              "suggestedFix": "If the deterministic code-block-validator confirms `S3Integration` is exported, keep the code but consider adding or citing a source that exposes the class-based API. Otherwise, change the example to a documented class or supported trigger construction pattern.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3Integration {\n  type: 's3';\n  properties: S3IntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each qualifying S3 event produces one Lambda invocation — there is no batching window or batch size control at the S3 trigger level.”",
+              "reason": "The source supports that `S3IntegrationProps` has no `batchSize` or `maxBatchWindowSeconds` properties, unlike SQS/Kinesis/DynamoDB integrations, but it does not explicitly state one event equals one invocation. The no-batching-control part is grounded; the one-invocation-per-event wording is stronger than the source.",
+              "suggestedFix": "Revise to: “`S3IntegrationProps` does not expose `batchSize` or `maxBatchWindowSeconds`; configure only `bucketArn`, `s3EventType`, and `filterRule` at this layer.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {\n  /**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;\n  /**\n   * #### The type of S3 event that will trigger the function.\n   */\n  s3EventType:"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources.\n   *\n   * ---\n   *\n   * You must specify either `sqsQueueName` or `sqsQueueArn`.\n   */\n  sqsQueueName?: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense tabs={[...]}>` with `label: 'TypeScript'` for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The `<ApiReference definitionName=\"S3IntegrationProps\" />` value matches the provided `S3IntegrationProps` type name.",
+            "The `filterRule` section is grounded in the source: `filterRule` is optional and supports `prefix` and `suffix` keys.",
+            "Most listed `s3EventType` values match the union in `S3IntegrationProps`, except for the unsupported replication-after-threshold value flagged above.",
+            "All internal documentation links used in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the S3Integration type shape for bucketArn, s3EventType, and filterRule, and it avoids forbidden YAML/plain-object config patterns. The largest grounding problem is that the provided source only documents S3Integration as a function trigger, while the draft repeatedly documents BatchJob support and includes a BatchJob configuration example without source backing.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“An S3 event trigger invokes a Lambda function or batch job…” and the entire “Using with batch jobs” section, including “The BatchJob resource accepts S3Integration in its events array…”",
+              "reason": "The provided source only defines S3Integration as triggering a function. It does not show BatchJob event support or BatchJob accepting S3Integration. This is a Stacktape-specific configuration claim that would directly affect what readers configure.",
+              "suggestedFix": "Remove the BatchJob target claim and BatchJob example unless a BatchJobProps source file proves S3Integration is accepted. If no source is provided, narrow the page to Lambda function targets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when files are created, deleted, or restored in an S3 bucket.\n */\ninterface S3Integration {\n  type: 's3';\n  properties: S3IntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The example uses connectTo: [imagesBucket] so the Lambda function has the IAM permissions needed to read and write objects in the bucket.”",
+              "reason": "The only provided source for this page defines S3Integration properties and does not document connectTo behavior or the permissions granted for a bucket. The claim may be true elsewhere, but it is not grounded in the provided source list.",
+              "suggestedFix": "Either provide/cite the ResourceAccessProps source for connectTo behavior, or soften to a cross-reference: “The example also connects the Lambda function to the bucket; see Connecting resources for the permissions and environment variables Stacktape adds.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {\n  /**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;\n  /**\n   * #### The type of S3 event that will trigger the function.\n   */\n  s3EventType:\n    | 's3:ReducedRedundancyLostObject'\n    | 's3:ObjectCreated:*'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Retry behavior and dead-letter queue settings are part of the Lambda function configuration.”",
+              "reason": "The provided source supports that S3Integration itself only has bucketArn, s3EventType, and filterRule, but it does not document Lambda dead-letter queue settings. This is a Stacktape-specific configuration statement about another resource that is not present in the source list.",
+              "suggestedFix": "Keep the grounded part: “S3Integration only selects the bucket, event type, and optional key filter.” Avoid naming Stacktape Lambda dead-letter queue configuration unless LambdaFunctionProps source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {\n  /**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;\n  /**\n   * #### The type of S3 event that will trigger the function.\n   */\n  s3EventType:\n    | 's3:ReducedRedundancyLostObject'\n    | 's3:ObjectCreated:*'\n    | 's3:ObjectCreated:Put'\n    | 's3:ObjectCreated:Post'\n    | 's3:ObjectCreated:Copy'\n    | 's3:ObjectCreated:CompleteMultipartUpload'\n    | 's3:ObjectRemoved:*'\n    | 's3:ObjectRemoved:Delete'\n    | 's3:ObjectRemoved:DeleteMarkerCreated'\n    | 's3:ObjectRestore:*'\n    | 's3:ObjectRestore:Post'\n    | 's3:ObjectRestore:Completed'\n    | 's3:Replication:*'\n    | 's3:Replication:OperationFailedReplication'\n    | 's3:Replication:OperationNotTracked'\n    | 's3:Replication:OperationMissedThreshold'\n    | 's3:Replication:OperationReplicatedAfterThreshold';\n  /**\n   * #### A filter to apply to objects, so the function is only triggered for relevant objects.\n   */\n  filterRule?: S3FilterRule;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I use S3 events with a bucket not managed by Stacktape? Yes. The bucketArn property accepts any valid S3 bucket ARN as a string.”",
+              "reason": "The source says bucketArn is the ARN of the S3 bucket to monitor, but it does not explicitly distinguish same-stack buckets from external buckets. This is likely true from the string type, but the external-bucket support claim is stronger than the source states.",
+              "suggestedFix": "Narrow the wording to the source: “S3Integration takes a bucketArn string. For a Stacktape Bucket resource, pass bucket.arn; for an existing bucket, pass its ARN if your stack is allowed to configure notifications for that bucket.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {\n  /**\n   * #### The ARN of the S3 bucket to monitor for events.\n   */\n  bucketArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“AWS S3 supports at most one Lambda destination per event type and filter combination on a single bucket” and related FAQ wording about “only one notification configuration per event type and prefix/suffix combination.”",
+              "reason": "This is an AWS-specific constraint, but it is not present in the provided Stacktape source. It may also be phrased too broadly because S3 notification configurations can include multiple rules when filters do not overlap. Since the general AWS knowledge exception applies, this is only a low-severity ambiguity.",
+              "suggestedFix": "Phrase more cautiously: “Avoid overlapping direct S3 notification rules for the same event and key filter. For multi-consumer fan-out, prefer SNS or EventBridge.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“S3 event notifications themselves are free — AWS does not charge for delivering them.”",
+              "reason": "Pricing claims are allowed when general AWS knowledge, but no pricing source is provided for this page. Because pricing can change and the source list contains no pricing file, this should be phrased cautiously or omitted if the page requires strict source grounding.",
+              "suggestedFix": "Use pricing-model wording without a hard free claim: “The main costs usually come from the Lambda or batch compute work and any S3 API calls your handler makes.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration examples use <CodeBlock intellisense> with a visible TypeScript tab and do not hand-author YAML.",
+            "The ApiReference definitionName is correctly set to S3IntegrationProps, matching the provided type name.",
+            "The s3EventType table matches the union members listed in S3IntegrationProps.",
+            "The filterRule section is grounded in the S3FilterRule type, which only exposes prefix and suffix.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking issues. The page documents the complete `S3IntegrationProps` surface present in the provided source and the examples demonstrate the trigger properties they introduce.",
+          "issues": [],
+          "positiveFindings": [
+            "The page covers all primary `S3IntegrationProps` properties: `bucketArn`, `s3EventType`, and `filterRule`.",
+            "The `s3EventType` union is fully acknowledged in the event-type table, including object-created, object-removed, restore, replication, and reduced-redundancy variants.",
+            "The filtering example demonstrates the documented `filterRule.prefix` and `filterRule.suffix` properties directly in the focused code block.",
+            "The basic example includes the canonical TypeScript event-binding shape with `S3Integration` inside the target resource `events` array and uses `<CodeBlock intellisense>` correctly."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\s3-events.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 4, advisory high 0, verifier medium 10"
+}

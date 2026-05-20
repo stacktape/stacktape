@@ -1,0 +1,291 @@
+---
+title: 'SolidStart'
+order: 42
+seoTitle: 'Deploy SolidStart on AWS | Stacktape Docs'
+seoDescription: 'Deploy SolidStart apps on AWS with Stacktape: SSR on Lambda, S3 static assets, CloudFront CDN, custom domains, and environment variable injection.'
+---
+
+# SolidStart
+
+A Stacktape SolidStart resource deploys a SolidStart app with SSR on AWS Lambda, static assets on S3, and a CloudFront CDN. Use it when you want server-rendered SolidStart on AWS while keeping Stacktape responsible for the supporting infrastructure, including custom domains, CDN caching, and the SSR function configuration.
+
+## When to use
+
+A Stacktape SolidStart resource is the right choice when your frontend is a SolidStart app that needs server rendering. The resource is designed around the SolidStart build output: point `appDirectory` at the directory containing `app.config.ts`, and Stacktape wires the SSR function, static asset bucket, and CDN.
+
+Common use cases:
+
+- **Server-rendered apps** — dashboards, portals, and content sites that need dynamic pages instead of only static files
+- **SolidStart monorepos** — set `appDirectory` to the workspace containing `app.config.ts`, rather than the repository root
+- **Solid's reactive SSR** — SolidStart's fine-grained reactivity model produces fast SSR; the Lambda + CloudFront architecture keeps infrastructure simple
+
+## When NOT to use
+
+- **Pure static websites** — use [static hosting](/resources/frontend/static-hosting) when your Solid app is exported as static files and does not need SSR.
+- **Containerized custom servers** — use a [web-service](/resources/compute/web-service) when you want to run a custom Node server or another HTTP process in a container.
+- **General backend APIs** — use a [Lambda function](/resources/compute/lambda-function) or [web-service](/resources/compute/web-service) for standalone APIs that are not part of a SolidStart app.
+- **Other meta-frameworks** — Stacktape has dedicated resources for [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [TanStack Start](/resources/frontend/tanstack-start), and [Remix](/resources/frontend/remix). Use those instead when your project uses a different framework.
+
+## Basic example
+
+The smallest useful SolidStart config points Stacktape at the app directory containing `app.config.ts`. In a single-app repository that is often the repository root; in a monorepo it is usually the package or workspace directory for the SolidStart app.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, SolidStartWeb } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const web = new SolidStartWeb({
+    appDirectory: './apps/web'
+  });
+
+  return {
+    resources: { web }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`appDirectory` defaults to `"."` and must point to the directory containing `app.config.ts`. Stacktape uses that directory for the Vinxi build and then deploys SSR, static assets, and CDN routing for the app.
+
+## Build and dev
+
+A Stacktape SolidStart resource runs the Vinxi build from `appDirectory`, and `buildCommand` lets teams replace the default `vinxi build` command when their repository has a custom script. Dev mode also has a small override surface: `dev.command` defaults to `vinxi dev`, but can be changed when a package manager script is the canonical way to run the app locally.
+
+Use `buildCommand` when your SolidStart app needs a workspace-aware command such as `pnpm --filter web build` or when the app must run a prebuild step. Leave `buildCommand` unset when a normal Vinxi build works from `appDirectory`; fewer custom commands make CI and local behavior easier to reason about.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, SolidStartWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new SolidStartWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    buildCommand: 'pnpm --filter web build',
+    dev: {
+      command: 'pnpm --filter web dev'
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { web } };
+});`
+    }
+  ]}
+/>
+
+`dev.command` only affects [`stacktape dev`](/local-development/dev-mode-overview); it does not change the deployed build command. `dev.workingDirectory` sets the directory where the dev command runs, relative to the project root. Use the local command override when your repository expects a package-manager script, a monorepo filter, or another wrapper around `vinxi dev`.
+
+## Server Lambda
+
+A Stacktape SolidStart resource serves SSR through a Lambda function. `serverLambda` customizes that SSR function: memory, timeout, logging, and whether the function joins the stack's default VPC to reach VPC resources such as databases or Redis.
+
+The default `serverLambda.memory` is `1024` MB, and the allowed memory range is `128`–`10240` MB. Lambda CPU scales with memory, with `1769` MB corresponding to 1 vCPU. The default `serverLambda.timeout` is `30` seconds, which is also the maximum for the SSR Lambda.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, SolidStartWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new SolidStartWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    serverLambda: {
+      memory: 2048,
+      timeout: 30
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { web } };
+});`
+    }
+  ]}
+/>
+
+Increase `memory` when SSR is CPU-bound or the app initializes large dependencies. Keep the default when pages render quickly and memory pressure is low. Set `joinDefaultVpc: true` only when the SSR function must access VPC-protected resources; the function loses direct internet access when joined to a VPC, while S3 and DynamoDB remain accessible through auto-created VPC endpoints.
+
+## Domains and firewall
+
+A Stacktape SolidStart resource can attach custom domains to the app's CDN and can associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
+
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. The source requires an existing Route 53 hosted zone in the AWS account. Stacktape can create DNS records and provision free TLS certificates automatically; `customCertificateArn` is only needed for specific certificate requirements, and `disableDnsRecordCreation` is for teams managing DNS elsewhere.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, SolidStartWeb, WebAppFirewall } from 'stacktape';
+
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'cdn'
+  });
+
+  const web = new SolidStartWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    customDomains: [{ domainName: 'www.example.com' }],
+    useFirewall: 'firewall'
+    // [!code focus-end]
+  });
+
+  return { resources: { firewall, web } };
+});`
+    }
+  ]}
+/>
+
+Enable `useFirewall` when the public SolidStart app needs CDN-level WAF protection. Skip it for internal prototypes or early development stages where WAF rules would add configuration work before there is a clear threat model. Keep the scope precise: this property protects the SolidStart CDN path and requires a firewall with `scope: 'cdn'`. See [web application firewall](/resources/security/web-application-firewall) for configuring firewall rules.
+
+## Static files and CDN
+
+A Stacktape SolidStart resource uploads static assets to S3 and serves the app through CloudFront. `fileOptions` lets teams set custom headers such as `Cache-Control` for uploaded files matching a glob pattern, and `cdn` configures cache behavior for SSR routes and specific path patterns.
+
+Use `fileOptions` when static files need explicit cache or metadata headers that differ from the generated defaults. Use `cdn` when SSR route caching needs deliberate tuning by path. Leave both unset first; SolidStart and Stacktape already provide the standard split between static assets and SSR.
+
+The `cdn` object supports three properties: `disableInvalidationAfterDeploy` (defaults to `false`, meaning the CDN cache is flushed on every deploy), `defaultCachingOptions` (overrides default SSR caching for all server-handled routes), and `pathCachingOverrides` (overrides caching for specific path patterns). Most teams should keep the default cache invalidation behavior so users see the latest version after each deploy.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, SolidStartWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new SolidStartWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    fileOptions: [
+      {
+        includePattern: 'assets/**',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
+      }
+    ]
+    // [!code focus-end]
+  });
+
+  return { resources: { web } };
+});
+`
+    }
+  ]}
+/>
+
+## Connecting resources
+
+`connectTo` gives the SolidStart SSR function access to other Stacktape resources and injects connection details as environment variables named `STP_[RESOURCE_NAME]_[PARAM]`. Use `connectTo` for resources such as relational databases, buckets, queues, and auth pools; use `iamRoleStatements` only for AWS permissions that are not covered by the resource connection model.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, SolidStartWeb, RelationalDatabase } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: 'postgres-16',
+    instanceClass: 'db.t4g.micro'
+  });
+
+  const web = new SolidStartWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    connectTo: ['mainDatabase'],
+    serverLambda: {
+      joinDefaultVpc: true
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { mainDatabase, web } };
+});`
+    }
+  ]}
+/>
+
+With the resource name `mainDatabase`, the SolidStart app receives variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`. Set `joinDefaultVpc: true` on `serverLambda` when connecting to VPC-protected resources like databases or Redis. For the full connection model and injected variables by resource type, see [connecting resources](/configuration/connecting-resources).
+
+## Environment variables
+
+A Stacktape SolidStart resource can set explicit `environment` variables for the SSR function. Use these for application configuration, feature flags, public service URLs needed by server code, and values produced by directives such as `$ResourceParam()` or `$Secret()`.
+
+Prefer `connectTo` for Stacktape-managed resources because it also handles permissions and, where needed, network access. Use explicit `environment` entries for values that are not resource connections. For sensitive values, reference secrets through the [secrets](/configuration/secrets) and [directives](/configuration/directives) flow instead of hard-coding credentials in config.
+
+## Logging
+
+The SolidStart server Lambda supports Lambda logging configuration through `serverLambda.logging`, and logs are sent to CloudWatch. For Stacktape log viewing, use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview); the lower-level Lambda logging options are documented in the API reference.
+
+Most teams should keep logging enabled for deployed SolidStart apps because SSR errors, initialization failures, and runtime exceptions need CloudWatch logs for diagnosis. Tune logging only when retention, cost, or compliance requirements justify changing the default behavior exposed by the Lambda logging configuration.
+
+## FAQ
+
+### What does Stacktape create for a SolidStart app?
+
+A Stacktape SolidStart resource deploys SSR on Lambda, static assets on S3, and a CloudFront CDN. The internal resource shape includes a nested S3 bucket and a server Lambda function. See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
+
+### Where should `appDirectory` point?
+
+`appDirectory` should point to the directory containing `app.config.ts`. It defaults to `"."`, the repository root. In a monorepo, set it to the SolidStart workspace rather than the root. The basic example on this page uses `./apps/web` to make that monorepo shape explicit.
+
+### Can I use a custom domain with SolidStart?
+
+Yes. Configure `customDomains` on the SolidStart resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape can create the DNS record and manage the TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+
+### Can I protect a SolidStart app with AWS WAF?
+
+Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` is `cdn`. This protects the CDN path for the SolidStart app; it is separate from load-balancer firewall attachment paths used by compute resources.
+
+### How do I connect to a database from SolidStart server functions?
+
+Use `connectTo` to reference the database resource, and set `serverLambda.joinDefaultVpc: true` for VPC-protected databases like RDS or Redis. Stacktape injects connection details as environment variables (e.g., `STP_MY_DB_CONNECTION_STRING`). Access these in SolidStart server functions via `process.env`. See [connecting resources](/configuration/connecting-resources) for details.
+
+### What is the default build command?
+
+The default build command is `vinxi build`, which is the standard SolidStart build tool. Override it with `buildCommand` when your monorepo needs a workspace-aware command like `pnpm --filter web build` or when the app has a custom build script.
+
+### How much does hosting SolidStart on Lambda and CloudFront cost?
+
+AWS bills the underlying services separately: Lambda invocations and duration for SSR, S3 storage and requests for static assets, and CloudFront data transfer and requests for CDN traffic. Lambda's free tier includes 1 million requests per month. Use [cost dashboards](/managing-costs/dashboards) after deployment to inspect real spend by stack.
+
+### When should I use static hosting instead of SolidStart?
+
+Use [static hosting](/resources/frontend/static-hosting) when the site can be built into static files and does not need SSR. Use the SolidStart resource when runtime server rendering is part of the product. Static hosting is simpler and usually has fewer moving parts and lower cost.
+
+### When should I use a web service instead of the SolidStart resource?
+
+Use a [web-service](/resources/compute/web-service) when you want to run a custom HTTP server in a container, control the server process directly, need long-running WebSocket connections, or deploy a framework that is not modeled by the frontend resources. Use the SolidStart resource when the deployment unit is a standard SolidStart app and you want Stacktape to manage SSR, static assets, and CDN routing.
+
+### How does SolidStart SSR compare to Next.js SSR on Stacktape?
+
+Both use the same underlying architecture: Lambda for SSR, S3 for static assets, and CloudFront for CDN. The [Next.js resource](/resources/frontend/nextjs) additionally supports edge Lambda, response streaming, warm server instances, and ISR. The SolidStart resource is a simpler deployment model focused on standard SSR without those extras. Choose based on which framework your team prefers and whether you need Next.js-specific features.
+
+## API Reference
+
+<ApiReference definitionName="SolidStartWebProps" />
+
+## Referenceable parameters
+
+<ReferenceableParams resource="solidstart-web" />

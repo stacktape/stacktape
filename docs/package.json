@@ -15,7 +15,8 @@
     "upg": "bun taze",
     "check:links": "bunx check-html-links public",
     "enhance:config:schema": "bun scripts/enhance-config-schema.ts",
-    "gen:docs": "bun scripts/generate-docs/index.ts",
+    "gen:docs": "bun scripts/generate-docs/generate-pages.ts",
+    "gen:docs:claude": "bun scripts/generate-docs/run-claude-generation.ts",
     "gen:api-ref": "bun scripts/generate-api-reference-data.ts"
   },
   "dependencies": {

@@ -1,0 +1,127 @@
+---
+title: 'Cost Dashboards'
+order: 96
+seoTitle: 'Cost Dashboards - View AWS Spend in Console | Stacktape Docs'
+seoDescription: 'View and understand your AWS costs in the Stacktape Console. See per-project, per-stage, and per-resource cost breakdowns with month-over-month trends and daily-updated reports.'
+---
+
+# Cost Dashboards
+
+The Stacktape Console gives you two cost views: a high-level overview with KPIs and charts on the organization dashboard, and a detailed per-stack breakdown on the dedicated costs page. Both views pull from AWS Cost and Usage Reports, updated daily.
+
+<Info>AWS bills infrastructure costs directly to your AWS account. Stacktape's own subscription fee is separate and does not appear in these dashboards. See [Billing and subscription](/stacktape-console/billing-and-subscription) for Stacktape subscription details.</Info>
+
+This page covers **viewing** your AWS costs. For setting up spend alerts, see [Budgets](/managing-costs/budgets). For understanding which individual resources cost the most, see [Per-resource breakdown](/managing-costs/per-resource-breakdown). For reducing costs, see [Optimization tips](/managing-costs/optimization-tips).
+
+## Organization overview
+
+The organization overview dashboard includes cost-related KPIs and charts alongside deployment and operational metrics. Cost data on the overview always reflects the **current calendar month** — the time range selector (7d, 14d, 30d, etc.) controls deployment statistics only, not cost views.
+
+<ConsoleScreenshot src="/static/screenshots/console-overview-cost-kpis.png" alt="Organization overview dashboard showing the AWS Costs KPI card with current-month total, month-over-month trend percentage, and a sparkline of recent monthly spend" caption="The AWS Costs KPI on the organization overview shows current-month spend with a trend indicator." />
+
+### AWS Costs KPI
+
+The AWS Costs KPI card shows your total spend for the current month along with a month-over-month trend indicator. The trend compares current spend against the previous month's total:
+
+| Trend label | Meaning |
+|---|---|
+| `+X%` or `-X%` | Percentage increase or decrease vs last month |
+| `Flat` | Less than 0.1% change in either direction |
+| `New spend` | Spend this month but no previous month data to compare |
+| `No spend` | Zero spend in both the current and previous month |
+
+A sparkline below the card shows the last 6 months of total spend, so you can quickly spot whether costs are trending up or down over time.
+
+### Costs by project
+
+A horizontal bar chart ranks up to 10 projects by their current-month spend. If more than 10 projects have costs, the remaining projects are grouped under "Other." Hover over any bar to see the exact amount and project name. This view answers "which application is the most expensive?" at a glance.
+
+### Costs by resource type
+
+A separate horizontal bar chart breaks down current-month spend by AWS service category (e.g., Amazon EC2, Amazon RDS, AWS Lambda, Amazon S3). This view is useful for identifying which type of infrastructure drives your bill, independent of which project uses it. If Lambda costs suddenly spike, you know to look at your function configurations — even before checking which project is responsible.
+
+### Budget alerts
+
+The Budget Alerts panel shows all configured [budget alerts](/managing-costs/budgets) with their name, scope (organization-wide or per stack), alert thresholds, and the percentage levels that trigger notifications. Click any budget to navigate to the budgets management page. When no budgets are configured, the panel shows a prompt to set one up.
+
+## Costs per stack
+
+The dedicated costs page — accessible from the Console sidebar — provides a month-by-month breakdown of AWS spend attributed to each deployed stack.
+
+<ConsoleScreenshot src="/static/screenshots/console-costs-per-stack.png" alt="Costs per stack page showing a table with columns for project name, stage, region, and month-to-date costs, with AWS account and month filters at the top" caption="The Costs per stack page breaks down AWS spend by project, stage, and region." />
+
+### Filters
+
+Two filters at the top of the page control what data the table displays:
+
+- **AWS account** — select from your [connected AWS accounts](/stacktape-console/connecting-your-aws-account). If you have multiple accounts connected, you can switch between them to compare spend.
+- **Time range** — select any month from the current month back through the previous calendar year, providing roughly 24 months of history.
+
+### Cost table
+
+The table shows one row per stack with the following columns:
+
+| Column | Description |
+|---|---|
+| Project name | The Stacktape project the stack belongs to |
+| Stage | The stage name (e.g., `production`, `staging`) |
+| Region | The AWS region the stack is deployed in |
+| Month-to-date costs | Total attributed spend for the selected month |
+
+The table sorts by cost descending by default and paginates at 10 rows per page. Click any row to drill into that stage's per-resource cost view.
+
+<Warning>Cost reports are generated daily from AWS Cost and Usage Reports and may take up to a day to appear. If you deployed a new stack today, its costs typically show up in the dashboard the following day.</Warning>
+
+## Per-stage cost detail
+
+Clicking a row in the Costs per stack table opens a per-resource cost breakdown for that specific stage. This view shows each individual resource within the stage — its name, type, and cost for the selected month — so you can pinpoint which resource within a project is driving spend.
+
+The per-stage view includes:
+
+| Column | Description |
+|---|---|
+| Resource name | The Stacktape resource name within the stage |
+| Type | The AWS resource type |
+| Costs | The cost for the selected month, shown to four decimal places |
+
+A total is displayed at the top of the table. You can select different months using the time range filter, which covers the same ~24-month range as the organization-wide costs page.
+
+This view is where you go to answer questions like "is my database or my container service the bigger cost driver in staging?" For guidance on acting on these findings, see [Optimization tips](/managing-costs/optimization-tips).
+
+## FAQ
+
+### How often is cost data updated?
+
+AWS generates Cost and Usage Reports daily. After a deployment, expect up to a 24-hour delay before associated costs appear in the Console. Dashboard data refreshes each time you load the page.
+
+### Does Stacktape add any markup to AWS costs?
+
+No. The costs shown in the dashboard are your actual AWS charges, billed directly to your AWS account. Stacktape's subscription fee is billed separately through the [billing page](/stacktape-console/billing-and-subscription) and does not appear in cost dashboards.
+
+### Can I see costs for a specific stage?
+
+Yes. The Costs per stack table shows each stage as a separate row. Click any row to drill into that stage's per-resource cost breakdown, where each resource is listed with its individual cost.
+
+### Why don't I see costs for a newly deployed stack?
+
+AWS Cost and Usage Reports have a processing delay of up to 24 hours. If you deployed a stack today, costs typically appear the next day. Additionally, some AWS services like Lambda only incur costs on invocation — a deployed but idle function may legitimately show zero cost.
+
+### What is the difference between "Costs by Project" and "Costs by Resource type"?
+
+"Costs by Project" groups spend by your Stacktape project — useful for comparing application-level spend. "Costs by Resource type" groups spend by AWS service category (EC2, RDS, Lambda, S3, etc.) — useful for identifying which infrastructure category drives your bill. Both charts appear on the organization overview and show current-month data.
+
+### How is this different from the AWS Billing console?
+
+The AWS Billing console shows raw, account-wide cost data. The Stacktape Console automatically attributes costs to your specific projects and stages, so you can see per-stack spend without manually configuring AWS Cost Allocation Tags or building custom Cost Explorer reports. For deeper AWS-native analysis, you can use AWS Cost Explorer alongside the Stacktape dashboards.
+
+### Can I set up alerts when costs exceed a threshold?
+
+Yes. Stacktape supports budget alerts that notify you when spend reaches specified percentage thresholds. You can scope budgets to the entire organization or to individual stacks. See [Budgets](/managing-costs/budgets) for setup details.
+
+### How far back can I view cost history?
+
+The Costs per stack page lets you select any month from the current month back through the previous calendar year — roughly 24 months of history. The organization overview's cost trend sparkline shows the last 6 months of totals.
+
+### Do costs include all AWS services or only Stacktape-managed resources?
+
+The dashboards show all AWS costs in the connected account, including services not managed by Stacktape. However, the per-stack breakdown only attributes costs to resources that Stacktape has tagged. Untagged or account-level charges (like AWS Support fees or Route 53 hosted zones created outside Stacktape) appear in the AWS Billing console but may not appear in the per-stack view.

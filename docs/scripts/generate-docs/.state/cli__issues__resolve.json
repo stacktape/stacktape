@@ -1,0 +1,455 @@
+{
+  "pageId": "cli__issues__resolve",
+  "pageRoute": "cli/issues-resolve",
+  "startedAt": "2026-05-17T23:49:19.519Z",
+  "updatedAt": "2026-05-18T00:44:53.322Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__issues__resolve\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 6,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Lead paragraph is concise and self-contained — the auto-reopen behavior is called out immediately, which is the key non-obvious fact a reader needs.",
+            "The 'When to use' section cleanly differentiates issues:resolve from issues:ignore, which is the most common decision the reader faces.",
+            "Related commands section is complete and accurate — all three sibling commands are linked with precise one-line descriptions.",
+            "CliCommandsApiReference is used correctly with accurate sortedArgs data sourced from the command definition.",
+            "Shell examples are each in their own fenced block — no copy-button trap.",
+            "The --agent example is a genuinely useful second example rather than a trivial variant."
+          ],
+          "problems": [
+            "The 'Important flags' section is a hand-authored Markdown table that duplicates what the <CliCommandsApiReference> component already renders. The CLI section instructions explicitly state: 'Use the auto-generated <CliCommandsApiReference> component for the flags table — never hand-author it.' Having both creates redundancy and risks the hand-authored copy going stale.",
+            "The bare usage example under '## Usage' is repeated verbatim as the first item under '## Examples'. The duplicate adds no new information and bloats the page.",
+            "The intended CLI page rhythm (intro → usage example → auto-generated reference → examples → related commands) is disrupted by inserting a hand-authored flags table before the auto-generated one."
+          ],
+          "mandatoryFixes": [
+            "Remove the entire '## Important flags' hand-authored Markdown table. The CLI section instructions explicitly prohibit hand-authoring the flags table ('never hand-author it') because the <CliCommandsApiReference> component already provides this information, is auto-kept in sync, and is the canonical surface. Drop the section entirely and let the auto-generated reference stand on its own.",
+            "Remove the duplicate bare usage example from '## Examples' (stacktape issues:resolve --issueId iss_abc123def456 without any flags). It is already shown under '## Usage' and adds nothing. Keep only the --agent variant in the Examples section to make every example teach something new."
+          ],
+          "optionalImprovements": [
+            "Consider a brief one-sentence callout on what happens when the issueId is not found or is already resolved — the source doesn't document the error response, so if unknown, omit rather than guess, but it's a question the reader will have.",
+            "The 'When to use' section could tighten its second sentence ('If you want to permanently suppress…') into a direct contrast: 'To suppress an issue permanently — so it never reopens — use issues:ignore instead.' This makes the distinction crisper for a reader scanning quickly."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurate behavior description: the automatic reopening mechanic is clearly explained and directly sourced from the command definition ('The issue will reopen automatically if the same error occurs again').",
+            "Clean bash blocks — each example is a single command in its own fenced block with no inline comments explaining what the command does.",
+            "The `<CliCommandsApiReference>` is correctly formed with all four args (issueId, agent, logLevel, outputFormat) and their metadata matches the source.",
+            "The 'When to use' section draws a sharp distinction between resolve (expects the fix to hold) and ignore (permanent suppression), which is genuinely useful for the target audience.",
+            "Related commands section covers all three sibling commands (list, ignore, reopen) with accurate descriptions."
+          ],
+          "problems": [
+            "The 'Important flags' section hand-authors a flags table that directly duplicates what the `<CliCommandsApiReference>` component already generates. The CLI section instructions explicitly say 'never hand-author' the flags table. This is a redundant backbone section.",
+            "The `<CliCommandsApiReference>` component is placed after the 'Examples' section rather than before it. The prescribed CLI page rhythm is: intro paragraph → usage → auto-generated reference → examples → related commands.",
+            "The 'Important flags' section padding restates content already covered by the auto-generated reference, which penalizes completeness."
+          ],
+          "mandatoryFixes": [
+            "Remove the 'Important flags' hand-authored table entirely. The CLI section instructions state 'never hand-author' the flags table — the `<CliCommandsApiReference>` component is the sole canonical flags reference.",
+            "Move the `<CliCommandsApiReference>` block to appear immediately after the 'Usage' section (and before 'Examples'), matching the prescribed CLI page rhythm: intro → usage → auto-generated reference → examples → related commands."
+          ],
+          "optionalImprovements": [
+            "Consider folding the 'When to use' content (two sentences) into the intro paragraph or a note below the Usage block to stay closer to the prescribed CLI rhythm, which doesn't enumerate a dedicated 'When to use' section for simple commands.",
+            "The alias `-iid` for `--issueId` could be shown in the usage example or a short note near the usage block for discoverability, since CLI users frequently prefer short aliases."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph clearly states what `issues:resolve` does and captures the key behavior from the command definition: resolved issues reopen when the same error recurs.",
+            "Usage examples are copyable and show the required `--issueId` flag.",
+            "The page uses the required `<CliCommandsApiReference command=\"issues:resolve\" />` component with the command's generated arguments.",
+            "Related commands are relevant siblings for the issues workflow."
+          ],
+          "problems": [
+            "The page hand-authors an `Important flags` table even though the CLI page instructions require the auto-generated `<CliCommandsApiReference />` component for flags and say never to hand-author the flags table.",
+            "The section order drifts from the CLI instructions: the auto-generated reference should come immediately after the usage example, with examples after the reference only when they add non-obvious patterns.",
+            "The `Usage` H2 begins with a code block instead of a self-contained explanatory paragraph, which weakens extractability for answer engines.",
+            "The opening paragraph is useful but slightly below the requested 40-75 word range for answer-first snippets.",
+            "The claim that a resolved issue \"moves out of the active issues view\" is not grounded in the provided CLI or command source files and appears to describe Console behavior without Console sources.",
+            "The `When to use` section repeats the opening behavior rather than adding much decision support beyond the `issues:ignore` comparison.",
+            "The page duplicates the basic resolve command in both `Usage` and `Examples`, which makes the page feel padded for a small command reference."
+          ],
+          "mandatoryFixes": [
+            "Remove the hand-authored `Important flags` table and rely on the single `<CliCommandsApiReference command=\"issues:resolve\" sortedArgs={...} />` component for flag documentation.",
+            "Reorder the page to match the CLI reference pattern: short lead paragraph, usage example, auto-generated reference, then examples if there are genuinely non-obvious patterns, then related commands.",
+            "Remove or source-ground the unsupported \"active issues view\" claim; with the provided sources, say only that Stacktape marks the issue as resolved and reopens it automatically if the same error occurs again."
+          ],
+          "optionalImprovements": [
+            "Expand the first paragraph slightly to 40-75 words while keeping it direct and source-grounded.",
+            "Add a short note that `issues:resolve` requires `--issueId`, and that the issue ID can be found with `issues:list`.",
+            "Collapse the duplicate basic example or keep only the agent-mode example after the reference as the non-obvious pattern.",
+            "Mention the success output only if useful: the command prints `Issue <issueId> resolved.` according to the command implementation."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI sources. The command purpose, required `issueId`, related issue commands, and automatic reopen behavior match the source. I found one publication-relevant issue: the page hand-authors a flags table even though the CLI-page instruction requires the generated reference component for flags.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The page includes a hand-authored `## Important flags` markdown table for `--issueId`, `--agent`, `--outputFormat`, and `--logLevel`.",
+              "reason": "The page-level CLI instructions explicitly require the generated `<CliCommandsApiReference />` component for the flags table and say not to hand-author it. The draft already includes the generated reference later, so the manual table is redundant and risks drifting from the command source.",
+              "suggestedFix": "Remove the `## Important flags` section and keep the existing `<CliCommandsApiReference command=\"issues:resolve\" ... />` section as the flags reference.",
+              "evidence": [
+                {
+                  "file": "Page metadata: Human-maintained section instructions",
+                  "quote": "Use the auto-generated <CliCommandsApiReference command=\"X\" sortedArgs={...} /> component for the flags table — never hand-author it."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:resolve': {\n    description: `Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.`,\n    args: {\n      logLevel: logLevel.optional(),\n      agent: agent.optional(),\n      outputFormat: outputFormat.optional(),\n      issueId\n    },\n    requiredArgs: ['issueId'] as const\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The opening description accurately reflects the source command description, including automatic reopening when the same error occurs again.",
+            "The usage example includes the only required command-specific flag, `--issueId`, matching `requiredArgs: ['issueId']`.",
+            "The related links point only to valid routes in the provided documentation navigation index.",
+            "The `issues:ignore` and `issues:reopen` summaries match the source descriptions closely."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation, but it overstates several behaviors that are not grounded in the provided source files, especially around UI movement, alert behavior, and exact issue metadata shown by related commands.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Once resolved, the issue moves out of the active issues view.\"",
+              "reason": "The provided command implementation only calls resolveIssue and prints a success message. The command definitions say the issue is marked resolved and may reopen, but no provided source describes an \"active issues view\" or how resolved issues move in any UI or listing.",
+              "suggestedFix": "Narrow the wording to the sourced behavior: \"Once resolved, Stacktape marks the issue as resolved. If the same error occurs again, Stacktape reopens it automatically.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\issues-resolve\\index.ts",
+                  "quote": "await stacktapeTrpcApiManager.apiClient.resolveIssue({ issueId: issueId! });\n  tuiManager.success(`Issue ${tuiManager.makeBold(issueId!)} resolved.`);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:resolve': {\n    description: `Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.`,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"You need the issue ID, which you can find by running [`issues:list`](/cli/issues-list).\"",
+              "reason": "The source confirms issues:resolve requires issueId, and it confirms issues:list lists detected runtime issues with several fields. The provided issues:list description does not say the command shows issue IDs, so the draft's exact discovery claim is not grounded in these sources.",
+              "suggestedFix": "Write cautiously: \"You need the issue ID. Use [`issues:list`](/cli/issues-list) to list detected runtime issues before resolving one.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:list': {\n    description: `Lists detected runtime issues (errors) across your deployed functions and containers.\n\nShows error message, type, function name, project/stage, occurrence count, and status. Filter by status, project, or stage.`,"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:resolve': {\n    description: `Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.`,\n    args: {\n      logLevel: logLevel.optional(),\n      agent: agent.optional(),\n      outputFormat: outputFormat.optional(),\n      issueId\n    },\n    requiredArgs: ['issueId'] as const"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"[`issues:ignore`](/cli/issues-ignore) — permanently suppress an issue so it won't reopen or generate alerts\"",
+              "reason": "The source says ignored issues will not reopen on new occurrences and will not generate alerts. It does not describe the suppression as permanent, and the existence of issues:reopen suggests an ignored issue can be reopened later.",
+              "suggestedFix": "Remove \"permanently\": \"mark an issue as ignored so new occurrences do not reopen it or generate alerts.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:ignore': {\n    description: `Marks an issue as ignored. Ignored issues will not reopen on new occurrences and won't generate alerts.`,"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:reopen': {\n    description: `Reopens a resolved or ignored issue, setting its status back to OPEN.`,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If you want to permanently suppress an issue regardless of future occurrences, use [`issues:ignore`](/cli/issues-ignore) instead.\"",
+              "reason": "The source supports ignoring an issue to prevent reopen and alerts on new occurrences, but it does not support \"permanently\" or \"regardless of future occurrences\" as an irreversible or absolute suppression claim. The source explicitly documents that resolved or ignored issues can be reopened.",
+              "suggestedFix": "Use the source wording: \"If you want new occurrences to stay ignored and not generate alerts, use [`issues:ignore`](/cli/issues-ignore) instead.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:ignore': {\n    description: `Marks an issue as ignored. Ignored issues will not reopen on new occurrences and won't generate alerts.`,"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:reopen': {\n    description: `Reopens a resolved or ignored issue, setting its status back to OPEN.`,"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft hand-authors an \"Important flags\" markdown table before the generated `<CliCommandsApiReference>` flags table.",
+              "reason": "The page instructions require the auto-generated CLI reference component for flags and say not to hand-author the flags table. The hand-authored table may duplicate or drift from the generated command metadata, although the specific flags shown appear consistent with the provided command definition.",
+              "suggestedFix": "Remove the hand-authored \"Important flags\" table and rely on `<CliCommandsApiReference command=\"issues:resolve\" ... />` for the flags reference.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The command name, route, required `--issueId` argument, and related command links match the provided command definitions and navigation index.",
+            "The draft correctly states that `issues:resolve` marks an issue as resolved and that the issue reopens automatically if the same error occurs again.",
+            "The `<CliCommandsApiReference command=\"issues:resolve\" ... />` component uses the correct command name for this CLI page.",
+            "All shell examples use one command per fenced `bash` block and do not include inline shell comments."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page covers the required `issues:resolve` argument and uses the generated CLI reference, but it adds a hand-authored flags table and includes one behavior claim that is not grounded in the provided command sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Once resolved, the issue moves out of the active issues view.\"",
+              "reason": "The provided sources only show that `issues:resolve` calls `resolveIssue({ issueId })`, prints a success message, and that the issue reopens automatically if the same error occurs again. They do not document an \"active issues view\" or how resolved issues are displayed or hidden in any view.",
+              "suggestedFix": "Replace with a narrower source-grounded sentence such as: \"Once resolved, Stacktape records the issue as resolved; if the same error occurs again, Stacktape reopens it automatically.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\issues-resolve\\index.ts",
+                  "quote": "await stacktapeTrpcApiManager.apiClient.resolveIssue({ issueId: issueId! });\ntuiManager.success(`Issue ${tuiManager.makeBold(issueId!)} resolved.`);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:resolve': {\n    description: `Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The page includes a hand-authored \"Important flags\" table before `<CliCommandsApiReference command=\"issues:resolve\" ... />`.",
+              "reason": "The CLI page instructions say to use the auto-generated `<CliCommandsApiReference />` component for the flags table and never hand-author it. Duplicating the generated flags table increases drift risk; for example, the source-derived reference is already present and authoritative for `issueId`, `agent`, `logLevel`, and `outputFormat`.",
+              "suggestedFix": "Remove the hand-authored \"Important flags\" section and keep the generated `<CliCommandsApiReference command=\"issues:resolve\" sortedArgs={...} />` section as the single flags reference.",
+              "evidence": [
+                {
+                  "file": "Draft page",
+                  "quote": "## Important flags\n\n| Flag | Required | Description |\n|------|----------|-------------|"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'issues:resolve': {\n    description: `Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.`,\n    args: {\n      logLevel: logLevel.optional(),\n      agent: agent.optional(),\n      outputFormat: outputFormat.optional(),\n      issueId\n    },\n    requiredArgs: ['issueId'] as const\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The usage example demonstrates the command's required `--issueId` flag, matching the source command definition.",
+            "The generated `<CliCommandsApiReference command=\"issues:resolve\" ... />` includes all source-defined arguments: `issueId`, `agent`, `logLevel`, and `outputFormat`.",
+            "The related commands map to the closest sibling commands in the source: `issues:list`, `issues:ignore`, and `issues:reopen`."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__issues__resolve\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurately reflects the source — required `issueId` flag, reopening behavior, and command description all match `commands.ts` and `issues-resolve/index.ts` exactly.",
+            "The 'When to use' section does real decision work: it names the regression-detector use case and explicitly directs readers to `issues:ignore` when they want suppression rather than resolution. This is opinionated and useful.",
+            "Flags reference uses `<CliCommandsApiReference>` with correctly shaped `sortedArgs` — all four args from the source (`issueId`, `agent`, `logLevel`, `outputFormat`) are present and accurately described.",
+            "Related commands section covers all three sibling commands (`issues:list`, `issues:ignore`, `issues:reopen`) with one-line descriptions that clarify the distinction between them.",
+            "Shell code blocks are clean: one command per block, no explanatory `#` comments inside blocks, explanation prose lives outside the blocks."
+          ],
+          "problems": [
+            "The 'Examples' section has only one example (agent mode). For a reader who just wants to understand the full workflow, a two-step example (list first, then resolve with the returned ID) would be more instructive — the current page mentions `issues:list` in prose but doesn't chain it into the examples.",
+            "The lead paragraph restates information that appears verbatim in the 'When to use' section ('Resolving an issue signals…' / 'Resolve an issue after you have deployed a fix…'). Minor repetition that slightly inflates the page length without adding value."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a two-command workflow example showing `issues:list` followed by `issues:resolve --issueId <id-from-list>`, each in its own ```bash block with a short prose lead. This shows the full lookup-then-act pattern that first-time users need.",
+            "Trim the lead paragraph to remove the sentence that is re-explained in 'When to use' ('Resolving an issue signals that you believe the underlying cause has been fixed' overlaps with the when-to-use body). One paragraph should orient; the other should advise.",
+            "Consider noting that the issue ID format (e.g. `iss_abc123def456`) comes from `issues:list` output — this reassures readers that the opaque-looking ID is machine-provided, not something they invent."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All flags, behavior, and descriptions are accurately grounded in the source files — required arg `issueId`, optional `agent`/`logLevel`/`outputFormat`, and the auto-reopen behavior all match `commands.ts` and `issues-resolve/index.ts`.",
+            "The resolve-vs-ignore distinction is explained concisely and practically — this is the main decision a reader needs to make on this page, and the page makes it clear without padding.",
+            "`<CliCommandsApiReference>` is used correctly with the right sorted args shape; no hand-authored flags table.",
+            "The agent-mode example in 'Examples' targets the genuinely non-obvious use case (scripted/AI-assistant usage) rather than just repeating the basic invocation.",
+            "Related commands section is complete and well-targeted — all three sibling commands (`issues:list`, `issues:ignore`, `issues:reopen`) are linked correctly."
+          ],
+          "problems": [
+            "No FAQ section. The style guide calls for FAQ on reference pages. Even for a narrow CLI command, 4-5 questions can be composed: what the auto-reopen behavior means in practice, how to get an issue ID, what happens to occurrence count on resolve, resolve vs ignore vs reopen distinction, and whether the command requires an active stage/region. These are real questions readers will have.",
+            "The example issue ID `iss_abc123def456` uses a specific format (`iss_` prefix) that is not grounded anywhere in the source files. The source only shows `issueId: issueId!` with no format documented. Using a fabricated-looking specific prefix could mislead users who try to infer the format from the docs."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short FAQ section (4-5 entries minimum) covering: (1) how to get an issue ID (use `issues:list`), (2) what 'automatically reopened' means in practice (new occurrence triggers reopen, occurrence count resets or increments — verify from source), (3) resolve vs ignore vs reopen comparison, (4) whether the command requires `--stage`/`--region` (it does not — `issueId` is the only required arg, which is worth making explicit for readers coming from commands that do require stack context).",
+            "Replace the fabricated issue ID `iss_abc123def456` with a generic placeholder like `<your-issue-id>` or a note directing the reader to copy the ID from `issues:list` output, since the ID format is not documented in source and the `iss_` prefix is unverified.",
+            "The page could mention that `issues:resolve` does not require `--stage` or `--region` (unlike most Stacktape commands), since the issue ID is globally scoped. This is the most likely source of confusion for users accustomed to stack-scoped commands — worth a single sentence."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is concise, answer-first, and explains the command's main behavior without meta-framing.",
+            "Usage example includes the required `--issueId` flag and uses a single copyable shell command.",
+            "The page uses the required `<CliCommandsApiReference command=\"issues:resolve\" />` component instead of hand-authoring the flags table.",
+            "Related commands are useful and tightly scoped to the issues workflow."
+          ],
+          "problems": [
+            "The page order drifts from the CLI section instruction: it inserts `When to use` before the auto-generated reference, while the required rhythm says lead paragraph, usage example, reference, examples, then related commands.",
+            "Several H2 sections are not extractable on their own: `Usage` starts with a code block, `Flags reference` starts with a component, and `Related commands` starts with a list instead of a self-contained paragraph.",
+            "The draft repeats the resolved/reopen behavior in the opening paragraph and `When to use`, but does not mention the actual success result from the command source: `Issue <issueId> resolved.`",
+            "The `--agent` example is useful, but the surrounding prose does not explain that `--agent` implies JSONL/NDJSON output, disables the interactive UI, and auto-confirms operations, even though those details are present in the flags source."
+          ],
+          "mandatoryFixes": [
+            "Reorder the page to match the CLI section instruction: lead paragraph, usage example, `<CliCommandsApiReference />`, optional examples, then related commands. Fold `When to use` into the lead or move it after the reference if keeping it.",
+            "Add short self-contained prose before non-prose H2 content, or remove low-value H2s whose content is already clear from the command reference."
+          ],
+          "optionalImprovements": [
+            "Mention the command success output in practical terms: after a successful call, Stacktape prints `Issue <issueId> resolved.`",
+            "For the agent-mode example, add one sentence explaining when to use `--agent` and what output behavior it changes.",
+            "Consider adding a short note that `issues:ignore` is the better choice when recurring occurrences should stay ignored, while `issues:resolve` is for fixes that should reopen on regression."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely consistent with the provided CLI command definition and implementation. The command name, required `issueId` flag, related issue commands, and automatic reopen behavior are grounded in the source files.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft correctly documents that `issues:resolve` requires `--issueId`, matching `requiredArgs: ['issueId']` in `src/config/cli/commands.ts`.",
+            "The automatic reopening claim is supported by the command description: resolved issues reopen automatically if the same error occurs again.",
+            "The `issues:ignore` comparison is grounded in the source description that ignored issues do not reopen on new occurrences and do not generate alerts.",
+            "The page uses the required `<CliCommandsApiReference command=\"issues:resolve\" ... />` component and links only to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is well grounded in the provided CLI command definitions and implementation. I did not find publication-blocking factual issues.",
+          "issues": [],
+          "positiveFindings": [
+            "The required `--issueId` flag is correctly shown in the usage example and matches `requiredArgs: ['issueId']` for `issues:resolve`.",
+            "The core behavior that resolved issues reopen when the same error occurs again is directly supported by the command definition.",
+            "The related command links all point to valid routes in the provided navigation index.",
+            "The flags reference uses the required `<CliCommandsApiReference command=\"issues:resolve\" ... />` component and documents only arguments present on the command: `logLevel`, `agent`, `outputFormat`, and `issueId`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API completeness, union-variant, or code-example demonstrativeness issues found for the `issues:resolve` CLI page. The draft covers the command's required `issueId` argument, includes the shared CLI flags in the generated reference component, and uses examples that demonstrate the command directly.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft uses `<CliCommandsApiReference command=\"issues:resolve\" ... />` rather than hand-authoring a flags table.",
+            "The usage example includes the only required flag, `--issueId`, matching `requiredArgs: ['issueId']`.",
+            "The flags reference includes all arguments defined for `issues:resolve`: `issueId`, `agent`, `logLevel`, and `outputFormat`.",
+            "The related commands are the closest siblings in the source: `issues:list`, `issues:ignore`, and `issues:reopen`.",
+            "Shell examples follow the one-command-per-block rule and contain no explanatory comments inside the bash blocks."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\issues-resolve.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-18T00:44:53.322Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\issues-resolve\\index.ts": "0a4d548d79e13ceec543c78f22ae3739d5c2a86f"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

@@ -1,0 +1,721 @@
+{
+  "pageId": "resources__databases__upstash-redis",
+  "pageRoute": "resources/databases/upstash-redis",
+  "startedAt": "2026-05-17T12:31:08.424Z",
+  "updatedAt": "2026-05-17T12:48:04.737Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__databases__upstash-redis\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Both connection paths — HTTPS REST API and standard Redis protocol with TLS — are documented with complete, realistic handler code examples, giving readers a clear choice.",
+            "The comparison table between Upstash Redis and ElastiCache (Redis cluster) is concrete and criterion-by-criterion, helping readers decide quickly without wading through prose.",
+            "The connectTo environment variable table uses the correct STP_CACHE_* naming convention and accurately reflects exactly the six variables listed in the connectTo JSDoc (HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL).",
+            "The 'When NOT to use' section is specific and practical — it names concrete scenarios (sustained high throughput, container-based workloads, Lua scripting) rather than vague warnings.",
+            "Provider configuration correctly demonstrates the $Secret() directive pattern for keeping the Upstash API key out of version control, which is a critical first-time-user concern.",
+            "FAQ section covers all three required categories: Stacktape-specific questions, underlying AWS/Upstash service questions, and choosing/comparison questions."
+          ],
+          "problems": [
+            "Region availability table lists 8 specific AWS regions (us-east-1, eu-west-1, etc.) with no grounding in any provided source file. The `upstash-redis.d.ts` source is silent on region availability. This data can become stale and cannot be verified from the provided source.",
+            "The eviction section states 'Upstash prioritizes evicting keys that have a TTL set before removing other keys (volatile-LRU policy).' The source (`upstash-redis.d.ts` JSDoc) only says 'Prioritizes keys with TTL set.' The policy name 'volatile-LRU' is an addition not grounded in the source.",
+            "The `readOnlyRestToken` parameter appears in `UpstashRedisReferencableParam` in the source (`types/stacktape-config/upstash-redis.d.ts`) but is completely absent from the Connecting from workloads section, with no explanation of when or how to use it. While `<ReferenceableParams />` would render it, the section's env var table and the FAQ answer that enumerates 'six environment variables' both implicitly present the connectTo list as exhaustive without acknowledging this additional referenceable param."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace the region table with a single sentence or a link to Upstash documentation. The table lists 8 specific regions without any source grounding and will become stale. Since Stacktape handles region selection automatically, the relevant message for the reader is 'selection is automatic — no configuration needed' plus a pointer to Upstash docs for current region coverage.",
+            "Remove the 'volatile-LRU policy' label from the eviction section. The source only supports the claim that keys with TTL are prioritized. The specific policy name is not in any provided source file; replace with 'Upstash prioritizes evicting keys that have a TTL set before evicting keys without one' to stay source-grounded.",
+            "Add a brief sentence in the Connecting from workloads section noting that `readOnlyRestToken` is also available as a referenceable param via `$ResourceParam('cache', 'readOnlyRestToken')` for scenarios requiring read-only REST access. This prevents readers from discovering it only via the `<ReferenceableParams />` component.",
+            "The Provider configuration section appears before the Basic example, forcing first-time readers to understand an authentication prerequisite before seeing what the resource looks like. Consider folding the provider config note into the Basic example or adding a single-sentence callout at the top ('You need an Upstash account and API key — see Provider configuration below') so the basic example flows first.",
+            "The FAQ answer about rate limiting mentions `@upstash/ratelimit` as a 'ready-made implementation' — this library reference is not in any provided source file. Either remove the package name or add a qualifier like 'Upstash provides a dedicated rate-limiting library (check Upstash documentation)' to avoid a potentially stale package name claim."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "connectTo env-var table is precisely grounded in the ResourceAccessProps JSDoc — HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL match the source exactly.",
+            "Comparison table (Upstash vs ElastiCache) is well-structured and gives the reader a concrete decision framework with the right axes (pricing model, connection model, VPC, latency).",
+            "Eviction section correctly uses the source JSDoc wording ('Prioritizes keys with TTL set') and gives a clear when-to-enable / when-to-leave-disabled recommendation.",
+            "All three <CodeBlock intellisense> examples use exactly one 'TypeScript' tab, hide imports behind focus markers, and use class-based defineConfig — no style violations.",
+            "Exactly one <ApiReference definitionName=\"UpstashRedisProps\" /> and one <ReferenceableParams> component — correct placement and count.",
+            "FAQ covers all three required categories (Stacktape-specific, underlying AWS/Upstash service, comparison/choosing) and is well-scoped.",
+            "REST API and Redis protocol usage examples (handler code and @upstash/redis / ioredis) are realistic and directly usable.",
+            "No marketing language, no invented AWS pricing numbers, no forbidden YAML blocks."
+          ],
+          "problems": [
+            "Region selection section is entirely unsupported by any provided source file. The table listing eight specific AWS regions, the claim that 'Stacktape automatically selects the closest available Upstash region', and the concrete fallback example ('ap-northeast-1 routes to ap-southeast-1') are invented facts — none appear in upstash-redis.d.ts, __helpers.d.ts, or any other provided source. If these regions are wrong or incomplete, users will misconfigure deployments expecting automatic routing that may not exist.",
+            "The eviction section names 'volatile-LRU policy' explicitly. The source JSDoc only says 'Prioritizes keys with TTL set' — it does not name the eviction policy. This is a minor source overreach; the label is accurate as a Redis concept but is asserted as a Stacktape-verified fact rather than as background AWS/Upstash knowledge.",
+            "FAQ answer for 'What happens if I deploy to a region Upstash doesn't support?' gives a concrete routing example (Tokyo → Singapore) that is not grounded in any source file — this is a fabricated operational detail a production engineer might act on."
+          ],
+          "mandatoryFixes": [
+            "Remove or replace the 'Region selection' section. The specific region table and the 'Stacktape automatically selects the closest Upstash region' claim are not present in any provided source file (upstash-redis.d.ts has no region property or docs). Replace with a one-sentence note directing readers to Upstash's own region documentation, or omit the section entirely if there is nothing source-grounded to say. Similarly remove the concrete Tokyo→Singapore routing example from the FAQ.",
+            "Remove the 'volatile-LRU' policy label from the eviction section prose. The source JSDoc says 'Prioritizes keys with TTL set' — restate that wording without naming the specific Redis eviction algorithm, since the source does not confirm it."
+          ],
+          "optionalImprovements": [
+            "The readOnlyRestToken referenceable param (present in UpstashRedisReferencableParam in the source) is injected by <ReferenceableParams> but never mentioned in prose. A one-sentence note in the 'Connecting from workloads' section — 'A read-only REST token is also available via $ResourceParam() for workloads that should not be able to write data' — would help readers understand why two token params exist.",
+            "The 'Provider configuration' section could mention what happens at deploy time if the accountEmail or apiKey is incorrect (deploy fails with a Stacktape error) — this is the first gotcha new users hit and it's more useful than restating that $Secret() keeps the key out of plaintext.",
+            "The comparison table would benefit from a 'Connection limit risk' row — ElastiCache has hard per-instance connection limits that can cause issues under Lambda concurrency, which is one of the strongest practical arguments for Upstash in serverless stacks. This is a well-known AWS fact, not an invented claim.",
+            "Consider moving the <ApiReference definitionName=\"UpstashRedisProps\"> closer to the top (after the Basic example) since UpstashRedisProps has only one property (enableEviction); the component's output is trivially short and placing it before the deep-dive sections avoids making readers scroll to the bottom for a one-field reference."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and close to the supplied UpstashRedis type comment.",
+            "The page has the required early decision guidance, clear When to use / When NOT to use sections, and a useful comparison table.",
+            "Stacktape config examples use class-based TypeScript inside <CodeBlock intellisense tabs={[...]}/> with the correct TypeScript tab label.",
+            "The API reference uses the correct root type, <ApiReference definitionName=\"UpstashRedisProps\" />, and appears exactly once.",
+            "The connectTo environment variable names for a resource named cache match the documented STP_[RESOURCE_NAME]_[PARAM] pattern."
+          ],
+          "problems": [
+            "Several claims are not grounded in the provided source files: automatic region selection, the exact supported Upstash region list, geographically closest fallback behavior, Upstash console navigation, Upstash serverless-tier feature restrictions, and VPC/public-internet behavior.",
+            "The page claims Stacktape handles region selection automatically and that no manual region configuration is needed, but the provided UpstashRedisProps exposes only enableEviction and does not document region behavior.",
+            "The provider configuration section may be over-specific for the available source. The root type only says providerConfig.upstash exists and is required for upstash-redis; the supplied files do not show UpstashProvider fields or console/API-key workflow details.",
+            "The pricing context is useful but goes beyond the supplied source in places. The source supports pay-per-request and no idle costs, but not free tier, paid plan mechanics, or current Upstash pricing-page details.",
+            "The FAQ contains multiple AWS/Upstash operational claims that are useful for readers but not grounded in the provided Stacktape source, including Lambda VPC cold-start penalties, ElastiCache break-even volume, Lua restrictions, and regional routing examples.",
+            "The Basic example says Stacktape handles naming and credential wiring; credential injection via connectTo is grounded, but naming and broader credential-wiring behavior are not shown in the provided Upstash source.",
+            "The application code examples are practical, but they include explanatory comments inside TypeScript snippets. This is allowed for application code, but the examples would be cleaner and more copy-focused without obvious comments like \"SET a key\" and \"GET a key\"."
+          ],
+          "mandatoryFixes": [
+            "Remove or heavily narrow the Region selection section unless source files for Upstash region mapping are added. The current region list and closest-region fallback are unsupported by the provided source.",
+            "Revise provider configuration wording to only claim what the provided source supports, or add the UpstashProvider source. Avoid asserting exact accountEmail/apiKey fields, console navigation, and API-key behavior without that source.",
+            "Replace unsupported Upstash feature-limit claims, such as Lua scripting restrictions and certain cluster commands, with cautious wording or remove them unless source is provided.",
+            "Remove unsupported pricing details beyond \"pay-per-request with no idle costs\" unless pricing source files are provided.",
+            "Fix the FAQ answers that assert unsupported Stacktape-specific behavior: regional fallback example, VPC/public internet details, CloudFormation plaintext behavior, and exact Upstash pricing/free-tier details."
+          ],
+          "optionalImprovements": [
+            "Add a short note that readOnlyRestToken is available as a referenceable parameter via $ResourceParam(), because it appears in UpstashRedisReferencableParam but not in connectTo injection.",
+            "Make the first paragraph under each H2 consistently 40-75 words; Provider configuration and Basic example are shorter than the AEO target.",
+            "Consider moving Referenceable parameters after Connecting from workloads, since that is where readers are already thinking about connection values.",
+            "Shorten or remove comments inside application code examples where the surrounding prose already explains the same action.",
+            "In the FAQ, keep the strong comparison questions, but rephrase unsupported numeric or operational claims as decision guidance without invented thresholds."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the Upstash Redis resource type and uses the required TypeScript CodeBlock pattern, but it contains several Stacktape-specific claims that are not grounded in the provided source files. The largest risks are providerConfig field details, automatic region selection, secret storage behavior, and unsupported Upstash feature/region specifics.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape provisions the database as part of your stack, handling credentials and region selection automatically.” and the entire “Region selection” section, including the supported region table and closest-region behavior.",
+              "reason": "The provided Upstash Redis type source does not expose any region property, supported region list, or automatic closest-region selection behavior. The source only describes the resource as serverless Redis by Upstash and lists the single enableEviction property and referenceable parameters.",
+              "suggestedFix": "Remove the supported-region table and the claim that Stacktape selects the geographically closest Upstash region, or replace it with a narrower statement such as: “The Upstash Redis resource does not expose a region property in Stacktape configuration.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "interface UpstashRedisProps {\n  /**\n   * #### Auto-remove old keys when memory is full. Prioritizes keys with TTL set. Enable for cache use cases.\n   *\n   * ---\n   *\n   * Without eviction, writes fail once the memory limit is reached. Enable this for caching workloads.\n   *\n   * @default false\n   */\n  enableEviction?: boolean;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“You must provide your account email and API key in the providerConfig section” and the code examples using `providerConfig.upstash.accountEmail` and `providerConfig.upstash.apiKey`.",
+              "reason": "The provided source confirms that `providerConfig.upstash` exists and is required when using `upstash-redis`, but it does not include the `UpstashProvider` shape or prove the `accountEmail` and `apiKey` field names. This is a Stacktape-specific configuration claim that would affect what readers copy into `stacktape.ts`.",
+              "suggestedFix": "Either add/consult the source that defines `UpstashProvider`, or narrow the prose to only what is grounded: Upstash Redis requires `providerConfig.upstash`. If the field names are verified elsewhere, include that source in the page’s source list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "providerConfig?: {\n    mongoDbAtlas?: MongoDbAtlasProvider;\n    upstash?: UpstashProvider;\n  };"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "Required only if you use `mongo-db-atlas-cluster` or `upstash-redis` resources in your stack."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Using `$Secret()` ensures the key is stored in AWS Secrets Manager and never appears in plaintext in your config or CloudFormation template.”",
+              "reason": "The provided source mentions `$Secret` as a way to reference a value from a secret, but it does not support the stronger guarantee that the key is stored in AWS Secrets Manager or never appears in plaintext in the CloudFormation template.",
+              "suggestedFix": "Keep the grounded recommendation to use `$Secret()` for the API key, but remove the unsupported implementation guarantee unless the secrets/directives source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "A value from a [secret](https://docs.stacktape.com/resources/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Upstash Redis also supports the standard Redis protocol over TLS (`rediss://`).” and “`STP_CACHE_REDIS_URL` … full `rediss://` connection URL.”",
+              "reason": "The source supports “standard Redis protocol” and a `REDIS_URL` environment variable, but it does not state TLS or the `rediss://` scheme. The draft turns the broader source wording into a specific connection scheme.",
+              "suggestedFix": "Say “standard Redis protocol” and “Redis connection URL” unless a source that explicitly confirms TLS/`rediss://` is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When enabled, Upstash prioritizes evicting keys that have a TTL set before removing other keys (volatile-LRU policy).”",
+              "reason": "The source supports that eviction prioritizes keys with TTL set, but it does not name the eviction algorithm as volatile-LRU or describe what happens after TTL-bearing keys are exhausted.",
+              "suggestedFix": "Use the source wording: “When enabled, Upstash prioritizes keys with TTL set.” Remove “volatile-LRU policy” unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "Auto-remove old keys when memory is full. Prioritizes keys with TTL set. Enable for cache use cases."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Create an API key in the Upstash console under Account > API Keys.”",
+              "reason": "No provided source covers the Upstash Console UI path. This is an external UI-flow claim and could become stale.",
+              "suggestedFix": "Replace with a source-neutral sentence such as “Create an Upstash API key in your Upstash account, then reference it from Stacktape as a secret.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You rely on Redis features that Upstash restricts on the serverless tier (e.g. Lua scripting, certain cluster commands).”",
+              "reason": "The Stacktape source does not document Upstash command restrictions or serverless-tier limitations. This may be true Upstash product behavior, but it is not grounded in the provided source files.",
+              "suggestedFix": "Remove specific unsupported examples, or phrase as general external due diligence: “Check Upstash’s Redis command compatibility before relying on advanced Redis features.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Referenceable parameter coverage omits `readOnlyRestToken` while the page manually describes connection parameters and environment variables.",
+              "reason": "The source lists `readOnlyRestToken` as a referenceable parameter, but the draft’s manual connection table only lists the six `connectTo` environment variables. The draft later says to use `$ResourceParam()` for parameters, but does not name the extra read-only REST token, which is the one Upstash-specific parameter readers would otherwise miss.",
+              "suggestedFix": "Add one sentence near Referenceable parameters: “Upstash Redis also exposes `readOnlyRestToken` via `$ResourceParam()`, even though `connectTo` injects only `REST_TOKEN`, `REST_URL`, `REDIS_URL`, `HOST`, `PORT`, and `PASSWORD`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "type UpstashRedisReferencableParam =\n  | 'host'\n  | 'port'\n  | 'password'\n  | 'restToken'\n  | 'readOnlyRestToken'\n  | 'restUrl'\n  | 'redisUrl';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses exactly one `<ApiReference definitionName=\"UpstashRedisProps\" />`, matching the source type name.",
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with `label: 'TypeScript'` and do not hand-author YAML.",
+            "The `connectTo` environment variable list for Upstash Redis matches the provided `ResourceAccessProps` JSDoc.",
+            "The `enableEviction` default and core behavior are mostly grounded: default false, writes fail at memory limit without eviction, and TTL keys are prioritized when eviction is enabled.",
+            "The page correctly includes `<ReferenceableParams resource=\"upstash-redis\" />` for the resource route."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft follows the required MDX shape and gets several core Upstash Redis facts right, especially the `enableEviction` default and `connectTo` environment variables. The main problems are unsupported Stacktape-specific claims about Upstash region selection, provider configuration fields, secret storage behavior, and Redis URL/TLS details that are not present in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape provisions the database as part of your stack, handling credentials and region selection automatically”; “Stacktape automatically selects the closest available Upstash region”; the fixed Upstash region table; and “deploying your stack to ap-northeast-1 (Tokyo) would route to ap-southeast-1 (Singapore).”",
+              "reason": "The provided Upstash Redis type exposes only `enableEviction`; it does not document any region property, supported-region list, closest-region algorithm, or Tokyo-to-Singapore mapping. The draft turns an absence of a region option into a specific selection behavior and region catalogue.",
+              "suggestedFix": "Remove the supported-region table and the closest-region examples. If you keep region wording, narrow it to what the source supports: the `UpstashRedisProps` type does not expose a region setting on this resource page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "interface UpstashRedisProps {\n  /**\n   * #### Auto-remove old keys when memory is full. Prioritizes keys with TTL set. Enable for cache use cases.\n   *\n   * ---\n   *\n   * Without eviction, writes fail once the memory limit is reached. Enable this for caching workloads.\n   *\n   * @default false\n   */\n  enableEviction?: boolean;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“You must provide your account email and API key in the `providerConfig` section”; the examples use `providerConfig.upstash.accountEmail` and `providerConfig.upstash.apiKey`; and “Create an API key in the Upstash console under Account > API Keys.”",
+              "reason": "The root config source confirms `providerConfig.upstash` exists and is required when using `upstash-redis`, but the provided source files do not define the `UpstashProvider` fields or any Upstash Console path. The field names and UI instructions may be correct elsewhere, but they are not grounded in the provided sources.",
+              "suggestedFix": "Either provide the `UpstashProvider` source to ground `accountEmail` and `apiKey`, or rewrite cautiously: state only that `providerConfig.upstash` is required for `upstash-redis` and avoid ungrounded console navigation details.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "providerConfig?: {\n    mongoDbAtlas?: MongoDbAtlasProvider;\n    upstash?: UpstashProvider;\n  };"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "Required only if you use `mongo-db-atlas-cluster` or `upstash-redis` resources in your stack."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Using `$Secret()` ensures the key is stored in AWS Secrets Manager and never appears in plaintext in your config or CloudFormation template.”",
+              "reason": "The provided source supports that config values may reference a secret using `$Secret`, but it does not state that the secret is stored in AWS Secrets Manager or that the value never appears in the CloudFormation template. This is a specific security/storage claim that needs source backing.",
+              "suggestedFix": "Narrow the sentence to: “Use `$Secret()` to reference the API key instead of hard-coding it in the TypeScript config.” Avoid the AWS Secrets Manager and CloudFormation-template claims unless a source file for secrets is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Values can be:\n   * - A static string, number, or boolean.\n   * - The result of a [custom directive](https://docs.stacktape.com/configuration/directives/#custom-directives).\n   * - A reference to another resource's parameter using the [`$ResourceParam` directive](https://docs.stacktape.com/configuration/referencing-parameters/).\n   * - A value from a [secret](https://docs.stacktape.com/resources/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Upstash Redis is accessible over both HTTPS (REST API) and the standard Redis protocol with TLS”; “Use the `STP_CACHE_REDIS_URL` environment variable with any Redis client library”; and “Full `rediss://` connection URL (includes password, host, and port).”",
+              "reason": "The Upstash source says the resource is accessible over HTTPS REST API or standard Redis protocol and exposes `redisUrl`, but it does not specify TLS, the `rediss://` scheme, or the exact composition of the `REDIS_URL` value. The draft should not claim URL scheme or embedded credentials from these sources alone.",
+              "suggestedFix": "Say “standard Redis protocol” and “`STP_CACHE_REDIS_URL` contains the Redis URL” without asserting `rediss://`, TLS, or what the URL includes unless those details are sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "* Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "type UpstashRedisReferencableParam =\n  | 'host'\n  | 'port'\n  | 'password'\n  | 'restToken'\n  | 'readOnlyRestToken'\n  | 'restUrl'\n  | 'redisUrl';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You rely on Redis features that Upstash restricts on the serverless tier (e.g. Lua scripting, certain cluster commands).”",
+              "reason": "The provided source files do not document any Upstash command restrictions or serverless-tier feature limitations. This may be true in Upstash’s own documentation, but it is not grounded in the Stacktape source provided for this page.",
+              "suggestedFix": "Replace with cautious decision guidance: “If your application depends on specific Redis commands or Redis module behavior, verify Upstash compatibility before choosing this resource.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "* #### Serverless Redis by Upstash — pay-per-request with no idle costs.\n *\n * ---\n *\n * Perfect for Lambda-based apps where a traditional Redis cluster would be wasteful.\n * Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Upstash offers a free tier with limited daily commands and storage. Paid plans scale based on throughput and storage usage.”",
+              "reason": "The source includes only pay-per-request and no-idle-cost pricing context. It does not mention a free tier, daily command limits, storage limits, throughput-based paid plans, or storage-based paid plans.",
+              "suggestedFix": "Keep the sourced pricing line near the top: “Upstash Redis is described as pay-per-request with no idle costs.” Link to Upstash pricing for current plan details without summarizing unsourced plan mechanics.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "* #### Serverless Redis by Upstash — pay-per-request with no idle costs."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape provisions the database as part of your stack, handling credentials … automatically” and “The simplest Upstash Redis resource has no properties at all — Stacktape handles region selection, naming, and credential wiring.”",
+              "reason": "The source supports that `UpstashRedis` is a Stacktape resource and that `connectTo` injects Upstash Redis connection variables, but it does not explicitly describe automatic credential handling or naming behavior for the Upstash database itself. The wording is broader than the provided source.",
+              "suggestedFix": "Use narrower wording: “An `UpstashRedis` resource can be declared with no resource properties, and workloads that `connectTo` it receive Upstash Redis connection variables.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The FAQ says `STP_[NAME]_REST_URL`, `STP_[NAME]_REST_TOKEN`, etc.",
+              "reason": "The canonical source wording uses `STP_[RESOURCE_NAME]_[PARAM]`. The draft uses `[NAME]`, which is understandable but less precise and inconsistent with the required generated-doc convention.",
+              "suggestedFix": "Change the FAQ wording to `STP_[RESOURCE_NAME]_REST_URL`, `STP_[RESOURCE_NAME]_REST_TOKEN`, and so on.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The `enableEviction` section correctly states that the default is false and that writes fail when memory is full without eviction.",
+            "The `connectTo` environment variable table matches the Upstash Redis variables listed in `ResourceAccessProps`: `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, and `REDIS_URL`.",
+            "The page uses `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />` for Stacktape config examples and does not hand-author YAML Stacktape config.",
+            "The API reference uses the correct Props type: `<ApiReference definitionName=\"UpstashRedisProps\" />`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking completeness issues for the Upstash Redis page. The primary resource type is narrow, the only documented UpstashRedisProps property is covered, there are no primary-resource union variants to enumerate, and the Stacktape config examples demonstrate the sections they appear in.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft documents the only property on UpstashRedisProps, enableEviction, including its default behavior and cache-oriented tradeoff.",
+            "The page includes exactly one ApiReference component with the correct definitionName: UpstashRedisProps.",
+            "The CodeBlock examples are demonstrative: provider configuration shows providerConfig.upstash, the basic example shows an UpstashRedis resource connected to a Lambda function, and the Eviction section sets enableEviction: true.",
+            "The connectTo environment variable list matches the UpstashRedis variables enumerated in ResourceAccessProps and uses the resource-name-dependent STP_CACHE_* pattern."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__databases__upstash-redis\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "The Upstash Redis vs ElastiCache comparison table is concrete and actionable — pricing model, connection model, VPC requirement, and 'best for' are exactly what a developer needs to decide.",
+            "The 'When to use' and 'When NOT to use' sections are peer H2s, opinionated, and grounded in real tradeoffs rather than circular definitions.",
+            "The connectTo env var table is complete and matches the source (HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL = 6 vars), and correctly routes readOnlyRestToken to $ResourceParam() without claiming it isn't injected.",
+            "Both the REST API approach (raw fetch + @upstash/redis) and the standard Redis protocol (ioredis) are shown with working handler code, not pseudocode.",
+            "The eviction section provides explicit 'when to enable' and 'when to leave disabled' guidance — rare but useful on opt-in property sections.",
+            "Provider configuration is explained with a secure pattern (secret:create + $Secret directive) rather than showing a plain API key in config.",
+            "The FAQ covers all three required categories: Stacktape-specific, underlying AWS service use-case, and choosing/comparison questions across 9 entries.",
+            "The resource only has one configurable property (enableEviction) and the page handles this honestly — it says so upfront rather than padding with phantom configuration sections."
+          ],
+          "problems": [
+            "The Warning callout in 'Provider configuration' substantially repeats the sentence immediately above it ('Every stack that uses an upstash-redis resource must include providerConfig.upstash'). This is minor padding.",
+            "The intro paragraph does not explicitly state that Upstash Redis is a third-party service (not AWS-native), which may confuse a first-time reader who expects all Stacktape resources to be AWS services. The pricing line hints at this but does not say it clearly.",
+            "The 'Connecting from workloads' section header is slightly long compared to other H2 labels on the page (Eviction, Scaling, etc.). A shorter label like 'Connecting resources' or 'Access and env vars' would be more consistent with the compact H2 style."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add one sentence to the intro clarifying that Upstash is a third-party managed service (not an AWS service) so readers understand why a separate providerConfig is required — this answers a question first-time users will have before they reach the Provider configuration section.",
+            "Trim or remove the Warning callout in 'Provider configuration' — the preceding prose already covers the same point; the callout currently reads as a repeat rather than an addendum.",
+            "Consider mentioning dev mode behavior for Upstash Redis near the Provider configuration section. The source shows a DevModeConfig.remote option on some resources; clarifying whether Upstash always connects to the live service (no local emulation) or supports remote: true would help developers setting up local workflows.",
+            "The @upstash/ratelimit package is mentioned only in the FAQ. Elevating a one-line mention into the 'Connecting from workloads' or 'Eviction' section (e.g., 'For rate limiting, the @upstash/ratelimit package provides ready-made sliding-window and token-bucket implementations') would make the page more useful for the common rate-limiting use case without bloating it.",
+            "Shorten the H2 'Connecting from workloads' to 'Connecting resources' or 'Access and env vars' for consistency with the compact heading style used elsewhere on the page (Eviction, Basic example)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Comparison table between Upstash Redis and ElastiCache is concrete and directly aids the 'when to use' decision — covers pricing model, connection model, VPC requirements, and operational overhead in one scannable view.",
+            "connectTo environment variable table matches the source JSDoc for UpstashRedis exactly (HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) and correctly routes readOnlyRestToken to $ResourceParam() without overclaiming.",
+            "Both connection paths (REST API via raw fetch and @upstash/redis, plus Redis protocol via ioredis) are shown with realistic handler code that readers can copy directly into Lambda functions.",
+            "Provider configuration section proactively surfaces the providerConfig.upstash prerequisite with a Warning callout explaining the one-per-stack rule — a common first-deploy gotcha.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service, choosing/comparison) and is substantive rather than padded; the 9-entry FAQ covers the highest-value questions without duplication.",
+            "Eviction section correctly reflects the source default (false) and gives concrete when-to-enable / when-to-leave-disabled guidance that helps readers decide rather than just configure.",
+            "No mandatory style violations: all Stacktape config examples use <CodeBlock intellisense>, no YAML config blocks, no StacktapeConfig typed style, no fenced TypeScript with defineConfig, single commands per bash block."
+          ],
+          "problems": [
+            "The `UpstashProvider` type definition is NOT present in the provided source files, yet the page presents `accountEmail` and `apiKey` as its field names in every config example. These names are not source-verifiable from the inline types and will be flagged by the source-grounding verifier. If they are wrong, every example in the page is broken at the providerConfig level.",
+            "The `stacktape secret:create` CLI command appears in a fenced bash block but is not confirmed by any source file in the provided set. No CLI reference page is linked for this command (compare: the page correctly links `stacktape debug:logs` to /cli/debug-logs elsewhere). If the command name or flags differ, readers get an opaque error."
+          ],
+          "mandatoryFixes": [
+            "Verify the exact field names of `UpstashProvider` against the actual type definition (e.g. `types/stacktape-config/providers.d.ts` or equivalent) before publishing. The page uses `accountEmail` and `apiKey` in every code example, but `UpstashProvider` is referenced-but-not-defined in the provided source set. If the real fields are named differently (e.g. `email`, `apiKey`, or `key`), every config example on the page is incorrect. Fix all occurrences once the canonical names are confirmed.",
+            "Link the `stacktape secret:create` command to its CLI reference page (e.g. `/cli/secret-create`) on first mention — the same pattern already used for `stacktape debug:logs`. If the command name differs from `secret:create`, correct it. A dead or misspelled CLI command in a prerequisite setup step is a high-friction reader error."
+          ],
+          "optionalImprovements": [
+            "Add a brief note in the Provider configuration section or FAQ about what happens to the Upstash database when the Stacktape stack is deleted — specifically whether Upstash databases created by Stacktape are cleaned up automatically or orphaned. Readers deploying ephemeral stages need to know this to avoid runaway Upstash resource usage.",
+            "The `@upstash/ratelimit` package is mentioned in the FAQ ('Can I use Upstash Redis for caching and rate limiting?') but not in the main body. Consider a one-sentence mention in the 'Connecting from workloads' section or eviction section noting that the Upstash ecosystem includes purpose-built serverless rate-limiting helpers — it reinforces the 'right choice for serverless' positioning without expanding the page significantly.",
+            "The basic example shows `api` and `cache` as resource names but the providerConfig section's minimal example uses only `cache` with no Lambda. Consider consolidating these into a single end-to-end example that appears once, avoiding the duplication of `providerConfig.upstash` boilerplate across three separate code blocks."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is self-contained, answer-first, and within the target length.",
+            "The page uses the required TypeScript class-based Stacktape config examples inside <CodeBlock intellisense tabs={[...]}/> and avoids hand-authored Stacktape YAML.",
+            "The When to use / When NOT to use sections are practical and include a useful comparison table against Redis cluster / ElastiCache.",
+            "connectTo environment variable names correctly follow the resource-name-dependent STP_[RESOURCE_NAME]_[PARAM] pattern, with a concrete cache example.",
+            "Eviction is documented as a real decision point, including default behavior, when to enable it, and when to leave it disabled."
+          ],
+          "problems": [
+            "Provider configuration includes specific fields, `accountEmail` and `apiKey`, but the supplied source only shows `providerConfig.upstash?: UpstashProvider`; the `UpstashProvider` shape is not included. This may be correct in code, but it is not grounded in the provided source list.",
+            "The page repeatedly claims Upstash has \"zero operational overhead\" and \"no instance sizing, patching, or replication configuration.\" The source supports serverless, pay-per-request, no idle costs, and no exposed Stacktape sizing property, but not the broader operational claims or replication claim.",
+            "Several Upstash/AWS behavior claims are useful but not grounded in the supplied Stacktape source: public internet routing, VPC cold-start overhead, connection limits, Upstash Redis command/module compatibility, `@upstash/ratelimit` algorithms, automatic retries/pipelining in `@upstash/redis`, and \"thousands of sustained commands per second\" as the migration threshold.",
+            "The CLI command `stacktape secret:create` is shown before its first linked mention; house style says the first CLI command mention should link to the CLI reference.",
+            "The FAQ is broad and useful, but some answers drift into third-party package behavior and AWS networking behavior without clearly framing them as general background rather than Stacktape behavior.",
+            "The page has no section on what Stacktape actually exposes beyond `enableEviction`, referenceable parameters, and connectTo; readers may not realize that plan, region, capacity, and replication are not documented/configurable at this Stacktape layer."
+          ],
+          "mandatoryFixes": [
+            "Ground or remove the exact `providerConfig.upstash` field names unless the `UpstashProvider` source is added. If the fields are correct, include the source file that defines `UpstashProvider`; otherwise narrow the wording to \"configure `providerConfig.upstash` with your Upstash provider credentials.\"",
+            "Replace unsupported broad claims like \"zero operational overhead\" and \"no instance sizing, patching, or replication configuration\" with narrower source-grounded wording such as \"Stacktape exposes no sizing property on `UpstashRedisProps`; the resource is described as serverless and pay-per-request.\"",
+            "Remove or cautiously reframe unsupported numeric/threshold claims such as \"thousands of Redis commands per second sustained\" unless a source file provides that guidance.",
+            "Link the first mention of `stacktape secret:create` to `/cli/secret-create`."
+          ],
+          "optionalImprovements": [
+            "Add a short \"Configuration scope\" section that explicitly says the Stacktape `UpstashRedisProps` surface only exposes `enableEviction`; use the API reference for the exhaustive property list.",
+            "Tighten FAQ answers by separating Stacktape-grounded facts from general Upstash/AWS background, especially around VPC behavior, package features, and Redis command support.",
+            "Consider adding a small table for connection options: REST URL / REST token for Lambda-friendly HTTPS access, Redis URL for Redis client libraries, and `$ResourceParam()` for config-time references.",
+            "In Provider configuration, explain that `providerConfig` is stack-level because the root config defines third-party provider settings outside individual resources.",
+            "Use \"stage\" consistently instead of \"staging environments\" in the pricing FAQ, or phrase it as \"development and non-production stages\" to match Stacktape terminology."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the UpstashRedis type surface: it correctly identifies `enableEviction`, the default `false`, the referenceable parameters, the `connectTo` environment variable names, and the required `UpstashRedisProps` API reference. The main factual risk is that several concrete provider-configuration and Upstash-service claims are not grounded in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The provider configuration examples and prose assert that `providerConfig.upstash` contains `accountEmail` and `apiKey`, and that credentials can be obtained from the Upstash console.",
+              "reason": "The provided source confirms that `providerConfig.upstash` exists and is required when using `upstash-redis`, but the included source files do not define the `UpstashProvider` shape. The concrete `accountEmail` and `apiKey` property names are therefore unsupported by the provided sources and could cause readers to copy an invalid config if the provider shape differs.",
+              "suggestedFix": "Keep the grounded requirement that `providerConfig.upstash` is required, but either cite/source the `UpstashProvider` type before documenting concrete fields or narrow the prose and examples to avoid unsupported provider property names.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "providerConfig?: {\n    mongoDbAtlas?: MongoDbAtlasProvider;\n    upstash?: UpstashProvider;\n  };"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "Required only if you use `mongo-db-atlas-cluster` or `upstash-redis` resources in your stack."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Upstash Redis supports standard Redis commands like `SET`, `GET`, `INCR`, `EXPIRE`, and `TTL`” and “The `@upstash/ratelimit` npm package provides ready-made implementations (fixed window, sliding window, token bucket).”",
+              "reason": "The provided Stacktape source says Upstash Redis is accessible over HTTPS or the standard Redis protocol and is useful for rate limiting, but it does not enumerate Redis command support or document `@upstash/ratelimit` behavior. These are Upstash/client-library claims rather than Stacktape claims, and the provided sources do not ground the specifics.",
+              "suggestedFix": "Replace the command/package specifics with a narrower statement grounded in source, such as “The Upstash Redis resource is intended for caching, sessions, and rate limiting and is accessible over HTTPS or the standard Redis protocol.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `@upstash/redis` npm package wraps the REST API with a Redis-like interface and adds features like automatic retries and pipelining.”",
+              "reason": "The source supports that Upstash Redis is accessible over HTTPS and the standard Redis protocol, but it does not mention `@upstash/redis`, automatic retries, or pipelining. The package recommendation may be useful, but the specific feature claims are not grounded in the provided source files.",
+              "suggestedFix": "Either remove the automatic retries and pipelining claim, or phrase the package as an optional client-library example without asserting unsupported behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every stack that uses an `upstash-redis` resource must include `providerConfig.upstash`.”",
+              "reason": "The source says `providerConfig` is required only if the stack uses `mongo-db-atlas-cluster` or `upstash-redis`, which supports the general requirement. However, the statement says every stack must include it without clarifying that this is the Stacktape provider configuration for third-party service credentials. The source does not provide runtime validation wording or deployment error behavior.",
+              "suggestedFix": "Narrow the sentence to: “Stacktape configuration that includes an `upstash-redis` resource needs `providerConfig.upstash` credentials, because third-party provider credentials are required for Upstash resources.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "Required only if you use `mongo-db-atlas-cluster` or `upstash-redis` resources in your stack."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft uses `stacktape secret:create --name upstash-api-key --value YOUR_API_KEY`.",
+              "reason": "No CLI command source for `secret:create` is included in the provided source files, so the verifier cannot confirm that `--name` and `--value` are valid flags. Because CLI flag names are easy to drift, this should be checked against the CLI command source before publication.",
+              "suggestedFix": "Verify the exact `secret:create` flags against the CLI source. If the source is unavailable, avoid documenting concrete flags or link to `/cli/secret-create` instead.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Several recommendations assert cost break-even behavior, such as “at thousands of sustained commands per second, ElastiCache's per-hour pricing becomes more cost-effective.”",
+              "reason": "The provided source supports pay-per-request/no-idle-cost positioning for Upstash Redis and the comparison to traditional Redis as potentially wasteful for Lambda apps, but it does not include a quantified break-even point. This may be reasonable guidance, but the “thousands of sustained commands per second” threshold is not grounded in the provided files.",
+              "suggestedFix": "Keep the tradeoff but remove the numeric threshold, or phrase it as a benchmark the reader should validate with current Upstash and AWS pricing.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />` for Stacktape config examples and does not hand-author YAML configuration.",
+            "The `ApiReference` component uses `UpstashRedisProps`, which matches the provided `interface UpstashRedisProps`.",
+            "The `enableEviction` section is grounded: the source states the default is `false`, writes fail when memory is full without eviction, and eviction prioritizes keys with TTL set.",
+            "The `connectTo` environment variable table for Upstash Redis matches the `ResourceAccessProps.connectTo` JSDoc: `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, and `REDIS_URL`.",
+            "The `ReferenceableParams resource=\"upstash-redis\"` component is consistent with the provided `UpstashRedisReferencableParam` union, including `readOnlyRestToken`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft mostly follows the required page structure and uses the correct Stacktape config example format, but several claims go beyond the provided Upstash Redis source. The highest-impact gap is the ungrounded Upstash provider credential shape used in every config example.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft configures `providerConfig.upstash` with `accountEmail` and `apiKey`, and tells readers to use those fields for Upstash credentials.",
+              "reason": "The provided root config source confirms that `providerConfig.upstash` exists and is required for `upstash-redis`, but it does not define the `UpstashProvider` shape or the `accountEmail` / `apiKey` fields. Because these fields appear in copyable config examples, this is a high-impact unsupported configuration claim.",
+              "suggestedFix": "Ground the provider field names in the `UpstashProvider` type source before publishing. If that source is unavailable, keep the supported statement that `providerConfig.upstash` is required and avoid showing unsupported field-level config.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "providerConfig?: {\n    mongoDbAtlas?: MongoDbAtlasProvider;\n    upstash?: UpstashProvider;\n  };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use it for caching, session storage, rate limiting, or lightweight pub/sub in Lambda-based applications.”",
+              "reason": "The provided Upstash Redis source names caching, sessions, and rate limiting, but does not mention pub/sub as a recommended use case. This could lead readers to choose Upstash Redis for a workload that the source does not document.",
+              "suggestedFix": "Remove “lightweight pub/sub” or rewrite cautiously, for example: “Use it for caching, session storage, or rate limiting in Lambda-based applications.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The REST API examples use concrete Upstash request paths like `/set/greeting/hello` and `/get/greeting`, and the draft says `@upstash/redis` “adds features like automatic retries and pipelining.”",
+              "reason": "The Stacktape source only says Upstash Redis is accessible over HTTPS using a REST API or over the standard Redis protocol. It does not document REST endpoint path syntax or behavior of the `@upstash/redis` npm package.",
+              "suggestedFix": "Either remove package-behavior claims and keep the examples narrowly framed as illustrative application code, or add a supported external Upstash source to the page’s source set if this level of API detail is required.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "Accessible over HTTPS (REST API) or standard Redis protocol."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Upstash Redis supports standard Redis commands like `SET`, `GET`, `INCR`, `EXPIRE`, and `TTL`,” and “The `@upstash/ratelimit` npm package provides ready-made implementations (fixed window, sliding window, token bucket).”",
+              "reason": "The provided source confirms protocol access and broad use cases, but does not enumerate supported Redis commands or describe the `@upstash/ratelimit` package. Those details are outside the supplied Stacktape source.",
+              "suggestedFix": "Keep the FAQ answer at the supported level: Upstash Redis is documented as useful for caching, sessions, and rate limiting, and is accessible over REST API or Redis protocol. Avoid naming specific commands or package algorithms unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "Perfect for Lambda-based apps where a traditional Redis cluster would be wasteful.\n * Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The comparison table says Upstash Redis has “Operational overhead | None,” and the bullet list says “no instance sizing, patching, or replication configuration.”",
+              "reason": "The provided source supports that Upstash Redis is serverless, pay-per-request, and exposes only `enableEviction` as a resource property, but it does not support the absolute claim that operational overhead is “None” or the specific patching/replication claims.",
+              "suggestedFix": "Narrow the claim to what the source supports: “Stacktape exposes no sizing or replication properties for Upstash Redis; the only resource property is `enableEviction`.” Avoid “none” as an absolute operational claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "#### Serverless Redis by Upstash — pay-per-request with no idle costs."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\upstash-redis.d.ts",
+                  "quote": "interface UpstashRedisProps {\n  /**\n   * #### Auto-remove old keys when memory is full. Prioritizes keys with TTL set. Enable for cache use cases."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape config examples and does not hand-author YAML config.",
+            "`<ApiReference definitionName=\"UpstashRedisProps\" />` matches the provided `UpstashRedisProps` type name.",
+            "The `connectTo` environment variable list for Upstash Redis matches the `ResourceAccessProps` source: `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, and `REDIS_URL`.",
+            "The `enableEviction` default and behavior are correctly grounded: default `false`, writes fail when memory is full without eviction, and eviction prioritizes keys with TTL set.",
+            "The page correctly includes `<ReferenceableParams resource=\"upstash-redis\" />`, and the source defines Upstash Redis referenceable parameters including `readOnlyRestToken`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API-completeness, union-variant, or code-example demonstrativeness issues found for the Upstash Redis page. The primary resource type is narrow, and the draft covers its only documented property plus the operationally important provider configuration and connection behavior.",
+          "issues": [],
+          "positiveFindings": [
+            "The page documents the only property in `UpstashRedisProps`, `enableEviction`, including its default and cache-oriented tradeoff.",
+            "The page includes exactly one `<ApiReference definitionName=\"UpstashRedisProps\" />`, matching the page metadata.",
+            "The connection section matches the documented `connectTo` variable pattern for `UpstashRedis`: `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, and `REDIS_URL`.",
+            "Each Stacktape configuration example uses `<CodeBlock intellisense>` with a `TypeScript` tab and demonstrates the section topic: provider credentials, basic resource connection, and eviction."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\databases\\upstash-redis.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 8.3, hard blockers 2, advisory high 0, verifier medium 7"
+}

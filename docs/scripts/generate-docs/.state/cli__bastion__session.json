@@ -1,0 +1,587 @@
+{
+  "pageId": "cli__bastion__session",
+  "pageRoute": "cli/bastion-session",
+  "startedAt": "2026-05-17T22:18:26.129Z",
+  "updatedAt": "2026-05-17T22:27:04.422Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__bastion__session\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Lead paragraph is tight and self-contained — correctly identifies the command, its purpose, and the key differentiator (SSM, no SSH keys) in one sentence.",
+            "Usage examples cover the three realistic scenarios a reader will actually hit: single bastion, multiple bastions, named AWS profile. Each gets its own bash block.",
+            "The 'How it works' numbered-step walkthrough maps accurately to the source code flow (resolveBastionInstanceInfo → runBastionSsmShellSession) and gives enough context for troubleshooting without overwhelming.",
+            "No marketing language found — phrasing is concrete and factual throughout.",
+            "Related commands section is well-chosen and links directly to the sibling commands that share the bastion concept (bastion:tunnel, debug:sql, debug:redis)."
+          ],
+          "problems": [
+            "Section ordering deviates from the prescribed CLI-page rhythm. Section instructions say: lead → usage example → auto-generated reference → examples → related commands. The page instead inserts 'How it works', 'Important flags', 'Examples', and 'Errors' before the CLI reference, pushing the auto-generated reference to the very bottom after a large Examples section.",
+            "The hand-authored 'Important flags' table is a partial duplicate of the auto-generated <CliCommandsApiReference /> component. Section instructions say to use the auto-generated component for the flags table and never hand-author it. Maintaining both creates drift risk and adds scroll weight.",
+            "The <Info> block contains an ungrounded claim: 'On most systems Stacktape bundles or downloads it automatically' (referring to the AWS Session Manager plugin). The provided source — commandBastionSession and runBastionSsmShellSession — does not confirm any automatic plugin installation. This should be removed or qualified as uncertain.",
+            "The 'Errors' section describes specific error messages but does not reference src/config/error-messages.ts, which section instructions explicitly require for documented errors."
+          ],
+          "mandatoryFixes": [
+            "Move the auto-generated <CliCommandsApiReference /> section to appear before the 'Examples' section, matching the prescribed CLI-page rhythm: lead → usage → CLI reference → examples → related commands.",
+            "Remove the hand-authored 'Important flags' table. All flags are already covered by the auto-generated <CliCommandsApiReference /> component; the duplicate table creates maintenance risk and contradicts the instruction to never hand-author the flags table.",
+            "Remove or qualify the claim 'On most systems Stacktape bundles or downloads it automatically' from the <Info> block. This is not grounded in any provided source file. Replace it with a straightforward instruction to install the plugin from the AWS docs link already present, without speculating about auto-installation behavior.",
+            "For any specific error messages cited in the 'Errors' section, locate the corresponding entry in src/config/error-messages.ts and reference it, as required by section instructions. If the errors are not defined there, rephrase as general behavior rather than quoting message text."
+          ],
+          "optionalImprovements": [
+            "Consider adding a brief 4-6 question FAQ covering: 'Does this require SSH keys?', 'What is the AWS Session Manager plugin?', 'What if my bastion is stopped?', 'Can I run a specific command instead of an interactive shell?' — CLI reference pages are technically reference pages where the style guide recommends a FAQ.",
+            "The 'Errors' section, while useful, could be trimmed or folded into a single callout. At its current length it adds scroll depth before the CLI reference without being fully sourced.",
+            "The 'How it works' section is genuinely useful for troubleshooting but sits between the initial usage block and the 'Important flags' table, breaking the scan flow. Moving it after the CLI reference would keep the top of the page action-oriented."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded accuracy: the prose correctly reflects `commandRequiresConfig: false` and `commandModifiesStack: false` from `src/commands/bastion-session/index.ts`, and the four-step 'How it works' flow maps correctly onto `resolveBastionInstanceInfo` → `runBastionSsmShellSession`.",
+            "Three concrete, realistic `bash` examples covering the three main invocation patterns (single bastion, named bastion, specific AWS profile), each in its own fenced block with no mixed commands — no copy-button trap.",
+            "Related commands are directly relevant and correctly linked: `bastion:tunnel`, `debug:sql`, and `debug:redis` are the natural peers and the page names them accurately.",
+            "No mandatory style violations: no hand-authored YAML Stacktape config, no `StacktapeConfig` import, no `defineConfig` in a fenced TypeScript block, no marketing language.",
+            "The `<CliCommandsApiReference>` component is used correctly with accurate `sortedArgs` data, satisfying the CLI section instruction to never hand-author the flags table."
+          ],
+          "problems": [
+            "Section ordering deviates from CLI section instructions. The prescribed rhythm is: intro paragraph → usage example → auto-generated reference → examples → related commands. The page places the CLI reference AFTER the examples section (and after a hand-authored flags table and errors section), not before.",
+            "Hand-authored 'Important flags' table is present alongside `<CliCommandsApiReference>`. The CLI section instructions explicitly state 'Use the auto-generated component for the flags table — never hand-author it.' The manual table partially duplicates the auto-generated reference, creating two sources of truth for flag information.",
+            "The 'Errors' section describes specific error scenarios but does not reference error codes from `src/config/error-messages.ts` as the section instructions require: 'Errors mentioned in the prose should reference src/config/error-messages.ts where applicable.'",
+            "The page includes two extra sections ('How it works', 'Important flags') and one undocumented section ('Errors') not in the CLI section instructions. While individually useful, they create structural drift from the prescribed CLI page pattern and push the authoritative `<CliCommandsApiReference>` deep toward the bottom."
+          ],
+          "mandatoryFixes": [
+            "Reorder sections to match CLI section instructions: intro → usage example → `<CliCommandsApiReference>` → examples (non-obvious patterns only) → related commands. The CLI reference must appear before the examples section, not after it.",
+            "Remove the hand-authored 'Important flags' table. The CLI section instructions prohibit hand-authoring any flags table. The `<CliCommandsApiReference>` component is the sole prescribed flags reference. If a pre-reference summary is desired, convert it to prose sentences inside the intro or usage section rather than a table.",
+            "Either ground the Errors section error descriptions against `src/config/error-messages.ts` error codes/types, or remove the section. The section instructions require that prose errors reference that file where applicable — vague descriptions of error conditions without codes are unsupported."
+          ],
+          "optionalImprovements": [
+            "The 'How it works' four-step section adds genuine value but is not prescribed for CLI pages. Consider condensing it into a single `<Info>` callout immediately after the Usage section to preserve the insight while keeping structural compliance.",
+            "Add a short FAQ section (4-6 entries) covering questions like 'Does my machine need the AWS Session Manager plugin installed?', 'What IAM permissions does my AWS profile need to open an SSM session?', and 'Can I use this with a bastion in a private subnet with no internet gateway?' — these are exactly the questions a practitioner hitting the command for the first time will search for.",
+            "The first mention of 'bastion host' in the intro should link to `/resources/security/bastion-host` (the resource page) to give readers who stumble on this CLI page the full context of what a bastion resource is."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, concise, and clearly names `bastion:session`, bastion hosts, and AWS Systems Manager.",
+            "Usage examples show the required `--stage` and `--region` flags, plus realistic variants for `--bastionResource` and `--profile`.",
+            "The page uses the required `<CliCommandsApiReference command=\"bastion:session\" ... />` component and has no forbidden Stacktape YAML or fenced Stacktape TypeScript config examples."
+          ],
+          "problems": [
+            "Several technical claims are more specific than the provided source supports: no SSH keys, no open inbound ports, inspecting private resources, troubleshooting VPC networking, exact SSM `StartSession` mechanics, local Session Manager plugin launch behavior, and automatic bundling/downloading of the plugin.",
+            "The page hand-authors an `Important flags` table even though the CLI section instructions say to use the auto-generated `<CliCommandsApiReference>` for the flags table and never hand-author it.",
+            "The required CLI page flow is not followed: the page places `How it works`, `Important flags`, and `Examples` before the auto-generated CLI reference, while the instruction asks for usage example, auto-generated reference, then examples if needed.",
+            "The `How it works` section depends on implementation details not present in the supplied sources and reads like an internal execution trace rather than a source-grounded CLI reference.",
+            "The Errors section is under-sourced. The source confirms the command resolves bastion instance info, but the exact error wording for no bastion or a missing named bastion is not provided in the listed files.",
+            "The page says the command reads deployed stack state directly from AWS; `commandRequiresConfig: false` and deployed-stack initialization support the no-config part, but the exact data source wording is broader than the supplied source."
+          ],
+          "mandatoryFixes": [
+            "Remove the hand-authored `Important flags` table and rely on the single `<CliCommandsApiReference command=\"bastion:session\" sortedArgs={...} />` component for flags.",
+            "Reorder the CLI page to match the maintained instruction: short lead paragraph, usage example, `<CliCommandsApiReference>`, then non-obvious examples, errors if source-grounded, and related commands.",
+            "Replace unsupported implementation claims with narrower source-grounded wording: the command initializes services for working with a deployed stack without modifying it or requiring config, resolves bastion instance info from the optional `--bastionResource`, and starts an SSM shell session for the resolved instance and region.",
+            "Remove or qualify the unsupported Session Manager plugin claim unless `runBastionSsmShellSession` source or another provided file proves plugin installation, bundling, downloading, or failure behavior.",
+            "Revise the Errors section to avoid exact error descriptions unless sourced from `src/config/error-messages.ts` or another provided error source."
+          ],
+          "optionalImprovements": [
+            "Move the `--bastionResource` example after the CLI reference under `Examples`; it is useful because multiple bastions are explicitly documented in the command description.",
+            "Mention that `--region` and `--stage` are required in prose before the first command, since that is the most important operational fact for a CLI reference page.",
+            "Keep `Related commands` to the closest bastion sibling first; `bastion:tunnel` is clearly relevant, while debug commands should only stay if their relationship is explained without implying unsupported shared behavior."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation, especially required arguments, SSM-based bastion sessions, optional bastion selection, and the fact that the command does not modify the stack or require a config file. The main risks are a few implementation details and troubleshooting claims that are more specific than the provided sources support.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Launches the AWS Session Manager plugin locally, connecting your terminal to the remote shell with full interactive I/O.” and “The AWS Session Manager plugin must be installed on your machine. On most systems Stacktape bundles or downloads it automatically.”",
+              "reason": "The provided sources only show that Stacktape runs a bastion SSM shell session. They do not document a local Session Manager plugin requirement, automatic bundling, automatic downloading, or the exact local launch behavior. This troubleshooting guidance could cause users to install or debug the wrong dependency based on unsupported documentation.",
+              "suggestedFix": "Narrow the wording to the sourced behavior: Stacktape starts an SSM-based shell session for the resolved bastion instance. Omit the plugin-install guidance unless the `runBastionSsmShellSession` implementation or error-message source is added as source evidence.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "await runBastionSsmShellSession({\n    instanceId: bastionInstanceId,\n    region: globalStateManager.region\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "The session is established over a secure SSM connection."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Calls AWS SSM `StartSession` targeting that instance” and “Terminates the SSM session when you exit the shell.”",
+              "reason": "The source confirms an SSM shell-session helper is called with the bastion instance ID and region, but the provided files do not expose the helper implementation. The draft names a specific AWS API call and termination behavior that are plausible but not grounded in the supplied source files.",
+              "suggestedFix": "Write this as “Stacktape starts an SSM shell session for the bastion instance” and avoid naming `StartSession` or session termination behavior unless the SSM utility source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "await runBastionSsmShellSession({\n    instanceId: bastionInstanceId,\n    region: globalStateManager.region\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If the stack has no bastion resource, the command fails with a message indicating no resource of type `bastion` was found” and “If you pass a `--bastionResource` name that does not exist in the deployed stack, the command reports that the resource is not defined.”",
+              "reason": "The command implementation delegates bastion lookup to `resolveBastionInstanceInfo`, but the provided sources do not include that function or any error-message source. The draft makes specific claims about failure messages that are not supported by the available files.",
+              "suggestedFix": "Either remove the specific error-message wording or state only that the command needs a deployed `bastion` resource, and that `--bastionResource` must match a bastion resource name when used.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "const { bastionInstanceId } = deployedStackOverviewManager.resolveBastionInstanceInfo(bastionResource);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Your stack must include a `bastion` resource. If you have multiple bastions, you can specify which one to connect to with the `--bastionResource` argument."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“If the stack has a single bastion, Stacktape selects it automatically.”",
+              "reason": "The command definition says `--bastionResource` can be used when multiple bastions exist, and the option is not required. That strongly implies selection can work without the flag, but the exact single-bastion auto-selection behavior is not directly shown in the provided implementation because `resolveBastionInstanceInfo` is not included.",
+              "suggestedFix": "Use cautious wording: “When you omit `--bastionResource`, Stacktape resolves the bastion from the deployed stack; pass `--bastionResource` when you need to choose among multiple bastions.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required `--stage` and `--region` flags match `requiredArgs: ['region', 'stage']` for `bastion:session`.",
+            "The draft correctly says the command does not modify the stack and does not require a configuration file, matching `commandModifiesStack: false` and `commandRequiresConfig: false`.",
+            "The draft uses the required `<CliCommandsApiReference command=\"bastion:session\" ... />` component and the command name matches the page route.",
+            "All internal cross-links in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation, but it overstates several SSM/session mechanics and hand-authors a flags table instead of using only the generated CLI reference component required for CLI pages.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No SSH keys needed. Access private VPC resources securely with Stacktape.” and “no SSH keys, no open inbound ports.”",
+              "reason": "The provided command sources only say the bastion session is established over a secure SSM connection. They do not document SSH-key behavior, inbound-port behavior, or direct access to private VPC resources for `bastion:session`. Those details may be true for SSM generally, but they are not grounded in the provided Stacktape sources for this command.",
+              "suggestedFix": "Narrow the wording to the sourced behavior: “The session is established over a secure AWS SSM connection.” Avoid claiming SSH keys, inbound ports, or private VPC access unless a bastion resource or SSM utility source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "The session is established over a secure SSM connection."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Launches the AWS Session Manager plugin locally, connecting your terminal to the remote shell with full interactive I/O.”",
+              "reason": "The command implementation calls `runBastionSsmShellSession`, but the provided sources do not show that Stacktape launches the AWS Session Manager plugin locally or that the shell has “full interactive I/O.” This is a specific local-runtime behavior that is not visible in the supplied implementation.",
+              "suggestedFix": "Write only what the provided implementation proves: Stacktape resolves the bastion instance ID and starts an SSM shell session for that instance in the selected region.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "await runBastionSsmShellSession({\n    instanceId: bastionInstanceId,\n    region: globalStateManager.region\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The AWS Session Manager plugin must be installed on your machine. On most systems Stacktape bundles or downloads it automatically.”",
+              "reason": "The provided sources do not mention the AWS Session Manager plugin installation requirement, bundling, or automatic download behavior. The command source only delegates to `runBastionSsmShellSession`, whose implementation is not included.",
+              "suggestedFix": "Remove this `<Info>` block or replace it with a cautious troubleshooting note that does not claim Stacktape bundles or downloads the plugin unless `@utils/ssm-session` source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "import { runBastionSsmShellSession } from '@utils/ssm-session';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Calls AWS SSM `StartSession` targeting that instance” and “Terminates the SSM session when you exit the shell.”",
+              "reason": "The supplied implementation does not expose the exact AWS API call or termination behavior. It only shows that Stacktape calls a helper named `runBastionSsmShellSession` with an instance ID and region.",
+              "suggestedFix": "Use implementation-level wording: “Stacktape passes the resolved bastion instance ID and AWS region to its SSM shell-session helper.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "await runBastionSsmShellSession({\n    instanceId: bastionInstanceId,\n    region: globalStateManager.region\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft includes a hand-authored “Important flags” markdown table before `<CliCommandsApiReference command=\"bastion:session\" ... />`.",
+              "reason": "The section instructions for CLI pages say to use the auto-generated `<CliCommandsApiReference>` component for the flags table and never hand-author it. The hand-authored table is also incomplete compared with the command’s allowed args, omitting `awsAccount`, `configPath`, `currentWorkingDirectory`, `projectName`, and other supported flags shown in the generated component.",
+              "suggestedFix": "Remove the hand-authored “Important flags” table. Keep the usage prose and the single `<CliCommandsApiReference command=\"bastion:session\" sortedArgs={...} />` section as the flags reference.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'bastion:session': {\n    description: `Starts an interactive session with a bastion host.\n\nYour stack must include a `bastion` resource. If you have multiple bastions, you can specify which one to connect to with the `--bastionResource` argument. The session is established over a secure SSM connection."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“If the stack has a single bastion, Stacktape selects it automatically.”",
+              "reason": "The command definition says `--bastionResource` can be used when there are multiple bastions, and the runtime passes the optional argument into `resolveBastionInstanceInfo`. The exact single-bastion auto-selection behavior is plausible, but not explicitly shown in the provided sources because `resolveBastionInstanceInfo` is not included.",
+              "suggestedFix": "Use narrower wording: “`--bastionResource` is optional; use it when the deployed stack has multiple bastions.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The Errors section says the command fails with messages indicating “no resource of type `bastion` was found” and “the resource is not defined.”",
+              "reason": "The provided sources do not include `deployedStackOverviewManager.resolveBastionInstanceInfo` or `src/config/error-messages.ts`, so the exact error wording and failure messages are not verifiable.",
+              "suggestedFix": "Make the error wording less exact, or cite the actual error source if available: “The command fails if Stacktape cannot resolve a bastion resource from the deployed stack.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required `--stage` and `--region` flags match the command definition.",
+            "The statement that `bastion:session` does not modify the stack and does not require a configuration file is directly grounded in `commandModifiesStack: false` and `commandRequiresConfig: false`.",
+            "The draft uses valid documented links for `/resources/security/bastion-host`, `/cli/bastion-tunnel`, `/cli/debug-sql`, and `/cli/debug-redis`.",
+            "The draft includes the required `<CliCommandsApiReference command=\"bastion:session\" ... />` component for the command reference."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The CLI page mostly documents the core required usage for `bastion:session`, includes realistic command examples with `--stage` and `--region`, and uses the required `<CliCommandsApiReference command=\"bastion:session\" />` component. The main API-completeness issue is that the hand-authored flags table conflicts with the CLI-page instruction to rely on the generated reference and omits several allowed arguments that the generated reference later exposes.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The draft includes a hand-authored `## Important flags` table listing only `--stage`, `--region`, `--bastionResource`, and `--profile`.",
+              "reason": "CLI page instructions say to use the auto-generated `<CliCommandsApiReference />` component for the flags table rather than hand-authoring one. The manual table is also incomplete relative to the command's allowed args, which include universal, stack, config-dependent args, and `bastionResource`. This can make readers treat the table as the full flag surface before reaching the generated reference.",
+              "suggestedFix": "Remove the hand-authored `## Important flags` table. Keep the generated `<CliCommandsApiReference command=\"bastion:session\" ... />` as the authoritative flag table. If a short prose summary is useful, phrase it as common usage guidance, not a flags table.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'bastion:session': { ... args: { ...universalArgs, ...stackArgs, ...configDependentArgs, bastionResource: bastionResource.optional() }, requiredArgs: ['region', 'stage'] as const"
+                },
+                {
+                  "file": "Page section instructions",
+                  "quote": "Use the auto-generated <CliCommandsApiReference command=\"X\" sortedArgs={...} /> component for the flags table — never hand-author it."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page shows realistic invocations with both required flags: `--stage` and `--region`.",
+            "The page documents the command-specific optional `--bastionResource` argument and correctly explains that it selects a bastion when multiple bastions exist.",
+            "The draft includes exactly one `<CliCommandsApiReference command=\"bastion:session\" ... />`, and the command name matches the page route.",
+            "There are no Stacktape configuration examples, so the forbidden YAML/plain-object/fenced-TypeScript config patterns are absent.",
+            "No union-variant coverage issues apply because this CLI command does not document a union-typed resource property or configuration variant."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__bastion__session\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Follows the CLI page rhythm correctly: intro → usage → how it works → CLI reference → examples → troubleshooting → related commands.",
+            "Accurately reflects the source code behavior: notes that no config file is required (commandRequiresConfig: false) and that the command is non-mutating (commandModifiesStack: false).",
+            "The <Info> callout about the AWS Session Manager plugin is the most important prerequisite and is placed where the reader will see it naturally.",
+            "Three distinct examples cover the three realistic use cases (single bastion, named bastion, specific AWS profile) — all are copy-pasteable.",
+            "Related commands are well-chosen and correctly linked; debug:sql and debug:redis links help the reader understand the broader workflow the bastion enables.",
+            "No mandatory style violations: no YAML config blocks, no StacktapeConfig type usage, no inline explanatory comments inside bash blocks, each bash block contains exactly one command.",
+            "Troubleshooting covers both main error paths (no bastion deployed, --bastionResource name mismatch) concisely."
+          ],
+          "problems": [
+            "The 'How it works' section is thin — two sentences plus a callout. The two sentences largely restate the intro paragraph; the only new fact is 'resolves the EC2 instance ID from deployed stack metadata', which is useful but borderline padding for a named section.",
+            "The sortedArgs list includes templateId, which is semantically irrelevant to bastion:session (it describes downloading a template). Including it in the reference table without any context signals may confuse first-time readers who scan the flags looking for something useful.",
+            "The troubleshooting section never explains what 'resolves a bastion resource' means operationally — a reader who deployed but hasn't set the resource's logical name might not know what name to pass to --bastionResource."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Merge the 'How it works' body (2 sentences) into the intro or usage section, and keep only the <Info> callout as a prerequisite note. A two-sentence section under an H2 heading feels like structural padding — either expand it with an explanation of when SSM vs SSH is used, or collapse it.",
+            "Add a sentence in the usage or troubleshooting section clarifying what value to pass to --bastionResource: it is the key name of the bastion resource in your Stacktape config (e.g., if you wrote `resources: { myBastion: new Bastion({...}) }` then pass `--bastionResource myBastion`).",
+            "The templateId flag appears in sortedArgs but is not applicable to bastion:session. If the CliCommandsApiReference component can suppress universal-args that are not meaningfully relevant, consider doing so; if not, at minimum omit it from any prose discussion to avoid reader confusion.",
+            "Consider mentioning in 'Troubleshooting' that the bastion EC2 instance must be in a running state — the command fails if the bastion was stopped at the AWS console level, which is a real gotcha when the stack exists but the instance is hibernated or stopped."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Lead paragraph is concise and self-contained — states what the command does, when to use it, and the underlying mechanism (SSM) in under 60 words.",
+            "Correctly reflects `commandRequiresConfig: false` from the source — the 'does not require a Stacktape configuration file' callout is grounded and important for users who might wonder whether a config path is needed.",
+            "SSM Session Manager plugin requirement is surfaced in an <Info> callout rather than buried in a footnote — this is the most common failure mode in practice and the page puts it in front of users before they get stuck.",
+            "Examples cover the three real usage patterns (single bastion, multiple bastions by name, specific AWS profile) without inventing imaginary scenarios.",
+            "Related commands section is well-chosen — bastion:tunnel, debug:sql, and debug:redis are the natural next steps after connecting to a bastion, and the tunnel/VPC context for the debug commands is briefly explained.",
+            "Troubleshooting section identifies the two actual failure modes derivable from the source: no deployed bastion, and a mismatched --bastionResource name."
+          ],
+          "problems": [
+            "The 'How it works' section is thin and mostly restates the intro paragraph. The only new content it contributes is the SSM plugin <Info> callout — but that callout could live in the 'Usage' section where users encounter it before running the command. As a standalone H2, the section reads as padding.",
+            "No FAQ section. While CLI reference pages have a narrower rhythm than resource pages, even two or three question-form entries ('Does this command require a deployed stack?', 'What if the SSM plugin is not installed?', 'Can I use this command in CI?') would meaningfully help search and AI citation without bloating the page.",
+            "The prose in 'How it works' says Stacktape 'resolves the bastion's EC2 instance ID from the deployed stack metadata' — this is accurate but the phrase 'deployed stack metadata' is slightly opaque. The source actually calls deployedStackOverviewManager.resolveBastionInstanceInfo(), which reads CloudFormation stack outputs. Saying 'reads the deployed CloudFormation stack outputs' would be more precise for a user who hits a failure and wants to understand what's being resolved."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move the <Info> callout about the SSM Session Manager plugin out of 'How it works' and into the 'Usage' section (right after the first example invocation), then remove or trim 'How it works' to avoid the thin-section problem.",
+            "Add a small FAQ section (3-4 entries minimum): 'Does the command need a config file?' (no, confirmed by source), 'What if the SSM plugin is missing?' (session fails to start — link to plugin install guide), 'Can I run this in CI or non-interactive mode?' (SSM starts an interactive shell; CI use is unusual), 'What does --bastionResource accept?' (the logical resource name from the Stacktape config, not an AWS resource ID or ARN).",
+            "In the Troubleshooting section, clarify that 'the name does not match' means the --bastionResource value must be the logical Stacktape resource name (as written in the config), not the AWS physical resource ID — this is a common source of confusion when users copy ARNs from the console.",
+            "The 'templateId' argument appears in the sortedArgs passed to <CliCommandsApiReference>. Its short description talks about the 'Config Builder page', which is unrelated to establishing a bastion session. Consider whether this argument is genuinely applicable to this command or whether it leaked in via configDependentArgs — if it doesn't affect behavior for bastion:session, consider filtering it from the sortedArgs list to avoid confusing users."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is short, answer-first, and clearly identifies `bastion:session`, bastion hosts, and AWS SSM.",
+            "Usage examples are copyable and include the required `--stage` and `--region` flags.",
+            "The page uses the required `<CliCommandsApiReference command=\"bastion:session\" ... />` component instead of hand-authoring the flags table.",
+            "Shell snippets follow the one-command-per-block rule and contain no explanatory `#` comments.",
+            "Related commands are relevant and close to the bastion/session debugging workflow."
+          ],
+          "problems": [
+            "Some technical claims are not grounded in the provided sources: the draft says the command is for inspecting private resources, running ad-hoc commands, and troubleshooting networking inside a VPC, but the source only states that it starts an interactive SSM session with a bastion host.",
+            "The AWS Session Manager plugin requirement is not grounded in the provided source files. It may be true for SSM sessions, but the provided `runBastionSsmShellSession` implementation is not included, so the page cannot state it as a Stacktape requirement from these sources.",
+            "The sentence saying the command reads deployed stack state directly from AWS is broader than the source supports. The source shows `deployedStackOverviewManager.resolveBastionInstanceInfo(...)`, but does not show where that manager reads from.",
+            "Troubleshooting is useful but thin: it names missing bastion and wrong `--bastionResource`, but does not tie wording to concrete error-message source because no `src/config/error-messages.ts` excerpt is provided.",
+            "The `--configPath`, `--currentWorkingDirectory`, and `--templateId` entries appear in the generated API reference; the page says the command does not require a config file, but does not briefly explain why config-related universal flags may still appear in the reference."
+          ],
+          "mandatoryFixes": [
+            "Replace or narrow unsupported purpose claims. For example, say `bastion:session` starts an interactive shell on a deployed bastion host, and avoid claiming private-resource inspection or VPC troubleshooting unless supported by a provided bastion source file.",
+            "Remove or qualify the AWS Session Manager plugin requirement unless the source list includes the implementation or error path proving the plugin requirement.",
+            "Change \"reads the deployed stack state directly from AWS\" to source-grounded wording such as \"resolves the bastion EC2 instance ID from deployed stack overview data\" unless a source proves the AWS read path."
+          ],
+          "optionalImprovements": [
+            "Add one sentence after the API reference explaining that some universal/config-dependent arguments are listed because they are part of shared CLI argument groups, while `bastion:session` itself is initialized with `commandRequiresConfig: false`.",
+            "Make the first Usage section even closer to the CLI-page guidance by putting the primary command immediately after the opening paragraph, then moving the multiple-bastion example into Examples.",
+            "Add a concise note that `--bastionResource` is only needed when more than one bastion exists, matching the command description and keeping the common path obvious."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the CLI source: the command name, required `--stage` and `--region` flags, optional `--bastionResource`, non-mutating behavior, and SSM-based session are grounded. I found two unsupported implementation/prerequisite claims that should be narrowed or sourced before publication.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command does not modify your stack and does not require a Stacktape configuration file — it reads the deployed stack state directly from AWS.” Also: “Stacktape resolves the bastion's EC2 instance ID from the deployed stack metadata…”",
+              "reason": "The source supports `commandModifiesStack: false`, `commandRequiresConfig: false`, and resolving a bastion instance ID through `deployedStackOverviewManager`. It does not show that the state is read “directly from AWS” or specifically from “deployed stack metadata.” Those are plausible, but not grounded in the provided source.",
+              "suggestedFix": "Keep the sourced parts and narrow the implementation detail: “The command does not modify your stack and does not require a Stacktape configuration file. Stacktape resolves the bastion instance ID from the deployed stack overview, then starts an SSM shell session in the selected AWS region.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: false,\n    commandRequiresConfig: false\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "const { bastionInstanceId } = deployedStackOverviewManager.resolveBastionInstanceInfo(bastionResource);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The AWS Session Manager plugin must be installed on your local machine for the session to work.”",
+              "reason": "The provided command source only states that the session uses SSM and calls `runBastionSsmShellSession`. It does not document the local Session Manager plugin as a prerequisite. This may be true in the implementation, but the required source file for that utility is not included.",
+              "suggestedFix": "Remove the hard prerequisite, or narrow it to a troubleshooting note: “`bastion:session` uses an SSM shell session. If session startup fails with a Session Manager plugin error, install or repair the AWS Session Manager plugin.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "The session is established over a secure SSM connection."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "await runBastionSsmShellSession({\n    instanceId: bastionInstanceId,\n    region: globalStateManager.region\n  });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one CLI command and uses `<CliCommandsApiReference command=\"bastion:session\" ... />` as required.",
+            "The required usage examples include both required flags: `--stage` and `--region`.",
+            "The optional `--bastionResource` guidance is grounded in the command definition, which says it can be used when a stack has multiple bastions.",
+            "The related command links point to routes that exist in the provided documentation navigation index.",
+            "Shell examples follow the one-command-per-code-block rule."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided CLI command definition and command implementation. The main issues are unsupported operational details that go beyond the source files: specific use cases, AWS Session Manager plugin prerequisite, and details about stack metadata/AWS state resolution.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use it to inspect private resources, run ad-hoc commands, or troubleshoot networking inside your VPC.”",
+              "reason": "The source only says the command starts an interactive session with a bastion host and is useful for accessing resources in a private VPC in the separate tunnel command. The bastion:session source does not specifically document inspecting private resources, running ad-hoc commands, troubleshooting networking, or that the shell is “inside your VPC.”",
+              "suggestedFix": "Narrow the sentence to the sourced behavior: “Use it when you need an interactive shell on a deployed bastion host.” If you keep the broader use cases, phrase them as cautious examples: “From that shell, teams commonly inspect network access to private resources.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "description: `Starts an interactive session with a bastion host.\n\nYour stack must include a `bastion` resource. If you have multiple bastions, you can specify which one to connect to with the `--bastionResource` argument. The session is established over a secure SSM connection."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\bastion-session.md",
+                  "quote": "Starts an interactive session with a bastion host.\n\nYour stack must include a `bastion` resource. If you have multiple bastions, you can specify which one to connect to with the `--bastionResource` argument. The session is established over a secure SSM connection."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The AWS Session Manager plugin must be installed on your local machine for the session to work.”",
+              "reason": "The provided implementation shows Stacktape calling an SSM shell-session helper, but the source list does not include the helper implementation or any command definition text that states the local AWS Session Manager plugin is required. This may be true, but it is not grounded in the provided sources.",
+              "suggestedFix": "Remove the hard prerequisite or soften it: “The command starts an SSM shell session. If session startup fails, AWS Session Manager plugin installation is a common thing to verify.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "await runBastionSsmShellSession({\n    instanceId: bastionInstanceId,\n    region: globalStateManager.region\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "The session is established over a secure SSM connection."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape resolves the bastion's EC2 instance ID from the deployed stack metadata” and “it reads the deployed stack state directly from AWS.”",
+              "reason": "The implementation supports that Stacktape resolves a `bastionInstanceId` and initializes services for working with a deployed stack. It does not specify “deployed stack metadata” or that the state is read “directly from AWS.” Those details may be true internally, but they are not visible in the provided source files.",
+              "suggestedFix": "Use source-grounded wording: “Stacktape initializes services for working with the deployed stack, resolves the bastion instance ID, and starts an SSM shell session in the selected region.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: false,\n    commandRequiresConfig: false\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts",
+                  "quote": "const { bastionInstanceId } = deployedStackOverviewManager.resolveBastionInstanceInfo(bastionResource);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly documents `region` and `stage` as required arguments for `bastion:session`.",
+            "The page correctly describes `--bastionResource` as optional and useful when multiple bastions exist.",
+            "The page correctly uses `<CliCommandsApiReference command=\"bastion:session\" ... />` for the generated flags table.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index.",
+            "Shell examples follow the one-command-per-block rule."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the `bastion:session` command's required arguments, optional bastion selector, API reference component, and realistic single-command examples. I found no API completeness, union-variant coverage, or demonstrativeness issues that should block publication.",
+          "issues": [],
+          "positiveFindings": [
+            "The page documents exactly one CLI command and includes realistic invocations with the required `--stage` and `--region` flags.",
+            "The draft uses the required `<CliCommandsApiReference command=\"bastion:session\" ... />` component instead of hand-authoring the flags table.",
+            "The optional `--bastionResource` argument is explained in both prose and examples, matching the command definition for stacks with multiple bastions.",
+            "The page correctly states that the command does not modify the stack and does not require a configuration file, which is grounded in `commandModifiesStack: false` and `commandRequiresConfig: false` in `src/commands/bastion-session/index.ts`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\bastion-session.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T22:27:04.422Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\bastion-session\\index.ts": "60a84e863a46d143ec4f5b90d282e4c0ef10751e",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\bastion-session.md": "bed4560f2c833626352b222367cf9b8609968765"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

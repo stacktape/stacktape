@@ -1,0 +1,212 @@
+---
+title: 'Previewing Changes'
+order: 79
+seoTitle: 'Preview Infrastructure Changes Before Deploying | Stacktape Docs'
+seoDescription: 'Use stacktape preview-changes to see what a deployment would create, update, replace, or remove in your AWS stack — without applying anything. Catch breaking changes before they hit production.'
+---
+
+# Previewing Changes
+
+The [`stacktape preview-changes`](/cli/preview-changes) command shows what a deployment would change in your stack without actually applying anything. It packages your workloads, generates a new CloudFormation template, creates a change set against the currently deployed stack, and displays a summary of new, updated, replaced, and removed resources. Use it before deploying to production, reviewing pull requests, or whenever you want to verify that a config change does what you expect.
+
+## When to use preview-changes
+
+Preview is most useful when the cost of a bad deploy is high — production stages, stacks with databases, or stacks shared by a team. Running `preview-changes` before `deploy` gives you a clear picture of which resources will be created, updated, replaced, or removed.
+
+Common scenarios:
+
+- **Pre-production deploys** — verify that a config change doesn't accidentally replace a database or tear down a load balancer.
+- **PR reviews** — run the preview in CI and post the output as a PR comment so reviewers see the infrastructure diff alongside the code diff.
+- **Learning** — when you're new to Stacktape or infrastructure-as-code, the preview output helps you build a mental model of how config maps to AWS resources.
+
+If you're iterating on a development stage where you can tolerate surprises, running `deploy` directly (with [auto-rollback](/deployment-and-lifecycle/deploying-stacks) enabled) is usually faster and safe enough.
+
+## Running a preview
+
+The minimum command requires a stage and a region. The stack for that stage must already be [deployed](/deployment-and-lifecycle/deploying-stacks) — you're comparing new config against the existing state.
+
+```bash
+stacktape preview-changes --stage production --region eu-west-1
+```
+
+Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory by default. Use `--configPath` to point to a different file.
+
+```bash
+stacktape preview-changes --stage production --region eu-west-1 --configPath ./infra/stacktape.ts
+```
+
+<Tip>
+Use [`stacktape defaults:configure`](/cli/defaults-configure) to set a default stage, region, and AWS profile so you can run `stacktape preview-changes` without flags during development.
+</Tip>
+
+### Key options
+
+| Flag | Description |
+| --- | --- |
+| `--stage` (`-s`) | **(required)** Stage name — `production`, `staging`, `dev-john`, etc. Max 12 characters. |
+| `--region` (`-r`) | **(required)** AWS region — `eu-west-1`, `us-east-1`, etc. |
+| `--configPath` | Path to config file. Defaults to `stacktape.ts` or `stacktape.yml`. |
+| `--preserveTempFiles` | Keep generated CloudFormation templates in `.stacktape/[invocation-id]` for manual inspection. |
+| `--logLevel` | Set to `debug` for verbose output including CloudFormation-level detail. |
+| `--profile` | AWS profile to use instead of the default. |
+| `--projectName` | Stacktape project name. |
+
+For the full flag reference, see the [`preview-changes` CLI reference](/cli/preview-changes).
+
+## How preview-changes works
+
+The preview command follows the same pipeline as [`deploy`](/deployment-and-lifecycle/deploying-stacks) up to the point where CloudFormation would apply changes — then stops.
+
+<FlowDiagram
+  steps={[
+    { title: 'Validate & prepare', description: 'Parse config, check guardrails, create any missing secrets and SSM parameters' },
+    { title: 'Package workloads', description: 'Bundle Lambda code and build container images (uses caching to avoid unnecessary rebuilds)' },
+    { title: 'Generate template', description: 'Resolve all resources and produce a new CloudFormation template' },
+    { title: 'Upload & validate', description: 'Upload the template to S3 and validate it with CloudFormation' },
+    { title: 'Create change set', description: 'Ask CloudFormation to compare old vs new template and report what would change' },
+    { title: 'Display results', description: 'Normalize the diff, filter internal churn, and show meaningful resource changes' }
+  ]}
+/>
+
+### Template normalization
+
+Before comparing old and new templates, Stacktape removes internal bookkeeping properties — deployment version counters, `forceUpdate` flags, and custom-resource version stamps. This filtering prevents the preview from reporting "changes" that are just Stacktape internal churn with no user-visible effect. The goal is a diff that shows only the changes you actually made.
+
+### Change set creation
+
+Stacktape creates a CloudFormation change set (with property-level detail enabled) to get AWS's own assessment of which resources would change, which would be replaced, and which replacements are conditional. This is the same mechanism AWS uses internally during a real update — the difference is that Stacktape never executes the change set.
+
+<Info>
+Creating a change set does not modify your stack. It is a read-only operation.
+</Info>
+
+## Reading the output
+
+The preview output lists each affected Stacktape resource along with its action, highlights of what changed, and replacement warnings.
+
+### Actions
+
+Each resource in the output is categorized by the type of change:
+
+| Symbol | Label | Meaning |
+| --- | --- | --- |
+| `+` | **new** | Resource will be created. It exists in your config but not in the deployed stack. |
+| `~` | **updated** | Resource will be updated in place. Existing data and endpoints are preserved. |
+| `!` | **replaced** | Resource will be deleted and recreated. This can cause downtime and data loss. |
+| `-` | **removed** | Resource will be deleted. It exists in the deployed stack but not in your config. |
+
+### Highlights
+
+For each changed resource, the preview shows up to three highlights describing the most significant child-resource changes. These are prioritized by importance — changes to Lambda functions, ECS task definitions, DynamoDB tables, ECS services, and API Gateway resources appear first. Lower-priority changes like CloudWatch alarms and event rules are listed later or summarized as a count.
+
+Highlights include the type of child resource affected and what changed. For example: `Lambda::Function: Code, MemorySize` means the Lambda function's code and memory setting were modified. An `ECS::TaskDefinition added` highlight means a new task definition was introduced.
+
+### Replacement warnings
+
+The most important part of the preview output is the replacement warning section. When CloudFormation determines that a property change requires replacing a resource rather than updating it in place, the preview flags this clearly:
+
+- **Will replace** — CloudFormation has determined that the resource must be replaced. For databases and stateful resources, replacement means the old resource is deleted and a new one created, which causes data loss unless you have backups.
+- **May replace** — CloudFormation cannot determine whether replacement is needed until deploy time. This happens with certain property changes where the behavior depends on the specific values involved.
+
+<Warning>
+Pay close attention to "will replace" warnings on stateful resources like [relational databases](/resources/databases/relational-database), [DynamoDB tables](/resources/databases/dynamodb), and [Redis clusters](/resources/databases/redis). Replacement deletes the old resource and creates a new one. Back up your data before deploying if you see these warnings.
+</Warning>
+
+### No changes detected
+
+If your config matches the deployed stack, the output shows `NO CHANGES DETECTED`. If CloudFormation reports internal changes that don't affect any user-facing Stacktape resource, the output shows `NO MEANINGFUL STACKTAPE RESOURCE CHANGES` — this means the infrastructure is effectively unchanged.
+
+## Using preview in CI/CD
+
+Running `preview-changes` in a CI pipeline before deploying is a good safety net for production stages. You can capture the output and post it as a PR comment or Slack message so the team reviews infrastructure changes alongside code changes.
+
+A typical CI workflow:
+
+1. Run `stacktape preview-changes` with `--stage production` on the PR branch.
+2. Parse the output for replacement warnings.
+3. If any stateful resources show "will replace", block the merge or require manual approval.
+4. After merge, run `stacktape deploy`.
+
+<Info>
+Use the `--agent` flag to get structured, machine-readable output that's easier to parse in scripts. Agent mode output includes a summary line (`SUMMARY: 2 new, 0 removed, 0 replaced, 1 updated`) followed by one line per changed resource with symbols, highlights, and replacement info.
+</Info>
+
+### Example: GitHub Actions preview step
+
+```yaml
+- name: Preview infrastructure changes
+  run: stacktape preview-changes --stage production --region eu-west-1 --agent
+```
+
+The `--agent` flag produces a compact text format suited for logs and automated processing. Without it, the output is colorized and formatted for interactive terminal use.
+
+## Preview vs compile-template
+
+Stacktape offers two ways to inspect what a deployment would do:
+
+| | `preview-changes` | [`compile-template`](/cli/compile-template) |
+| --- | --- | --- |
+| **Requires deployed stack** | Yes | No |
+| **Shows resource-level diff** | Yes — create, update, replace, delete | No — shows the raw template only |
+| **Detects replacements** | Yes — via CloudFormation change set | No |
+| **Packages workloads** | Yes | Yes |
+| **Modifies stack** | No | No |
+| **Best for** | Pre-deploy safety check | Inspecting the generated CloudFormation template |
+
+Use `preview-changes` when you want to know *what will change*. Use `compile-template` when you want to see the full generated CloudFormation template without needing a deployed stack.
+
+## Troubleshooting
+
+### "Stack does not exist" error
+
+The `preview-changes` command requires an already-deployed stack to compare against. If the stage has never been deployed, deploy it first with [`stacktape deploy`](/cli/deploy). You cannot preview changes for a stage that doesn't exist yet.
+
+### Preview shows changes you didn't make
+
+Stacktape normalizes the template diff to filter out internal-only changes, but some edge cases can still surface. Common causes:
+
+- **Dependency re-evaluation** — CloudFormation may report changes to resources that depend on a resource you modified, even if the dependent resource itself is unchanged. These are usually safe.
+- **Container image rebuilds** — if your container image digest changed (even from a no-op rebuild), CloudFormation sees a new image reference and reports the task definition as updated.
+- **Secret or SSM parameter rotation** — if a secret value changed since the last deploy, resources that reference it may show as updated.
+
+### Preview takes a long time
+
+The preview command packages all workloads (Lambda bundles, container images) before generating the change set. If packaging is slow, the bottleneck is usually container image builds. Use `--logLevel debug` to see which packaging step is taking time. Stacktape uses caching to skip unchanged workloads — if you're seeing slow builds, check that your Docker layer cache and remote cache are working.
+
+## FAQ
+
+### Does preview-changes cost anything?
+
+CloudFormation change sets are free. The only cost is the S3 storage for the uploaded template (negligible — a few KB) and any container image builds that happen during packaging. If your workloads haven't changed, packaging uses cached artifacts and completes quickly.
+
+### Can I preview changes for a stage that hasn't been deployed yet?
+
+No. The `preview-changes` command compares your current config against an existing CloudFormation stack. For a brand-new stage, the "change" is "create everything" — run [`stacktape deploy`](/cli/deploy) directly instead. CloudFormation's [auto-rollback](/deployment-and-lifecycle/deploying-stacks) ensures that a failed first deploy is cleaned up automatically.
+
+### Does preview-changes modify my AWS resources?
+
+No. The command creates a CloudFormation change set (a read-only operation) and then discards it. No resources are created, updated, or deleted. The only side effect is uploading the template to S3 and potentially building container images locally.
+
+### How is this different from CloudFormation drift detection?
+
+Drift detection checks whether someone changed your AWS resources outside of CloudFormation (e.g., via the AWS Console). Preview-changes checks what would happen if you deployed your *current Stacktape config* to an existing stack. They answer different questions — drift detection asks "has my infrastructure drifted from what CloudFormation last deployed?", while preview asks "what would CloudFormation change if I deployed this new config?".
+
+### Can I use preview-changes with the Stacktape Console?
+
+The `preview-changes` command is a CLI operation. When using [GitOps with the Console](/ci-cd-and-gitops/gitops-with-console), the Console runs deployments on your behalf but does not expose a separate preview step. To preview changes in a GitOps workflow, run `preview-changes` locally or in a CI step before merging the branch that triggers the deploy.
+
+### What does "may replace" mean?
+
+A "may replace" warning means CloudFormation cannot determine at change-set time whether the resource needs replacement. The outcome depends on the specific property values and the AWS service's behavior during the actual update. Treat "may replace" on stateful resources (databases, tables) as a "will replace" warning — back up your data before deploying.
+
+### How do I preview changes for a specific resource?
+
+The `preview-changes` command always evaluates the entire stack. You cannot scope it to a single resource. However, the output only shows resources that actually changed, so unchanged resources don't add noise.
+
+### Can I run preview-changes in a CI pipeline?
+
+Yes, and it's recommended for production stages. Use the `--agent` flag for machine-readable output. The command exits with code 0 whether or not changes are detected — parse the output text to decide whether to proceed with the deploy.
+
+### What's the difference between preview-changes and a Terraform plan?
+
+Both show what an apply/deploy would change before doing it. Stacktape's `preview-changes` uses CloudFormation change sets under the hood, which means AWS itself evaluates the diff — you get accurate replacement detection for every AWS resource type. The trade-off is that `preview-changes` requires a deployed stack (unlike `terraform plan` which works against local state), and the output is resource-level rather than property-level.

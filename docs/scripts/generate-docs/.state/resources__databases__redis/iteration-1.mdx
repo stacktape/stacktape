@@ -1,0 +1,447 @@
+---
+title: 'Redis'
+order: 47
+seoTitle: 'Redis Cluster (ElastiCache) | Stacktape Docs'
+seoDescription: 'Deploy a managed Redis cluster on AWS ElastiCache with Stacktape. Sub-millisecond caching, session storage, and pub/sub with VPC encryption, sharding, and automatic failover.'
+---
+
+# Redis
+
+A Stacktape Redis cluster provides a managed, in-memory data store using AWS ElastiCache for Redis. It delivers sub-millisecond read and write latency for caching, session storage, real-time leaderboards, rate limiting, and pub/sub messaging. All data is encrypted at rest and in transit, and the cluster runs inside your stack's VPC with no public endpoint.
+
+Pricing starts at ~$11.52/month for a single `cache.t4g.micro` node (us-east-1). You pay per node-hour for the instance size you choose, with no per-request charges. Larger memory-optimized nodes (`cache.r7g.large` at ~$0.20/hr) and multi-node clusters scale cost linearly.
+
+## When to use
+
+Redis is the right choice when your workload needs **fast, ephemeral or semi-persistent data access** that would be too slow or too expensive to serve from a relational database or DynamoDB.
+
+**Use a Stacktape Redis cluster when you need:**
+
+- **Application caching** — cache database query results, API responses, or computed values to cut latency and reduce load on your primary database.
+- **Session storage** — store user sessions with automatic expiration, shared across multiple container instances or Lambda functions.
+- **Rate limiting and counters** — atomic increment operations with TTL make Redis ideal for request throttling and real-time counters.
+- **Queues and pub/sub** — use Redis lists or pub/sub channels for lightweight inter-service messaging without adding a dedicated queue resource.
+- **Leaderboards and sorted sets** — sorted sets provide O(log N) ranking operations for gaming, analytics, or any scored data.
+
+## When NOT to use
+
+- **You need a persistent primary database.** Redis is an in-memory store. While backups are available, it is not designed to be your system of record. Use a [relational database](/resources/databases/relational-database) or [DynamoDB](/resources/databases/dynamodb) instead.
+- **Your data set is much larger than available memory.** Redis keeps all data in RAM. If your working set exceeds the largest available instance (hundreds of GB), consider [OpenSearch](/resources/databases/opensearch) or a relational database with read replicas.
+- **You need serverless, pay-per-request pricing.** Redis clusters run continuously and bill per node-hour even when idle. For serverless Redis with per-request billing, use [Upstash Redis](/resources/databases/upstash-redis) instead.
+- **You only need a cache for a Lambda-based API with low traffic.** A `cache.t4g.micro` node is cheap but still runs 24/7. For sporadic access patterns, Upstash Redis or DynamoDB-based caching may be more cost-effective.
+
+## Basic example
+
+A minimal Redis cluster requires only an `instanceSize` and a `defaultUserPassword`. Store the password as a [secret](/configuration/secrets) rather than hardcoding it.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RedisCluster } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.micro',
+    defaultUserPassword: $Secret('redis.password')
+  });
+
+  return {
+    resources: { cache }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+This creates a single-node Redis 6.2 cluster on a `cache.t4g.micro` instance (~$11.52/month). Traffic is encrypted in transit and at rest. Slow-query logging is enabled by default and sent to CloudWatch.
+
+## Instance sizing
+
+The `instanceSize` property determines the memory, CPU, and cost of every node in your cluster (primary and replicas). You can change the instance size after creation without data loss.
+
+| Instance | Family | Memory | Approx. cost | Best for |
+|---|---|---|---|---|
+| `cache.t4g.micro` | Burstable (Graviton) | 0.5 GB | ~$0.016/hr | Dev/test, low-traffic apps |
+| `cache.t4g.small` | Burstable (Graviton) | 1.37 GB | ~$0.032/hr | Small production, session stores |
+| `cache.m7g.large` | General purpose (Graviton) | 6.38 GB | ~$0.15/hr | Moderate production workloads |
+| `cache.r7g.large` | Memory-optimized (Graviton) | 13.07 GB | ~$0.20/hr | Large datasets, heavy caching |
+
+**Choosing a family:**
+
+- **`t` (burstable)** — cheapest option with variable CPU performance. Good for development and workloads with intermittent traffic spikes. CPU credits accumulate during idle periods and are spent during bursts.
+- **`m` (general purpose)** — consistent CPU performance at a moderate price. Use for production workloads where burstable CPU would be unpredictable.
+- **`r` (memory-optimized)** — highest memory-to-CPU ratio. Use when your data set is large relative to the traffic volume.
+- **Graviton suffix (`g`)** — ARM-based instances with better price-performance than their x86 equivalents. Prefer `t4g`/`m7g`/`r7g` over `t3`/`m5`/`r5` for new clusters.
+
+The full list of supported instance types includes `t2`, `t3`, `t4g`, `m4`, `m5`, `m6g`, `m7g`, `r4`, `r5`, `r6g`, and `r7g` families in sizes from `micro` to `16xlarge`. See the API reference below for all values.
+
+## High availability
+
+By default, a Redis cluster has a single primary node with no replicas. For production workloads, add read replicas and enable automatic failover to protect against node failures.
+
+### Read replicas
+
+Set `numReplicaNodes` to add read replicas that serve read traffic and act as failover candidates. Each replica is a full copy of the primary node's data, running on the same instance size.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RedisCluster } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    instanceSize: 'cache.m7g.large',
+    defaultUserPassword: $Secret('redis.password'),
+    numReplicaNodes: 2,
+    enableAutomaticFailover: true
+  });
+
+  return {
+    resources: { cache }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`numReplicaNodes` defaults to `0`. Adding replicas multiplies your cost — two replicas on a `cache.m7g.large` means three nodes total (1 primary + 2 replicas).
+
+### Automatic failover
+
+When `enableAutomaticFailover` is enabled and the primary node fails, AWS automatically promotes a replica to primary. This requires at least one replica (`numReplicaNodes >= 1`). Failover typically completes in under 30 seconds.
+
+<Warning>
+Deploy replicas first, then enable `enableAutomaticFailover` in a separate deployment. Enabling both in the same deployment can cause issues because replicas must be synced before failover can work.
+</Warning>
+
+### Sharding
+
+For horizontal scaling beyond a single node's memory capacity, enable `enableSharding` to split your key space across multiple shards. Each shard has its own primary node and replicas, with automatic routing handled by the Redis cluster protocol.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RedisCluster } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    instanceSize: 'cache.r7g.large',
+    defaultUserPassword: $Secret('redis.password'),
+    enableSharding: true,
+    numShards: 3,
+    numReplicaNodes: 1
+  });
+
+  return {
+    resources: { cache }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`numShards` defaults to `1` when sharding is enabled. Sharding requires `numReplicaNodes >= 1`, and automatic failover is always enabled for sharded clusters.
+
+<Warning>
+Sharding must be enabled at creation time — you cannot add sharding to an existing non-sharded cluster. To enable sharding on an existing cluster, delete it and recreate it. The replica count also cannot be changed after creation for sharded clusters.
+</Warning>
+
+**When to shard:** most teams don't need sharding. A single `cache.r7g.16xlarge` node provides over 400 GB of memory. Sharding becomes useful when you need more write throughput than a single primary can handle, or when your data set exceeds the largest available instance size.
+
+## Networking
+
+Stacktape Redis clusters run inside your stack's VPC and do not have public IP addresses. Only resources within the same VPC can connect.
+
+### Access modes
+
+The `accessibility.accessibilityMode` property controls which resources can reach the cluster:
+
+- **`vpc` (default)** — any resource in the same VPC can connect. This includes container workloads, batch jobs, and Lambda functions with `joinDefaultVpc: true`. Simplest setup for most teams.
+- **`scoping-workloads-in-vpc`** — only resources that explicitly list this cluster in their `connectTo` can connect. This is the most restrictive mode and uses security group scoping for fine-grained access control.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RedisCluster } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.small',
+    defaultUserPassword: $Secret('redis.password'),
+    accessibility: {
+      accessibilityMode: 'scoping-workloads-in-vpc'
+    }
+  });
+
+  return {
+    resources: { cache }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+### Local access via bastion
+
+Since Redis clusters have no public endpoint, you cannot connect from your local machine directly. To interact with the cluster for debugging or data inspection, use a [bastion host](/resources/security/bastion-host). Once a bastion is deployed, use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) to create a secure tunnel, or use [`stacktape debug:redis`](/cli/debug-redis) for direct Redis CLI access.
+
+## Connecting from workloads
+
+Use [`connectTo`](/configuration/connecting-resources) to grant a workload access to your Redis cluster. Stacktape opens the necessary security group rules and injects connection details as environment variables.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  RedisCluster,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.micro',
+    defaultUserPassword: $Secret('redis.password')
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    joinDefaultVpc: true,
+    connectTo: ['cache']
+  });
+
+  return {
+    resources: { cache, api }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+When a workload lists a Redis cluster in `connectTo`, Stacktape injects the following environment variables (assuming the resource is named `cache`):
+
+| Environment variable | Description |
+|---|---|
+| `STP_CACHE_HOST` | Primary endpoint hostname |
+| `STP_CACHE_READER_HOST` | Reader endpoint hostname (non-sharded clusters) |
+| `STP_CACHE_PORT` | Cluster port |
+
+<Info>
+Lambda functions must set `joinDefaultVpc: true` to reach VPC resources like Redis clusters. Container workloads (web services, worker services, private services, multi-container workloads) and batch jobs are already in the VPC by default.
+</Info>
+
+You can also access connection details using the [`$ResourceParam()`](/configuration/directives) directive — for example, `$ResourceParam('cache', 'connectionString')` returns a `rediss://` connection URL with the password included.
+
+### Example handler
+
+```typescript
+import { createClient } from 'redis';
+
+const client = createClient({
+  url: `rediss://default:${process.env.REDIS_PASSWORD}@${process.env.STP_CACHE_HOST}:${process.env.STP_CACHE_PORT}`
+});
+
+await client.connect();
+
+export const handler = async (event: any) => {
+  await client.set('key', 'value');
+  const result = await client.get('key');
+  return { statusCode: 200, body: JSON.stringify({ result }) };
+};
+```
+
+Note the `rediss://` protocol (double `s`) — Stacktape enables TLS encryption on all Redis traffic. Your client library must support TLS connections.
+
+## Backups
+
+Set `automatedBackupRetentionDays` to enable daily automated backups. AWS ElastiCache takes a snapshot of the cluster once per day and retains it for the specified number of days. Set to `0` (the default) to disable backups.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RedisCluster } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.small',
+    defaultUserPassword: $Secret('redis.password'),
+    automatedBackupRetentionDays: 7
+  });
+
+  return {
+    resources: { cache }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Backups are recommended for production clusters where the cache contains data that is expensive to rebuild (pre-computed aggregations, large key sets). For pure caches where data can be re-fetched from the source, backups add cost without much benefit.
+
+## Logging
+
+By default, Stacktape enables slow-query logging for Redis clusters. Slow query logs are sent to CloudWatch and retained for 90 days. View them with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
+
+You can customize the log format (`json` or `text`), retention period, or disable logging entirely:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RedisCluster } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.micro',
+    defaultUserPassword: $Secret('redis.password'),
+    logging: {
+      format: 'json',
+      retentionDays: 30
+    }
+  });
+
+  return {
+    resources: { cache }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Set `logging.disabled: true` to turn off slow-query logging. Log forwarding to external services is also supported — see [log forwarding](/observability/log-forwarding) for details.
+
+## Engine versions
+
+The `engineVersion` property selects the Redis engine version. Supported versions are `7.1`, `7.0`, `6.2`, and `6.0`. The default is `6.2`.
+
+| Version | Notable features |
+|---|---|
+| `7.1` | Latest. Improved memory efficiency, enhanced I/O multiplexing, Lua script improvements. |
+| `7.0` | Redis Functions, ACL improvements, multi-part AOF, Pub/Sub sharded channels. |
+| `6.2` | Default. Stable, widely tested. Supports streams, Lua scripting, and ACLs. |
+| `6.0` | Legacy. ACL support introduced. Use only if you have compatibility constraints. |
+
+For new clusters, use `7.1` unless your client library or application has a specific compatibility requirement with an older version. You can upgrade the engine version on an existing cluster without data loss, but you cannot downgrade.
+
+## Dev mode
+
+During [`stacktape dev`](/local-development/dev-mode-overview), Redis clusters run locally in Docker by default. The local container uses the standard `redis` Docker image and persists data to `.stacktape/dev-data/{stage}/{resourceName}/data`. Connection strings injected via `connectTo` automatically point to the local container instead of AWS.
+
+Local Redis uses `redis://` (no TLS) and always runs as a single, non-sharded node regardless of your production configuration.
+
+To connect to the deployed AWS cluster instead of the local emulation, set `dev.remote: true` on the resource. The AWS cluster must already be deployed.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RedisCluster } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.micro',
+    defaultUserPassword: $Secret('redis.password'),
+    dev: {
+      remote: true
+    }
+  });
+
+  return {
+    resources: { cache }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+## Referenceable parameters
+
+<ReferenceableParams resource="redis-cluster" />
+
+## API Reference
+
+<ApiReference definitionName="RedisClusterProps" />
+
+## FAQ
+
+### How much does a Stacktape Redis cluster cost?
+
+You pay per node-hour based on the instance size you choose. The cheapest option, `cache.t4g.micro` with 0.5 GB memory, costs approximately $11.52/month in us-east-1 for a single node. Costs scale linearly with replicas — a cluster with 1 primary + 2 replicas costs 3x the single-node price. Data transfer within the same AZ is free; cross-AZ transfer incurs standard AWS charges.
+
+### Can I connect to Redis from my local machine?
+
+Redis clusters run inside your VPC with no public endpoint. To connect from your local machine, deploy a [bastion host](/resources/security/bastion-host) in your stack and use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) or [`stacktape debug:redis`](/cli/debug-redis). During [dev mode](/local-development/dev-mode-overview), Redis runs locally in Docker, so no tunnel is needed for local development.
+
+### Redis vs DynamoDB — which should I use for caching?
+
+Redis provides sub-millisecond latency and rich data structures (sorted sets, lists, pub/sub, Lua scripting). [DynamoDB](/resources/databases/dynamodb) is serverless with pay-per-request pricing and no instance to manage. Choose Redis when you need data structures beyond key-value, need pub/sub, or need the absolute lowest latency. Choose DynamoDB when your cache access is sporadic and you want to avoid paying for idle nodes.
+
+### What's the difference between Stacktape Redis and Upstash Redis?
+
+A Stacktape `RedisCluster` provisions a managed AWS ElastiCache cluster that runs continuously in your VPC. [Upstash Redis](/resources/databases/upstash-redis) is a serverless Redis service with per-request pricing and no instance management. Use ElastiCache Redis for high-throughput, latency-sensitive production workloads. Use Upstash Redis for low-traffic apps, prototypes, or when you want true pay-per-use pricing.
+
+### Can I change the instance size without losing data?
+
+Yes. Changing `instanceSize` triggers a rolling update that migrates data to the new node type. AWS ElastiCache handles the migration automatically. There may be brief connectivity interruptions during the switch — if you have replicas with automatic failover enabled, the impact is minimal.
+
+### Does Stacktape Redis support Redis Cluster mode (sharding)?
+
+Yes. Set `enableSharding: true` to distribute data across multiple shards, each with its own primary and replicas. Sharding must be enabled at cluster creation time and cannot be added later. Most teams don't need sharding — a single node can provide over 400 GB of memory on the largest instance sizes. Sharding is useful when you need more write throughput than a single primary can provide.
+
+### How do I secure my Redis password?
+
+Store the password as a secret using [`stacktape secret:create`](/cli/secret-create), then reference it in your config with `$Secret('redis.password')`. The password must be 16-128 printable ASCII characters and cannot contain `/`, `"`, or `@`. All traffic between clients and the cluster is encrypted with TLS — Stacktape enables both transit encryption and at-rest encryption on every Redis cluster.
+
+### Can Lambda functions connect to Redis?
+
+Yes, but Lambda functions must set `joinDefaultVpc: true` because Redis clusters run inside the VPC. Add the Redis resource name to the Lambda's `connectTo` array, and Stacktape handles the security group rules and environment variable injection. Be aware that Lambda cold starts may be slightly longer when the function runs inside a VPC.
+
+### How do I run database migrations or seed data in Redis?
+
+Use a [deployment script](/resources/advanced/deployment-scripts) or a [hook](/configuration/hooks-and-scripts) with `connectTo` pointing to your Redis cluster. Stacktape injects the connection details as environment variables. For ad-hoc operations, use [`stacktape debug:redis`](/cli/debug-redis) to open an interactive Redis CLI session through a bastion tunnel.
+
+### Does Redis scale automatically?
+
+No. Redis clusters use fixed-size instances — you choose the instance size and number of nodes upfront. To scale up, change the `instanceSize` to a larger node. To scale out writes, enable sharding with more shards. Unlike serverless options such as [Upstash Redis](/resources/databases/upstash-redis) or [DynamoDB](/resources/databases/dynamodb), ElastiCache Redis does not auto-scale capacity based on demand.

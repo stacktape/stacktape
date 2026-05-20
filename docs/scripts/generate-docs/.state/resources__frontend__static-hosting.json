@@ -1,0 +1,248 @@
+{
+  "pageId": "resources__frontend__static-hosting",
+  "pageRoute": "resources/frontend/static-hosting",
+  "startedAt": "2026-05-14T04:51:25.236Z",
+  "updatedAt": "2026-05-14T04:56:39.745Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__frontend__static-hosting\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.4-mini",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The page gives a clear decision path up front: what static hosting is, when to use it, and when to choose something else.",
+            "The main config examples are source-grounded and copyable, especially the basic setup, build/dev commands, content presets, custom domains, and environment injection.",
+            "The prose does a good job separating Stacktape behavior from AWS underpinnings, especially around CloudFront caching, Route 53 domains, and CDN-layer routing.",
+            "The FAQ is well targeted for this audience and correctly mixes Stacktape-specific, AWS-service, and comparison questions with exactly 10 Q&A pairs."
+          ],
+          "problems": [
+            "Several section openers are too short for the AEO target and read more like labels than self-contained answers, especially Build and dev, Content presets, Custom domains, Environment injection, Routing, and File uploads.",
+            "The CDN-layer sections for route rewrites, edge functions, and firewall are explained, but none of them include a small copyable example, so a first-time reader still has to translate prose into config.",
+            "The pricing FAQ is honest about the lack of concrete source prices, but it leaves a common decision question under-answered instead of giving a practical S3 + CloudFront cost model.",
+            "Some comparison guidance, especially the S3 bucket and Next.js answers, leans more on general AWS/framework advice than on Stacktape-specific behavior from the source."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand the short H2 intro paragraphs so each one is a 40-75 word self-contained answer, not just a section label with a sentence.",
+            "Add at least one tiny example for a CDN-layer feature such as `routeRewrites` or `edgeFunctions` so the page is more actionable for copy-paste users.",
+            "If you keep the pricing FAQ, phrase it as a usage-based cost model for S3 and CloudFront rather than a non-answer about missing source numbers.",
+            "Consider tightening the comparison answers so they point more directly to the Stacktape choice the reader needs to make, not just the underlying AWS or framework distinction."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening and early decision guidance: the page quickly distinguishes static hosting from server-rendered frontend resources, backend services, and general object storage.",
+            "Stacktape config examples follow the required `defineConfig` + class-based `<CodeBlock intellisense tabs={[...]}/>` pattern with the correct `TypeScript` tab label.",
+            "The page covers the important production-facing knobs for this resource: build/dev commands, content presets, custom domains, environment injection, route rewrites, edge functions, firewall attachment, upload exclusions, API reference, and referenceable parameters.",
+            "The content preset table is practical and maps directly to the supported `hostingContentType` variants in the source, including the default.",
+            "The firewall wording correctly scopes `useFirewall` to the CDN layer and avoids broadening the constraint to unrelated resource paths."
+          ],
+          "problems": [
+            "The custom domains section slightly overstates certificate behavior when `disableDnsRecordCreation` is used. The source says Stacktape skips DNS record creation and still provisions the TLS certificate, but ACM validation may still require DNS work when DNS is managed outside Stacktape; the current prose could imply the certificate flow remains fully automatic.",
+            "The routing section is useful but thin for a production reader. It says `routeRewrites` can send paths to different origins, but does not name the source-supported target categories visible in helpers: bucket, application-load-balancer, http-api-gateway, function, and custom-origin.",
+            "The edge functions section gives good decision guidance but no copyable example. Because `edgeFunctions` is an opt-in feature with request/response timing semantics, a minimal config example would make it easier to configure correctly.",
+            "The environment injection section should more explicitly warn that values injected into HTML or `.env` files for static output are public browser-facing configuration, not secrets. The FAQ says this, but the main section is where readers configuring the feature will look first.",
+            "The page has no pricing context because no concrete pricing appears in the provided source. That is acceptable, but the opening would be stronger if it briefly said costs are AWS S3/CloudFront usage-based without quoting unsupported numbers."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Clarify custom-domain DNS ownership: when `disableDnsRecordCreation` is true, Stacktape does not create the DNS record; readers managing DNS elsewhere may need to handle the required DNS records themselves.",
+            "Add one sentence or a small table under Routing naming the supported route rewrite origin categories from the source types, while leaving exact shapes to the API reference.",
+            "Add a compact `edgeFunctions` example if the source for `EdgeFunctionsConfig` is available in the page-generation context; otherwise keep the current cautious wording.",
+            "Move the public-data warning from the FAQ into Environment injection as a short paragraph after the example.",
+            "Consider adding a short cost-model sentence near the top: S3 and CloudFront costs depend on storage, requests, data transfer, and enabled CDN features; avoid concrete prices unless a source provides them."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.4-mini",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Covers the main decision points for static hosting well: build output, dev command, content presets, custom domains, environment injection, routing, edge functions, firewalling, and file exclusions.",
+            "The opening paragraph is concise and self-contained, and the page stays on the resource's real mental model instead of drifting into AWS internals.",
+            "The `When to use` and `When NOT to use` sections are concrete and opinionated, with useful alternatives called out instead of generic feature descriptions.",
+            "The content presets table is a strong scannability win and correctly distinguishes the major preset families from the source types.",
+            "The FAQ is broad and well-structured, with exactly 10 questions and a good mix of Stacktape-specific, AWS-use-case, and comparison questions."
+          ],
+          "problems": [
+            "Some sections are strong on configuration but a little light on decision support depth, especially around `build` versus pre-generated upload directories and when `edgeFunctions` are worth the added complexity.",
+            "A few FAQ answers could be a bit more consistently linked to the relevant navigation pages at the end, which would improve extractability and cross-page navigation.",
+            "The page does not surface any pricing context near the top, though the provided source does not include concrete price numbers, so this is a minor completeness issue rather than a factual error."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short pricing context line near the top if the docs pipeline later provides concrete S3/CloudFront price data for this resource.",
+            "Consider adding a one-sentence intro before the `When NOT to use` bullets so the section reads more cleanly when excerpted in isolation.",
+            "If you want even stronger decision support, add one compact comparison sentence for `routeRewrites` versus `edgeFunctions` so readers can choose the right CDN-layer tool faster."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "summary": "The draft is mostly well grounded in the provided HostingBucket types and follows the required CodeBlock/API reference patterns. I found a small number of source-grounding issues, mainly around an unsupported referenceable-parameters component and one routing claim that overstates what the source says.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The page includes `## Referenceable parameters` with `<ReferenceableParams resource=\"hosting-bucket\" />`.",
+              "reason": "The provided source does not show any HostingBucket referenceable parameter type in the `StacktapeResourceReferenceableParam` union. Rendering a referenceable-params component for `hosting-bucket` appears unsupported by the provided types and may render an empty or misleading section.",
+              "suggestedFix": "Remove the `Referenceable parameters` section unless another source explicitly defines referenceable parameters for `hosting-bucket`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `writeDotenvFilesTo` when your static output or supporting tooling expects a `.env` file.”",
+              "reason": "The source only says Stacktape writes deploy-time values to a `.env` file in the specified directory and merges existing content. It does not say static output or supporting tooling will consume that file, so the wording adds an unsupported use case.",
+              "suggestedFix": "Narrow the sentence to the source-backed behavior: “Use `writeDotenvFilesTo` when you want Stacktape to write deploy-time values to a `.env` file in the specified directory; existing `.env` content is merged.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
+                  "quote": "#### Write deploy-time values to a `.env` file in the specified directory.\n   *\n   * ---\n   *\n   * Merges with existing `.env` content if the file already exists."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A hosting-bucket serves unmatched requests from the bucket…”",
+              "reason": "The source says unmatched requests go to the bucket in the specific context of `routeRewrites`. The draft wording is probably intended that way, but as written it can read like a broader serving model statement beyond the route rewrite behavior documented in the source.",
+              "suggestedFix": "Scope the claim to route rewrites: “When `routeRewrites` is configured, unmatched requests go to the bucket.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Use Stacktape-managed DNS and certificates for most sites because it keeps the configuration small.”",
+              "reason": "The source supports automatic DNS record creation and free TLS certificate provisioning, but “Stacktape-managed DNS” could imply Stacktape manages the hosted zone itself. The source only requires a Route53 hosted zone in the AWS account and says Stacktape creates DNS records and provisions certificates.",
+              "suggestedFix": "Use narrower wording: “Use Stacktape-created DNS records and auto-provisioned certificates for most sites when the domain is already in a Route53 hosted zone in your AWS account.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab and avoid hand-authored YAML.",
+            "The API reference uses `HostingBucketProps`, which matches the provided type name.",
+            "The draft correctly treats `When to use` and `When NOT to use` as peer H2 sections.",
+            "The content preset coverage matches the supported preset variants and default documented in `hosting-buckets.d.ts`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "summary": "The draft is mostly source-grounded and follows the required TypeScript CodeBlock style. The main factual gaps are a missing custom-domain setup caveat from the nested domain type and a likely unsupported ReferenceableParams section for hosting-bucket.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Custom domain sections say the domain must already be added as a Route53 hosted zone in the AWS account, but omit the source requirement that the registrar's nameservers point to that hosted zone.",
+              "reason": "The draft's wording is true but incomplete for readers configuring custom domains. The nested DomainConfiguration source adds the nameserver requirement, which can affect whether Stacktape-managed DNS and certificate setup works as expected.",
+              "suggestedFix": "Add the missing caveat in the Custom domains section and FAQ: the domain must have a Route53 hosted zone in the AWS account, with the registrar's nameservers pointing to that hosted zone.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it.\n   *\n   * Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft includes a `## Referenceable parameters` section with `<ReferenceableParams resource=\"hosting-bucket\" />`.",
+              "reason": "The provided referenceable-parameter union does not include a HostingBucket or hosting-bucket entry. The page therefore implies that hosting-bucket exposes referenceable parameters, but the provided source does not support that.",
+              "suggestedFix": "Remove the Referenceable parameters section unless another authoritative source confirms that `hosting-bucket` exposes referenceable parameters.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'`; no hand-authored YAML or plain-object `StacktapeConfig` examples appear in the draft.",
+            "`<ApiReference definitionName=\"HostingBucketProps\" />` matches the page resource type and the provided `HostingBucketProps` interface.",
+            "The `hostingContentType` default and preset descriptions match the HostingBucketProps source, including `static-website`, `single-page-app`, Astro, SvelteKit, Nuxt, and Gatsby presets.",
+            "The draft correctly scopes `hosting-bucket.useFirewall` to a CDN-scoped `web-app-firewall` rather than flattening it into a broader firewall constraint."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "summary": "The draft is broadly complete for HostingBucketProps: it covers the primary upload/build/dev flow, content presets, custom domains, environment injection, routing, edge functions, firewall, upload exclusions, API reference, and referenceable parameters. I found no API-completeness, union-variant, or demonstrativeness issues that meet the requested threshold.",
+          "issues": [],
+          "positiveFindings": [
+            "All HostingBucketProps fields that are likely to matter to 30%+ of users are mentioned in the draft: uploadDirectoryPath, build, dev, excludeFilesPatterns, hostingContentType, customDomains, disableUrlNormalization, edgeFunctions, errorDocument, indexDocument, injectEnvironment, writeDotenvFilesTo, useFirewall, fileOptions, and routeRewrites.",
+            "The documented hostingContentType variants match the variants enumerated in the source comments: static-website, single-page-app, astro-static-website, sveltekit-static-website, nuxt-static-website, and gatsby-static-website.",
+            "Each Stacktape configuration example uses CodeBlock with a visible TypeScript tab and demonstrates the closest section topic: build/dev commands, content preset documents, customDomains, environment injection, and excludeFilesPatterns.",
+            "The page includes exactly one ApiReference component and uses the correct primary type name: HostingBucketProps."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "codex:gpt-5.5",
+    "first-time-user-reviewer": "codex:gpt-5.4-mini",
+    "production-engineer-reviewer": "codex:gpt-5.5",
+    "ai-consumer-reviewer": "codex:gpt-5.4-mini",
+    "factual-accuracy-verifier": "codex:gpt-5.5",
+    "source-grounding-verifier": "codex:gpt-5.5",
+    "api-completeness-auditor": "codex:gpt-5.5",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\frontend\\static-hosting.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-14T04:56:39.745Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts": "147e69cc46049612cf9334ea7fcbd920e9c27564",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\config-ref\\hosting-bucket.md": "3098f9de8114739b67c53300231d7242f3f7a381"
+  },
+  "styleGuideHash": "5bfa5b4c6981088376a91bf6595269b227cedc63"
+}

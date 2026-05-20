@@ -1,0 +1,409 @@
+{
+  "pageId": "resources__networking__network-load-balancer",
+  "pageRoute": "resources/networking/network-load-balancer",
+  "startedAt": "2026-05-15T14:44:45.143Z",
+  "updatedAt": "2026-05-15T14:58:21.022Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__network-load-balancer\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No forbidden config patterns — all Stacktape config uses <CodeBlock intellisense> with TypeScript tab, no hand-authored YAML, no StacktapeConfig type import.",
+            "Heading style, H2 order, frontmatter shape, and MDX component palette all match the example page precisely (noun-form H2s, FeatureComparisonTable, Tip/Info callouts, ReferenceableParams, ApiReference at bottom).",
+            "The FeatureComparisonTable is well-constructed and immediately useful for deciding between NLB and ALB — it maps to the most important tradeoffs readers actually face.",
+            "The 'When NOT to use' section is specific and opinionated: CDN, WAF, gradual deployments, content-based routing — each a concrete reason with an alternative.",
+            "Access control section covers both the interface (internet/internal) and per-listener IP whitelisting with clear when-to-use guidance and code examples.",
+            "Listeners section clearly distinguishes TCP from TLS and explains that TLS requires a certificate, covering both the customDomains auto-provisioning path and the customCertificateArns manual path.",
+            "FAQ has exactly 10 Q&A pairs spanning all three required categories: Stacktape-specific, underlying AWS service behavior, and choosing/comparison questions."
+          ],
+          "problems": [
+            "The basic example only shows the NetworkLoadBalancer resource in isolation. The HTTP API Gateway example page — which this page must match in form — shows both the gateway AND the Lambda function with its integration in a single working example. A new user reading the NLB page has no code example showing a container workload connecting to the NLB, which is the entire point of deploying one. The 'Basic example' section mentions the integration shape in prose but never shows it in code.",
+            "The prose claims '$ResourceParam(\\'tcpLb\\', \\'domain\\')' is available in two places (Basic example and Custom domains sections), but the provided source files show no NetworkLoadBalancerReferenceableParam in the StacktapeResourceReferenceableParam union in __helpers.d.ts. This claim is unsupported by the provided source and could be a factual error.",
+            "The 'internal' interface section claims 'security group rules scope ingress to the VPC CIDR rather than 0.0.0.0/0' — this is an implementation-level AWS detail not present in the provided source files. The source only documents the interface property values and their meaning at a high level.",
+            "No section or code example demonstrates how a container workload (WebService, PrivateService, MultiContainerWorkload) actually declares the network-load-balancer integration in its events array. The ContainerWorkloadNetworkLoadBalancerIntegrationProps type is in the provided source but never appears in a code example, leaving a new user without a complete working setup."
+          ],
+          "mandatoryFixes": [
+            "Extend the 'Basic example' section to include a second CodeBlock showing a container workload (e.g. WebService or PrivateService) with a network-load-balancer integration in its events array — specifying loadBalancerName, listenerPort, and containerPort. The HTTP API Gateway example page shows this pattern (gateway + Lambda integration in the basic example); the NLB page must match that completeness. Without this, a new user cannot build a working stack from the page."
+          ],
+          "optionalImprovements": [
+            "Qualify or remove the '$ResourceParam(\\'tcpLb\\', \\'domain\\')' claim. If the 'domain' referenceable parameter is not present in the StacktapeResourceReferenceableParam union, either remove the inline reference to that param name and let <ReferenceableParams> speak for itself, or verify the param name from the actual generated schema and use the verified name.",
+            "Remove or soften the security-group VPC CIDR claim in the 'Internet vs internal' section — state the behavioral effect ('reachable only from within the VPC') without asserting the AWS-level mechanism ('security group rules scope ingress to the VPC CIDR'), which is an implementation detail not present in the source.",
+            "Consider adding a short mention or link to the triggers/events documentation page for the full container workload NLB integration shape (loadBalancerName, listenerPort, containerPort), similar to how the HTTP API Gateway page links to /configuration/triggers/http-triggers for the integration API.",
+            "The FAQ answer for 'Does Network Load Balancer support health checks?' could note that the NLB resource in Stacktape does not expose health check configuration directly (consistent with the source showing no health check property on NetworkLoadBalancerProps), making it clearer to readers that they cannot configure it via Stacktape."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong FeatureComparisonTable comparing NLB vs ALB across OSI layer, routing, TLS, CDN, WAF, and latency — exactly the comparison operators need when choosing between the two.",
+            "Noun-form H2s, H2 ordering, MDX component palette, frontmatter shape, and <ApiReference> placement all match the example page precisely.",
+            "IP whitelisting per-listener is documented with clear CIDR notation guidance and a realistic example (office IPs, partner networks) — a property users routinely get wrong.",
+            "The When NOT to use section is unusually precise: CDN, WAF, gradual deployments, content-based routing — each with a concrete alternative linked. This is more actionable than most resource pages.",
+            "FAQ covers all three required categories (Stacktape-specific, underlying AWS service, choosing/comparison) and reaches 10 items.",
+            "The <Info> callout correctly anchors the WAF/CDN limitation at the point where a user might expect it, rather than relegating it to When NOT to use alone."
+          ],
+          "problems": [
+            "The claim 'security group rules scope ingress to the VPC CIDR rather than 0.0.0.0/0' in the Access control section is not grounded in the source. The source only says `interface?: 'internet' | 'internal'` with the description 'internet (public) or internal (VPC-only).' AWS NLBs have historically not supported security groups the same way ALBs do. Asserting specific security-group behavior not described in the type definitions could mislead a security-conscious operator who will verify this against AWS docs and find it doesn't match.",
+            "The prose claim '$ResourceParam('tcpLb', 'domain')' in the Basic example section is not verifiable from the provided source files. The `StacktapeResourceReferenceableParam` union in __helpers.d.ts does not include a NetworkLoadBalancer entry. If NLB genuinely exposes no referenceable params, the entire 'Referenceable parameters' section — including the prose claim and the <ReferenceableParams> component — would render incorrectly or be empty.",
+            "The Basic example shows only the NLB in isolation, without any workload integration. The example page (HTTP API Gateway) shows the full end-to-end usage: gateway plus Lambda function. A standalone NLB has no targets, so a copyable example that stops at 'here is the NLB' leaves the reader unable to actually use it. The integration shape (ContainerWorkloadNetworkLoadBalancerIntegration with loadBalancerName, listenerPort, containerPort) is available in the source but never shown in a code example.",
+            "The Tip in the Listeners section — 'When a TLS listener has both customDomains certificates and customCertificateArns, all certificates are attached. AWS NLB uses SNI to select the right certificate' — is not grounded in the source code. This is AWS implementation detail that may or may not reflect what Stacktape does, and if wrong would cause confusing TLS behavior in production."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow the security-group claim in the internal interface subsection. The source only guarantees 'VPC-only' access; it does not describe the security group implementation. Replace with: 'Setting interface to `internal` gives the NLB an internal scheme, making it reachable only from within the VPC and unreachable from the public internet.' Do not assert security group rule details that are not in the source.",
+            "Either verify and source-ground the '$ResourceParam('tcpLb', 'domain')' claim or remove it. If NetworkLoadBalancer does not appear in the StacktapeResourceReferenceableParam union, remove the Referenceable parameters prose claim and consider whether the <ReferenceableParams> component will render anything meaningful.",
+            "Add a working integration code example — either as a second tab in the Basic example CodeBlock or as a standalone subsection. Show a WebService (or PrivateService) with a network-load-balancer event that specifies loadBalancerName, listenerPort, and containerPort, sourced from ContainerWorkloadNetworkLoadBalancerIntegrationProps in events.d.ts. This is the most common follow-up action after defining an NLB.",
+            "Remove the SNI/certificate-combination Tip from the Listeners section. The behavior of what happens when both customDomains and customCertificateArns are present is not described in the source. Either source-ground the claim or drop the Tip entirely."
+          ],
+          "optionalImprovements": [
+            "The Access control section mixes two concepts (interface and IP whitelisting) under one H2. As the page grows, consider promoting 'IP whitelisting' to its own H2 — the example page uses a flat section-per-concept structure. For now this is fine, but note it if the access-control section expands.",
+            "The Listeners section could briefly note that at least one listener is required (the source says `listeners: NetworkLoadBalancerListener[]` with no optional marker), so the config fails validation without one. One sentence would save a confusing 'no targets' deploy error.",
+            "The FAQ answer for 'Does Network Load Balancer support health checks?' says 'Containers that fail health checks are automatically replaced.' This is correct AWS behavior but sounds like a Stacktape-specific guarantee. Phrasing it as 'AWS NLB performs TCP-level health checks on registered targets; containers failing those checks are deregistered and eventually replaced by ECS' is more accurate about who owns the behavior."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations — all Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with exactly label: 'TypeScript', no hand-authored YAML.",
+            "Follows the example page's form closely: noun-form H2s, matching order for shared sections, same MDX palette (FeatureComparisonTable, Tip, Info, ReferenceableParams, ApiReference at bottom before FAQ).",
+            "FeatureComparisonTable comparing NLB vs ALB is well-formed and highly extractable — covers OSI layer, routing capability, CDN/WAF support, and latency in a scannable format.",
+            "TCP vs TLS listener variants are developed to equal depth: a prose rationale for each, a code example covering both, and a separate example for custom certificate ARNs.",
+            "Decision support for opt-in features is solid: the 'internet vs internal' subsection states when to use each, what the default gives you, and the security consequence.",
+            "IP whitelisting section is concrete and practical — uses real CIDR examples (/32, /24) and explains the per-listener granularity.",
+            "FAQ has exactly 10 questions spanning all three required categories: Stacktape-specific (custom domains, CDN/WAF, gradual deployments, multiple ports, workload connection), AWS service use-case (health checks, pricing model), and comparison (NLB vs ALB, protocols supported).",
+            "Opening paragraph is self-contained (50 words) and directly answers 'what is this and why does it matter' — extractable by AI Overview.",
+            "ApiReference uses correct definitionName 'NetworkLoadBalancerProps' matching the source type.",
+            "The 'When NOT to use' section is concrete and comparative, listing ALB and HTTP API Gateway as alternatives with specific reasons."
+          ],
+          "problems": [
+            "Basic example shows only the NetworkLoadBalancer resource with no container workload connecting to it. The HTTP API Gateway example page (the consistency anchor) shows both the gateway AND a Lambda function with an HttpApiIntegration in the same basic example. The NLB page breaks this pattern: a reader who copy-pastes the basic example gets an NLB with no targets — a non-functional system. The ContainerWorkloadNetworkLoadBalancerIntegration type is documented in the source (events.d.ts) and is the critical second half of the NLB story.",
+            "No dedicated section on connecting container workloads to the NLB. The HTTP API Gateway page has a 'Routing' section that shows both the gateway config and the compute resource's integration side by side. The NLB page relegates this entirely to the FAQ (Q8) and a single prose sentence in the basic example section. This is the most common task a reader comes to this page to learn.",
+            "The prose claim in the 'Access control > Internet vs internal' section — 'the security group rules scope ingress to the VPC CIDR rather than 0.0.0.0/0' — describes AWS-side behavior not stated in the source type definition. This is reasonable inference about AWS NLB behavior, but it reads as a Stacktape-specific claim. Should be framed as 'AWS NLB internal scheme makes it...' to be safe.",
+            "The basic example's prose mentions `$ResourceParam('tcpLb', 'domain')` as a referenceable param, but NetworkLoadBalancer is not in the `StacktapeResourceReferenceableParam` union in __helpers.d.ts. The source does not show a `NetworkLoadBalancerReferenceableParam` type, which means this claim may be unsupported or at least unverifiable from the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Extend the basic example to show a complete system — NetworkLoadBalancer plus a container workload (e.g., WebService or PrivateService) that registers via ContainerWorkloadNetworkLoadBalancerIntegration. The integration requires loadBalancerName, listenerPort, and containerPort (from events.d.ts). This mirrors the HTTP API Gateway basic example which shows both gateway and LambdaFunction + HttpApiIntegration, and is the minimum a reader needs to build a working setup.",
+            "Add a 'Connecting workloads' section (or expand 'Listeners' with a subsection) that shows how container workloads register with the NLB using network-load-balancer events. Source: ContainerWorkloadNetworkLoadBalancerIntegrationProps in events.d.ts has loadBalancerName, listenerPort, containerPort. Without this, the page documents the NLB in isolation and omits the most critical configuration step.",
+            "Verify whether a NetworkLoadBalancerReferenceableParam type exists before claiming $ResourceParam('tcpLb', 'domain') is usable. The provided __helpers.d.ts does not include NetworkLoadBalancerReferenceableParam in the StacktapeResourceReferenceableParam union. If the param is not referenceable, remove or qualify the claim. If it is (from a source not provided), note its origin."
+          ],
+          "optionalImprovements": [
+            "Reframe the VPC CIDR ingress claim in 'Internet vs internal' as an AWS service mechanic: 'Underneath, AWS NLB uses an internal scheme that makes the load balancer's DNS name resolve to a private IP — the NLB is unreachable from outside the VPC.' This removes the ambiguity about whether Stacktape or AWS controls the security group.",
+            "The Listeners section could add a one-line note on minimum listener count: 'At least one listener is required — the NLB has no default listener.' Currently this is mentioned in prose but could be more prominent.",
+            "Consider adding a brief note on health checks in the Listeners section (not just FAQ) — AWS NLB uses TCP-level health checks by default and healthcheck behavior is not configurable on the Stacktape NLB resource, which surprises users expecting HTTP health checks.",
+            "The Tip callout about SNI certificate selection is accurate and useful, but could be slightly more actionable: note that AWS NLB requires the client to send SNI for cert selection to work, which may matter for legacy TCP clients that don't support SNI."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "You can reference the deployed NLB domain with `$ResourceParam('tcpLb', 'domain')` in your config or retrieve it via `stacktape param:get`.",
+              "reason": "While the NLB resolver does register a 'domain' referenceable parameter (confirmed in the resolver implementation at resource-resolvers/network-load-balancers/index.ts), the 'domain' param is registered conditionally — only when custom domains exist, custom certificates are used, or when a default domain is provisioned through a custom resource. The draft presents it as always available, which could mislead users with a bare TCP NLB (no custom domains, no TLS) into expecting a 'domain' param that might not exist. The 'canonicalDomain' param (the raw NLB DNS name) is also conditionally shown. Consider clarifying which params are always available vs conditional, or using 'canonicalDomain' as the unconditional example.",
+              "suggestedFix": "Either clarify that `domain` is available when custom domains or TLS certificates are configured, or use `canonicalDomain` (the raw AWS-assigned DNS name) in the example since it's more broadly available. Alternatively, remove the specific param name and let the `<ReferenceableParams>` component serve as the definitive reference.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\calculated-stack-overview-manager\\resource-resolvers\\network-load-balancers\\index.ts",
+                  "quote": "canonicalDomain"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Listeners section covers TCP and TLS well with examples but lacks decision-support depth for choosing between them.",
+              "reason": "The Listeners section describes what TCP and TLS listeners do and provides a multi-listener example, but it doesn't cover tradeoffs: the latency cost of TLS termination at the NLB vs end-to-end encryption, when TCP pass-through with application-level TLS is preferred (e.g., mTLS where the application needs the client certificate), or performance implications. The TCP vs TLS choice is the primary listener decision and deserves the same decision-support treatment given to 'internet vs internal'.",
+              "suggestedFix": "Add 2-3 sentences of tradeoff context: TCP is simpler and avoids double-encryption if the backend already terminates TLS; TLS at the NLB offloads certificate management and works well when the backend doesn't need to inspect client certificates; for mTLS or when the application needs the raw TLS handshake (e.g., client certificate authentication), use TCP and terminate TLS in the container.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "protocol: 'TCP' | 'TLS';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The custom domains section is adequate but the `customCertificateArns` example on the listener lacks explanation of when to use listener-level certs vs domain-level certs.",
+              "reason": "Two code examples show TLS certificate configuration in different ways: (1) auto-provisioned via `customDomains` on the NLB, and (2) explicitly via `customCertificateArns` on the listener. These serve different use cases but the distinction isn't spelled out clearly. Users seeing both patterns may not understand that `customDomains` auto-provisions AND auto-attaches certs to TLS listeners, while `customCertificateArns` is for bring-your-own certificates without domain management.",
+              "suggestedFix": "Add a brief paragraph clarifying the two paths: `customDomains` handles everything (DNS + cert + attachment); `customCertificateArns` on the listener is for cases where you already have ACM certificates and manage DNS outside Stacktape/Route53. Mention that the two can coexist (as the Tip already notes for SNI).",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "customCertificateArns?: string[];"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The page does not mention that container workloads need a `network-load-balancer` event integration to receive traffic, but never shows the workload-side configuration.",
+              "reason": "The page explains the NLB-side setup thoroughly but only describes the workload integration in prose ('Container workloads add a network-load-balancer integration to their events array'). A brief workload-side code snippet showing the integration event would make the page more actionable — users configuring an NLB will also need to configure the workload. The FAQ answer for 'How do container workloads connect' names the properties but still doesn't show code.",
+              "suggestedFix": "Consider adding a small example showing the workload-side integration (e.g., a WebService or MultiContainerWorkload with a `network-load-balancer` event referencing the NLB). Alternatively, link directly to the relevant section of the web-service or multi-container-workload page where NLB integration is documented.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadNetworkLoadBalancerIntegrationProps extends NetworkLoadBalancerIntegrationProps {\n  containerPort: number;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All TypeScript CodeBlock examples use correct `defineConfig` pattern with proper imports, focus markers, and `NetworkLoadBalancer` class instantiation — no forbidden YAML config blocks or `StacktapeConfig` type usage.",
+            "ApiReference uses correct `NetworkLoadBalancerProps` definitionName matching the source type definition.",
+            "All cross-links point to valid routes from the navigation index (application-load-balancer, http-api-gateway, cdn, web-application-firewall, domain-add, param-get, custom-domains, web-service, private-service, multi-container-workload).",
+            "'When NOT to use' is correctly a peer H2 section, not nested under 'When to use'.",
+            "Property defaults are accurately stated: `interface` defaults to `internet` (matches `@default internet` in source), `whitelistIps` default behavior matches source JSDoc ('Default: all IPs allowed').",
+            "The `protocol: 'TCP' | 'TLS'` union is fully covered with examples for both variants and clear explanation of each.",
+            "The `interface: 'internet' | 'internal'` union is fully covered with a dedicated subsection, code example, and good decision-support guidance.",
+            "The FeatureComparisonTable between NLB and ALB is factually accurate: CDN non-support confirmed by `StpCdnAttachableResourceType` excluding NLB; WAF non-support confirmed by commented-out `useFirewall` property; routing differences match the type definitions.",
+            "FAQ section has exactly 10 Q&A pairs with good category coverage: Stacktape-specific (custom domain, health checks, CDN/WAF, multiple ports), AWS service questions (NLB cost, gradual deployments), and comparison questions (NLB vs ALB, internet vs internal).",
+            "The `listeners` property is correctly described as required (no `?` in source type), and the `DomainConfiguration` properties (`disableDnsRecordCreation`, `customCertificateArn`) match the source exactly."
+          ],
+          "summary": "The Network Load Balancer draft is well-crafted and closely grounded in source. All TypeScript examples are correctly structured, cross-links are valid, property names and defaults match the source types, and the union types (TCP/TLS, internet/internal) are fully covered. The main factual concern is the `$ResourceParam('tcpLb', 'domain')` claim — while 'domain' is a real referenceable param in the resolver implementation, it is registered conditionally (only when custom domains or certificates are configured), and the draft presents it as unconditionally available. Documentation-quality gaps are minor: the TCP vs TLS listener choice could use more decision-support depth, and the page would benefit from showing the workload-side integration configuration. No high-severity issues found."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the NLB type surface: TCP/TLS listeners, public/internal interface, custom domains, listener-level IP whitelisting, and the lack of CDN/firewall/gradual-deployment support are all broadly grounded. The main blockers are unsupported referenceable-parameter claims, a likely wrong self-managed-DNS certificate instruction, and several places where AWS/NLB behavior is stated more specifically than the provided Stacktape sources support.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“You can reference the deployed NLB domain with `$ResourceParam('tcpLb', 'domain')`…” and the page includes `<ReferenceableParams resource=\"network-load-balancer\" />`.",
+              "reason": "The provided source files do not define any `NetworkLoadBalancerReferenceableParam`, and the global `StacktapeResourceReferenceableParam` union excludes network load balancers. This would lead readers to use a `$ResourceParam` value that is not grounded in the provided types.",
+              "suggestedFix": "Remove the `$ResourceParam('tcpLb', 'domain')` claim and the `<ReferenceableParams resource=\"network-load-balancer\" />` section unless another authoritative generated source proves NLB referenceable params. If the domain is available only through stack info or AWS, state that cautiously with a source-backed mechanism.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“If you manage DNS records yourself … set `disableDnsRecordCreation: true` — Stacktape will provision the TLS certificate but skip creating the DNS record in Route53. If you have specific certificate requirements, provide `customCertificateArn`…”",
+              "reason": "The NLB-specific `customDomains` JSDoc says that when DNS is managed externally, users should set `disableDnsRecordCreation` and provide `customCertificateArn`. The draft presents `customCertificateArn` as optional only for special certificate requirements, which contradicts the more specific NLB source.",
+              "suggestedFix": "For Network Load Balancers, say: “By default, Stacktape creates DNS records and TLS certificates for each domain. If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`.” Avoid saying Stacktape will still auto-provision the certificate for this NLB path.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "By default, Stacktape creates DNS records and TLS certificates for each domain.\n   * If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“gRPC services — TLS pass-through to a gRPC server without HTTP/2 termination at the load balancer.”",
+              "reason": "The provided NLB listener type distinguishes `TCP` from `TLS`, and the source says TLS requires a certificate. That supports TLS termination at the load balancer, not TLS pass-through. TLS pass-through would be better described as using a TCP listener and letting the application terminate TLS.",
+              "suggestedFix": "Change the gRPC example to something like: “gRPC services that need transport-layer routing; use a TCP listener for application-side TLS termination, or a TLS listener when you want the load balancer to use an ACM certificate.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "#### `TCP` (raw) or `TLS` (encrypted). TLS requires a certificate (auto-created with `customDomains` or via `customCertificateArns`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When a TLS listener has both `customDomains` certificates and `customCertificateArns`, all certificates are attached. AWS NLB uses SNI …”",
+              "reason": "The source documents custom-domain certificates and listener-level `customCertificateArns`, but it does not document the behavior when both are supplied together or guarantee that Stacktape attaches all certificates. The SNI detail is general AWS behavior, but the “all certificates are attached” Stacktape-specific behavior is unsupported by the provided files.",
+              "suggestedFix": "Remove the tip or narrow it to source-backed guidance: “Use `customDomains` for Stacktape-managed certificates, or `customCertificateArns` when you want to attach your own ACM certificate.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "#### ARNs of your own ACM certificates. Not needed if using `customDomains` or TCP protocol."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When set to `internal`, the security group rules scope ingress to the VPC CIDR rather than `0.0.0.0/0`, and the NLB gets an internal scheme…”",
+              "reason": "The source grounds the public-vs-VPC-only distinction and the default, but it does not describe generated security group ingress rules or an exact `0.0.0.0/0` comparison. That implementation detail is more specific than the provided NLB type supports.",
+              "suggestedFix": "Keep the source-backed part: “`interface: 'internal'` makes the Network Load Balancer VPC-only; `interface: 'internet'` is the default public option.” Remove the security-group-rule detail unless runtime code is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "#### `internet` (public) or `internal` (VPC-only).\n   * @default internet"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS NLB performs TCP-level health checks on registered targets by default… Containers that fail health checks are automatically replaced. Health check behavior is managed at the AWS target group level, not configured directly on the Stacktape NLB resource.”",
+              "reason": "The NLB props in the provided source expose `interface`, `customDomains`, and `listeners`; they do not expose or document NLB health-check behavior. Container auto-replacement is documented for the separate `internalHealthCheck` property on container workloads, not as an NLB FAQ claim.",
+              "suggestedFix": "Rewrite the FAQ to separate what is source-backed from what is not: “The Network Load Balancer resource does not expose health-check settings in the provided type. Configure container health through workload health-check settings where applicable.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "interface NetworkLoadBalancerProps {\n  /**\n   * #### `internet` (public) or `internal` (VPC-only).\n   * @default internet\n   */\n  interface?: 'internet' | 'internal';\n  /**\n   * #### Custom domains.\n   *\n   * ---\n   *\n   * By default, Stacktape creates DNS records and TLS certificates for each domain.\n   * If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`.\n   *\n   * Backward compatible format `string[]` is still supported.\n   */\n  customDomains?: DomainConfiguration[] | string[];\n  /**\n   * #### Listeners define which ports and protocols (TCP/TLS) this load balancer accepts traffic on.\n   */\n  listeners: NetworkLoadBalancerListener[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Health check that auto-replaces unhealthy containers.\n   *\n   * ---\n   *\n   * If a container fails the health check, it's terminated and replaced automatically.\n   */\n  internalHealthCheck?: ContainerHealthCheck;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Custom domains section only documents `DomainConfiguration[]` object entries and never acknowledges the supported backward-compatible `string[]` form.",
+              "reason": "The source explicitly defines `customDomains?: DomainConfiguration[] | string[]` and says the string-array format is still supported. The page can still recommend the object form, but the union variant should be acknowledged to avoid implying the object form is the only accepted shape.",
+              "suggestedFix": "Add one concise caveat: “Use object entries for new configs because they support `customCertificateArn` and `disableDnsRecordCreation`; the older `string[]` form is still accepted for backward compatibility.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "customDomains?: DomainConfiguration[] | string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Targets are registered and deregistered atomically during deployments. For deployment strategies that shift traffic incrementally … use container workloads behind an Application Load Balancer, which integrates with CodeDeploy for gradual deployments.”",
+              "reason": "The NLB source supports the narrower claim that Network Load Balancers do not support gradual deployments. It does not document atomic target registration/deregistration behavior or the ALB/CodeDeploy implementation detail in the provided source list.",
+              "suggestedFix": "Keep the grounded statement: “Network Load Balancer does not support gradual deployments. Use an Application Load Balancer when you need Stacktape’s gradual deployment path.” Remove the atomic-registration and CodeDeploy-specific details unless ALB deployment-strategy source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "Handles millions of connections with ultra-low latency. Use when you need raw TCP/TLS\n * instead of HTTP routing. Does not support CDN, firewall, or gradual deployments."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `defineConfig` with class-based `NetworkLoadBalancer` examples inside `<CodeBlock intellisense>` and does not hand-author YAML Stacktape config.",
+            "`<ApiReference definitionName=\"NetworkLoadBalancerProps\" />` matches the page’s resource props type.",
+            "The page correctly keeps `When to use` and `When NOT to use` as peer H2 sections.",
+            "The listener protocol values `TCP` and `TLS`, required `listeners`, default `interface: 'internet'`, listener-level `whitelistIps`, and lack of CDN/firewall/gradual-deployment support are all grounded in the provided NLB type file.",
+            "All internal documentation links used in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the core NetworkLoadBalancerProps surface well: listeners, TCP/TLS protocol variants, internet/internal interface, custom domains, listener certificates, listener IP restrictions, API reference, and referenceable parameters. The main completeness gap is that it explains workload attachment only in prose, without a demonstrative Stacktape config example showing the required container workload integration. One smaller union-variant gap remains for the backward-compatible string[] customDomains form.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The Basic example defines only `new NetworkLoadBalancer({ listeners: [...] })` while the section says container workloads register themselves with a `network-load-balancer` integration.",
+              "reason": "For a practical NLB setup, the reader needs to see the target workload integration shape: `type: 'network-load-balancer'`, `loadBalancerName`, `listenerPort`, and `containerPort`. The current example creates a listener but does not demonstrate how any container receives traffic, so the example is less demonstrative than the section topic requires.",
+              "suggestedFix": "Add a second focused example, or expand the basic example, to include a container workload with an `events` entry using `type: 'network-load-balancer'` and properties `loadBalancerName: 'tcpLb'`, `listenerPort: 5432`, and `containerPort: 5432`. Keep the NLB page focused, but show the attachment contract once.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadNetworkLoadBalancerIntegration {\n  type: 'network-load-balancer';\n  properties: ContainerWorkloadNetworkLoadBalancerIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadNetworkLoadBalancerIntegrationProps extends NetworkLoadBalancerIntegrationProps {\n  /**\n   * #### The container port that will receive traffic from the load balancer.\n   */\n  containerPort: number;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface NetworkLoadBalancerIntegrationProps {\n  /**\n   * #### The name of the Network Load Balancer.\n   */\n  loadBalancerName: string;\n  /**\n   * #### The port of the listener that will forward traffic to this integration.\n   */\n  listenerPort: number;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The custom domains section documents only object-style `customDomains` entries such as `{ domainName: 'tcp.example.com' }`.",
+              "reason": "The source defines `customDomains?: DomainConfiguration[] | string[]` and explicitly says the backward-compatible `string[]` format is still supported. Because the draft documents the `customDomains` union, all variants should be at least named, while still recommending the object form for new examples.",
+              "suggestedFix": "Add a short caveat: \"Use object-style `customDomains` entries for new configs because they support `customCertificateArn` and `disableDnsRecordCreation`; the older `string[]` format is still accepted for compatibility.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "customDomains?: DomainConfiguration[] | string[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "Backward compatible format `string[]` is still supported."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft includes exactly one `<ApiReference definitionName=\"NetworkLoadBalancerProps\" />`, matching the page metadata typeName.",
+            "The listener protocol union is covered: the page names and demonstrates both `TCP` and `TLS`.",
+            "The `interface` union is covered: the page explains both `internet` and `internal` and includes an `internal` example.",
+            "Listener-level `customCertificateArns` and `whitelistIps` are documented with focused examples that exercise the properties discussed.",
+            "The page does not flatten firewall constraints: it correctly treats NLB as not supporting WAF rather than mixing in CDN or ALB firewall attachment paths."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\networking\\network-load-balancer.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-15T14:58:21.022Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts": "06f709263490d4cff2e2982c3d17fc35bfc8e583",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810"
+  },
+  "styleGuideHash": "5bfa5b4c6981088376a91bf6595269b227cedc63"
+}

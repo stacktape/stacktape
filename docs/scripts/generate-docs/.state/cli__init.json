@@ -1,0 +1,362 @@
+{
+  "pageId": "cli__init",
+  "pageRoute": "cli/init",
+  "startedAt": "2026-05-17T22:14:04.654Z",
+  "updatedAt": "2026-05-17T22:18:26.118Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__init\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Every bash block contains exactly one command — the copy-button trap is fully avoided throughout the page.",
+            "The Warning callout on `--initializeProjectTo` is appropriately placed right next to the destructive behavior it describes, giving a first-time user a clear heads-up before they accidentally delete files.",
+            "Each important flag has its own working example command, making the page practical rather than just descriptive.",
+            "The `<CliCommandsApiReference>` component is used correctly with all args populated, providing a complete reference table without hand-authoring flags.",
+            "The FAQ covers the most likely first-time-user questions (do I need an AWS account, can I re-run init, starterId vs templateId) in clear 2-4 sentence answers.",
+            "The `--agent` flag is explicitly documented with its CI/AI use case, which is non-obvious and genuinely useful.",
+            "Related commands section correctly links to the 1-3 closest siblings (deploy, dev, login)."
+          ],
+          "problems": [
+            "The 'How the wizard works' section substantially restates the intro paragraph. The intro already says: 'analyzes your codebase with AI, generates a Stacktape configuration file, walks you through account setup, AWS connection, and an optional first deployment.' The section then lists the same five steps with marginally more detail. The net new information (CI/CD is optional, the skip note) should either be folded into the intro or placed as a callout rather than a full repeated section.",
+            "The `<CliCommandsApiReference>` (the 'All flags' section) is placed at position 6 in the page, after a long 'Important flags' block with seven H3s and an 'Examples' section. The section instructions prescribe: paragraph → usage example → auto-generated reference → examples → related commands. Placing the reference table after all the individual flag sections means a reader looking for a flag not in 'Important flags' must scroll past significant content.",
+            "The FAQ has 6 Q&A pairs. The style guide recommends 8-10 (fewer is acceptable for narrow pages). The `init` command doesn't back an AWS service so category-2 questions (AWS service mechanics) don't apply cleanly, but one or two comparison/choosing questions are missing — for example, 'When should I use init --starterProject versus the AI wizard?' or 'What if my code isn't in a supported language?'",
+            "The `--infrastructureType` section explains the three tiers but never gives the reader an opinionated recommendation. A first-time user has no signal for which to pick. 'Start with `standard`' or 'use `low-cost` for your first deploy' would eliminate the decision paralysis."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Trim or merge 'How the wizard works' into the intro paragraph. Fold the CI/CD detail and the 'You can skip by using --starterId or --templateId' note into the intro as a one-liner, then remove the section entirely. This reduces vertical scroll before the reader reaches the flag docs.",
+            "Move `<CliCommandsApiReference>` immediately after the `## Usage` section (per CLI section instructions), so readers looking for a flag they don't see under 'Important flags' don't have to scroll past seven H3s and three example blocks.",
+            "Add an opinionated sentence to `--infrastructureType`: something like 'For a first deploy, `standard` is a safe starting point; switch to `production` when the workload handles real traffic.' This gives a first-time user a clear default choice.",
+            "Add 2 FAQ entries to approach the 8-10 target: one comparison question ('When should I use the AI wizard versus --starterProject?') and one practical-gotcha question ('What happens if init generates a config that doesn't match my project?'). These would cover the most natural follow-up searches.",
+            "The `seoDescription` ends with 'One command to go from code to a deployable AWS stack.' — slightly promotional. Replace with a concrete fact, e.g. 'Supports AI-generated config, starter templates, and Console templates; no flags required for the default interactive flow.'"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All 10 flags from the source are correctly documented with accurate allowed values, aliases, and allowed-values enumerations — verified against commands.ts.",
+            "No mandatory style violations: no YAML Stacktape config blocks, no StacktapeConfig type imports, no fenced TypeScript with defineConfig, no marketing language.",
+            "The 'init does not require an API key' statement is directly grounded in the source (commandsNotRequiringApiKey list).",
+            "The five wizard steps match the source description in commands.ts verbatim — no invented steps.",
+            "Each bash block contains exactly one command. No # comment labels inside code blocks. The destructive --initializeProjectTo Warning callout is correct and specific.",
+            "FAQ mixes Stacktape-specific, AWS/account workflow, and comparison question categories as required, and stays within the 4-6 quality range appropriate for a narrow-scope CLI reference page."
+          ],
+          "problems": [
+            "--agent is documented only in the Examples section and the API reference table, not in the Important flags section. It is an operationally significant flag (disables interactive prompts, enables JSONL output, used in CI and LLM agent contexts) that warrants its own H3 alongside the others.",
+            "The distinction between --projectDirectory and --initializeProjectTo is not made explicit anywhere in prose. Both affect where files land, but --projectDirectory is for config file generation while --initializeProjectTo is for starter project file placement. A reader using --starterId alongside one of these will be unsure which to choose.",
+            "--configFormat default behavior is described as 'Defaults to the wizard's interactive prompt if omitted' — this is a plausible inference but is not stated in the source. The source only lists allowed values (yaml, typescript); it does not document the absence-behavior. Should be omitted or softened to 'if omitted, the wizard will prompt interactively'."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add --agent as an H3 under 'Important flags', covering: disables interactive prompts, outputs JSONL, implies --outputFormat jsonl, used in CI/CD pipelines and LLM agent invocations. The Examples section already shows it working; surface the explanation earlier.",
+            "Add a brief comparison sentence after introducing --projectDirectory and --initializeProjectTo explaining when each applies: '--projectDirectory sets where the stacktape.ts config file is written; --initializeProjectTo sets where starter project source files are unpacked. Use --initializeProjectTo when you want the full starter template in a specific directory.'",
+            "Soften or remove the --configFormat default claim. Replace 'Defaults to the wizard's interactive prompt if omitted' with 'If omitted when running the wizard, you will be prompted to choose.' This stays accurate without over-claiming source behavior.",
+            "The FAQ question 'Can I re-run init on an existing project?' answers that the wizard starts again but adds 'Review the generated configuration before deploying to make sure it matches your intent.' Consider adding a note that running init again will not delete an existing stacktape.ts — it offers to overwrite it — so existing config is not silently lost.",
+            "Consider adding a FAQ entry: 'What is the difference between --projectDirectory and --initializeProjectTo?' This is the most likely confusion point when using starter project flags and currently has no entry in the FAQ or comparison prose."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page follows the required CLI-page rhythm: short command summary, usage, generated `<CliCommandsApiReference command=\"init\" />`, examples, related commands, and FAQ.",
+            "The opening paragraph is answer-first, self-contained, and within the expected length range.",
+            "The main command modes are easy to scan: default wizard, starter project mode, and template mode are all covered.",
+            "Shell examples follow the one-command-per-block rule and avoid explanatory comments inside copyable command blocks.",
+            "No forbidden Stacktape YAML config, `StacktapeConfig`, or fenced TypeScript Stacktape config examples appear."
+          ],
+          "problems": [
+            "Several claims go beyond the provided source. `--configFormat` is described as defaulting to the wizard's interactive prompt when omitted, but the source only says the option is optional and lists allowed values.",
+            "The `--starterProject` description says it opens an interactive picker of available templates; the source only says it initializes from a starter project template instead of the default wizard flow.",
+            "The `--templateId` section and FAQ mention a Console visual editor flow, but the provided source only supports fetching a template from the Stacktape Console / Config Builder page, not the exact visual-editor workflow.",
+            "The FAQ says `stacktape init --agent` can be fully automated with `--configFormat`, `--infrastructureType`, and `--starterId`; the source confirms agent mode and flags, but does not prove that this exact combination fully avoids all interactive input in every path.",
+            "The FAQ says rerunning `init` in a directory that already has a Stacktape config starts the wizard again. The provided `commandInit` source only selects between template, starter, and wizard modes; it does not document existing-config overwrite or re-run behavior.",
+            "The page does not mention `--outputFormat` or `--logLevel` in the prose even though they are valid init flags; the API reference includes them, but the practical examples focus mostly on initialization modes.",
+            "The first paragraph and SEO description use slightly broad phrasing like \"one command to go from code to a deployable AWS stack,\" which is directionally consistent but less precise than the source-backed wizard behavior."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow the unsupported `--configFormat` default claim. Say only that `--configFormat` accepts `typescript` or `yaml`, and omit the default unless the wizard source is provided.",
+            "Replace the `--starterProject` interactive-picker claim with source-grounded wording: `--starterProject` initializes from a starter project template instead of the default wizard flow.",
+            "Narrow the `--templateId` wording to fetching a template from the Stacktape Console / Config Builder page. Do not claim a visual editor workflow unless console source or a specific source file supports it.",
+            "Remove or qualify the claim that `stacktape init --agent` plus selected flags fully automates initialization without any interactive input; source-ground it in the `agent` flag behavior only.",
+            "Remove or qualify the FAQ claim about rerunning `init` on an existing project unless source for existing-config handling is provided."
+          ],
+          "optionalImprovements": [
+            "Add one short prose note for `--outputFormat` because agent and machine-readable usage are already discussed.",
+            "Move \"All flags\" before \"Examples\" to match the human-maintained CLI instruction order exactly: usage example, generated reference, examples, related commands.",
+            "Make the SEO description more source-grounded by replacing \"One command to go from code to a deployable AWS stack\" with wording about the wizard analyzing the project, creating config, connecting AWS, and offering deployment.",
+            "Consider a small comparison table for the three init modes: default wizard, `--starterId` / `--starterProject`, and `--templateId`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and init command routing. I found a few claims that go beyond the readable source, mainly around default prompting behavior and exact file naming/output behavior.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Defaults to the wizard's interactive prompt if omitted” for `--configFormat`.",
+              "reason": "The provided source confirms that `configFormat` is an optional init argument and that the default command path runs the wizard, but it does not state that omitting `--configFormat` specifically opens an interactive prompt for choosing the config format.",
+              "suggestedFix": "Narrow the wording to: “Sets the generated config format. If omitted, `init` uses the default wizard flow.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "configFormat: configFormat.optional(),"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "By default, runs an interactive wizard that:\n1. Analyzes your project with AI and generates a configuration"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Controls whether the generated configuration file is TypeScript (`stacktape.ts`) or YAML (`stacktape.yml`).”",
+              "reason": "The provided source confirms the allowed config format values are `typescript` and `yaml`, but it does not ground the exact generated filenames `stacktape.ts` and `stacktape.yml` for `init`. Exact output filenames affect what users look for after running the command.",
+              "suggestedFix": "Use source-grounded wording: “Controls whether the generated configuration uses TypeScript or YAML.” Omit exact filenames unless a source file for init output paths is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "configFormat: configFormat.optional(),"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Initializes a new Stacktape project and guides you through deployment."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each starter has a unique identifier.”",
+              "reason": "The source says `starterId` is the identifier of the starter project, but it does not state uniqueness. The uniqueness claim is plausible, but not grounded in the provided files.",
+              "suggestedFix": "Change to: “Pass the identifier of the starter project you want to initialize.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "- **Starter project:** Use `--starterProject` or `--starterId` to initialize from a pre-configured template."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\init\\index.ts",
+                  "quote": "if (globalStateManager.args.starterId || globalStateManager.args.starterProject) {\n    return initUsingStarterProject();\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Can I re-run init on an existing project? Yes. Running `init` in a directory that already has a Stacktape config will start the wizard again.”",
+              "reason": "The provided init routing shows that the default path calls `runInitWizard()`, but the source list does not include `wizard` behavior or existing-config handling for a directory that already contains a Stacktape config. The claim may be true, but it is not verifiable from the provided source files.",
+              "suggestedFix": "Either remove this FAQ entry or narrow it to source-backed behavior: “Running `stacktape init` without `--templateId`, `--starterId`, or `--starterProject` uses the default wizard flow.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly states that `init` has no required flags; `requiredArgs: []` is present in the command definition.",
+            "The routing between default wizard mode, `--templateId`, and starter project mode matches `src/commands/init/index.ts`.",
+            "The related command links all point to routes present in the provided documentation navigation index.",
+            "The page uses `<CliCommandsApiReference command=\"init\" ... />` as required for CLI reference pages and does not hand-author Stacktape YAML or config examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the `init` command definition, required args, allowed flags, and command routing. The main problems are a few defaults and UI/flow details stated more specifically than the provided sources support.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Defaults to the wizard's interactive prompt if omitted” for `--configFormat`.",
+              "reason": "The provided command metadata documents the allowed config formats, but it does not state that omitting `--configFormat` triggers a wizard prompt or define any default behavior for this flag.",
+              "suggestedFix": "Narrow to: “If provided, `--configFormat` selects the generated config format. Supported values are `typescript` and `yaml`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "configFormat: configFormat.optional()"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "By default, runs an interactive wizard that:\n1. Analyzes your project with AI and generates a configuration\n2. Helps you sign up or log in to Stacktape\n3. Connects your AWS account\n4. Creates a project and optionally sets up CI/CD\n5. Offers to deploy immediately"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When set to `true`, enters the starter project selection flow — an interactive picker where you choose from available templates.”",
+              "reason": "The source supports that `--starterProject` initializes from a starter project template instead of the default wizard, but it does not describe an interactive picker or selection UI.",
+              "suggestedFix": "Change to: “When set to `true`, initializes from a starter project template instead of running the default wizard flow.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "<p>If <code>true</code>, initializes from a starter project template instead of running the default wizard flow.</p>\\n"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\init\\index.ts",
+                  "quote": "if (globalStateManager.args.starterId || globalStateManager.args.starterProject) {\n    return initUsingStarterProject();\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`--projectDirectory` ... Defaults to the current working directory.”",
+              "reason": "The provided source states what `projectDirectory` means, but does not state the default value when it is omitted.",
+              "suggestedFix": "Remove the default claim or write cautiously: “Sets the root directory where the project configuration should be generated.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "projectDirectory: projectDirectory.optional()"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "<p>The root directory where the project configuration should be generated.</p>\\n"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Run in agent mode for programmatic use (outputs JSONL, disables interactive prompts): `stacktape init --agent`.”",
+              "reason": "The source supports that `--agent` optimizes output for programmatic/LLM consumption, uses JSONL/NDJSON, and disables interactive terminal UI. It also states that `--agent` automatically confirms operations; the example omits that important behavior.",
+              "suggestedFix": "Add the missing caveat: “`--agent` also automatically confirms operations, equivalent to `--autoConfirmOperation`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\\n<ul>\\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\\n<li>Disables interactive terminal UI</li>\\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\\nFor dev command: also enables HTTP server for programmatic control.</li>\\n</ul>\\n"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Combine `--agent` with `--configFormat`, `--infrastructureType`, and `--starterId` to fully automate initialization without any interactive input.”",
+              "reason": "The source supports agent mode disabling interactive terminal UI and supports the listed flags, but it does not state that this combination is sufficient to fully automate initialization for every path.",
+              "suggestedFix": "Narrow to: “For non-interactive starter-project initialization, combine `--agent` with explicit choices such as `--starterId`, `--configFormat`, and `--infrastructureType` where relevant.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "<li>Disables interactive terminal UI</li>"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\init\\index.ts",
+                  "quote": "if (globalStateManager.args.starterId || globalStateManager.args.starterProject) {\n    return initUsingStarterProject();\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Can I re-run init on an existing project? Yes. Running `init` in a directory that already has a Stacktape config will start the wizard again.”",
+              "reason": "The command routing source shows that, without `templateId`, `starterId`, or `starterProject`, `init` runs the wizard. However, the provided sources do not describe how the wizard behaves when a Stacktape config already exists, whether it overwrites, merges, aborts, or prompts.",
+              "suggestedFix": "Either remove this FAQ entry or narrow it to the sourced behavior: “Without `--templateId`, `--starterId`, or `--starterProject`, `stacktape init` enters the default wizard.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly states that `init` has no required flags; `requiredArgs` is an empty array in the command definition.",
+            "The descriptions of the default wizard’s five high-level steps match `src/config/cli/commands.ts` and the generated CLI reference.",
+            "The `CliCommandsApiReference` component uses `command=\"init\"` and the listed flags match the provided command definition.",
+            "The page does not include forbidden hand-authored Stacktape YAML or fenced Stacktape TypeScript configuration examples.",
+            "All internal markdown cross-links point to routes present in the supplied documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking gaps for `/cli/init`. The draft covers the command's available flags through the generated CLI reference and acknowledges the documented mode switches. I found one medium issue where prose adds a default behavior for `--configFormat` that is not supported by the provided CLI source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Defaults to the wizard's interactive prompt if omitted.”",
+              "reason": "The provided CLI source documents `configFormat` as an optional argument with allowed values `yaml` and `typescript`, but it does not state that omission defaults to an interactive prompt for this specific option. Because the command-level source only says the default command path runs the wizard, the safer wording is to avoid a per-flag default claim.",
+              "suggestedFix": "Change to: “If omitted, `init` uses the selected initialization flow to determine the generated configuration format.” Or simply remove the default sentence.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "configFormat: configFormat.optional(),"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "No required args for init: requiredArgs: [] as const"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\init\\index.ts",
+                  "quote": "// Default: Run the full init wizard\n  return runInitWizard();"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CliCommandsApiReference command=\"init\" ... />` instead of hand-authoring the full flags table.",
+            "All documented `init` mode flags are present: `starterId`, `starterProject`, `templateId`, `projectDirectory`, `initializeProjectTo`, `configFormat`, `infrastructureType`, `agent`, `outputFormat`, and `logLevel` via the generated reference.",
+            "Union-style allowed values visible in the draft are covered: `configFormat` names `yaml` and `typescript`, `infrastructureType` names `low-cost`, `standard`, and `production`, and `outputFormat` names `jsonl`, `plain`, and `tty` in the generated reference.",
+            "The examples are demonstrative for their sections: starter initialization includes `--starterId` and `--initializeProjectTo`, production generation includes `--configFormat` and `--infrastructureType`, and programmatic use includes `--agent`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\init.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T22:18:26.118Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\init\\index.ts": "69e85dec9ffe99b0c6f33b682d866bde7939077e",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\init.md": "fe263a81c1a7cc7d0be810d36479671583a4eebc"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

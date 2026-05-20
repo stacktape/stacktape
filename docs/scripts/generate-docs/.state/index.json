@@ -1,0 +1,283 @@
+{
+  "pageId": "index",
+  "pageRoute": "index",
+  "startedAt": "2026-05-15T16:40:59.669Z",
+  "updatedAt": "2026-05-15T16:45:15.497Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\index\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "First paragraph is exactly the right length and is fully self-contained — names the product, the problem it solves, the output format, and the key differentiator (own AWS account). Extractable as a featured snippet.",
+            "Comparison table is the strongest element on the page. It uses concrete, non-marketing differentiators (infrastructure ownership, verbosity, vendor lock-in, visibility, scaling control) and positions Stacktape honestly against both IaC and PaaS options without overpromising.",
+            "No forbidden patterns anywhere — no fenced YAML Stacktape config, no StacktapeConfig type import, no fenced TypeScript blocks containing defineConfig. Correct restraint on a framing page.",
+            "\"What you get\" bullet list is concrete: each item links to a dedicated page and names the actual capability rather than an abstract benefit.",
+            "Tone is consistently pragmatic and confident with no marketing-language violations (no 'blazing fast', 'world-class', 'incredible', 'magic').",
+            "\"Who Stacktape is for\" section directly names the prerequisite knowledge level ('know what a database, an API, and a deployment are') — very accessible for first-time AWS users."
+          ],
+          "problems": [
+            "Page exceeds the ~400 word target mandated by section instructions. The 8-item 'What you get' bullet list plus a full comparison table push the page to roughly 450–500 words. An intro/framing page should be leaner and defer feature depth to dedicated pages.",
+            "The closing line does not match the section instruction which specifies the format 'next → /getting-started/configure-your-stack'. The current wording ('Head to [Configure your stack]...') is a prose sentence rather than the directional arrow-link pattern.",
+            "H2 headings are sentence-fragment style ('Who Stacktape is for', 'How Stacktape compares') rather than compact noun-form labels (1–5 words) as specified in the style guide. They are readable but inconsistent with the canonical heading form.",
+            "The 'Open source' section (MIT license + Console pricing) introduces a new concept late in a short framing page and feels disconnected from the orientation flow. The licensing and pricing distinction could be folded into the intro paragraph or the comparison table row."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Trim the page to under ~400 words. The 'What you get' list can be cut to 4–5 high-signal bullets (compute, databases, CI/CD, dev mode, override escape hatch) with a link to a full capabilities overview. Remove one of the weaker bullets to stay under budget.",
+            "Change the closing line to match the specified arrow format: 'Next → [Configure your stack](/getting-started/configure-your-stack).'",
+            "Tighten H2 headings to noun-form labels: 'Who Stacktape is for' → 'Audience' or 'Who it's for'; 'How Stacktape compares' → 'Comparison'; 'What you get' → 'Capabilities'; 'Open source' → consider folding it into the intro or comparison table.",
+            "Merge the 'Open source' section into the intro paragraph or as a table footnote. Two facts (MIT license, Console is paid) don't need a standalone H2 on a sub-400-word framing page.",
+            "The comparison table's 'Config verbosity' row says 'Minimal — with full override access' for Stacktape — consider adding a one-word qualifier like '(TypeScript/YAML)' so the reader immediately knows the config format without needing to re-read the intro."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Comparison table (Raw AWS vs PaaS vs Stacktape) is exactly what decision-makers need and is the strongest value signal on the page — four concrete dimensions with terse, accurate cell content",
+            "First paragraph is self-contained, within the 40-75 word AEO target, and reads as a citable snippet without any meta-framing",
+            "No forbidden YAML config patterns, StacktapeConfig type imports, fenced TypeScript config blocks, or marketing language violations found",
+            "FAQ correctly omitted for an introduction page per the section instructions",
+            "'Who Stacktape is for' directly names the audience with a concrete knowledge-threshold ('If you know what a database, an API, and a deployment are') rather than vague persona-speak",
+            "Open source model and paid-tier boundary are stated clearly without hand-waving",
+            "All technical claims (30+ resource types, MIT license, supported resource categories) are grounded in the source README and AGENTS_ABOUT_STACKTAPE files"
+          ],
+          "problems": [
+            "Page significantly exceeds the ~400 word limit stated in section instructions — estimated body prose is ~520-545 words; the 'What you get' section alone contributes ~195 words of detailed bullets that go well beyond what a framing intro requires",
+            "Second paragraph of 'Who Stacktape is for' largely duplicates the comparison table's message (IaC-vs-PaaS positioning), adding length without adding information the table doesn't already convey",
+            "The 'Next step' ending uses conversational prose ('Ready to start? Head to…') rather than the 'next →' format specified in section instructions",
+            "The intro paragraph says 'TypeScript or YAML config file' but source confirms three supported formats: TypeScript, YAML, and JSON — omitting JSON is a factual narrowing that could confuse readers who encounter JSON configs"
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Trim 'What you get' from 8 bullets to 4-5 by grouping related items — e.g., merge 'Containers and serverless' with 'Zero-config builds' into one bullet, merge 'Security defaults' with 'Built-in CI/CD'; this single change would bring the page inside the ~400 word budget",
+            "Remove or collapse the second paragraph of 'Who Stacktape is for' — the comparison table immediately below covers the same IaC-vs-PaaS-vs-Stacktape positioning more concisely and precisely",
+            "Format the closing call-to-action as 'Next → [Configure your stack](/getting-started/configure-your-stack)' to match the format explicitly requested in section instructions",
+            "Add 'JSON' to the opening sentence so it reads 'TypeScript, YAML, or JSON config file' — source confirms all three formats are supported"
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first first paragraph is strong: 55 words, self-contained, names the product and its core value proposition directly — AI engines can extract it verbatim.",
+            "Comparison table (Raw AWS vs PaaS vs Stacktape) is well-structured and fact-dense. Row headers cover the real axes of decision: ownership, verbosity, lock-in, visibility, scaling control. Tables get cited 2-4x more than equivalent prose and this one earns its place.",
+            "No forbidden style patterns: no fenced YAML resources block, no StacktapeConfig type import, no fenced TypeScript with defineConfig, no marketing tone words (no 'blazing fast', 'world-class', 'incredible').",
+            "All feature bullets in 'What you get' are linked to specific resource pages, so the intro acts as a navigable hub rather than a dead end.",
+            "Open source / pricing section is grounded in source (README confirms 'completely free' for core CLI; console is paid). Accurately scoped without overpromising.",
+            "The 'Who Stacktape is for' section names the target reader concretely ('developers and teams who want to run on AWS without becoming AWS experts') — extractable standalone.",
+            "Tone is pragmatic and confident throughout. Comparison with alternatives improves reader decision-making without disparaging competitors.",
+            "Page length (~380 words of prose) respects the human-maintained instruction of under ~400 words. 'Next step' ends exactly where the section instruction requires."
+          ],
+          "problems": [
+            "'What you get' section opens directly with a bullet list — no framing sentence. When an AI engine extracts that H2 block without the heading, the bullets lack a named subject. A single sentence like 'Stacktape includes...' or 'A Stacktape project ships with...' before the list would make the section self-contained per AEO rules.",
+            "The heading 'Who Stacktape is for' is 5 words which is at the top of the acceptable noun-form range, but its body repeats nearly the same information as the first paragraph (both say developers who want AWS without DevOps expertise). The section doesn't add meaningfully different signal — it slightly dilutes the page.",
+            "Practical usefulness is limited by the lack of any installation or first-command signal. A reader who finishes the page and clicks 'Next' is fine, but a reader who lands here from a search ('what is Stacktape') gets no immediate 'try it' hook. Even a one-line shell snippet (npm install -g stacktape) would increase practical utility without violating the ~400-word budget.",
+            "No FAQ section. The page is a narrative/framing page, so the FAQ omission is defensible and not penalized, but Stacktape-specific and comparison questions (vs Pulumi, vs SST, vs raw CDK) are high-intent searches this page could capture. If word budget allows, even 3-4 Q&As would meaningfully increase AEO surface area."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a 1-sentence framing opener to 'What you get' before the bullets — e.g. 'A Stacktape project gives you:' — so the section is extractable without the heading.",
+            "Consider collapsing 'Who Stacktape is for' into the opening paragraph or trimming it to 2 sentences that add new signal (e.g. who should NOT use it: teams already invested in CDK/Terraform, monolithic apps that need custom orchestration). That would free ~60 words for an installation one-liner or a few FAQ anchors.",
+            "Add a one-line install snippet ('npm install -g stacktape' or 'npx stacktape init') above the 'Next step' link. It is the single most-searched query for any new tool and takes only one line.",
+            "If the word budget allows, add 3-5 FAQ Q&As covering comparison questions ('Stacktape vs SST', 'Stacktape vs Pulumi', 'Do I still pay AWS costs?') — these are the high-intent search terms that bring readers to intro pages from Google and ChatGPT.",
+            "The comparison table's 'Config verbosity' cell for Raw AWS says 'hundreds of lines per resource' — this is directionally accurate (README says '97% shorter') but could be sharpened to 'hundreds of lines per resource stack' or just '10-50× more verbose' for a concrete benchmark.",
+            "Consider shortening 'Who Stacktape is for' to 'Who it's for' (4 words) and 'How Stacktape compares' to 'Comparison' (1 word) for tighter heading labels, improving scannability at the ToC level."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The introduction page is well-grounded and concise. Nearly all claims trace directly to the README source. Cross-links are all valid against the navigation index. The only concrete factual issue is the omission of JSON as a supported configuration format — the source explicitly lists three formats (TypeScript, YAML, JSON) but the draft mentions only two.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Stacktape deploys and manages production-grade AWS infrastructure from a single TypeScript or YAML config file.",
+              "reason": "The README explicitly lists three supported configuration formats — TypeScript (Recommended), YAML, and JSON — with dedicated examples for each. The draft's opening sentence omits JSON entirely, which could mislead readers into thinking JSON isn't supported. Since this is the very first sentence and frames the product's capabilities, the omission is meaningful.",
+              "suggestedFix": "Change to 'from a single TypeScript, YAML, or JSON config file' or 'from a single config file (TypeScript, YAML, or JSON)'.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\README.md",
+                  "quote": "Stacktape supports three configuration formats:\\n\\n### TypeScript (Recommended)\\n```typescript\\n// stacktape.ts\\nimport { defineConfig } from 'stacktape';\\n...\\n### YAML\\n...\\n### JSON"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All 15 cross-links on the page point to valid routes in the navigation index — no invented links.",
+            "The '30+ resource types' claim is well-supported by the README source which explicitly states '30+ AWS Resources' and lists them by category.",
+            "The open-source/MIT license claim matches the README verbatim ('Stacktape is released under the MIT License').",
+            "The comparison table makes reasonable, defensible claims — 'eject to raw CloudFormation anytime' aligns with the README's 'Risk-free: extend, override or eject anytime' and the Override & Extend section.",
+            "The 'What you get' bullet list accurately maps to README features: zero-config builds, built-in CI/CD, dev mode, security defaults, and cost visibility all have direct source backing.",
+            "The pricing model description ('free to use from the CLI' for core, Console as paid) correctly reflects the README's pricing section.",
+            "No forbidden patterns detected: no hand-authored YAML config, no StacktapeConfig typed style, no fenced TypeScript blocks with Stacktape config, no marketing language.",
+            "The page correctly omits an FAQ section — introduction pages are not resource/concept/reference pages and the style guide says to skip FAQ on narrative pages."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided README-style sources and uses only valid navigation links. The main factual risks are a few over-specific claims about defaults, Console paid-service boundaries, and one CLI/logs phrasing inherited from older source wording.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The Stacktape Console adds CI/CD, log browsing, cost dashboards, guardrails, and team management as a paid service.\"",
+              "reason": "The source says paid versions include a web-based console, CI/CD, logs/metrics/costs, guardrails, alarms, notifications, and other items. It does not state that team management is part of the paid Console offering, and the wording implies a specific commercial packaging that is not fully grounded.",
+              "suggestedFix": "Narrow to sourced features: \"The Stacktape Console adds CI/CD, log and metric browsing, cost views, guardrails, alarms, notifications, and other managed workflows as part of Stacktape's paid versions.\" Omit team management unless a source file supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\README.md",
+                  "quote": "Paid versions of Stacktape include:\n\n- CI/CD pipeline (Github, Gitlab, Bitbucket)\n- Web-based console for managing your stack\n- Browse logs, metrics, costs and more\n- Remote session to deployed containers\n- Secrets management\n- Guardrails and alarms\n- Notifications\n- Premium support **with 8 minutes average response time**"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"It supports 30+ resource types — Lambda functions, containers, databases, queues, CDNs, and more — with opinionated defaults that follow AWS well-architected practices.\"",
+              "reason": "The source supports 30+ AWS resources and says Stacktape is configured according to AWS well-architected best practices, but it does not specifically say these are \"opinionated defaults.\" That word can imply concrete default behavior not shown in the provided files.",
+              "suggestedFix": "Use the sourced wording without asserting defaults: \"It supports 30+ resource types — Lambda functions, containers, databases, queues, CDNs, and more — and is configured according to AWS well-architected best practices.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\README.md",
+                  "quote": "- **30+ AWS Resources**: SQL/NoSQL databases, load balancers, API gateways, Redis, MongoDB Atlas, and more"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\README.md",
+                  "quote": "- **Production-grade**: Configured according to all of the AWS well-architected best practices"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Operational visibility\" comparison row: \"Built-in logs, metrics, alarms, cost tracking.\"",
+              "reason": "The source supports logs, metrics, costs, guardrails, and alarms as paid-version features, but the comparison table presents them as a general Stacktape capability without that qualification. That could mislead readers about what is available in core CLI versus paid Console.",
+              "suggestedFix": "Qualify the row as Console-backed, for example: \"Console-backed logs, metrics, alarms, and cost views\" or add a note that these are part of the Stacktape Console/paid versions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\README.md",
+                  "quote": "Paid versions of Stacktape include:\n\n- CI/CD pipeline (Github, Gitlab, Bitbucket)\n- Web-based console for managing your stack\n- Browse logs, metrics, costs and more\n- Remote session to deployed containers\n- Secrets management\n- Guardrails and alarms\n- Notifications\n- Premium support **with 8 minutes average response time**"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"You define resources in TypeScript using `defineConfig` and typed classes, deploy with one command, and override or extend any underlying AWS resource when you need to.\"",
+              "reason": "The TypeScript example grounds `defineConfig` and typed resource classes, and the source supports overriding/extending AWS resources. However, \"deploy with one command\" is an inferred simplification from the deploy example rather than an explicit source claim.",
+              "suggestedFix": "Either keep the concrete command nearby or phrase more narrowly: \"You define resources in TypeScript using `defineConfig` and typed classes, then deploy with `stacktape deploy`.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Zero-config builds — Stacktape packages your code automatically. Point to a source file or Dockerfile and deploy.\"",
+              "reason": "The source supports zero-config smart builds and shows a Lambda entry file, but it does not explicitly say Dockerfile builds are zero-config or automatic. Since Dockerfile packaging is only implied by broader container support, the sentence may overgeneralize packaging behavior.",
+              "suggestedFix": "Narrow to the sourced claim: \"Zero-config builds — Stacktape can package application code with smart builds, and container projects can use Dockerfile-based packaging where appropriate.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All markdown cross-links in the draft point to routes present in the provided navigation index.",
+            "The draft avoids forbidden hand-authored Stacktape YAML config examples, plain-object `StacktapeConfig`, and fenced TypeScript Stacktape config examples.",
+            "The open-source and MIT-license claims are grounded in the README.",
+            "The claims about TypeScript/YAML configuration, 30+ resources, dev mode, CI/CD push-to-deploy/preview deployments, secret management, least-privilege permissions, private networking, cost breakdown, and override/eject capabilities are broadly supported by the provided source files."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The introduction has no primary API type, no resource properties, no union variants, and no Stacktape config code blocks to audit. I found one medium issue where the comparison table overstates scaling behavior beyond the provided sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The comparison table says Stacktape provides “Full — same AWS scaling primitives” scaling control.",
+              "reason": "The provided sources support override/eject access, deployment to the user's AWS account, and broad resource coverage, but they do not specifically state that Stacktape exposes full scaling control or the same AWS scaling primitives. On an introduction page, this reads as a concrete capability claim that should be narrowed unless backed by resource-type sources.",
+              "suggestedFix": "Change the cell to a source-grounded phrase such as “Configurable through Stacktape resources, with override access when needed” or remove the scaling row from the high-level comparison.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\README.md",
+                  "quote": "Risk-free: extend, override or eject anytime"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\README.md",
+                  "quote": "Infrastructure as Code: TypeScript, YAML, or JSON. 97% shorter than writing it yourself."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\README.md",
+                  "quote": "Override any AWS resource:"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "No API completeness issues apply because the page metadata has primary typeName: unknown and the route is an introduction page.",
+            "No union-variant coverage issues apply because the draft does not document a typed polymorphic resource property.",
+            "No demonstrativeness issues apply because the draft contains no <CodeBlock intellisense> Stacktape configuration examples.",
+            "The draft mostly follows the required framing for /index: it positions Stacktape against raw AWS/IaC and PaaS options, avoids tutorial steps, and points readers to the Getting Started flow."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\index.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-15T16:45:15.497Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\README.md": "f11b801edad8650b3977db3358ade42c147078e4",
+    "C:\\Projects\\console-app\\AGENTS_ABOUT_STACKTAPE.md": "be507f4327d4855569e60cb8a7f36600eeb4a36f"
+  },
+  "styleGuideHash": "5bfa5b4c6981088376a91bf6595269b227cedc63"
+}

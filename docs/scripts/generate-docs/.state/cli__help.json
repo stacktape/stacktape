@@ -1,0 +1,239 @@
+{
+  "pageId": "cli__help",
+  "pageRoute": "cli/help",
+  "startedAt": "2026-05-17T21:03:04.803Z",
+  "updatedAt": "2026-05-17T21:06:33.293Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__help\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Lead paragraph is concise, accurate, and self-contained — correctly calls out that no API key is required, which is a meaningful signal for new users.",
+            "Shell command blocks each contain exactly one command; prose descriptions appear before each block rather than as inline `#` comments. No copy-button trap issues.",
+            "The `stp` alias is called out with a concrete example, which is useful for readers who may have seen the alias elsewhere.",
+            "The `--command` flag gets its own prose section explaining the flag's purpose before the auto-generated reference appears, bridging the gap between the usage example and the raw options table.",
+            "No forbidden patterns present: no hand-authored YAML Stacktape config, no `StacktapeConfig` type import, no fenced TypeScript block with `defineConfig`, no marketing language."
+          ],
+          "problems": [
+            "The Examples section is weak: all three examples repeat patterns already demonstrated in the Usage section (`stacktape help`, `stacktape help --command <X>`). The cli section instructions specify Examples should cover 'non-obvious patterns' — this section has none.",
+            "The `longDescription` included in `sortedArgs` for `<CliCommandsApiReference>` contains a bullet point about `stacktape container:session`, explaining that the same `--command` arg 'specifies a command to run inside the container to start the interactive session.' This is confusing and irrelevant to a reader on the `help` reference page.",
+            "Related commands lists 4 items; the cli section instructions say 1–3 closest siblings. Minor structural deviation."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Revise the Examples section to show genuinely non-obvious usage: e.g., explain that commands with many flags (like `deploy` or `dev`) benefit most from `help` introspection, and show those as the examples rather than repeating the basic patterns from Usage.",
+            "The `longDescription` in `sortedArgs` mentions `stacktape container:session` inline, which is jarring on a page about `help`. Either remove the `container:session` bullet from the `longDescription` HTML or add a brief prose note before `<CliCommandsApiReference>` clarifying that `--command` is a shared arg with context-specific meaning.",
+            "Trim Related commands to the 3 most relevant entries (e.g. `version`, `init`, `defaults:configure`) per the cli section guideline of 1–3 closest siblings.",
+            "The H2 heading 'The `--command` flag' is on the long side. A shorter label like 'Flag' or '--command' (without backtick wrapping in the heading) would stay within the 1-5 word guideline and scan cleanly in the page TOC."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Each shell invocation is in its own fenced bash block — copy-button safe and policy-compliant.",
+            "The `--cmd` alias is documented in both the prose and the sortedArgs data.",
+            "No-API-key requirement is called out in the opening paragraph, which is useful for first-time readers.",
+            "Non-obvious examples (`debug:logs`, `dev`) in the Examples section genuinely add value beyond the Usage section.",
+            "The `stp` short alias is mentioned alongside `stacktape`, grounded in the source's logUsage output.",
+            "Page scope is well-matched to the command's actual simplicity — no padding beyond a minor repeat in Examples."
+          ],
+          "problems": [
+            "The prose 'followed by hints linking to the full [CLI documentation](/cli/deploy) and the Stacktape docs site' is factually wrong. The source (src/commands/help/index.ts) shows the hints link to 'CLI Documentation' (a general CLI docs link) and 'Stacktape Docs' — not specifically to the /cli/deploy page. Using /cli/deploy as the href implies the terminal hint deep-links to the deploy command, which it does not.",
+            "The 'Examples' section's final entry ('View all commands at a glance: stacktape help') restates the first bash block in 'Usage' verbatim. Readers who reach Examples have already seen this.",
+            "The 'Related commands' section lists four entries. The section instructions specify 1–3 closest siblings."
+          ],
+          "mandatoryFixes": [
+            "Fix the factually inaccurate link in 'The `--command` flag' section. The source shows the hint prints a link labeled 'CLI Documentation' pointing to the CLI docs root, not /cli/deploy. Change the inline link to point to the CLI docs root (e.g., /cli/deploy should be /cli or whichever the CLI docs index route is) and reword: 'followed by hints linking to the CLI documentation and the Stacktape docs site' — without implying it links to a specific command page."
+          ],
+          "optionalImprovements": [
+            "Remove the final 'View all commands at a glance: stacktape help' example from the Examples section — it adds nothing after the Usage section already shows this, and the Examples section is explicitly for non-obvious patterns.",
+            "Trim Related commands to 3 entries. The closest siblings by function are 'version', 'defaults:configure', and 'defaults:list' (all no-credential commands a user might reach for when orienting themselves). 'info:whoami' and 'init' are reasonable but push the list to 4.",
+            "The section heading 'The `--command` flag' could be shortened to 'Options' or left as-is since the command has only one flag and naming it explicitly is clear. No strong reason to change, just worth noting the heading is slightly verbose for a single-flag command."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and correctly explains the two supported modes: all-command help and command-specific help.",
+            "Shell examples follow the one-command-per-block rule and are directly copyable.",
+            "The page uses the required <CliCommandsApiReference command=\"help\" ... /> component instead of hand-authoring the options table.",
+            "The `--command` / `--cmd` alias and no-required-args behavior are consistent with the provided CLI sources."
+          ],
+          "problems": [
+            "The `Options reference` H2 has no self-contained introductory paragraph, so the section is weak when extracted by an answer engine.",
+            "The `Usage`, `Examples`, and `Related commands` sections are useful but thin; their first content is a sentence or list rather than a 40-75 word self-contained section paragraph.",
+            "`Related commands` lists four commands, while the CLI section instructions ask for 1-3 closest siblings.",
+            "The sentence linking generic CLI documentation to `/cli/deploy` is awkward because `/cli/deploy` is a specific command page, not a CLI overview page.",
+            "The page could be more explicit that `stacktape help --command <command>` uses Stacktape command names such as `deploy`, `dev`, or `debug:logs`; this is implied by examples but not stated directly."
+          ],
+          "mandatoryFixes": [
+            "Reduce `Related commands` to 1-3 closest sibling commands, likely `version`, `init`, and `defaults:configure` or another defensible set.",
+            "Add a short self-contained paragraph before `<CliCommandsApiReference command=\"help\" ... />` explaining that the options reference lists the `help` command's supported flag, alias, type, and required status.",
+            "Change the generic CLI documentation link away from `/cli/deploy` unless the intent is specifically to link to the deploy command."
+          ],
+          "optionalImprovements": [
+            "Consider merging `The --command flag` into `Examples` or placing it after the API reference to match the requested CLI page rhythm more closely.",
+            "Add one sentence under `Usage` stating that command names are the exact CLI command identifiers, including colon-separated commands like `debug:logs`.",
+            "Keep `No API key required` because it is grounded by `commandsNotRequiringApiKey`; consider omitting `AWS credentials` if the docs team wants every credential claim tied to an explicit source list rather than the implementation's lack of AWS calls."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI sources. I found one unsupported flag-alias claim and one over-specific output claim that should be narrowed to match the help command implementation.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "When you pass `--command` (alias `--cmd`), Stacktape prints the full option reference for that command.",
+              "reason": "The provided sources show the `help` command accepts an optional `command` argument, but they do not include the `options.ts` definition or `argAliases` mapping needed to verify that `--cmd` is an alias. The claim may be true, but it is not grounded in the provided source files.",
+              "suggestedFix": "Remove `alias --cmd` unless `src/config/cli/options.ts` is included and confirms `argAliases.command === 'cmd'`. For this source set, write: `When you pass --command, Stacktape prints...`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "help: {\n    description: `Displays help information for commands and their options.`,\n    args: {\n      command: command.optional()\n    },\n    requiredArgs: [] as const\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts",
+                  "quote": "alias: argAliases[argName as keyof typeof argAliases],"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Stacktape prints the full option reference for that command — each flag's name, whether it's required, and a description.",
+              "reason": "The help command implementation prints argument names, required status, and descriptions. It does not print alias, allowed type, or allowed values, so `full option reference` overstates what the terminal command prints. The page's generated `<CliCommandsApiReference>` can show richer metadata, but the CLI output described here is narrower.",
+              "suggestedFix": "Change to: `Stacktape prints each option's name, whether it is required, and its description for that command.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\help\\index.ts",
+                  "quote": "const getSortedCliArgs = (\n  command: StacktapeCommand\n): { argName: string; description?: string; required: boolean }[] => {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\help\\index.ts",
+                  "quote": "`${tuiManager.makeBold(tuiManager.colorize('yellow', cliArg.argName))} ${\n          cliArg.required ? '(required)' : ''\n        }\\n  ${getDescription(cliArg.description || '')}`"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one CLI command and uses `<CliCommandsApiReference command=\"help\" ... />` rather than hand-authoring the full flags table.",
+            "The `help` command description, optional `command` argument, and empty `requiredArgs` list match `src/config/cli/commands.ts`.",
+            "The examples use one shell command per fenced `bash` block, which avoids the copy-button trap.",
+            "The `stp` alias claim is grounded in `src/commands/help/index.ts`, where the usage text prints `stacktape (or stp)`.",
+            "All internal links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly consistent with the provided CLI command definitions and help command implementation. I did not find publication-blocking factual issues against the supplied sources.",
+          "issues": [],
+          "positiveFindings": [
+            "The page correctly identifies `help` as a no-required-argument command and uses `<CliCommandsApiReference command=\"help\" ... />`.",
+            "The examples use one shell command per fenced block, with no copy-buffer comments.",
+            "The behavior described for running `stacktape help` with and without `--command` matches `src/commands/help/index.ts`.",
+            "The API-key statement is supported by `commandsNotRequiringApiKey`, which includes `help`.",
+            "All markdown cross-links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly complete for the `help` CLI page. It documents the only option, uses separate copyable command examples, includes the required CLI API reference component, and aligns with the command source for `stacktape`/`stp` usage and no required args.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape prints the full option reference for that command — each flag's name, whether it's required, and a description.”",
+              "reason": "The `help` command output is not a full option reference in the same sense as the generated docs table: the implementation prints only usage plus each argument name, required marker, and description. It does not print aliases, allowed types, or allowed values even though those exist in CLI arg metadata.",
+              "suggestedFix": "Narrow the wording to: “Stacktape prints the command usage and available options, including each argument name, whether it is required, and its description.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\help\\index.ts",
+                  "quote": "const getSortedCliArgs = (\n  command: StacktapeCommand\n): { argName: string; description?: string; required: boolean }[] => {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\help\\index.ts",
+                  "quote": "lines.push(\n        `${tuiManager.makeBold(tuiManager.colorize('yellow', cliArg.argName))} ${\n          cliArg.required ? '(required)' : ''\n        }\\n  ${getDescription(cliArg.description || '')}`\n      );"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts",
+                  "quote": "return {\n    description: getSchemaDescription(argSchema as z.ZodType),\n    required: requiredArgs.includes(argName),\n    alias: argAliases[argName as keyof typeof argAliases],\n    ...typeInfo\n  };"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one command, `help`, matching the CLI section instructions.",
+            "The draft includes the required `<CliCommandsApiReference command=\"help\" ... />` component instead of hand-authoring a flags table.",
+            "The only documented option, `--command` with alias `--cmd`, matches the `help` command args and generated argument metadata.",
+            "All shell examples use one command per fenced `bash` block, with no explanatory comments inside the copyable blocks.",
+            "The draft correctly states that `help` has no required arguments and that `help` is in the list of commands that do not require an API key."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\help.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T21:06:33.293Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\help\\index.ts": "024a8a54756b5971412ad9ff48610a03586abc17",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\help.md": "084bbcf6c8b3c5907899774f83a3149cc536d5e5"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

@@ -1,0 +1,230 @@
+{
+  "pageId": "cli__aws-profile__list",
+  "pageRoute": "cli/aws-profile-list",
+  "startedAt": "2026-05-17T21:19:13.214Z",
+  "updatedAt": "2026-05-17T21:20:56.886Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__aws-profile__list\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, concise lead paragraph that answers 'what is this and when do I use it' without filler",
+            "Correctly uses <CliCommandsApiReference> for the flags table instead of hand-authoring it",
+            "Accurately describes the no-profiles warning behavior sourced from the implementation",
+            "Notes secret key masking, which is the detail beginners care about most when seeing the output for the first time",
+            "Related commands section links all three sibling aws-profile commands with descriptive one-liners",
+            "Section order matches the prescribed CLI page rhythm: usage → options reference → examples → related commands"
+          ],
+          "problems": [
+            "The first item in the Examples section ('List all configured profiles') shows the bare `stacktape aws-profile:list` command, which is identical to what is already shown under the Usage section. Per the section instructions, the Examples section exists only for non-obvious patterns — a plain invocation with no flags is not non-obvious and its presence here is redundant padding."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the first example ('List all configured profiles' + bare command) from the Examples section. It repeats Usage exactly. Keeping only the `--logLevel error` example preserves the section's purpose of showing non-obvious patterns.",
+            "Clarify that this command reads local credential files only — it does not contact AWS and requires no AWS authentication. One sentence would help beginners who wonder if they need credentials already configured before running it.",
+            "The phrase 'partially masked' is slightly vague about what the reader will actually see. The source masks the first 36 characters with asterisks and leaves the remainder visible. A more precise description like 'the first 36 characters of the secret key are replaced with asterisks' gives the reader a better picture of the output without inventing details."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Correct and tight structure for a minimal CLI command — intro, usage, options reference, examples, related commands all present.",
+            "The no-profiles empty-state behavior is called out explicitly, which saves a reader from wondering why nothing appeared.",
+            "The <CliCommandsApiReference> component is used correctly with sortedArgs matching the single real option (logLevel).",
+            "Related commands link directly to the full aws-profile: family, making navigation easy.",
+            "No forbidden style violations: no YAML Stacktape config blocks, no StacktapeConfig type, no fenced TypeScript with defineConfig, no marketing language, no multi-command bash blocks."
+          ],
+          "problems": [
+            "The 'List all configured profiles' example under ## Examples is byte-for-byte identical to the command shown under ## Usage. This is content padding — it adds zero information for a reader who has already read the Usage section.",
+            "The masking description ('partially masked') is imprecise. The source code applies `'*'.repeat(36) + row[2].slice(36)`, meaning the first 36 characters are replaced with asterisks and only the trailing characters (beyond position 36) appear in clear text. For a standard 40-character AWS secret key this means the last four characters are visible. The current prose does not distinguish what is hidden vs. what is shown, which matters to security-conscious readers auditing the output.",
+            "The --logLevel error example in ## Examples has minimal practical value for this command — the command produces a single table and exits. Log level only affects meta-output, not the table itself. The example reads as filler rather than a non-obvious pattern the section instructions call for."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace the duplicate 'List all configured profiles' example with a genuinely non-obvious pattern, or remove the Examples section entirely — for a zero-flag command, Usage alone is sufficient unless there is a pattern worth calling out.",
+            "Tighten the masking description: 'The secret access key column masks the first 36 characters with asterisks; only the trailing characters are shown.' This is more precise and source-grounded than 'partially masked'.",
+            "Drop or reframe the --logLevel error example. If kept, add a concrete reason a reader would reach for it (e.g. 'useful when running the command in a script and only caring about exit code, not table output').",
+            "Consider a 3–4 entry FAQ (e.g. 'Where are profiles stored?', 'Does this command work with AWS SSO profiles?', 'What if a profile has no secret key?'). Even a simple command page benefits from FAQ when search engines extract it — readers often land here from a general AWS credentials question."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The page follows the CLI-page structure: short command description, usage, generated options reference, examples, and related commands.",
+            "Command examples are copyable, one command per fenced bash block, and include the only optional flag exposed by the source.",
+            "The options reference uses the required <CliCommandsApiReference command=\"aws-profile:list\" ... /> component and reflects the source args: optional logLevel with alias ll and values info/debug/error.",
+            "The no-required-flags statement is grounded in requiredArgs: [] from the command definition."
+          ],
+          "problems": [
+            "The claim that aws-profile:list reads from `~/.aws/credentials` is not grounded in the provided source for this command. The command source only calls `listAwsProfiles()`, and the command definition says it lists profiles configured on the system.",
+            "The page says it displays a masked secret access key without clarifying that masking applies to CLI table output. The command returns rows containing the unmasked AWS_SECRET_ACCESS_KEY after building the CLI table rows.",
+            "The opening paragraph is useful, but it slightly overreaches by saying users can “audit stored credentials”; the visible CLI output masks the secret, so the page should frame the command as inventory/verification rather than credential auditing."
+          ],
+          "mandatoryFixes": [
+            "Replace the unsupported `~/.aws/credentials` sentence with narrower wording grounded in source, such as: “The command lists AWS profiles configured on your system.”",
+            "Clarify the masking behavior as CLI-output behavior: the CLI table shows Profile, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY, and masks the secret access key in the printed table."
+          ],
+          "optionalImprovements": [
+            "Mention that `aws-profile:list` has only the global `--logLevel` option and no region, stage, or Stacktape config requirement, if this is consistent with the generated CLI reference.",
+            "Tighten the first paragraph by replacing “audit stored credentials” with “check which profile names and access key IDs are available before choosing a profile for deployment.”",
+            "In the empty-state sentence, quote the warning more closely: “No AWS profiles found. Create one with `stacktape aws-profile:create`.”"
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation: it documents the correct command, no required flags, the visible table columns, the masked CLI output, the no-profiles warning, and valid sibling links. I found two source-grounding issues where the draft goes beyond the provided source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“It reads credentials from the standard AWS credentials file (`~/.aws/credentials`).”",
+              "reason": "The provided implementation shows that `aws-profile:list` calls `listAwsProfiles()`, but the implementation of `listAwsProfiles` is not included. None of the provided source for this page states the exact credentials file path used by the list command.",
+              "suggestedFix": "Narrow the wording to the supported behavior, for example: “It lists AWS profiles returned by Stacktape’s AWS profile reader and displays each profile’s name, access key ID, and masked secret access key.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\aws-profile-list\\index.ts",
+                  "quote": "const availableAwsProfiles = await listAwsProfiles();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'aws-profile:list': {\n    description: `Lists all AWS profiles configured on your system.`,\n    args: {\n      logLevel: logLevel.optional()\n    },\n    requiredArgs: [] as const\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The options reference lists `logLevel` alias `ll` and allowed values `info`, `debug`, and `error`.",
+              "reason": "The command source confirms that `logLevel` is an optional argument, but the provided source list does not include `src/config/cli/options.ts`, where `logLevel` and `argAliases` are defined. The alias and enum values may be correct, but they are not grounded in the provided files.",
+              "suggestedFix": "Either provide the `options.ts` source to ground the generated table, or remove the manually expanded `sortedArgs` details and rely on a source-generated `<CliCommandsApiReference command=\"aws-profile:list\" />` form if the docs system supports generating the argument metadata.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'aws-profile:list': {\n    description: `Lists all AWS profiles configured on your system.`,\n    args: {\n      logLevel: logLevel.optional()\n    },\n    requiredArgs: [] as const\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts",
+                  "quote": "alias: argAliases[argName as keyof typeof argAliases],\n    ...typeInfo"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one CLI command and uses the correct route-linked related commands from the navigation index.",
+            "The usage example `stacktape aws-profile:list` matches the generated CLI reference and the command has no required arguments in `commands.ts`.",
+            "The table-column claim is grounded in the command implementation: `Profile`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`.",
+            "The no-profiles warning and `aws-profile:create` suggestion match the command implementation.",
+            "The draft uses one command per shell block and does not include copy-buffer comments inside shell snippets."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided command definition and runtime implementation. The main factual risk is one unsupported implementation detail about where credentials are read from; the provided sources only show that the command delegates profile discovery to `listAwsProfiles()`, not the exact file path.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“It reads credentials from the standard AWS credentials file (`~/.aws/credentials`).”",
+              "reason": "The provided sources do not show the implementation of `listAwsProfiles()` or state that `aws-profile:list` reads specifically from `~/.aws/credentials`. The command source only delegates profile discovery to `listAwsProfiles()`, so the exact credentials-file path is not grounded in the supplied source files.",
+              "suggestedFix": "Narrow the wording to a source-grounded statement, such as: “It uses Stacktape’s AWS profile lookup and displays the configured profile names, access key IDs, and secret access keys.” If you want to mention the credentials file, only say so if `@utils/aws-config` is included as a source and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\aws-profile-list\\index.ts",
+                  "quote": "import { listAwsProfiles } from '@utils/aws-config';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\aws-profile-list\\index.ts",
+                  "quote": "const availableAwsProfiles = await listAwsProfiles();"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The command name, route, title, and CLI usage match the provided sources.",
+            "The draft correctly states that `aws-profile:list` has no required flags; `requiredArgs` is an empty array for this command.",
+            "The described output columns match the runtime header: `Profile`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`.",
+            "The masked-secret behavior is grounded in the runtime implementation, which prints 36 asterisks followed by the remaining suffix of the secret access key.",
+            "The empty-list warning and suggestion to run `stacktape aws-profile:create` match the command implementation.",
+            "All cross-links in the draft point to routes present in the provided navigation index.",
+            "The draft uses one command per shell block and does not include forbidden Stacktape configuration examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API completeness, union-variant coverage, or code-example demonstrativeness issues found for this CLI reference page.",
+          "issues": [],
+          "positiveFindings": [
+            "The page documents exactly one command, `aws-profile:list`.",
+            "The command has no required arguments in `commandDefinitions`, and the draft correctly states that there are no required flags.",
+            "The only exposed option, `logLevel`, is present through `<CliCommandsApiReference command=\"aws-profile:list\" ... />` with its allowed values.",
+            "The shell examples are one command per fenced block and demonstrate the base command plus a valid `--logLevel error` variant.",
+            "The related commands point to the closest AWS profile sibling commands: create, update, and delete."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\aws-profile-list.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T21:20:56.886Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\aws-profile-list\\index.ts": "ec4a69ff675a7dedf82b9a45f91831a39c02d681",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\aws-profile-list.md": "15ec3b3eb93dbbc17c5c53313811d03fd7041a90"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

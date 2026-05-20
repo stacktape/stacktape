@@ -1,0 +1,440 @@
+---
+title: 'Variables and Reuse'
+order: 13
+seoTitle: 'Variables and Reuse in Stacktape Config | Stacktape Docs'
+seoDescription: 'Reduce duplication in Stacktape configuration using TypeScript constants, helper functions, the variables property, and custom directives. Includes stage-based logic and shared modules.'
+---
+
+# Variables and Reuse
+
+Stacktape's TypeScript configuration gives you full language-level tools for eliminating duplication: constants, functions, imports, and conditional logic. For YAML configurations, the `variables` property provides named reusable values referenced with `$Var().variableName`. This page covers both approaches and when to reach for each.
+
+## Why reuse matters
+
+Duplicated values — ports, instance sizes, domain prefixes, environment variables — create drift risk. When you change a value in one place but forget another, your staging stage diverges from production in ways that are hard to debug. Centralizing shared values makes the config a single source of truth and reduces the surface area for mistakes.
+
+## TypeScript-native reuse
+
+The [`defineConfig`](/configuration/configuration-files) callback returns your configuration as plain TypeScript. You can use any language feature — constants, conditionals, loops, imports, spread operators — to reduce duplication and add stage-aware logic.
+
+### Shared constants
+
+Extract repeated values into `const` declarations. The TypeScript compiler ensures type safety, and your editor provides autocomplete. Both Lambda functions below share `timeout` and `appPort` from a single declaration — if either value changes, you update one line.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiGateway
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(({ stage }) => {
+  const appPort = 3000;
+  const timeout = 30;
+
+  const listUsers = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/list-users.ts' }),
+    timeout,
+    environment: { APP_PORT: String(appPort) }
+  });
+
+  const createUser = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/create-user.ts' }),
+    timeout,
+    environment: { APP_PORT: String(appPort) }
+  });
+
+  const gateway = new HttpApiGateway({});
+
+  return { resources: { listUsers, createUser, gateway } };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+This pattern works for any repeated value: memory sizes, environment variable blocks, domain prefixes, or timeout durations.
+
+### Stage-based conditional logic
+
+The `stage` parameter from `defineConfig` lets you branch configuration per [stage](/configuration/stages-and-environments) without external tooling or environment-variable hacks. Production gets a larger database instance below; all other stages use the smallest available size.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(({ stage }) => {
+  const isProduction = stage === 'production';
+
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: {
+        instanceSize: isProduction ? 'db.t4g.medium' : 'db.t4g.micro'
+      }
+    }),
+    credentials: {
+      masterUserPassword: $Secret('db-password')
+    }
+  });
+
+  return { resources: { database } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`instanceSize` controls the compute and memory allocated to the database. `db.t4g.micro` is the smallest general-purpose instance (suitable for development and low-traffic stages); `db.t4g.medium` provides more headroom for production traffic. See [relational databases](/resources/databases/relational-database) for all supported instance sizes.
+
+### Helper functions
+
+When multiple resources share the same shape, extract a factory function. This is especially useful for [Lambda functions](/resources/compute/lambda-function) with repeated packaging and event configuration. Define the factory inside `defineConfig` and call it for each endpoint.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiGateway,
+  HttpApiIntegration
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const createApiFunction = (entryfile: string, method: string, path: string) =>
+    new LambdaFunction({
+      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: entryfile }),
+      memory: 512,
+      timeout: 30,
+      events: [new HttpApiIntegration({ httpApiGatewayName: 'gateway', method, path })]
+    });
+
+  const listUsers = createApiFunction('./src/list-users.ts', 'GET', '/users');
+  const createUser = createApiFunction('./src/create-user.ts', 'POST', '/users');
+  const gateway = new HttpApiGateway({});
+
+  return { resources: { listUsers, createUser, gateway } };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+All three functions share the same memory, timeout, and gateway integration shape — but you define it once. The `httpApiGatewayName` must match a resource key in the returned `resources` object (here, `'gateway'`).
+
+### Shared modules across projects
+
+For organizations with multiple Stacktape projects that share conventions (tagging, naming, scaling defaults), create a shared TypeScript module — either a local file or a published package:
+
+```typescript
+// shared/defaults.ts
+export const defaultTags = { team: 'platform', managedBy: 'stacktape' };
+export const defaultTimeout = 30;
+export const defaultMemory = 512;
+```
+
+Import these constants into each project's `stacktape.ts`. This keeps org-wide conventions in sync without copy-paste, and TypeScript catches type errors at build time if the shape of your shared config changes.
+
+### Object spreading
+
+Use the spread operator to merge shared and resource-specific configuration. Both functions below inherit a shared environment variable block, with each adding its own `SERVICE_NAME`.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const sharedEnv = {
+    LOG_LEVEL: 'info',
+    NODE_ENV: 'production'
+  };
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    environment: { ...sharedEnv, SERVICE_NAME: 'api' }
+  });
+
+  const worker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    environment: { ...sharedEnv, SERVICE_NAME: 'worker' }
+  });
+
+  return { resources: { api, worker } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+This pattern scales well for any property object — environment variables, tags, scaling configuration, or VPC settings.
+
+### Conditional resources
+
+Use standard `if` blocks or spread patterns inside `defineConfig` to include resources only for certain stages. The example below adds a [web application firewall](/resources/security/web-application-firewall) only in production.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  WebAppFirewall
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(({ stage }) => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    memory: 512
+  });
+
+  const resources: Record<string, any> = { api };
+
+  if (stage === 'production') {
+    resources.firewall = new WebAppFirewall({ scope: 'regional' });
+  }
+
+  return { resources };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+The `scope` property on `WebAppFirewall` is either `'regional'` (for ALBs, API Gateways, and User Pools) or `'cdn'` (for CloudFront distributions). Resources added conditionally are created only in stages where the condition is true — other stages skip them entirely.
+
+### Dynamic resource generation
+
+Use standard TypeScript loops or `Array.map()` to create multiple resources programmatically. The returned `resources` object is plain key-value pairs — the keys become resource names.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiGateway,
+  HttpApiIntegration
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const routes = [
+    { name: 'listUsers', entry: './src/list-users.ts', method: 'GET', path: '/users' },
+    { name: 'createUser', entry: './src/create-user.ts', method: 'POST', path: '/users' },
+    { name: 'getUser', entry: './src/get-user.ts', method: 'GET', path: '/users/{id}' }
+  ];
+
+  const functions = Object.fromEntries(
+    routes.map((r) => [
+      r.name,
+      new LambdaFunction({
+        packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: r.entry }),
+        memory: 512,
+        events: [
+          new HttpApiIntegration({ httpApiGatewayName: 'gateway', method: r.method, path: r.path })
+        ]
+      })
+    ])
+  );
+
+  const gateway = new HttpApiGateway({});
+
+  return { resources: { ...functions, gateway } };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+This works well when you have a data-driven list of endpoints. Adding a new route means adding one entry to the `routes` array.
+
+## Deployment context in defineConfig
+
+The `defineConfig` callback receives a context object with information about the current operation. Use these parameters for stage-aware branching, region-specific naming, or command-specific behavior.
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `stage` | `string` | The deployment [stage](/configuration/stages-and-environments) (e.g. `dev`, `production`) |
+| `region` | `string` | AWS region (e.g. `eu-west-1`) |
+| `projectName` | `string` | Project name for this operation |
+| `command` | `string` | CLI command being run (`deploy`, `delete`, `dev`, etc.) |
+| `awsProfile` | `string` | Locally-configured AWS profile name |
+| `user` | `{ id, name, email }` | The Stacktape user performing the operation |
+| `cliArgs` | `object` | CLI arguments passed to the command |
+
+<Tip>In TypeScript configs, these parameters replace YAML [directives](/configuration/directives) like `$Stage()`, `$Region()`, and `$ProjectName()`. Use them for stage-based branching, region-aware naming, or command-specific behavior.</Tip>
+
+## The variables property
+
+The top-level `variables` property defines named values you can reference with the `$Var()` [directive](/configuration/directives). For YAML configurations, `variables` provides named reusable values that can be referenced with `$Var().variableName` anywhere in the config.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    memory: 1024
+  });
+
+  return {
+    variables: {
+      appPort: 3000,
+      apiDomain: 'api.example.com'
+    },
+    resources: { api }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Variables can hold any value: strings, numbers, booleans, objects, or arrays. Use `$Var().variableName` to reference a specific variable by name.
+
+### When to use variables vs TypeScript constants
+
+| Approach | Best for | Tradeoffs |
+| --- | --- | --- |
+| TypeScript `const` | Most cases | Full type safety, autocomplete, conditional logic, refactoring support |
+| `variables` + `$Var()` | YAML configs | No type checking, no autocomplete, but works without TypeScript tooling |
+
+For TypeScript configs, native constants are the better choice. They provide type safety, editor autocomplete, and conditional logic that `variables` cannot match. The `variables` property is available in TypeScript configs but adds no capability beyond what the language already provides.
+
+## Custom directives
+
+When you need values computed dynamically at deploy time — fetching from external APIs, reading infrastructure state, or running conditional logic — define a [custom directive](/configuration/directives). Custom directives are registered in the `directives` array, each pointing to a JS, TypeScript, or Python handler file.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    memory: 1024
+  });
+
+  return {
+    directives: [{ name: 'FetchConfig', filePath: './directives/fetch-config.ts' }],
+    resources: { api }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The handler file exports a default function that receives any parameters passed in the directive call and returns the computed value. Once registered, use `$FetchConfig()` anywhere in the config. Custom directives compute config values at deploy time before the CloudFormation template is generated.
+
+For most TypeScript configs, you can replace custom directives with regular imports and logic in your `stacktape.ts` — custom directives are most relevant for YAML workflows or when you need to separate computation into dedicated handler files.
+
+## Reusable scripts and hooks
+
+Stacktape provides two related mechanisms for reusable operational logic beyond configuration values:
+
+- **Scripts** define reusable shell commands or code you can run with [`stacktape script:run`](/cli/script-run) or attach to lifecycle hooks. Scripts support [`connectTo`](/configuration/connecting-resources) to auto-inject database URLs, API keys, and other environment variables. Script types include `local-script` (runs on your machine or CI), `local-script-with-bastion-tunneling` (tunnels to VPC resources), and `bastion-script` (runs inside your VPC).
+
+- **Hooks** attach scripts to deploy, delete, or dev lifecycle events — for example, running database migrations after every deployment or building a frontend before deploy.
+
+See [hooks and scripts](/configuration/hooks-and-scripts) for details and examples.
+
+## When NOT to use reuse
+
+Not every repeated value needs extraction. Over-abstracting config makes it harder to read and reason about.
+
+- **One occurrence** — leave it inline. A constant for a single-use value adds indirection without benefit.
+- **Two occurrences** — consider extraction if the values are likely to change together.
+- **Three or more** — extract into a constant or helper.
+- **Factory functions** — use only when the shared shape is stable. If each resource diverges significantly, inline definitions are clearer.
+
+The goal is clarity and correctness, not minimal line count. A config file that reads top-to-bottom without jumping between files is easier to review than one that requires tracing through three layers of helpers.
+
+## FAQ
+
+### Can I use environment variables in my stacktape.ts?
+
+Yes. Since `stacktape.ts` is a regular TypeScript file, you can read `process.env` values when the config is evaluated. However, prefer the `defineConfig` parameters (`stage`, `region`, `projectName`) over environment variables for deployment context — they're always available and provided by the Stacktape runtime. Use `process.env` for truly external values like CI tokens or build-time feature flags.
+
+### What's the difference between $Var() and a TypeScript const?
+
+`$Var()` is a [directive](/configuration/directives) that reads from the config's `variables` map. A TypeScript `const` is a language-level variable resolved during module evaluation. In TypeScript configs, `const` gives you type checking, autocomplete, and conditional logic — use it by default. Reserve `$Var()` for YAML configs where native language features are not available.
+
+### How do I share configuration across multiple Stacktape projects?
+
+Create a shared TypeScript module (local file or published npm package) that exports constants, helper functions, or partial resource configurations. Import it into each project's `stacktape.ts`. This is more reliable than duplicating values across projects because TypeScript catches type errors at build time when the shared module's shape changes.
+
+### What deployment context is available inside defineConfig?
+
+The `defineConfig` callback receives `stage`, `region`, `projectName`, `command`, `awsProfile`, `user`, and `cliArgs`. These let you customize the entire configuration based on the current operation — different instance sizes per stage, region-specific naming, or skipping expensive resources during `dev` mode.
+
+### What happens to variables at runtime?
+
+Variables and constants defined in `stacktape.ts` exist only when the config is evaluated before deployment. They do not automatically appear as runtime values in your deployed Lambda functions or containers. To pass a value to a running workload, set it in the resource's `environment` property — which maps to environment variables available at runtime.
+
+### How do I avoid hardcoding the stage name in custom domains?
+
+Use the `stage` parameter from `defineConfig` to construct [custom domain](/resources/networking/custom-domains) names dynamically. For example, `` domainName: `${stage}.api.example.com` `` gives each stage its own subdomain without manual per-environment configuration.
+
+### When should I use a custom directive instead of inline TypeScript?
+
+Custom directives are most useful in YAML configs where you need deploy-time computation that depends on external state (API calls, file system reads, database lookups). In TypeScript configs, the same logic can usually live directly in your `stacktape.ts` as regular imports and function calls — no directive registration needed.
+
+### Can I generate resources dynamically in a loop?
+
+Yes. Use standard TypeScript loops or `Array.map()` inside `defineConfig` to create multiple resources programmatically. The `resources` object accepts any string keys — those keys become resource names. This is useful for generating one Lambda function per API route or one SQS queue per processing pipeline from a data array.
+
+### Should I use one stacktape.ts or split into multiple files?
+
+Stacktape reads a single configuration file (defaulting to `stacktape.ts`). But that file can import from any number of TypeScript modules. For small-to-medium projects, keep everything in one file. For larger projects with 10+ resources, split resource definitions into separate files (e.g. `api.ts`, `database.ts`, `workers.ts`) and import them into your main `stacktape.ts`. The split is a code organization choice — Stacktape processes the merged result identically.
+
+### When should I use a web application firewall conditionally?
+
+Add a [web application firewall](/resources/security/web-application-firewall) to production and staging stages where real traffic flows, but skip it in short-lived development stages. This saves cost (AWS WAF charges per rule and per million requests) while still protecting the environments that matter. The conditional resources pattern shown above makes this a one-line `if` check on `stage`.

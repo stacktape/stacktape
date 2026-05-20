@@ -1,0 +1,757 @@
+{
+  "pageId": "configuration__triggers__kinesis-events",
+  "pageRoute": "configuration/triggers/kinesis-events",
+  "startedAt": "2026-05-17T11:15:50.476Z",
+  "updatedAt": "2026-05-17T11:35:50.310Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__kinesis-events\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When to use / When NOT to use' structure with concrete, decision-oriented scenarios rather than generic advice.",
+            "Consumption modes comparison table (direct polling vs enhanced fan-out) is the right format for this tradeoff and covers both variants with equal depth including cost signal.",
+            "Error handling section is production-grade: covers retry semantics, idempotency requirement, bisect strategy, and failure destination together — exactly the 'poison pill' scenario that bites real users.",
+            "Handler code example correctly shows base64 decoding, a non-obvious detail that saves the first-timer from a confusing runtime bug.",
+            "FAQ section covers all three required categories (Stacktape-specific, AWS service mechanics, choosing/comparison) with 9 quality Q&As.",
+            "Source grounding is clean: batchSize default (10), maxBatchWindowSeconds ceiling (300), startingPosition default (TRIM_HORIZON), onFailure shape (arn + type), consumerArn/autoCreateConsumer mutual exclusivity — all match the type definitions.",
+            "Prose before each code example explains what property values control and names the alternatives (e.g., TRIM_HORIZON vs LATEST, kinesisStreamName vs streamArn)."
+          ],
+          "problems": [
+            "Missing required <ApiReference> component. The page rhythm mandates exactly one <ApiReference definitionName=\"...\" /> on every resource/event page. The correct definitionName is KinesisIntegrationProps (from the KinesisIntegrationProps interface in the source). Its absence means readers have no structured property reference and the page fails the standard completeness bar.",
+            "Basic example uses batchSize: 100 and startingPosition: 'LATEST' without any inline note explaining that these are not defaults (batchSize defaults to 10, startingPosition defaults to TRIM_HORIZON). A beginner copy-pasting this will silently use values they didn't choose intentionally.",
+            "The <Info> callout about starting-position checkpointing ('resumes from its last checkpoint on subsequent deployments') makes a behavioral claim that is not grounded in the provided source type definitions. The source is silent on this mechanic; while it is true AWS behavior, presenting it as a Stacktape-documented fact risks a source-grounding flag.",
+            "The 'bisectBatchOnFunctionError' framing ('helps isolate the specific record causing the failure') differs from the source JSDoc ('can be useful if a failure is caused by a batch being too large'). The source frames it as a size-limit helper; the page reframes it as a debugging tool. Both are partially true but the page's framing is not source-grounded."
+          ],
+          "mandatoryFixes": [
+            "Add <ApiReference definitionName=\"KinesisIntegrationProps\" /> to the page. Per the page rhythm, every event/resource page requires exactly one ApiReference component. Place it at the bottom of the page (conventional position for tutorial-style pages) or wherever fits the flow. The definitionName must exactly match the Props type name from the source."
+          ],
+          "optionalImprovements": [
+            "After the basic example, add one sentence noting that batchSize: 100 and startingPosition: 'LATEST' were chosen deliberately (real-time processing scenario) and that the defaults are 10 and TRIM_HORIZON respectively — this prevents copy-paste confusion for readers whose workload is different.",
+            "Reframe the bisectBatchOnFunctionError description to stay closer to the source: 'splits the batch before retrying, which helps when a single oversized or malformed record causes the whole batch to fail — progressively narrowing until the problematic record is isolated or routed to the failure destination.'",
+            "The <Info> callout about checkpoint resumption on redeployment is useful but not grounded in the source. Either qualify it as AWS behavior ('Underneath, AWS Kinesis event source mappings track a per-shard checkpoint...') or remove it and link to AWS documentation for the checkpoint semantics.",
+            "The starting position table could add a third column 'Common pitfall' — e.g., TRIM_HORIZON during initial deployment processes all backlog (may be expensive); LATEST on a backfill migration misses existing records. This is the decision detail the audience actually needs."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Complete coverage of all KinesisIntegrationProps fields from the source — kinesisStreamName, streamArn, consumerArn, autoCreateConsumer, batchSize, maxBatchWindowSeconds, startingPosition, maximumRetryAttempts, parallelizationFactor, bisectBatchOnFunctionError, and onFailure are all addressed.",
+            "The handler code section correctly identifies the non-obvious base64 decoding requirement, which is a genuine gotcha that practitioners will hit immediately.",
+            "Error handling section is production-critical and accurate: the idempotency requirement, poison-pill/shard-blocking behavior, and the three-way combination of maximumRetryAttempts + bisectBatchOnFunctionError + onFailure is the right practical recommendation.",
+            "Starting position table (TRIM_HORIZON vs LATEST) is clear, grounded in source defaults (@default TRIM_HORIZON), and includes the important 'starting position only applies on first creation' caveat.",
+            "FAQ spans all three required categories — Stacktape-specific questions, underlying AWS service questions (Kinesis cost model, record size limits), and comparison/choosing questions (Kinesis vs SQS vs EventBridge). Coverage is unusually thorough.",
+            "When NOT to use section includes concrete cost and complexity reasoning rather than vague guidance.",
+            "The consumption mode comparison table (direct polling vs enhanced fan-out) gives readers enough information to decide before committing to the more expensive option."
+          ],
+          "problems": [
+            "Missing <ApiReference definitionName=\"KinesisIntegrationProps\" /> — the page rhythm requires exactly one ApiReference block. Without it, readers have no machine-navigable property reference, and the page is incomplete by Stacktape doc conventions.",
+            "The claim 'KinesisStream resource defaults to on-demand capacity mode' (Basic example section) is about the KinesisStream resource type, which is NOT present in the provided source files. This is an ungrounded factual claim that could mislead readers who configure shard counts expecting provisioned behavior.",
+            "The bisectBatchOnFunctionError description frames the feature primarily as record isolation ('helps isolate the specific record causing the failure'). The source JSDoc says 'This can be useful if a failure is caused by a batch being too large' — batch size is the primary use case, not record isolation. The page's framing is a plausible secondary use but diverges from the source's stated rationale.",
+            "batchSize described as 'Accepts 1 to 10,000' — the source only states 'Maximum is 10,000' and does not state a minimum of 1. Minor but the minimum is an invented constraint."
+          ],
+          "mandatoryFixes": [
+            "Add <ApiReference definitionName=\"KinesisIntegrationProps\" /> at the bottom of the page (or wherever fits the flow). This is required by the page rhythm for all configuration/resource pages. The correct definitionName is KinesisIntegrationProps, matching the interface in events.d.ts."
+          ],
+          "optionalImprovements": [
+            "Remove or qualify the 'KinesisStream defaults to on-demand capacity mode' claim, or replace it with a softer 'no shard count required in this example' phrasing that doesn't assert a default without a source.",
+            "Align bisectBatchOnFunctionError description with the source: lead with 'splits a failed batch in half before retrying, which is useful when a batch is too large or contains a bad record' to cover both the source rationale and the practical record-isolation scenario.",
+            "Drop the minimum bound from batchSize ('Accepts 1 to 10,000') and just state 'maximum of 10,000' since that's all the source asserts.",
+            "Consider a one-sentence note in the Parallelization subsection that parallelizationFactor has a maximum of 10 per shard (this is an AWS constraint well-known to practitioners and would surface a real gotcha without needing source grounding beyond general AWS facts)."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the desired length range.",
+            "The page has strong decision support for Kinesis versus SQS, SNS, and EventBridge, including concrete use cases and tradeoffs.",
+            "The basic Stacktape configuration uses the required TypeScript class-based form inside `<CodeBlock intellisense tabs={[...]}/>` with the canonical `label: 'TypeScript'`.",
+            "Batching, starting position, retry limits, failure destinations, and enhanced fan-out are covered in a practical order.",
+            "The FAQ mixes Stacktape-specific questions, AWS-service questions, and comparison questions instead of staying narrowly product-specific."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source file: `KinesisStream` defaulting to on-demand mode, no shard count being required, Stacktape auto-configuring IAM permissions, and Stacktape Console views for logs/metrics/errors.",
+            "The `Consumption modes` table includes AWS-specific details that are not in the provided source, including dedicated HTTP/2 push, dedicated per-consumer throughput, latency claims, and additional cost units. Some AWS context is useful, but these claims should be framed more cautiously or sourced elsewhere.",
+            "The page states enhanced fan-out is lower latency and then recommends direct polling for most workloads. The source JSDoc says `autoCreateConsumer` is recommended for minimizing latency and maximizing throughput, so the recommendation needs tighter wording: direct polling for cost/simplicity, stream consumers for latency/throughput.",
+            "The error-handling section overstates unsupported behavior: indefinite shard blocking, iterator age growth until record expiry, skipped records after retry exhaustion, and detailed failure-destination metadata are not present in the provided source.",
+            "The FAQ answer about monitoring invents Console workflow capabilities from no console-app source. The prompt explicitly forbids Console UI flows unless console source is provided.",
+            "Several paragraphs are longer than the target snippet length and contain multiple claims, especially the Kinesis-vs-alternatives FAQ and poison-pill FAQ.",
+            "The page has no API reference or direct property reference section. That may be acceptable for a conceptual trigger page, but readers who want exact property names and constraints have to infer them from prose."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the `KinesisStream` default on-demand capacity claim. The provided source only defines `KinesisIntegrationProps`; it does not define `KinesisStream` defaults.",
+            "Remove or source-ground the claim that Stacktape auto-configures IAM permissions for this trigger. The provided source does not state IAM behavior for Kinesis integrations.",
+            "Remove the Stacktape Console monitoring claims, or add console-app source before describing Console logs, metrics, invocation views, or error-rate views.",
+            "Revise enhanced fan-out guidance so it does not contradict the source JSDoc. Say direct polling is the simpler cost-conscious mode, while `autoCreateConsumer` is the documented option for minimizing latency and maximizing throughput.",
+            "Replace unsupported error-handling details with source-grounded wording: failed batches are retried including already processed records, `maximumRetryAttempts` caps retry attempts, `bisectBatchOnFunctionError` splits a failed batch in two, and `onFailure` sends failed batches to SQS or SNS after retries are exhausted."
+          ],
+          "optionalImprovements": [
+            "Add a compact property table for the core `KinesisIntegration` knobs: `kinesisStreamName` or `streamArn`, `consumerArn` or `autoCreateConsumer`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, retry options, and failure destination.",
+            "Shorten dense FAQ answers into 2-4 sentence paragraphs so each answer is more extractable by search and AI answer engines.",
+            "Add one sentence before the enhanced fan-out example explaining why `batchSize: 500` and `maxBatchWindowSeconds: 30` were chosen, since those tunable values appear in the code.",
+            "Consider adding a short “Payload” section before handler code that says Kinesis records arrive through the standard AWS Lambda Kinesis event shape, with record data base64-encoded.",
+            "Keep AWS-general facts that help decision-making, but frame them explicitly as AWS Kinesis behavior rather than Stacktape behavior when the source file does not state them."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally aligned with the KinesisIntegration source for the core trigger properties, batching defaults, starting positions, retry controls, and failure destination shape. The main publication risks are unsupported Stacktape-specific claims that go beyond the provided events.d.ts source, plus one likely wrong claim about invoking container workloads.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Can I use Kinesis triggers with container workloads? No. Kinesis event triggers are available only for Lambda functions.”",
+              "reason": "The provided events source describes KinesisIntegration as a function trigger, but the draft makes a broad availability claim without source support. More importantly, the same source explicitly includes event integrations that trigger containers for other event types, so the page should narrow this to what the KinesisIntegration source actually says rather than claim a global container limitation.",
+              "suggestedFix": "Write narrowly: “The KinesisIntegration source documents Kinesis events as function triggers. If you need a container-based consumer, run a worker-style consumer application and grant it access to the stream.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new records are available in a Kinesis Data Stream."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a container when a request matches the specified conditions on an Application Load Balancer."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The KinesisStream resource defaults to on-demand capacity mode, so no shard count is required.”",
+              "reason": "The provided source file covers KinesisIntegration trigger properties, not KinesisStream resource capacity defaults. No KinesisStreamProps source is included, so this Stacktape-specific resource default is not grounded in the provided source.",
+              "suggestedFix": "Remove the default-capacity sentence, or replace it with a source-grounded statement about the trigger: “The trigger can reference a stream defined in the same Stacktape configuration with kinesisStreamName, or an external stream with streamArn.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The name of a Kinesis stream defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The ARN of an existing Kinesis stream to consume records from."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape auto-configures the IAM permissions the Lambda function needs to read from the stream.”",
+              "reason": "The KinesisIntegration source defines trigger properties and consumption behavior, but it does not document IAM permission generation for the consuming Lambda function. This is Stacktape-specific behavior and should not be asserted from the provided source.",
+              "suggestedFix": "Remove the IAM sentence unless a source file for permission generation is provided. The example can stand on the documented trigger properties alone.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KinesisIntegrationProps {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You must specify either `kinesisStreamName` or `streamArn`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For cross-account streams, ensure the stream's resource policy grants your Lambda function's execution role permission to read from it.”",
+              "reason": "The source supports consuming an existing stream by ARN, but it does not document cross-account streams, resource policies, or execution-role permission requirements. This may be true AWS guidance, but the draft presents it as a supported Stacktape usage path without source grounding.",
+              "suggestedFix": "Narrow the answer to the documented external-stream path: “Use streamArn for a stream not managed by the stack. Cross-account access depends on AWS-side permissions and is not described by this Stacktape trigger source.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Use this to consume from a stream that is not managed by your stack."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In the Stacktape Console, you can view logs, invocation metrics, and error rates.”",
+              "reason": "No console-app source is provided for this page. The verifier instructions prohibit Console workflow or capability claims unless grounded in console-app source. The draft may mention Stacktape Console generally, but specific observable items like invocation metrics and error rates are unsupported here.",
+              "suggestedFix": "Replace with a cautious link-only sentence such as: “For Console-based observability, see the Stacktape Console overview.” Keep the CLI logs claim because the linked command is in the navigation index.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new records are available in a Kinesis Data Stream."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The destination receives metadata about the failed batch — shard ID, start and end sequence numbers, and the error details.”",
+              "reason": "The source only documents that onFailure is a destination for batches that fail after all retry attempts, with arn and type fields. It does not specify the payload contents delivered to the destination.",
+              "suggestedFix": "Keep the grounded behavior and remove the payload-shape details: “Configure onFailure to route batches that exhaust retry attempts to an SQS queue or SNS topic.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "arn: string;\n  /**\n   * #### The type of the destination.\n   */\n  type: 'sns' | 'sqs';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“On subsequent deployments, the function resumes from its last checkpoint — it does not reset to the configured starting position.”",
+              "reason": "The source documents only the startingPosition values and default. It does not describe redeployment behavior, checkpoints, or whether changing the configuration resets reading position.",
+              "suggestedFix": "Remove the redeployment/checkpoint claim or phrase it as AWS Lambda event source behavior only if an AWS source is allowed for this page. Source-grounded text should say only that startingPosition controls the position from which the trigger starts reading records.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The position in the stream from which to start reading records."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "- `LATEST`: Read only new records.\n   * - `TRIM_HORIZON`: Read all available records from the beginning of the stream."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without a limit, a persistently failing record blocks the entire shard because Kinesis event source mappings preserve shard ordering — the service won't advance past a failed batch.”",
+              "reason": "The source warns that the entire batch is retried and that functions should be idempotent, but it does not state infinite retry defaults, shard blocking behavior, or checkpoint advancement semantics. Those details may be AWS behavior, but the draft presents them as concrete trigger behavior beyond the provided source.",
+              "suggestedFix": "Keep the source-grounded warning: “If an error occurs, the entire batch is retried, including records that were already processed successfully. Set maximumRetryAttempts when you want a finite retry policy.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The number of times to retry a failed batch of records."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "> **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses CodeBlock with a TypeScript tab for Stacktape configuration and does not hand-author YAML Stacktape config.",
+            "The core KinesisIntegration properties in the examples are present in the source: kinesisStreamName, streamArn, consumerArn, autoCreateConsumer, batchSize, maxBatchWindowSeconds, startingPosition, maximumRetryAttempts, onFailure, parallelizationFactor, and bisectBatchOnFunctionError.",
+            "The draft correctly states the documented batchSize default of 10, maximum batch size of 10,000, maxBatchWindowSeconds maximum of 300 seconds, and startingPosition default of TRIM_HORIZON.",
+            "The draft correctly describes autoCreateConsumer and consumerArn as mutually exclusive, matching the source comments."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the KinesisIntegration source for core properties, batching, starting position, retry, failure destination, and enhanced fan-out configuration. The main publication risks are unsupported Stacktape-specific claims about KinesisStream defaults/IAM, Stacktape doing runtime polling, external stream permissions, and a few detailed Lambda/Kinesis behaviors that are not present in the provided source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `KinesisStream` resource defaults to on-demand capacity mode, so no shard count is required. Stacktape auto-configures the IAM permissions the Lambda function needs to read from the stream.”",
+              "reason": "The provided source file only defines the Kinesis trigger/integration shape. It does not include the KinesisStream resource type, its capacity defaults, shard-count behavior, or any IAM auto-configuration behavior for this integration. These Stacktape-specific claims would affect how readers configure the stream and permissions.",
+              "suggestedFix": "Remove the KinesisStream default-capacity and IAM auto-configuration claims unless the KinesisStream resource source and integration runtime source are provided. A source-grounded replacement would be: “Use `kinesisStreamName` to consume from a Kinesis stream defined in the same Stacktape configuration, or `streamArn` for an existing stream.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The name of a Kinesis stream defined in your stack's resources.\n   *\n   * ---\n   *\n   * You must specify either `kinesisStreamName` or `streamArn`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The ARN of an existing Kinesis stream to consume records from.\n   *\n   * ---\n   *\n   * Use this to consume from a stream that is not managed by your stack.\n   * You must specify either `kinesisStreamName` or `streamArn`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Stacktape polls the stream and delivers records in configurable batches” and “Direct polling is the default behavior — any Kinesis trigger without `autoCreateConsumer` or `consumerArn` uses it.”",
+              "reason": "The source says the direct consumption mode polls each shard, but it does not say Stacktape performs runtime polling. Stacktape configuration defines the event integration; attributing the polling to Stacktape overstates the abstraction. The source also documents direct and stream-consumer modes, but it does not explicitly define direct polling as the default when neither `autoCreateConsumer` nor `consumerArn` is set.",
+              "suggestedFix": "Say “A Kinesis event trigger invokes a Lambda function with batches of records from a Kinesis Data Stream.” For the mode, use narrower wording: “If you do not set `autoCreateConsumer` or `consumerArn`, the integration uses the direct polling path described in the Kinesis integration source.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. Two consumption modes:\n * - **Direct**: Polls each shard ~1/sec, throughput shared with other consumers.\n * - **Stream Consumer** (`autoCreateConsumer`): Dedicated connection per shard — higher throughput, lower latency."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Automatically creates a dedicated stream consumer for this integration.\n   *\n   * ---\n   *\n   * This is recommended for minimizing latency and maximizing throughput."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For cross-account streams, ensure the stream's resource policy grants your Lambda function's execution role permission to read from it.”",
+              "reason": "The source supports using `streamArn` for an existing Kinesis stream, but it does not document cross-account stream support or the exact permission mechanism. Cross-account IAM/resource-policy details are not grounded in the provided Stacktape source.",
+              "suggestedFix": "Narrow the answer to the supported source fact: “Use `streamArn` for a stream that is not managed by your stack. Cross-account access depends on AWS permissions for the stream and the consuming Lambda function.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The ARN of an existing Kinesis stream to consume records from.\n   *\n   * ---\n   *\n   * Use this to consume from a stream that is not managed by your stack.\n   * You must specify either `kinesisStreamName` or `streamArn`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The destination receives metadata about the failed batch — shard ID, start and end sequence numbers, and the error details.”",
+              "reason": "The source only says `onFailure` is a destination for batches that fail after all retry attempts and defines the destination ARN/type. It does not describe the payload delivered to that destination. The specific metadata fields are not grounded in the provided source.",
+              "suggestedFix": "Replace with: “Configure `onFailure` to send batches that fail after all retry attempts to an SQS queue or SNS topic.” Avoid listing destination payload fields unless Lambda event-source-mapping source or AWS docs are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DestinationOnFailure {\n  /**\n   * #### The ARN of the SNS topic or SQS queue for failed batches.\n   */\n  arn: string;\n  /**\n   * #### The type of the destination.\n   */\n  type: 'sns' | 'sqs';\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without a limit, a persistently failing record blocks the entire shard because Kinesis event source mappings preserve shard ordering — the service won't advance past a failed batch.” and the related warning that a poison-pill record can block a shard indefinitely.",
+              "reason": "The source states that the entire batch is retried and that handlers should be idempotent, but it does not state unlimited retries, shard blocking, checkpoint behavior, or indefinite blocking. These are AWS Lambda/Kinesis mechanics rather than Stacktape-specific properties, but the draft presents them as behavior of this Stacktape trigger without source support.",
+              "suggestedFix": "Keep the source-grounded part: “If an error occurs, the entire batch is retried, including records that were processed successfully, so your function should be idempotent.” If retaining shard-blocking guidance, frame it explicitly as AWS Lambda event source mapping behavior and avoid unsupported details such as “indefinitely” unless separately sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The number of times to retry a failed batch of records.\n   *\n   * ---\n   *\n   * > **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Starting position applies only when the event source mapping is first created. On subsequent deployments, the function resumes from its last checkpoint — it does not reset to the configured starting position.”",
+              "reason": "The source defines the allowed `startingPosition` values and the default, but it does not document checkpoint behavior or how subsequent Stacktape deployments treat an existing event source mapping. This is plausible AWS behavior, but it is not grounded in the provided Stacktape source.",
+              "suggestedFix": "Use only the documented behavior: “`startingPosition` controls whether the integration starts from new records (`LATEST`) or from all available records (`TRIM_HORIZON`) when reading begins.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The position in the stream from which to start reading records.\n   *\n   * ---\n   *\n   * - `LATEST`: Read only new records.\n   * - `TRIM_HORIZON`: Read all available records from the beginning of the stream.\n   *\n   * @default TRIM_HORIZON"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I use Kinesis triggers with container workloads? No. Kinesis event triggers are available only for Lambda functions.”",
+              "reason": "The provided source defines KinesisIntegration as triggering a function, and no container Kinesis integration appears in the source file. However, the hard negative “No” and the workaround using `connectTo` are broader than the source: `connectTo` is not present in the provided source file, and the source does not document all possible container consumption patterns.",
+              "suggestedFix": "Narrow the claim: “The Stacktape KinesisIntegration type in this source is a function event integration. Container workload integrations listed in this source cover load balancer, HTTP API, internal, service-connect, and network load balancer events, not Kinesis stream events.” Remove the `connectTo` workaround unless helper source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new records are available in a Kinesis Data Stream."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadLoadBalancerIntegration {\n  type: 'application-load-balancer';\n  properties: ContainerWorkloadLoadBalancerIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationProps {\n  /**\n   * #### The container port that will receive traffic from the API Gateway.\n   */\n  containerPort: number;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The FAQ says the Stacktape Console can show “logs, invocation metrics, and error rates” for a Kinesis-triggered Lambda function.",
+              "reason": "No console-app source is provided for this page. The statement may be true, but Console UI capabilities and available metrics should be grounded in console-app source under the prompt rules.",
+              "suggestedFix": "Use a safer, link-only phrasing: “You can also inspect deployed resources in the Stacktape Console,” or remove the specific Console capabilities unless console source is available.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML.",
+            "The main KinesisIntegration properties used in examples — `kinesisStreamName`, `streamArn`, `consumerArn`, `autoCreateConsumer`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError` — are present in the provided type source.",
+            "The draft correctly states the documented `batchSize` default of 10, maximum batch size of 10,000, `maxBatchWindowSeconds` maximum of 300 seconds, and `startingPosition` default of `TRIM_HORIZON`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the important KinesisIntegrationProps surface well: stream binding, external stream ARN, enhanced fan-out options, batching, starting position, retry controls, failure destination, parallelization, and batch bisection are all mentioned. I found one medium issue: the canonical trigger example does not focus the trigger property as required for trigger pages.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "In the Basic example, the `<CodeBlock intellisense>` focus markers wrap the entire `defineConfig` example instead of focusing the Kinesis trigger binding.",
+              "reason": "The section instructions require every trigger page to include the canonical TypeScript event-binding example with the trigger property focused. The example is otherwise relevant, but the focus markers make the whole resource setup the highlighted concept instead of the `events: [new KinesisIntegration(...)]` binding that the page is teaching.",
+              "suggestedFix": "Move the focus markers so they wrap the `events` property or the `new KinesisIntegration({ ... })` block inside the LambdaFunction config, while keeping imports and surrounding config available for type-checking.",
+              "evidence": [
+                {
+                  "file": "Draft page: Basic example",
+                  "quote": "// [!code focus-start]\nexport default defineConfig(() => {\n  const clickStream = new KinesisStream();\n\n  const processor = new LambdaFunction({\n    packaging: new StacktapeLambdaBuildpackPackaging({\n      entryfilePath: './src/process-records.ts'\n    }),\n    events: [\n      new KinesisIntegration({\n        kinesisStreamName: 'clickStream',\n        batchSize: 100,\n        startingPosition: 'LATEST'\n      })\n    ]\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KinesisIntegration {\n  type: 'kinesis-stream';\n  properties: KinesisIntegrationProps;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All important KinesisIntegrationProps fields from the source are documented: `kinesisStreamName`, `streamArn`, `consumerArn`, `autoCreateConsumer`, `maxBatchWindowSeconds`, `batchSize`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "The documented union variants are acknowledged: `startingPosition` covers `LATEST` and `TRIM_HORIZON`, and `onFailure` covers `sns` and `sqs`.",
+            "The enhanced fan-out example demonstrates the section topic by setting `autoCreateConsumer: true`, and the batching example in the basic config sets both `batchSize` and `startingPosition` with surrounding explanation."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__kinesis-events\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All KinesisIntegrationProps properties from the source are documented accurately, with correct defaults (batchSize: 10, startingPosition: TRIM_HORIZON) and constraints (batchSize max 10,000, maxBatchWindowSeconds max 300s).",
+            "Error handling section is production-grade: it explains idempotency, maximumRetryAttempts, bisectBatchOnFunctionError, and onFailure as a coordinated trio, not isolated options. The <Tip> callout wraps this up with a concrete recommendation.",
+            "The basic example includes a handler code snippet showing the critical base64-decoding step — this is the single most common newcomer trip-wire and the page handles it proactively.",
+            "Consumption modes section uses a FeatureComparisonTable with cost, throughput, and latency columns, then gives each variant its own explanation and code example with a clear recommendation (direct polling for most workloads).",
+            "FAQ covers all three required categories: Stacktape-specific (streamArn for cross-account, starting position choice), AWS-specific (Kinesis cost model, record size limit, iterator age), and comparison questions (Kinesis vs SQS vs EventBridge, Lambda vs container workloads).",
+            "No mandatory style violations: CodeBlock is used correctly for all Stacktape config, defineConfig + class-based resources throughout, single ApiReference with correct definitionName (KinesisIntegrationProps), no fenced YAML or TypeScript config blocks.",
+            "Property-value anchors are well-handled: every non-obvious value in code examples (batchSize: 100, startingPosition: 'LATEST', batchSize: 500, maxBatchWindowSeconds: 30) is explained in a named dedicated section later on the page."
+          ],
+          "problems": [
+            "\"Shard\" is used approximately 10 times as a load-bearing term (shard blocking, per-shard ordering, shard-hour pricing, parallelizationFactor per-shard concurrency) but is never defined for a reader with low AWS experience. The persona explicitly has light AWS background and will hit this term on the first paragraph of Batching and every Error handling subsection.",
+            "\"Iterator age\" appears in the FAQ answer for \"What happens if my function can't keep up?\" without any plain-English gloss. A newcomer reading this FAQ as a quick answer will not know whether iterator age is good or bad, let alone what it is.",
+            "The basic example sets `startingPosition: 'LATEST'` but the explanation of what LATEST means and when to choose it appears in a later separate section. For a newcomer copy-pasting the example, this creates a silent configuration choice with no immediate explanation at the point of use."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a one-sentence definition of 'shard' on its first use in the Batching section. Example: 'A Kinesis stream is divided into shards — each shard is an independent ordered partition that handles a portion of the stream's throughput.' This anchors all subsequent shard-related guidance for readers who've never used Kinesis.",
+            "Briefly define 'iterator age' inline in the FAQ answer that introduces it. One sentence suffices: 'Iterator age is the lag between when a record was written to the stream and when your function processes it — a growing iterator age means your function is falling behind incoming data.'",
+            "Add a one-line inline note in the basic example (prose immediately after the code block) pointing forward to the Starting position section for `startingPosition: 'LATEST'`. Something like: 'The `startingPosition: 'LATEST'` value shown here means only records written after the trigger is created will be processed — see Starting position below for when to use TRIM_HORIZON instead.' This prevents silent misconfiguration for copy-paste users.",
+            "The `onFailure` property documentation mentions using `$ResourceParam()` to reference a queue or topic ARN — consider showing a one-line inline example of this pattern (e.g., `arn: '$ResourceParam(myDeadLetterQueue, queueArn)'`) since ARN-by-string is less obvious to newcomers than a named resource reference and this is the pattern they'll actually use when the DLQ is in the same stack."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations — all Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with TypeScript, handler code is in plain fenced blocks, no YAML config blocks present.",
+            "Source-grounded throughout: batchSize default 10, startingPosition default TRIM_HORIZON, maxBatchWindowSeconds max 300, batchSize max 10,000, onFailure type union 'sqs'|'sns' all match KinesisIntegrationProps exactly.",
+            "Error handling section is the strongest part of the page — the three-property combination (maximumRetryAttempts + bisectBatchOnFunctionError + onFailure) with the <Warning> about shard-blocking gives readers exactly the production guidance they need.",
+            "The <FeatureComparisonTable> for direct polling vs enhanced fan-out is well-constructed and more useful than equivalent prose would be.",
+            "FAQ spans all three required categories: Stacktape-specific, AWS service behavior, and comparison/choosing questions. Nine pairs, all substantive.",
+            "When NOT to use section is opinionated with concrete alternatives (SQS, SNS/EventBridge) and cost rationale, not generic.",
+            "The mutual exclusivity of autoCreateConsumer and consumerArn is explicitly called out — a production gotcha that is easy to miss.",
+            "connectTo is not applicable to this resource type and is correctly not mentioned."
+          ],
+          "problems": [
+            "The basic example sets startingPosition: 'LATEST' without explaining why this non-default value was chosen. The source documents TRIM_HORIZON as the default. A reader who copies the example and forgets to remove that line might silently skip historical records they actually wanted. Per documentation-quality discipline rule 4, every non-obvious value in an example needs a surrounding prose explanation of what it controls and what the alternatives are.",
+            "The bisectBatchOnFunctionError description diverges from the source. The source JSDoc says: 'This can be useful if a failure is caused by a batch being too large.' The doc instead frames it as 'narrows down the failing records when only part of a large batch causes an error' — emphasizing per-record isolation rather than batch size. While the page's framing is common in the wider AWS ecosystem, it is not grounded in the provided source and slightly misrepresents the source's stated use case.",
+            "The batching section discusses batchSize and invocation cost but does not mention the Lambda 6 MB payload limit as a ceiling that can be hit before batchSize is reached — especially relevant when individual records are large. This is a well-known Lambda constraint that affects batch size decisions in production."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the basic example, add a one-sentence prose note explaining why startingPosition: 'LATEST' is used (e.g., 'This example uses LATEST to process only new records; change to TRIM_HORIZON — the default — to also process existing records in the stream'). This prevents readers from silently inheriting a non-default behavior.",
+            "Align the bisectBatchOnFunctionError description with the source's framing: the source says it is useful when a failure is caused by a batch being too large. Consider writing: 'Enable bisectBatchOnFunctionError to split a failed batch in two before retrying — useful when an oversized batch causes processing failures, progressively reducing the batch until the problem is isolated.'",
+            "Add a sentence to the batching section noting that Lambda payload limits (6 MB) act as an additional ceiling — meaning that with large records, the effective maximum batch delivered may be smaller than batchSize. This helps readers set realistic batchSize values for high-throughput streams with large payloads.",
+            "The parallelizationFactor section is the most thinly developed section on the page — it has one paragraph with no code example and no concrete value guidance (e.g., valid range, typical values). Consider adding the range or a brief note on when values like 2, 5, or 10 are appropriate, or explicitly direct readers to the API reference for this property.",
+            "The enhanced fan-out section mentions 'per-consumer-shard-hour and per-GB AWS charges' but does not provide any order-of-magnitude framing. Even a brief note such as 'the enhanced fan-out charges are small relative to the base stream cost for low-shard counts but become material at scale' would help readers make the decision."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and clearly identifies Kinesis event triggers, Lambda functions, batching, and the main use cases.",
+            "The page uses the required TypeScript class-based Stacktape config inside `<CodeBlock intellisense tabs={[...]}/>` and avoids forbidden YAML or `StacktapeConfig` examples.",
+            "The page covers the important operational levers for this trigger: stream selection, consumption mode, batching, starting position, retries, bisection, failure destinations, and handler decoding.",
+            "The comparison table for direct polling vs enhanced fan-out is useful for answer extraction and quick decision-making.",
+            "The FAQ is broad and includes Stacktape-specific, AWS/Kinesis use-case, and comparison questions rather than only repeating API properties."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source file, especially Kinesis retention range, Kinesis shard cost, on-demand pricing, record size limits, Lambda payload limit, IteratorAge metrics, shard blocking behavior, and skipped-record behavior after retry exhaustion.",
+            "The `maxBatchWindowSeconds` section says that when omitted, the function fires as soon as records are available. The provided Kinesis source only states that the property is the maximum wait time and that the maximum is 300 seconds; it does not document the omitted/default behavior.",
+            "The `parallelizationFactor` section adds default ordering and out-of-order processing claims that are not present in the KinesisIntegration source. The source only says it controls the number of batches processed concurrently from the same shard.",
+            "The error-handling section overstates AWS Lambda event source mapping behavior as if it were documented in the Stacktape source. The source supports whole-batch retry and idempotency guidance, but not shard blocking, infinite retries, or the recommended 3-5 retry count.",
+            "The `onFailure` section says records are skipped when no failure destination is configured. The source only says `onFailure` is a destination for batches that fail after all retry attempts.",
+            "Several H2 sections have very short first paragraphs or no introductory paragraph at all, especially `Consumption modes`, `Starting position`, `API reference`, and `FAQ`. These sections are still understandable, but weaker as standalone extractable snippets.",
+            "The page is practical, but some advanced claims read more authoritative than the configured source allows. For this pipeline, unsupported precision is riskier than cautious wording."
+          ],
+          "mandatoryFixes": [
+            "Revise unsupported Stacktape-specific or AWS-behavior claims so every technical statement is grounded in `events.d.ts`, or remove the claim. In particular, address retention range, shard pricing, on-demand pricing, 1 MB record size, 6 MB Lambda payload limit, IteratorAge, shard blocking, skipped records, and HTTP/2 push unless those facts are added to the source set.",
+            "Correct the `maxBatchWindowSeconds` wording to the source-grounded fact: it is the maximum time in seconds to wait before invoking the function with a batch, with a maximum of 300 seconds. Do not claim omitted/default behavior unless sourced.",
+            "Narrow the `parallelizationFactor` section to the sourced behavior: it controls how many batches are processed concurrently from the same shard. If keeping ordering tradeoffs, phrase them as AWS background rather than Stacktape-documented behavior, or remove them.",
+            "Narrow retry and failure-destination language to the sourced facts: failed batches are retried as whole batches, handlers should be idempotent, `maximumRetryAttempts` controls retry count, `bisectBatchOnFunctionError` splits failed batches in two, and `onFailure` sends batches to SQS or SNS after all retry attempts.",
+            "Add self-contained opening paragraphs to thin H2 sections or merge sections where a standalone paragraph would be artificial. `API reference` and `FAQ` can remain compact, but `Consumption modes` and `Starting position` should be more extractable."
+          ],
+          "optionalImprovements": [
+            "Add one sentence near the enhanced fan-out example explaining why `batchSize: 500` and `maxBatchWindowSeconds: 30` were chosen, so the values read as tunable examples rather than implied defaults.",
+            "Consider softening `primary choice` in the opening paragraph to avoid sounding broader than the source; for example, say Kinesis triggers are a common fit for ordered, replayable stream processing.",
+            "The handler example is useful, but the event payload shape is not in the provided Stacktape source. If retained, explicitly frame it as the AWS Lambda Kinesis event shape rather than a Stacktape-specific payload contract.",
+            "The `When NOT to use` section is useful, but the low-volume cost comparison depends on pricing facts not present in the source. Keep the decision guidance, but avoid unsourced numeric or pricing-model precision unless supporting source is added."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the KinesisIntegration source for core properties, batching maximums, starting positions, retry behavior, failure destinations, and enhanced fan-out controls. The main problems are a few Stacktape-specific constraints/defaults and operational behaviors that the provided source does not state, plus one concrete unsupported default for maxBatchWindowSeconds behavior.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“batchSize — maximum number of records per batch. Accepts 1 to 10,000.”",
+              "reason": "The source supports the maximum of 10,000 and the default of 10, but it does not state a minimum of 1 for KinesisIntegration.batchSize.",
+              "suggestedFix": "Write “Maximum is 10,000. Defaults to 10.” Avoid stating the minimum unless another source provides it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* #### The maximum number of records to process in a single batch.\n   *\n   * ---\n   *\n   * Maximum is 10,000.\n   *\n   * @default 10\n   */\n  batchSize?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“maxBatchWindowSeconds ... When omitted, the function fires as soon as records are available.”",
+              "reason": "The KinesisIntegration source only states the maximum batch window. It does not document an omitted/default behavior for Kinesis maxBatchWindowSeconds. That omitted behavior is documented for SQS in the same file, which makes the absence on Kinesis meaningful.",
+              "suggestedFix": "Keep the sourced maximum: “Maximum is 300 seconds.” If you want to explain omitted behavior, phrase cautiously as AWS Lambda behavior rather than Stacktape source behavior, or omit it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* #### The maximum time (in seconds) to wait before invoking the function with a batch of records.\n   *\n   * ---\n   *\n   * Maximum is 300 seconds.\n   */\n  maxBatchWindowSeconds?: number;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, one batch at a time is processed from each shard, preserving strict record order.”",
+              "reason": "The source defines parallelizationFactor as the number of batches to process concurrently from the same shard, but it does not state the default value or strict ordering behavior when omitted.",
+              "suggestedFix": "Narrow the claim to what the source says: “parallelizationFactor controls the number of batches processed concurrently from the same shard.” You may add general AWS context separately if needed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* #### The number of batches to process concurrently from the same shard.\n   */\n  parallelizationFactor?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without a failure destination, records that exceed the retry limit are skipped as the mapping advances past them.”",
+              "reason": "The source supports that onFailure is a destination for batches that fail after all retry attempts, but it does not state what happens when onFailure is omitted.",
+              "suggestedFix": "Write only the sourced behavior: “Configure onFailure to send batches that fail after all retry attempts to an SQS queue or SNS topic.” Avoid describing the no-destination outcome unless another source provides it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* #### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts.\n   */\n  onFailure?: DestinationOnFailure;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The Lambda event source mapping delivers batches of up to 10,000 records or the Lambda payload limit (6 MB), whichever is reached first.”",
+              "reason": "The source supports the Kinesis batch size maximum of 10,000, but it does not mention the Lambda 6 MB payload limit for Kinesis. This is likely AWS background knowledge, but it is not grounded in the provided source.",
+              "suggestedFix": "Keep the 10,000-record limit as the Stacktape property constraint. If retaining the 6 MB payload limit, frame it explicitly as AWS Lambda behavior.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the required TypeScript CodeBlock format for Stacktape configuration and does not hand-author YAML examples.",
+            "The KinesisIntegration API reference name matches the source type: KinesisIntegrationProps.",
+            "The draft correctly documents the supported source selectors kinesisStreamName and streamArn, consumerArn versus autoCreateConsumer, startingPosition values, batchSize default, retry attempts, onFailure destination shape, and bisectBatchOnFunctionError at a high level.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided KinesisIntegration source and follows the required MDX/config example style. The main problems are a few Stacktape-specific or source-grounding-sensitive claims that go beyond the provided Kinesis source, especially around unsupported property behavior and overly specific failure-handling mechanics.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When omitted, the function fires as soon as records are available.”",
+              "reason": "The Kinesis `maxBatchWindowSeconds` source only documents the maximum value. It does not document the omitted/default behavior for Kinesis, even though similar wording exists for SQS in the same file. Because this page must ground Stacktape behavior in the provided source, the Kinesis wording should avoid asserting an omitted-value behavior that is not documented for this property.",
+              "suggestedFix": "Narrow the wording to: “`maxBatchWindowSeconds` sets the maximum wait time before invoking with a batch. The source documents a maximum of 300 seconds.” If you want to discuss AWS Lambda’s default behavior, frame it explicitly as AWS event source mapping behavior rather than Stacktape source-backed behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KinesisIntegrationProps {\n  /**\n   * #### The maximum time (in seconds) to wait before invoking the function with a batch of records.\n   *\n   * ---\n   *\n   * Maximum is 300 seconds.\n   */\n  maxBatchWindowSeconds?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Combined with a retry limit, bisection progressively isolates the problem until the bad record is either processed successfully or routed to a failure destination.”",
+              "reason": "The source only says `bisectBatchOnFunctionError` splits a failed batch in two before retrying and that `onFailure` is a destination for batches that fail after all retry attempts. It does not document progressive isolation down to a bad record or the precise interaction between bisection, retry limits, and failure destinations.",
+              "suggestedFix": "Use narrower wording: “Enable `bisectBatchOnFunctionError` to split a failed batch in two before retrying. Pair it with `maximumRetryAttempts` and `onFailure` when you want failed batches to stop retrying indefinitely and be sent to a destination after retries are exhausted.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "  /**\n   * #### Splits a failed batch in two before retrying.\n   *\n   * ---\n   *\n   * This can be useful if a failure is caused by a batch being too large.\n   */\n  bisectBatchOnFunctionError?: boolean;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "  /**\n   * #### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts.\n   */\n  onFailure?: DestinationOnFailure;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without `maximumRetryAttempts`, a failing batch can block its shard, causing the iterator age to grow and processing to fall behind the stream tip.”",
+              "reason": "The source states that the entire batch is retried after an error and that handlers should be idempotent. It does not document unbounded retry behavior, shard blocking, or iterator age effects for Stacktape’s Kinesis integration. These may be AWS Lambda event source mapping mechanics, but the draft presents them as direct Stacktape configuration behavior.",
+              "suggestedFix": "Frame this as AWS Lambda behavior, or narrow it to the source-backed point: “If an error occurs, the entire batch is retried, including records already processed successfully. Set `maximumRetryAttempts` when you want to cap retries for a failed batch.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "  /**\n   * #### The number of times to retry a failed batch of records.\n   *\n   * ---\n   *\n   * > **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this.\n   */\n  maximumRetryAttempts?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without a failure destination, records that exceed the retry limit are skipped as the mapping advances past them.”",
+              "reason": "The provided source only defines `onFailure` as a destination for batches that fail after all retry attempts. It does not describe what happens when `onFailure` is omitted after retry exhaustion.",
+              "suggestedFix": "Replace with source-grounded wording: “Configure `onFailure` when you want batches that fail after all retry attempts to be sent to an SQS queue or SNS topic.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "  /**\n   * #### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts.\n   */\n  onFailure?: DestinationOnFailure;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `streamArn` property accepts the full ARN of any Kinesis stream, including streams in other stacks or AWS accounts.”",
+              "reason": "The source supports using `streamArn` for an existing stream not managed by the stack, but it does not explicitly mention cross-account streams. Cross-account access may be possible with AWS permissions, but the wording “any Kinesis stream” is broader than the provided Stacktape source.",
+              "suggestedFix": "Narrow to: “`streamArn` accepts the ARN of an existing Kinesis stream that is not managed by your stack.” Keep cross-account guidance only as a permissions caveat if needed.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `onFailure` property takes an `arn` … Use `$ResourceParam()` to reference the ARN of a queue or topic defined in your stack instead of hardcoding it.”",
+              "reason": "The source confirms `onFailure.arn` and destination `type`, but the provided source file does not document `$ResourceParam()` or the referenceable parameter names for SQS queues or SNS topics. The advice is plausible, but not grounded in the provided source list for this page.",
+              "suggestedFix": "Either remove the `$ResourceParam()` sentence or make it conditional on the referenceable-parameters page if that source is included in the page source set.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML.",
+            "The draft’s `<ApiReference definitionName=\"KinesisIntegrationProps\" />` matches the provided Kinesis props type name.",
+            "The core Kinesis properties shown in the examples are present in `KinesisIntegrationProps`: `kinesisStreamName`, `batchSize`, `startingPosition`, `autoCreateConsumer`, and `maxBatchWindowSeconds`.",
+            "The draft correctly states the source-backed defaults and limits for `batchSize` and `startingPosition`: `batchSize` defaults to 10 with a maximum of 10,000, and `startingPosition` defaults to `TRIM_HORIZON` with `LATEST` also supported.",
+            "The draft correctly documents that `consumerArn` cannot be used with `autoCreateConsumer`, and that `onFailure` supports SQS or SNS destinations via `type: 'sqs' | 'sns'`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API completeness, union-variant coverage, or code-example demonstrativeness issues found for the Kinesis events page. The draft covers every important KinesisIntegrationProps property exposed in the source and the examples demonstrate the trigger properties they introduce.",
+          "issues": [],
+          "positiveFindings": [
+            "The page mentions all important KinesisIntegrationProps fields: kinesisStreamName, streamArn, consumerArn, autoCreateConsumer, maxBatchWindowSeconds, batchSize, startingPosition, maximumRetryAttempts, onFailure, parallelizationFactor, and bisectBatchOnFunctionError.",
+            "The documented union values are covered: startingPosition names LATEST and TRIM_HORIZON, and onFailure names sns and sqs destination types.",
+            "The primary Stacktape configuration example uses <CodeBlock intellisense> with a TypeScript tab and focuses the KinesisIntegration trigger property as required for trigger pages.",
+            "The enhanced fan-out example is demonstrative because it sets autoCreateConsumer and related batching properties in the section that explains that feature.",
+            "The page includes the expected API reference with KinesisIntegrationProps."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\kinesis-events.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T11:35:50.310Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

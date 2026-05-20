@@ -1,0 +1,855 @@
+{
+  "pageId": "packaging__containers__nixpacks",
+  "pageRoute": "packaging/containers/nixpacks",
+  "startedAt": "2026-05-17T14:03:57.121Z",
+  "updatedAt": "2026-05-17T14:23:30.006Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\packaging__containers__nixpacks\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, opinionated 'When to use / When NOT to use' pairing with concrete, distinguishable scenarios — reader can make an actual decision without reading the full page.",
+            "Comparison table of all five container packaging modes is placed early and covers all union variants, satisfying union-type coverage discipline.",
+            "Realistic code examples span four resource types (WebService, WorkerService, BatchJob, MultiContainerWorkload) and are all copy-ready with proper defineConfig + class-based form.",
+            "NixpacksPhase properties are enumerated in a scannable table before the sub-sections, so the reader understands the full shape before seeing individual examples.",
+            "FAQ section mixes all three required categories (Stacktape-specific, AWS-service, and comparison questions) and answers are appropriately concise.",
+            "ECR jargon is explained inline ('Amazon ECR (Elastic Container Registry)') without being condescending — right level for the stated audience."
+          ],
+          "problems": [
+            "Missing <ApiReference> component entirely — packaging pages are required to have exactly one <ApiReference definitionName=\"...\" /> somewhere on the page.",
+            "The 'Existing Nixpacks config files' section claims Stacktape merges nixpacks.toml/nixpacks.json with Stacktape config and applies specific precedence/phase-merge rules, but none of this behavior appears in the provided source files (NixpacksCwImagePackagingProps, NixpacksBjImagePackagingProps). This is an ungrounded claim.",
+            "The 'Build caching and skip behavior' section claims Stacktape calculates a source checksum and lists the exact inputs to that checksum — none of this is documented in the provided source type definitions. The section reads as authoritative but is unsupported.",
+            "The FAQ entry 'Does Nixpacks support ARM/Graviton builds?' claims Nixpacks runs with '--platform linux/arm64' and that the target architecture is determined by compute configuration. Neither claim is grounded in the provided source files.",
+            "H2 headings 'Using with batch jobs' and 'Using with multi-container workloads' use the wordy 'Using with...' prefix instead of the recommended 1-5 word noun-form label ('Batch jobs', 'Multi-container workloads')."
+          ],
+          "mandatoryFixes": [
+            "Add exactly one <ApiReference definitionName=\"NixpacksPackagingProps\" /> (verify the exact definitionName against the generated config-schema) at the bottom of the page or wherever fits the flow. Every resource and packaging page requires one.",
+            "Remove or rewrite the 'Existing Nixpacks config files' section. The claimed nixpacks.toml merging behavior and precedence rules do not appear in the provided source types. Either source it from a higher-priority file (schema, resolver code) or replace with a cautious one-sentence note that Nixpacks' own file-based config may also be picked up, without claiming specific precedence behavior Stacktape has not documented.",
+            "Remove or heavily qualify the 'Build caching and skip behavior' section. The specific checksum inputs listed (buildImage, phases, providers, startCmd, startOnlyIncludeFiles, startRunImage, target architecture) are not enumerated in the source. If this behavior is real, it must be sourced from a verifiable file; otherwise remove the section to avoid publishing unsupported claims.",
+            "Remove the ARM/Graviton FAQ entry ('Does Nixpacks support ARM/Graviton builds?') or rewrite it to only make claims grounded in source. The '--platform linux/arm64' claim and the assertion that architecture is auto-selected from compute configuration are not present in the provided source files."
+          ],
+          "optionalImprovements": [
+            "Rename H2 'Using with batch jobs' → 'Batch jobs' and 'Using with multi-container workloads' → 'Multi-container workloads' to match the recommended 1-5 word noun-form heading style.",
+            "Add a <ReferenceableParams resource=\"nixpacks\" /> component if the packaging type exposes any referenceable parameters — likely not applicable here, but worth checking against the generated schema.",
+            "The 'Build and run images' H2 with ### Build image and ### Run image sub-sections is well-structured, but consider adding a one-sentence tradeoff after each sub-section about when NOT to customize the image (default behavior is usually sufficient; customization adds maintenance surface).",
+            "The Basic example section introduces 'cpu: 0.25, memory: 512' but does not explain these are compute resource settings unrelated to Nixpacks itself. A one-sentence note pointing to the resource's compute docs would help first-timers who may wonder if they need to change these values."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Complete coverage of all NixpacksPackagingProps properties found in the source type — sourceDirectoryPath, buildImage, startRunImage, startCmd, startOnlyIncludeFiles, providers, and every NixpacksPhase sub-property are all documented.",
+            "Packaging mode comparison table is actionable: the reader can make a decision in seconds rather than navigating to five separate pages.",
+            "Phase properties table (cmds, nixPkgs, nixLibs, etc.) provides a solid at-a-glance reference that matches the source type exactly.",
+            "Well-balanced When to use / When NOT to use sections with concrete, non-circular scenarios (Rust/Elixir language support, custom start commands, pre-existing Dockerfiles).",
+            "FAQ correctly spans all three required categories: Stacktape-specific questions, AWS use-case questions, and choosing/comparison questions.",
+            "Multi-container workload example showing NixpacksPackaging mixed with PrebuiltImagePackaging in the same workload is realistic and useful.",
+            "No forbidden patterns detected: no hand-authored YAML config blocks, no StacktapeConfig type import, no fenced TypeScript blocks containing defineConfig, no YAML alternative tab."
+          ],
+          "problems": [
+            "Missing <ApiReference> component — the page has no <ApiReference definitionName=\"...\" /> at all, which is required by the default page rhythm. Readers have no machine-generated property reference for the complete NixpacksPackaging type.",
+            "\"Build caching and skip behavior\" section lists specific checksum inputs (buildImage, phases, providers, startCmd, startOnlyIncludeFiles, startRunImage, and target architecture) that appear nowhere in the provided source files. This is a fabricated implementation detail — an engineer who relies on it and finds the behavior different will blame the docs.",
+            "\"Existing Nixpacks config files\" section asserts specific Stacktape-level merging semantics: nixpacks.toml/nixpacks.json are detected, Stacktape properties take precedence, phases are merged by name, uniquely named phases are preserved from both sources. None of these merge rules appear in the provided source. If wrong, this directly misleads users with existing Nixpacks configs.",
+            "FAQ entry \"Do I need to install Nixpacks separately?\" states \"Yes\" as an authoritative Stacktape fact, but the provided source files are silent on the deployment-time toolchain requirement. This is general Nixpacks knowledge presented as Stacktape-confirmed behavior."
+          ],
+          "mandatoryFixes": [
+            "Add exactly one <ApiReference definitionName=\"NixpacksPackagingProps\" /> at an appropriate position on the page (bottom is conventional for tutorial-style pages). Verify the exact definitionName string against @generated/schemas/config-schema.json — it may differ from the interface name in the d.ts file.",
+            "Replace the \"Build caching and skip behavior\" section. The specific claim that the checksum includes buildImage, phases, providers, startCmd, startOnlyIncludeFiles, startRunImage, and target architecture is not in the provided source. Either remove the enumerated list and write only what is source-grounded (e.g., that builds are skipped when the source is unchanged), or source each item before listing it. Do not publish a specific checksum-input list that was not found in the source files.",
+            "Remove or rewrite the \"Existing Nixpacks config files\" section. The Stacktape-specific merging behavior it describes — nixpacks.toml/json auto-detection, Stacktape-config precedence, phase merge-by-name semantics — is not in the provided source. If this behavior exists, it must be sourced from runtime validator code or a Nixpacks implementation file. If not sourced, reduce the claim to the conservative \"Nixpacks itself reads nixpacks.toml from the source directory; see nixpacks.com for file-based configuration\" without asserting Stacktape-specific merge rules."
+          ],
+          "optionalImprovements": [
+            "The ARM/Graviton FAQ entry asserts a specific Docker flag (--platform linux/arm64) that is not found in the provided source. Soften to: 'The target architecture is determined by your resource's compute configuration; Stacktape passes the appropriate platform flag to the build process.' Remove the specific flag string until it is source-confirmed.",
+            "\"The startCmd maps to the Nixpacks start.cmd configuration\" is an internal implementation detail not in the source. Replace with what the property does (overrides the inferred start command) without claiming the internal mapping.",
+            "The BatchJob example uses container: { packaging: new NixpacksPackaging({...}) } — the BatchJob resource type source is not in the provided files, so this structural path is unverified. If a BatchJob type source file is available, verify the nesting before publication.",
+            "The FAQ answer about Nixpacks CLI installation presents a Nixpacks ecosystem fact as a Stacktape requirement. Add a one-sentence qualifier that this comes from the Nixpacks project itself, not a Stacktape-enforced constraint, so readers understand where to look if behavior changes."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Uses the required TypeScript class-based Stacktape config examples inside <CodeBlock intellisense> with the exact TypeScript tab label.",
+            "Opens with a clear answer-first paragraph and explicitly names the applicable container workload resource types.",
+            "Includes a smallest valid-looking Nixpacks example near the top, plus practical examples for start commands, build images, phases, batch jobs, and multi-container workloads.",
+            "Covers all five container packaging modes in a comparison table, which helps readers choose among overlapping options."
+          ],
+          "problems": [
+            "Several Stacktape-specific technical claims are not grounded in the provided source file, including managed ECR upload behavior for Nixpacks, Stacktape merging nixpacks.toml/nixpacks.json files, checksum-based build skipping, and architecture-specific --platform behavior.",
+            "The page incorrectly says the Stacktape container buildpack supports Ruby, PHP, and .NET for container images. The provided source states StpBuildpackCwImagePackaging supports JavaScript, TypeScript, Python, Java, and Go.",
+            "The page repeatedly claims specific Nixpacks language/provider coverage such as Rust, Elixir, Haskell, Crystal, Zig, Swift, Dart, Rails, Django, and Phoenix, but the provided source only says Nixpacks supports a wide range of languages and frameworks.",
+            "The page states the Nixpacks CLI must be installed on the build machine, but that requirement is not present in the provided source.",
+            "The Build caching and skip behavior section is almost entirely unsupported by the provided source and reads like internal runtime behavior rather than documented API surface.",
+            "Some opt-in sections are recipe-like. Build image, run image, file filtering, providers, and caching explain configuration but give thin decision support on when the default is sufficient and what the tradeoffs are.",
+            "The FAQ includes useful search-oriented questions, but several answers repeat unsupported claims from the body, especially provider lists, Nixpacks installation requirements, ECR storage, checksum skipping, and ARM/Graviton platform flags.",
+            "The source-grounding requirement is not met consistently: the page reads confidently where the provided source is silent."
+          ],
+          "mandatoryFixes": [
+            "Correct the Stacktape container buildpack language support everywhere: for container images, the provided source says JavaScript, TypeScript, Python, Java, and Go. Remove Ruby, PHP, and .NET from container-buildpack claims unless another provided source supports them.",
+            "Remove or narrow unsupported Stacktape-specific runtime claims about Nixpacks image upload to managed ECR, nixpacks.toml/nixpacks.json merge precedence, checksum-based build skipping, and ARM/Graviton --platform behavior unless authoritative source files are added.",
+            "Remove unsupported claims that the Nixpacks CLI must be installed on the deployment/build machine unless a provided source file states that requirement.",
+            "Replace the specific Nixpacks language and framework lists with cautious wording grounded in the source, such as “a wide range of languages and frameworks,” or add authoritative Nixpacks provider source material if specific lists must remain.",
+            "Revise the FAQ so every Stacktape-specific answer is grounded in the provided source. Keep broad AWS/Nixpacks background only where clearly framed as external background and not as Stacktape behavior."
+          ],
+          "optionalImprovements": [
+            "Add a short note near the basic example that `sourceDirectoryPath` is the only required Nixpacks property shown by the provided type definition.",
+            "For `buildImage`, `startRunImage`, `providers`, and `phases`, add one or two grounded sentences explaining when the default Nixpacks detection is enough before showing overrides.",
+            "In the packaging comparison table, keep the Stacktape buildpack row aligned with the source: JS/TS, Python, Java, and Go for container images.",
+            "Consider moving advanced batch-job and multi-container examples after the API reference or tightening them if this page’s main goal is choosing and configuring Nixpacks itself.",
+            "Use more cautious wording around “optimized container image” since that phrase appears in the Nixpacks interface comment but the page should avoid implying measurable optimization without numbers."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific claims that are not grounded in the provided source file. The strongest problems are setup/deployment behavior claims for Nixpacks, file-based config merging, checksum skip behavior, and ARM platform behavior; these would affect how readers configure or operate deployments but are not present in the supplied types.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Nixpacks adds a dependency on the Nixpacks CLI, which must be installed on the build machine.” and “The Nixpacks CLI must be available on the machine running the deployment.”",
+              "reason": "The provided Stacktape config types document Nixpacks as a packaging mode and list its configurable properties, but they do not state that users must install the Nixpacks CLI on the deployment machine. This is an operational requirement that would materially affect setup, so it needs source support or removal.",
+              "suggestedFix": "Remove the installation requirement unless runtime/CLI source is added as evidence. A cautious replacement would be: “Nixpacks packaging uses Nixpacks to build the image; this page only documents the Stacktape configuration surface.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksBjImagePackagingProps {\n  /**\n   * #### The path to the source code directory.\n   */\n  sourceDirectoryPath: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksCwImagePackaging {\n  type: 'nixpacks';\n  properties: NixpacksCwImagePackagingProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape merges your Stacktape configuration with any existing `nixpacks.toml` or `nixpacks.json` file found in your source directory. Properties set in your Stacktape config take precedence… Phases from both sources are merged…”",
+              "reason": "The source file exposes Stacktape Nixpacks configuration properties only. It does not document detection of `nixpacks.toml` or `nixpacks.json`, precedence rules, or phase merging by name. This claim would change where readers put configuration and how they expect conflicts to resolve.",
+              "suggestedFix": "Remove the section or rewrite narrowly: “The Stacktape config surface for Nixpacks is the `NixpacksPackaging` properties shown on this page.” Only document file merging if runtime source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksBjImagePackagingProps {\n  /**\n   * #### The path to the source code directory.\n   */\n  sourceDirectoryPath: string;\n  /**\n   * #### The base image to use for building the application.\n   *\n   * ---\n   *\n   * For more details, see the [Nixpacks documentation](https://nixpacks.com/docs/configuration/file#build-image).\n   */\n  buildImage?: string;\n  /**\n   * #### A list of providers to use for determining the build and runtime environments.\n   */\n  providers?: string[];\n  /**\n   * #### The command to execute when starting the application.\n   *\n   * ---\n   *\n   * This overrides the default start command inferred by Nixpacks.\n   */\n  startCmd?: string;\n  /**\n   * #### The base image to use for running the application.\n   */\n  startRunImage?: string;\n  /**\n   * #### A list of file paths to include in the runtime environment; all other files will be excluded.\n   */\n  startOnlyIncludeFiles?: string[];\n  /**\n   * #### The build phases for the application.\n   */\n  phases?: NixpacksPhase[];\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape calculates a checksum of your source directory and Nixpacks configuration properties before every build. If the checksum matches an already-deployed artifact, the build step is skipped entirely.”",
+              "reason": "Checksum calculation and build-skip behavior are not present in the provided Nixpacks types. The source documents caching inside a Nixpacks phase via `cacheDirectories`, but not Stacktape-level artifact reuse for Nixpacks.",
+              "suggestedFix": "Remove the Stacktape checksum/skip behavior unless runtime source is provided. Keep only the sourced phase-level claim: `cacheDirectories` lists directories to cache between builds.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksPhase {\n  /**\n   * #### The name of the build phase.\n   */\n  name: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "/**\n   * #### A list of directories to cache between builds to speed up subsequent builds.\n   */\n  cacheDirectories?: string[];"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Nixpacks builds target the architecture of the compute resource you deploy to. When deploying to ARM-based instances (AWS Graviton), the build runs with the `--platform linux/arm64` flag. For x86 instances, it uses `linux/amd64`.”",
+              "reason": "The provided source file does not document architecture selection, ARM/Graviton behavior, or Docker platform flags for Nixpacks packaging. This is specific deployment behavior and should not be stated without runtime source support.",
+              "suggestedFix": "Remove the FAQ entry or narrow it to the absence of documented Nixpacks architecture controls in the provided config surface.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksBjImagePackagingProps {\n  /**\n   * #### The path to the source code directory.\n   */\n  sourceDirectoryPath: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksCwImagePackagingProps extends NixpacksBjImagePackagingProps {}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape runs Nixpacks during deployment, uploads the resulting image to a managed ECR repository, and wires it into your resource.” and “You do not need to create or manage the repository — Stacktape provisions it automatically as part of the deployment.”",
+              "reason": "The provided source explicitly says managed ECR upload for `custom-dockerfile` and Stacktape image buildpack, but the Nixpacks comment only says it builds a container image using Nixpacks. The ECR provisioning/upload behavior may be true elsewhere, but it is not grounded in the provided Nixpacks source.",
+              "suggestedFix": "Either provide runtime source for ECR behavior or narrow the wording to: “Nixpacks packaging builds a container image using Nixpacks.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksCwImagePackaging {\n  type: 'nixpacks';\n  properties: NixpacksCwImagePackagingProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "* #### Builds a container image using Nixpacks.\n *\n * ---\n *\n * Nixpacks automatically detects your application type and builds an optimized container image."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "* With `custom-dockerfile`, you provide a path to your Dockerfile and build context.\n * Stacktape builds the image and uploads it to a managed ECR repository."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“If your app is a standard Node.js, Python, Java, or Go service, the Stacktape container buildpack handles everything…” and the comparison table lists Stacktape buildpack as best for “Ruby, PHP, .NET” too.",
+              "reason": "The source for the container image buildpack lists supported languages as JavaScript, TypeScript, Python, Java, and Go. Ruby, PHP, and .NET appear in shared language-specific config types, but the container buildpack comment does not list them as supported container buildpack languages. The table overstates container buildpack coverage.",
+              "suggestedFix": "For the Stacktape container buildpack comparison, list only JavaScript, TypeScript, Python, Java, and Go unless additional source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "* #### A zero-config buildpack that creates a container image from your source code.\n *\n * ---\n *\n * The `stacktape-image-buildpack` automatically bundles your code and dependencies into an optimized container image.\n *\n * **Supported languages:** JavaScript, TypeScript, Python, Java, and Go."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly lists specific Nixpacks-supported languages and framework providers, including Rust, Elixir, Haskell, Crystal, Zig, Swift, Dart, Rails, Django, Phoenix, Clojure, and Scala.",
+              "reason": "The source only says Nixpacks supports a wide range of languages and frameworks; it does not enumerate specific languages or framework providers. The draft can link to Nixpacks documentation for current provider lists, but Stacktape docs should avoid presenting unsupported lists as source-grounded facts.",
+              "suggestedFix": "Replace specific provider lists with source-grounded wording: “Nixpacks supports a wide range of languages and frameworks; use the Nixpacks provider documentation for the current provider list.” Keep examples only as clearly external Nixpacks examples, not Stacktape-supported-language claims.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "* It supports a wide range of languages and frameworks out of the box."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "/**\n   * #### A list of providers to use for determining the build and runtime environments.\n   */\n  providers?: string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `startCmd` maps to the Nixpacks `start.cmd` configuration.”",
+              "reason": "The Stacktape source says `startCmd` is the command to execute when starting the application and that it overrides the default start command inferred by Nixpacks. It does not document a mapping to an external `start.cmd` key, so that property mapping is unsupported by the provided Stacktape source.",
+              "suggestedFix": "Remove the mapping sentence and keep the sourced behavior: “`startCmd` overrides the default start command inferred by Nixpacks.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "/**\n   * #### The command to execute when starting the application.\n   *\n   * ---\n   *\n   * This overrides the default start command inferred by Nixpacks.\n   */\n  startCmd?: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The draft correctly states that `sourceDirectoryPath` is required for Nixpacks packaging.",
+            "The draft correctly documents the Nixpacks properties visible in the source: `buildImage`, `providers`, `startCmd`, `startRunImage`, `startOnlyIncludeFiles`, and `phases`.",
+            "The draft acknowledges all five container packaging modes from the source union: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft uses the required TypeScript CodeBlock pattern and covers the core Nixpacks properties, but it makes several Stacktape-specific or provider-specific claims that are not grounded in the provided source. The biggest problems are overstating Stacktape container buildpack language support, documenting merge/checksum/architecture behavior not present in the source, and using an unsupported BatchJob packaging shape in prose/examples.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft says the Stacktape container buildpack supports Ruby, PHP, and .NET for container images in the comparison table and FAQ.",
+              "reason": "The provided source distinguishes Lambda buildpack language support from container image buildpack support. The container image buildpack source only lists JavaScript, TypeScript, Python, Java, and Go. Ruby, PHP, and .NET are documented in the source for Lambda packaging, not for the Stacktape container image buildpack.",
+              "suggestedFix": "Limit Stacktape container buildpack language support on this page to JavaScript, TypeScript, Python, Java, and Go. If mentioning Ruby, PHP, or .NET, make clear they are supported by the Lambda buildpack source, not by the container image buildpack source provided here.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "The `stacktape-image-buildpack` automatically bundles your code and dependencies into an optimized container image.\n *\n * **Supported languages:** JavaScript, TypeScript, Python, Java, and Go."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft says: “The `container.packaging` property accepts `NixpacksPackaging`” for batch jobs, and the example uses `container: { packaging: new NixpacksPackaging(...) }`.",
+              "reason": "The provided source only shows the batch-job Nixpacks packaging shape as `NixpacksBjImagePackaging` with `type: 'nixpacks'` and `properties: NixpacksBjImagePackagingProps`. It does not show a `container.packaging` property path, and it does not establish that the class-based API nests batch-job packaging exactly as shown.",
+              "suggestedFix": "Avoid asserting the `container.packaging` path unless another provided source file proves BatchJob props. If keeping a BatchJob example, verify against the actual BatchJob type source; otherwise say cautiously that Nixpacks has a batch-job packaging variant and point readers to the BatchJob resource page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksBjImagePackaging {\n  type: 'nixpacks';\n  properties: NixpacksBjImagePackagingProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Stacktape merges `nixpacks.toml` or `nixpacks.json` with Stacktape configuration, Stacktape properties take precedence, and phases are merged by name.",
+              "reason": "The Nixpacks packaging source lists only explicit Stacktape config properties: `sourceDirectoryPath`, `buildImage`, `providers`, `startCmd`, `startRunImage`, `startOnlyIncludeFiles`, and `phases`. It does not mention detecting file-based Nixpacks config, precedence, or phase merge behavior.",
+              "suggestedFix": "Remove the merge/precedence claims, or narrow the section to say that Stacktape exposes Nixpacks-related properties in `NixpacksPackaging`. Only document file-based config behavior if a runtime source file proves it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksBjImagePackagingProps {\n  /**\n   * #### The path to the source code directory.\n   */\n  sourceDirectoryPath: string;\n  /**\n   * #### The base image to use for building the application."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Stacktape calculates a checksum of the source directory and Nixpacks configuration properties, skips builds when the checksum matches, and includes target architecture in that checksum.",
+              "reason": "The provided source documents checksum-based caching for the Stacktape Lambda buildpack, but not for Nixpacks packaging. No Nixpacks source text mentions checksum calculation, skipped builds, or included checksum inputs.",
+              "suggestedFix": "Remove the Stacktape checksum/skip section for Nixpacks unless runtime packaging source proves it. You can still document `cacheDirectories` because it is present on `NixpacksPhase`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksPhase {\n  /**\n   * #### The name of the build phase.\n   */\n  name: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "Packages are cached based on a checksum, so unchanged code is not re-packaged."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Nixpacks builds target the resource architecture, uses `--platform linux/arm64` for ARM and `linux/amd64` for x86, and determines the target architecture from compute configuration.",
+              "reason": "The Nixpacks packaging source does not mention architecture, platform flags, ARM, Graviton, or compute-derived build targets. This is a Stacktape-specific build behavior claim that would affect how readers configure and debug builds.",
+              "suggestedFix": "Remove the ARM/Graviton FAQ answer or rewrite it narrowly: the provided Nixpacks packaging type does not document architecture-specific build behavior. Link to the relevant compute resource page only if another source proves architecture settings there.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksCwImagePackagingProps extends NixpacksBjImagePackagingProps {}\n\ninterface NixpacksBjImagePackaging {\n  type: 'nixpacks';\n  properties: NixpacksBjImagePackagingProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly claims specific Nixpacks provider behavior and language/framework support, including Rust, Elixir, Haskell, Crystal, Zig, Swift, Dart, Rails, Django, Phoenix, and detection by `package.json`, `requirements.txt`, `Cargo.toml`, or `pyproject.toml`.",
+              "reason": "The Stacktape source only says Nixpacks supports a wide range of languages and frameworks and has a `providers?: string[]` property. The specific provider list and detection-file examples are not present in the provided source.",
+              "suggestedFix": "Keep the wording broad and source-grounded: “Nixpacks supports a wide range of languages and frameworks” and “providers determine build and runtime environments.” For exact provider lists and detection rules, link to Nixpacks docs without restating unsupported specifics.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "It supports a wide range of languages and frameworks out of the box."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "providers?: string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Stacktape uploads the Nixpacks-built image to a managed Amazon ECR repository and provisions that repository automatically.",
+              "reason": "The Nixpacks packaging source says the image is built using Nixpacks, but it does not mention ECR upload or repository provisioning for Nixpacks. ECR upload is stated for other packaging modes in the source, but not for the Nixpacks interfaces or comments provided here.",
+              "suggestedFix": "Do not state ECR upload/provisioning on the Nixpacks page unless a shared container packaging runtime source proves it. Narrow the opening and FAQ to “builds a container image using Nixpacks.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "Builds a container image using Nixpacks.\n *\n * ---\n *\n * Nixpacks automatically detects your application type and builds an optimized container image."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Stacktape requires the Nixpacks CLI to be installed on the build machine and that GitOps/build runners must have Nixpacks installed.",
+              "reason": "The provided Nixpacks source does not describe how Stacktape invokes Nixpacks or whether the CLI must be preinstalled by the user. This is a deployment-environment requirement that would change what readers install in CI.",
+              "suggestedFix": "Remove the installation requirement unless runtime or CLI source proves it. A safer version is: “Nixpacks is the build tool used by this packaging mode; consult your deployment runner setup if the build environment must provide external tools.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "Builds a container image using Nixpacks."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids hand-authored YAML and uses `<CodeBlock intellisense>` with a visible `TypeScript` tab for Stacktape configuration examples.",
+            "The draft correctly identifies `sourceDirectoryPath` as required for Nixpacks packaging.",
+            "The draft correctly lists the Nixpacks properties exposed in the source: `buildImage`, `providers`, `startCmd`, `startRunImage`, `startOnlyIncludeFiles`, and `phases`.",
+            "The draft correctly names the Nixpacks phase properties shown in the source, including `cmds`, `nixPkgs`, `nixLibs`, `nixOverlay`, `nixpkgsArchive`, `aptPkgs`, `cacheDirectories`, and `onlyIncludeFiles`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the Nixpacks packaging API surface well for the provided `deployment-artifacts.d.ts` source. I found no API completeness, union-variant coverage, or code-example demonstrativeness issues that meet the reporting threshold.",
+          "issues": [],
+          "positiveFindings": [
+            "All primary `NixpacksBjImagePackagingProps` / `NixpacksCwImagePackagingProps` properties are documented: `sourceDirectoryPath`, `buildImage`, `providers`, `startCmd`, `startRunImage`, `startOnlyIncludeFiles`, and `phases`.",
+            "The draft names all five container packaging variants from the source: `stacktape-image-buildpack`, `custom-dockerfile`, `prebuilt-image`, `nixpacks`, and `external-buildpack`.",
+            "The `phases` section covers the important nested `NixpacksPhase` properties, including commands, Nix packages, APT packages, caching, overlays, archive pinning, libraries, and file filtering.",
+            "The `<CodeBlock intellisense>` examples are demonstrative: the start command, image override, runtime filtering, providers, build phases, batch job, and multi-container sections each show the relevant property being configured.",
+            "The page uses the required TypeScript `defineConfig` + class-based resource style for Stacktape configuration examples and does not hand-author YAML examples."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\packaging__containers__nixpacks\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript tab — no forbidden YAML or fenced-ts blocks.",
+            "Comprehensive coverage of every property in NixpacksCwImagePackagingProps and NixpacksPhase from the source types, including the full phase-property table (nixPkgs, nixLibs, nixOverlay, nixpkgsArchive, aptPkgs, cacheDirectories, onlyIncludeFiles).",
+            "Five-mode packaging comparison table near the top gives the reader exactly what they need to decide whether Nixpacks is right, without reading the whole page.",
+            "'When to use' and 'When NOT to use' are correctly parallel H2 sections, not parent/child.",
+            "The 'Full example' section synthesising multiple properties together is genuinely useful for copy-paste — realistic Python service with phases, system deps, caching, and runtime filtering.",
+            "Ten FAQ pairs cover Stacktape-specific questions and strong comparison questions (vs Dockerfile, vs Stacktape buildpack, vs external buildpacks).",
+            "Code examples use realistic, diverse resource types (WebService, WorkerService, BatchJob, MultiContainerWorkload) that reinforce the 'all container resources' claim from the opening.",
+            "Phase caching table with per-language cache paths is high-signal and saves readers from guessing common values."
+          ],
+          "problems": [
+            "FAQ is missing the required third category: 'use-case questions about the underlying AWS service.' All ten pairs are either Nixpacks-tool or Stacktape-specific. There is nothing about ECS Fargate container startup behaviour, ECR storage costs, or how build time affects deploy time — questions readers will actually ask in a search engine. The style guide explicitly requires this category.",
+            "Compute resource values in code examples (cpu: 0.25, memory: 512, cpu: 2, memory: 4096) are never explained. The style guide mandates that tunable values in examples be briefly anchored in prose — a reader new to Stacktape has no idea what 'cpu: 0.25' means or what the alternatives are.",
+            "The claim 'These packages are available both at build time and in the final image (unless you use startOnlyIncludeFiles)' is a Nixpacks-internal behaviour claim not grounded in the source types. Phase-installed nixPkgs behaviour at runtime depends on whether the phase is a setup vs. build phase — the source is silent. Stating it as fact risks confusing readers who hit the opposite.",
+            "The claim that cacheDirectories are 'mounted as Docker cache mounts during the build' is a Nixpacks implementation detail not present in the source file. It is likely correct but reads as a Stacktape-grounded statement rather than a Nixpacks upstream behaviour. Should be attributed to Nixpacks, not implied as Stacktape behaviour.",
+            "The section 'Combining multiple phases' partially restates content already shown in the individual phase sub-sections (install + build with caching). It adds the python3/node-gyp rationale but the surrounding prose mostly recaps what the reader just read. Light redundancy but worth trimming."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add 2–3 FAQ entries covering the missing AWS-service use-case category. Candidates: 'How does Nixpacks packaging affect ECS Fargate container startup time?' (cold start is dominated by image pull; smaller images help), 'Does Nixpacks build happen locally or in the cloud?' (Stacktape builds locally then pushes to ECR — affects CI time), 'How does container image size affect ECR storage costs?'",
+            "Add one sentence of compute-resource context near the first Basic example — e.g. 'cpu and memory refer to Fargate task vCPU fractions (0.25–16) and MiB; see the web service page for supported combinations.' This satisfies the property-value-anchor rule without turning the page into a WebService reference.",
+            "Soften or re-attribute the nixPkgs runtime-availability claim. Replace 'These packages are available both at build time and in the final image' with 'Setup-phase Nix packages are typically available in the final image; build-only phases may not carry packages through — check Nixpacks documentation for phase lifecycle details.'",
+            "Attribute the cacheDirectories mechanism to Nixpacks upstream: '…accelerates subsequent builds — Nixpacks uses Docker BuildKit cache mounts internally to persist these directories.' This makes clear it is a Nixpacks behaviour, not a Stacktape feature.",
+            "Consider adding a one-paragraph section or tip on nixLibs and nixOverlay for readers using languages that link against native shared libraries (e.g. Rust crates, Python extensions). The phase table lists them but gives no context for when they are needed versus nixPkgs.",
+            "The 'Combining multiple phases' section would be stronger if the prose explicitly explained why split phases are better than one big phase (cache granularity — only the install phase re-runs when package.json changes, not the whole build). The current prose says 'you can split' but not why you would want to."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All NixpacksBjImagePackagingProps and NixpacksPhase properties from the source are accurately documented — sourceDirectoryPath, buildImage, providers, startCmd, startRunImage, startOnlyIncludeFiles, phases and every NixpacksPhase field are covered and correctly described.",
+            "Strong decision-support in 'When to use' and 'When NOT to use' with concrete scenarios and language-specific tradeoffs. The comparison against Stacktape buildpack, custom Dockerfile, and prebuilt image is grounded and genuinely helps the reader decide.",
+            "Multiple realistic, copy-ready code examples — each narrowly scoped to a distinct feature (start command, build image, run image, file filtering, providers, each phase variant) rather than padding the same full-stack example repeatedly.",
+            "Phases section is comprehensive and organized by use case with a clear properties table listing all nine phase fields. Concrete cache-directory examples by language add production-useful signal.",
+            "FAQ covers all three required categories: Stacktape-specific questions (which resources support Nixpacks), AWS/ecosystem questions (Nixpacks vs Paketo, build vs run image), and comparison/choosing questions (Nixpacks vs custom Dockerfile, Nixpacks vs Stacktape buildpack). Nine entries, all distinct and genuinely useful.",
+            "No forbidden style violations: all Stacktape config examples use CodeBlock intellisense with TypeScript tabs, no hand-authored YAML Stacktape config, no StacktapeConfig type import, no fenced typescript blocks with defineConfig.",
+            "glibc/musl compatibility Warning on the run image section is a genuine production gotcha that many developers hit — exactly the kind of signal a production-oriented audience needs.",
+            "The full synthesis example at the end demonstrates realistic combined usage (providers + startCmd + startRunImage + startOnlyIncludeFiles + multi-phase with caching) rather than being a mechanical concatenation of earlier snippets."
+          ],
+          "problems": [
+            "The container packaging modes comparison table is embedded under 'When NOT to use' — a developer scanning the page for packaging alternatives won't look there. The table's natural home is either right after the opening paragraph (as an orientation for the reader) or as a standalone 'Choosing a packaging mode' section before or after 'Basic example'. Buried under a heading that signals 'stop reading if not applicable', it's invisible to readers who don't already know they want Nixpacks.",
+            "'Using with batch jobs' and 'Using with multi-container workloads' are near-formula sections. The batch job note about 'no persistent HTTP server, startCmd should point to the script' is genuinely useful production context. The multi-container workload section adds real value by showing mixed-mode packaging. However, presenting them as equal-weight H2 sections doubles the implied weight of what is really a side note. Readers who are already on a Nixpacks page know the packaging class API; they don't need two full new H2s to be told it also works with BatchJob and MultiContainerWorkload.",
+            "The FAQ answer for system packages states: 'These packages are available both at build time and in the final image (unless you use startOnlyIncludeFiles to exclude them from the runtime).' This overstates certainty — in Nixpacks, whether nixPkgs appear in the final runtime image depends on how the build plan is constructed and whether they are in a build-only phase. The source only says 'A list of directories to cache between builds'; it does not confirm runtime package availability guarantees. The claim as written could mislead production users who expect ffmpeg in the running container.",
+            "The 'nixOverlay' phase property appears in the properties table with the description 'Nix overlay files to apply' but receives no prose explanation, no example, and no context for who should use it. The source JSDoc is equally sparse ('A list of Nix overlay files to apply in this phase'). For a production reader who encounters a Nixpacks error involving overlays, this entry offers nothing actionable. Either expand it briefly or note explicitly that this is an advanced Nixpacks concept and link to upstream Nixpacks docs."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move the container packaging modes comparison table out of 'When NOT to use' and into the opening section — either as a named subsection immediately after the opening paragraph ('Container packaging modes at a glance') or as a standalone H2 before or after 'Basic example'. This makes the decision context discoverable to readers who land mid-page.",
+            "Consolidate 'Using with batch jobs' and 'Using with multi-container workloads' into a single compact H2 (e.g., 'Resource compatibility' or 'Other resource types') with both examples shown. This cuts two low-signal H2 headings from the table of contents while preserving the useful note about batch jobs having no HTTP server and the useful note about mixing packaging modes in multi-container workloads.",
+            "Soften the FAQ system-packages answer: replace 'These packages are available both at build time and in the final image' with 'By default, Nix and APT packages installed during build phases are typically present in the final image; use startOnlyIncludeFiles to explicitly control which files appear at runtime.' This is more accurate without losing the practical guidance.",
+            "Add a one-sentence note on nixOverlay explaining what Nix overlays are in practical terms (custom or overridden Nix package definitions) and link to the Nixpacks or Nix documentation for this advanced use case, so production users who encounter the property know what to do with it.",
+            "Consider adding a brief note on build environment prerequisites — whether Stacktape manages the Nixpacks binary on the build host (CodeBuild, local machine) or whether users need to install it themselves. This is a question production users reliably hit on CI first deployment and the source is silent on it; if Stacktape handles it, saying so once removes a real friction point.",
+            "The opening paragraph could name 'NixpacksPackaging' explicitly in the first sentence (e.g., 'The NixpacksPackaging class auto-detects...') to help users who arrive from a TypeScript error or autocomplete session and are looking to confirm the class name."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Uses the required TypeScript <CodeBlock intellisense> format for Stacktape configuration and avoids forbidden YAML/plain-object config patterns.",
+            "Opening paragraph is answer-first, names NixpacksPackaging, and clearly states the supported container workload family.",
+            "Covers the important Nixpacks properties from the source: sourceDirectoryPath, buildImage, providers, startCmd, startRunImage, startOnlyIncludeFiles, and phases.",
+            "Includes useful comparisons across the five container packaging modes and an FAQ that spans Stacktape-specific, comparison, and Nixpacks use-case questions."
+          ],
+          "problems": [
+            "Several claims are broader than the provided source supports: examples include specific auto-detection files such as package.json/requirements.txt/Cargo.toml, inferred start-command behavior by language, Docker cache mount implementation, and common language cache directories.",
+            "The page repeats unsupported or over-confident optimization claims, including 'optimized single-file bundles' and 'smaller and more optimized images' for Stacktape buildpack comparisons, without source support in the provided file for the comparative outcome.",
+            "The FAQ answer 'Can I install system packages during the build?' claims packages are available in the final image unless filtered by startOnlyIncludeFiles. The source only says phase packages are installed in a phase and that startOnlyIncludeFiles includes runtime files; it does not establish final-image package retention semantics.",
+            "Some tunable example values are insufficiently anchored: resource CPU/memory values, custom image tags, provider names, apt/nix package names, and startOnlyIncludeFiles paths are shown without consistently explaining whether they are examples, defaults, or interchangeable choices.",
+            "Decision support is good for the broad packaging choice, but thinner for advanced opt-ins such as buildImage, startRunImage, providers, phase filtering, and cacheDirectories. Several sections explain how to configure the option more than when to accept the default.",
+            "The 'Using with batch jobs' and 'Using with multi-container workloads' sections are useful but short; they do not explain the practical difference between workload-level packaging and container-level packaging beyond the example.",
+            "The page has no explicit note that Nixpacks is not Lambda function packaging until the FAQ; readers deciding early may miss that container packaging and function packaging are separate paths."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported implementation details with source-grounded wording: remove or qualify the specific detection-file list, inferred language-specific start-command examples, Docker cache mount claim, and common cache-directory table unless additional source files support them.",
+            "Correct the system-package availability claim in the FAQ. State only that nixPkgs and aptPkgs install packages in a Nixpacks phase; do not claim final-image availability or interaction with startOnlyIncludeFiles unless the source proves it.",
+            "Qualify comparative optimization claims about Stacktape buildpack. The source supports JS/TS single-file bundling and that Stacktape buildpack builds an optimized container image, but not a guaranteed smaller image than Nixpacks.",
+            "Add short prose anchors for non-obvious tunable values used in examples, especially cpu/memory, buildImage, startRunImage, providers, aptPkgs/nixPkgs, cacheDirectories, and startOnlyIncludeFiles.",
+            "Move the 'not for Lambda functions' distinction near the top, ideally in the opening or Basic example section, because the source and page scope are container packaging rather than function packaging."
+          ],
+          "optionalImprovements": [
+            "Add a compact table for Nixpacks properties with 'Use when' and 'Default is fine when' columns to improve decision support for advanced options.",
+            "Shorten or merge some example-heavy sections if the final page feels long; the API reference already covers every property, so prose should focus on decisions and common paths.",
+            "In the FAQ, link the Lambda packaging answer directly to a Lambda packaging page if one exists rather than only to the packaging overview.",
+            "Consider adding a one-sentence warning that custom run images can make builds harder to debug, while keeping the glibc/musl example only if broader source grounding is available."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided Nixpacks packaging types and avoids the forbidden YAML/plain-object config patterns. The main factual risks are unsupported Stacktape-specific or Nixpacks-behavior details that go beyond the supplied type source, especially claims about exact detection files, phase ordering, Docker cache mounts, and package availability in the final image.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Nixpacks auto-detects the language from files in the source directory (e.g., `package.json` for Node.js, `requirements.txt` for Python, `Cargo.toml` for Rust) and runs the appropriate build steps.”",
+              "reason": "The provided source supports auto-detection of application type, but it does not document specific detection files, Rust support, or exact build-step behavior. This would be better attributed to external Nixpacks docs or narrowed to the source-backed statement.",
+              "suggestedFix": "Write: “Nixpacks automatically detects your application type from the source directory and builds the image. The exact provider detection rules come from Nixpacks; see the Nixpacks providers documentation for current language-specific behavior.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "Nixpacks automatically detects your application type and builds an optimized container image."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "A list of providers to use for determining the build and runtime environments."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“You can define multiple phases that run in sequence.”",
+              "reason": "The source documents `phases` as an array of build phases, but it does not state execution order or sequencing semantics. A reader could rely on ordering for build behavior, so this should be narrowed unless another source verifies order.",
+              "suggestedFix": "Write: “You can define multiple build phases. Each phase can have its own packages, commands, file filters, and cache directories.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "The build phases for the application."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "The name of the build phase."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“These packages are available both at build time and in the final image (unless you use `startOnlyIncludeFiles` to exclude them from the runtime).”",
+              "reason": "The source only says phase-level `nixPkgs` and `aptPkgs` install packages in a phase. It does not state that packages are available in the final runtime image, or that `startOnlyIncludeFiles` controls package availability.",
+              "suggestedFix": "Write: “Use `nixPkgs` or `aptPkgs` to install packages in a build phase. If the final runtime image needs those tools or libraries, verify the Nixpacks output or set an appropriate `startRunImage`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "A list of Nix packages to install in this phase."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "A list of APT packages to install in this phase."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "A list of file paths to include in the runtime environment; all other files will be excluded."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The directories listed are mounted as Docker cache mounts during the build.”",
+              "reason": "The source supports that `cacheDirectories` caches directories between builds, but it does not expose the implementation mechanism as Docker cache mounts. The mechanism is unnecessary for the reader and may be wrong or unstable.",
+              "suggestedFix": "Remove the Docker cache mount sentence, or write only: “Stacktape passes these cache directories to the Nixpacks build so subsequent builds can reuse them.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "A list of directories to cache between builds to speed up subsequent builds."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, Nixpacks infers the start command from your project files (e.g., the `start` script in `package.json`, or the compiled binary for Go/Rust).”",
+              "reason": "The source says `startCmd` overrides the default start command inferred by Nixpacks, but it does not document project-file-specific inference rules, Go/Rust behavior, or `package.json` script selection.",
+              "suggestedFix": "Write: “By default, Nixpacks infers a start command. Use `startCmd` when you need to replace that inferred command with an explicit command.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "The command to execute when starting the application."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "This overrides the default start command inferred by Nixpacks."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `nixPkgs` when you want reproducible, version-pinned system packages. Use `aptPkgs` when the build image is Debian/Ubuntu-based and you need packages from the APT repository.”",
+              "reason": "The source identifies `nixPkgs` and `aptPkgs`, but it does not state reproducibility/version-pinning semantics for `nixPkgs` or Debian/Ubuntu constraints for `aptPkgs`. These may be true Nixpacks concepts, but they are not grounded in the provided Stacktape source.",
+              "suggestedFix": "Write: “Use `nixPkgs` for Nix packages and `aptPkgs` for APT packages in a phase. If you need to pin the Nix package source, use `nixpkgsArchive`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "A list of Nix packages to install in this phase."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "A list of APT packages to install in this phase."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "The Nixpkgs archive to use."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `nixpkgsArchive` value is a commit hash from the nixpkgs repository.”",
+              "reason": "The source only says `nixpkgsArchive` is “The Nixpkgs archive to use.” It does not define the accepted format as a commit hash.",
+              "suggestedFix": "Write: “Use `nixpkgsArchive` to specify the Nixpkgs archive used by that phase.” Avoid documenting a commit-hash requirement unless another source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "The Nixpkgs archive to use."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For the five languages the Stacktape buildpack covers, it tends to produce smaller and more optimized images.”",
+              "reason": "The source says the Stacktape image buildpack bundles code into an optimized container image and that JS/TS code is bundled into a single file with source maps. It does not support a comparative claim that Stacktape buildpack images are smaller or more optimized than Nixpacks across all five supported languages.",
+              "suggestedFix": "Write: “For JS/TS, the Stacktape buildpack bundles code into a single file with source maps. Prefer it for supported languages when you do not need Nixpacks-specific controls such as phases or custom Nixpacks providers.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "The `stacktape-image-buildpack` automatically bundles your code and dependencies into an optimized container image."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "For JS/TS, your code is bundled into a single file with source maps."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "Nixpacks automatically detects your application type and builds an optimized container image."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML examples.",
+            "The API reference uses `<ApiReference definitionName=\"NixpacksCwImagePackagingProps\" />`, which matches the relevant Props type in the provided source.",
+            "The draft correctly identifies the documented Nixpacks properties: `sourceDirectoryPath`, `buildImage`, `providers`, `startCmd`, `startRunImage`, `startOnlyIncludeFiles`, and `phases`.",
+            "The draft acknowledges all five container packaging variants present in the source: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the exposed Nixpacks packaging type and uses the required TypeScript CodeBlock pattern. The main risks are several Stacktape/Nixpacks behavior claims that go beyond the provided type source, especially around inferred start commands, provider behavior, build phase ordering, cache implementation, and runtime availability of installed packages.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, Nixpacks infers the start command from your project files (e.g., the `start` script in `package.json`, or the compiled binary for Go/Rust).”",
+              "reason": "The source only says `startCmd` overrides the default start command inferred by Nixpacks. It does not document which project files are inspected or that Go/Rust compiled binaries are inferred in the described way.",
+              "suggestedFix": "Narrow the sentence to: “Use `startCmd` when you want to override the default start command inferred by Nixpacks.” Avoid naming specific inference rules unless supported by source or linked external Nixpacks docs are part of the source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "#### The command to execute when starting the application.\n   *\n   * ---\n   *\n   * This overrides the default start command inferred by Nixpacks."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Nixpacks auto-detects the language from files in the source directory (e.g., `package.json` for Node.js, `requirements.txt` for Python, `Cargo.toml` for Rust) and runs the appropriate build steps.”",
+              "reason": "The source supports automatic application-type detection, but it does not list file-level detection rules or specific provider files. Those examples may be true for Nixpacks generally, but they are not grounded in the provided Stacktape source.",
+              "suggestedFix": "Write more cautiously: “Nixpacks automatically detects the application type from the source directory and builds a container image. For exact provider detection rules, see the Nixpacks providers documentation.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "Nixpacks automatically detects your application type and builds an optimized container image."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, Nixpacks auto-detects the right provider from your project files. Use the `providers` property to override auto-detection when your project layout is ambiguous or you want to force a specific provider.”",
+              "reason": "The source says `providers` is a list used for determining build and runtime environments. It does not explicitly say the property overrides auto-detection, supports forcing a provider, or is intended for ambiguous layouts.",
+              "suggestedFix": "Keep the supported part and narrow the rest: “The `providers` property passes an explicit provider list to Nixpacks for determining the build and runtime environments. This is useful when you do not want to rely only on Nixpacks auto-detection.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "#### A list of providers to use for determining the build and runtime environments."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The directories listed are mounted as Docker cache mounts during the build.”",
+              "reason": "The source supports caching directories between builds, but it does not describe the implementation as Docker cache mounts. That is an implementation detail not present in the provided source.",
+              "suggestedFix": "Remove the implementation mechanism: “The directories listed are cached between builds to speed up subsequent builds.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "#### A list of directories to cache between builds to speed up subsequent builds."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You can define multiple phases that run in sequence.”",
+              "reason": "The source defines `phases?: NixpacksPhase[]` and says they are build phases, but it does not state ordering semantics. The ordering may be true for Nixpacks, but this Stacktape source does not establish it.",
+              "suggestedFix": "Avoid asserting ordering unless sourced. For example: “You can define multiple build phases, each with its own packages, commands, file filters, and cache directories.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "#### The build phases for the application."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“These packages are available both at build time and in the final image (unless you use `startOnlyIncludeFiles` to exclude them from the runtime).”",
+              "reason": "The source only says `nixPkgs` and `aptPkgs` install packages in a phase. It does not say phase-installed packages are present in the final runtime image, nor that `startOnlyIncludeFiles` controls package availability.",
+              "suggestedFix": "Replace with a narrower claim: “Use `nixPkgs` or `aptPkgs` to install packages in a build phase. If runtime package availability matters, verify the resulting Nixpacks image or set an appropriate `startRunImage`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "#### A list of Nix packages to install in this phase."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "#### A list of APT packages to install in this phase."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "#### A list of file paths to include in the runtime environment; all other files will be excluded."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `nixpkgsArchive` value is a commit hash from the nixpkgs repository.”",
+              "reason": "The source only names `nixpkgsArchive` as “The Nixpkgs archive to use.” It does not constrain the value to a commit hash.",
+              "suggestedFix": "Use the source wording and avoid the unsupported constraint: “Use `nixpkgsArchive` to choose the Nixpkgs archive used by the phase.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "#### The Nixpkgs archive to use."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Nixpacks packaging (`NixpacksPackaging`) auto-detects your application's language and framework, then builds an optimized container image — no Dockerfile needed.”",
+              "reason": "The source grounds automatic application-type detection and optimized image building, but it does not mention framework detection or “no Dockerfile needed.” This is likely accurate background for Nixpacks, but it is broader than the provided source.",
+              "suggestedFix": "Tighten the opening to the sourced behavior: “Nixpacks packaging (`NixpacksPackaging`) automatically detects your application type and builds a container image from a source directory.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML.",
+            "The API reference uses `<ApiReference definitionName=\"NixpacksCwImagePackagingProps\" />`, which matches the Nixpacks container-workload props type in the source.",
+            "The draft correctly identifies `sourceDirectoryPath` as required for `NixpacksCwImagePackagingProps` and covers the documented Nixpacks properties: `buildImage`, `providers`, `startCmd`, `startRunImage`, `startOnlyIncludeFiles`, and `phases`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is API-complete for the documented Nixpacks packaging surface. It mentions every property on `NixpacksCwImagePackagingProps`, acknowledges the five container packaging modes, and the feature-specific examples generally demonstrate the property discussed in their section.",
+          "issues": [],
+          "positiveFindings": [
+            "All primary Nixpacks properties are covered: `sourceDirectoryPath`, `buildImage`, `providers`, `startCmd`, `startRunImage`, `startOnlyIncludeFiles`, and `phases`.",
+            "The draft also names the nested `NixpacksPhase` properties, including `cmds`, `nixPkgs`, `nixLibs`, `nixOverlay`, `nixpkgsArchive`, `aptPkgs`, `cacheDirectories`, and `onlyIncludeFiles`.",
+            "The page acknowledges all five container packaging variants: Stacktape buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack.",
+            "Each major opt-in property section includes a `<CodeBlock intellisense>` example that exercises the relevant Nixpacks property rather than repeating a bare scaffold.",
+            "The API reference uses the concrete packaging props type visible in the source: `NixpacksCwImagePackagingProps`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\packaging\\containers\\nixpacks.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T14:23:30.006Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

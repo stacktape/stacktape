@@ -1,0 +1,375 @@
+---
+title: 'Cost Optimization Tips'
+order: 4
+seoTitle: 'Cost Optimization Tips for AWS | Stacktape Docs'
+seoDescription: 'Reduce your AWS bill with practical Stacktape cost optimization tips: ARM/Graviton, right-sizing, spot instances, database engine selection, log retention, and budget alerts.'
+---
+
+# Cost Optimization Tips
+
+AWS bills go directly to your AWS account — Stacktape's subscription fee is separate. Every resource you deploy has a running cost, and small configuration choices compound over time. This page covers the highest-impact levers for reducing what you pay without sacrificing reliability.
+
+<Info>
+Use the [cost dashboards](/managing-costs/dashboards) and [per-resource breakdown](/managing-costs/per-resource-breakdown) in the Stacktape Console to identify where your spend is concentrated before optimizing. Set up [budget alerts](/managing-costs/budgets) so you catch cost spikes early.
+</Info>
+
+## Use ARM/Graviton architecture
+
+Switching from the default `x86_64` to `arm64` (AWS Graviton) saves ~20% on compute costs for both [Lambda functions](/resources/compute/lambda-function) and [container workloads](/resources/compute/web-service). Graviton processors are often faster for the same price class, so you get a double benefit: lower cost and better performance.
+
+ARM works with most application code out of the box — Node.js, Python, Go, Java, and .NET all run natively. The main exception is native compiled binaries or Lambda layers built specifically for x86. If you use `stacktape-lambda-buildpack` packaging, Stacktape builds for the selected architecture automatically.
+
+Set `architecture: 'arm64'` on Lambda functions:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    architecture: 'arm64',
+    memory: 1024,
+    timeout: 30
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+For container-based resources ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)), set `architecture: 'arm64'` on the `resources` property. This applies to Fargate workloads — if you use EC2 `instanceTypes`, choose Graviton instance families (`c7g`, `m7g`, `r7g`) instead.
+
+[Redis clusters](/resources/databases/redis) also benefit from Graviton — instance types with a `g` suffix (`cache.t4g.micro`, `cache.m7g.large`, `cache.r7g.large`) use ARM processors at better price-performance than their x86 equivalents.
+
+<Tip>
+Start every new project with `arm64`. Only switch to `x86_64` if you hit a specific compatibility issue — that's rare for modern application stacks.
+</Tip>
+
+## Choose the right compute model
+
+The biggest cost lever is choosing the right compute model for your workload. Lambda functions, container services, and batch jobs have fundamentally different pricing structures.
+
+### Lambda functions: pay-per-invocation
+
+[Lambda functions](/resources/compute/lambda-function) cost nothing when idle — you pay only for the compute time consumed. This makes them the cheapest option for low-traffic or bursty workloads (fewer than ~500k requests/day). Beyond that volume, a container service running 24/7 is usually cheaper per-request.
+
+Avoid `provisionedConcurrency` unless latency requirements demand it. Each provisioned instance bills even when idle and adds 2–5 minutes to deploy time. For most APIs, cold starts of 1–5 seconds are acceptable for background or internal endpoints.
+
+### Container services: always-on cost
+
+[Web services](/resources/compute/web-service), [private services](/resources/compute/private-service), and [worker services](/resources/compute/worker-service) run 24/7 and bill continuously. AWS Fargate cannot scale to zero — the minimum is 1 running instance. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/configuration/triggers/http-triggers) is usually cheaper.
+
+Right-size the `resources` block. Fargate bills for the CPU/memory combination you request, not what you use. Start small (`cpu: 0.25`, `memory: 512`) and increase only when metrics show resource pressure.
+
+### Batch jobs: pay only for runtime
+
+[Batch jobs](/resources/compute/batch-job) provision compute only while the job runs and release it when done. Use batch jobs for data processing, ML training, image encoding, or any task that runs to completion rather than serving ongoing traffic.
+
+<FeatureComparisonTable
+  columns={['Lambda function', 'Container service', 'Batch job']}
+  features={[
+    { name: 'Pricing model', values: { 'Lambda function': 'Per-invocation', 'Container service': 'Per-hour (24/7)', 'Batch job': 'Per-job runtime' } },
+    { name: 'Scale to zero', values: { 'Lambda function': true, 'Container service': false, 'Batch job': true } },
+    { name: 'Max run time', values: { 'Lambda function': '15 minutes', 'Container service': 'Unlimited', 'Batch job': 'Unlimited' } },
+    { name: 'Best for traffic pattern', values: { 'Lambda function': 'Bursty / low', 'Container service': 'Steady / high', 'Batch job': 'Periodic tasks' } },
+    { name: 'ARM/Graviton', values: { 'Lambda function': true, 'Container service': true, 'Batch job': false } }
+  ]}
+/>
+
+## Use spot instances for batch jobs
+
+Batch jobs support `useSpotInstances`, which runs your job on spare AWS capacity at up to 90% discount. The tradeoff: AWS can interrupt your job with 120 seconds of warning (a `SIGTERM` signal).
+
+Spot instances are a good fit for jobs that can safely restart from the beginning — data imports, image processing, ML training with checkpoints. Combine with `retryConfig` so interrupted jobs automatically retry:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const processor = new BatchJob({
+    container: {
+      packaging: new CustomDockerfilePackaging({
+        dockerfilePath: './Dockerfile'
+      })
+    },
+    resources: { cpu: 4, memory: 7680 },
+    useSpotInstances: true,
+    retryConfig: {
+      attempts: 3,
+      retryIntervalSeconds: 30,
+      retryIntervalMultiplier: 2
+    }
+  });
+
+  return { resources: { processor } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Do not use spot instances for jobs with non-idempotent side effects (sending emails, charging payments) or strict completion deadlines.
+
+## Pick the right load balancing
+
+For [web services](/resources/compute/web-service), the load balancing type directly affects monthly cost.
+
+**`http-api-gateway` (default)** charges ~$1 per million requests with no base cost. At low traffic, this is the cheapest option. At high sustained traffic (above ~500k requests/day), the per-request charges add up.
+
+**`application-load-balancer`** has a flat base cost of ~$18/month plus usage-based charges. It becomes more cost-effective than API Gateway at higher traffic volumes. It's required for gradual deployments, top-level firewalls, and WebSocket support.
+
+**`network-load-balancer`** is for non-HTTP protocols (TCP/TLS) like MQTT or game servers — use it only when you need raw TCP.
+
+For [private services](/resources/compute/private-service), the default `service-connect` costs ~$0.50/month — far cheaper than the `application-load-balancer` option at ~$18/month. Stick with `service-connect` unless you need the ALB for health-check-based routing or access from non-container resources.
+
+<Tip>
+Most teams should start with the default `http-api-gateway` for web services. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your traffic volume makes it cheaper.
+</Tip>
+
+## Right-size Lambda memory
+
+Lambda CPU scales proportionally to memory: 1,769 MB gives you 1 vCPU, 3,538 MB gives 2 vCPUs. More memory often means faster execution and lower total cost — a function that takes 3 seconds at 256 MB might finish in 800 ms at 1,024 MB, costing less overall despite the higher per-millisecond rate.
+
+Profile your functions with real-world payloads. Increase memory in steps (512 → 1,024 → 2,048) and compare total billed duration. The sweet spot is where additional memory stops reducing execution time.
+
+Reduce the default `timeout` from 10 seconds to the lowest value your function needs. Timeouts don't affect cost directly, but they limit how long a stuck invocation runs before being killed, preventing wasted spend from runaway functions.
+
+## Right-size container resources
+
+Fargate bills for the exact CPU/memory combination you request. Over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape debug:metrics`](/cli/debug-metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
+
+Valid Fargate CPU/memory combinations:
+
+| vCPU | Memory range |
+|------|-------------|
+| 0.25 | 512–2,048 MB |
+| 0.5  | 1,024–4,096 MB |
+| 1    | 2,048–8,192 MB |
+| 2    | 4,096–16,384 MB |
+| 4    | 8,192–30,720 MB |
+| 8    | 16,384–61,440 MB |
+| 16   | 32,768–122,880 MB |
+
+Start at the smallest combination that keeps your application responsive and scale up only when metrics justify it. For services with variable load, configure auto-scaling to add instances under pressure rather than over-provisioning a single large instance:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+      architecture: 'arm64'
+    },
+    scaling: {
+      minInstances: 1,
+      maxInstances: 4,
+      scalingPolicy: {
+        keepAvgCpuUtilizationUnder: 70
+      }
+    }
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+## Choose the right database engine
+
+[Relational databases](/resources/databases/relational-database) are often the largest line item in an AWS bill. The engine choice determines both the pricing model and how well it adapts to your traffic.
+
+### Aurora Serverless v2 for variable workloads
+
+Aurora Serverless v2 scales from 0.5 to 128 ACUs (Aurora Capacity Units) in 0.5-ACU increments, where ~1 ACU provides ~2 GB RAM. You pay only for the capacity you use at any moment. Set `minCapacity: 0.5` for dev/staging environments to minimize idle cost, and cap `maxCapacity` to control the upper bound of your bill.
+
+Aurora Serverless v2 is the recommended engine for most new projects. It handles traffic spikes automatically without manual instance resizing.
+
+### Standard RDS for predictable workloads
+
+Standard RDS uses fixed instance sizes with hourly billing. If your traffic is steady and predictable, a right-sized RDS instance can be cheaper than Aurora Serverless v2 because you avoid the per-ACU premium. Start with a `db.t4g.micro` (~$12/month) for development and `db.t4g.medium` (~$50/month) for small production workloads.
+
+The `t` (burstable) family works well for databases with occasional spikes. Switch to `r` (memory-optimized) only for steady, memory-intensive workloads.
+
+### Avoid over-provisioning high availability
+
+Enabling `multiAz` on a standard RDS instance doubles the instance cost by creating a standby replica. Skip it for development and staging stages. For production, enable it only when your uptime requirements justify the extra cost. Aurora clusters replicate across 3 AZs automatically, so multi-AZ is built in.
+
+<Tip>
+For dev/staging stages, use Aurora Serverless v2 with `minCapacity: 0.5` and `maxCapacity: 2`. This gives you a real database that costs a few dollars a month when idle. For production, evaluate whether your traffic is stable enough for standard RDS (cheaper per-hour) or variable enough to benefit from Aurora Serverless v2 (cheaper at low utilization).
+</Tip>
+
+## Use serverless databases where possible
+
+For key-value and document workloads, [DynamoDB](/resources/databases/dynamodb) in on-demand mode (the default) costs nothing at zero traffic. You pay per read and write operation — no idle cost. This makes it ideal for applications with unpredictable or spiky access patterns. Switch to provisioned throughput only when your traffic is steady and predictable enough to forecast capacity.
+
+For Redis use cases that don't require sub-millisecond latency from a dedicated cluster, consider [Upstash Redis](/resources/databases/upstash-redis) — a serverless, pay-per-request Redis that has no idle cost, compared to [Redis clusters](/resources/databases/redis) which bill per-hour starting at ~$0.016/hr (~$12/month) for the smallest instance.
+
+## Add a CDN for cacheable traffic
+
+A [CDN](/resources/networking/cdn) (CloudFront) caches responses at edge locations so repeat requests never reach your origin. This reduces Lambda invocations, container load, and data transfer costs. The CDN has no monthly base fee — you pay ~$0.01 per 10,000 requests plus per-GB transfer.
+
+Enable a CDN when your service returns cacheable content (static assets, public API responses, server-rendered pages). Skip it for APIs where every response is unique and user-specific.
+
+Restrict the CDN price class to reduce per-request cost in premium regions. `PriceClass_100` (North America + Europe) is the cheapest option and covers the majority of users for most applications. `PriceClass_All` (the default) includes all regions worldwide, but some regions charge more per request.
+
+## Reduce log retention
+
+CloudWatch log storage accumulates cost over time. Default retention varies by resource type:
+
+| Resource type | Default retention |
+|--------------|------------------|
+| Lambda function | 180 days |
+| Container workloads | 90 days |
+| Batch jobs | 90 days |
+| Relational databases | 90 days |
+
+For development and staging stages, 7–14 days of log retention is usually enough. For production, 30–60 days covers most debugging scenarios. Set `retentionDays` in the `logging` block of each resource:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    logging: {
+      retentionDays: 14
+    },
+    memory: 512,
+    timeout: 10
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+If you need long-term log storage, consider [forwarding logs](/observability/log-forwarding) to a cheaper external service rather than keeping them in CloudWatch indefinitely.
+
+## Delete unused stages
+
+Every deployed [stage](/configuration/stages-and-environments) consumes AWS resources. Old feature-branch stages, abandoned test stacks, and forgotten staging environments accumulate idle cost — especially for always-on resources like container services, databases, and Redis clusters.
+
+Review your stacks regularly in the Stacktape Console or with [`stacktape info:stacks`](/cli/info-stacks). Delete any stage that's no longer needed:
+
+```bash
+stacktape delete --stage old-feature
+```
+
+For PR-preview workflows, use the [stacks-per-git-branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) with automatic cleanup so stages are deleted when branches are merged.
+
+## Avoid unnecessary NAT Gateways
+
+A NAT Gateway costs ~$32/month per AZ plus data processing fees. Container workloads enable NAT Gateway via `usePrivateSubnetsWithNAT: true`. This is necessary when you need a static outbound IP for third-party API whitelisting. For all other cases, leave it disabled — container services have internet access by default without a NAT Gateway.
+
+Lambda functions with `joinDefaultVpc: true` lose direct internet access. Stacktape auto-creates VPC endpoints for S3 and DynamoDB, but calls to external APIs (Stripe, OpenAI, etc.) will fail. If you need both VPC access and internet from a Lambda, consider a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) instead, which have internet access by default.
+
+## Use dev mode during development
+
+Running [`stacktape dev`](/local-development/dev-mode-overview) lets you iterate locally without deploying real AWS resources for every code change. The dev mode runs your functions and containers locally while connecting to deployed cloud resources (databases, queues, buckets). This avoids the cost of repeated full deployments and keeps your feedback loop fast.
+
+For [relational databases](/resources/databases/relational-database) and [DynamoDB](/resources/databases/dynamodb), dev mode runs a local Docker container by default. Set `dev.remote: true` only when you need to test against the actual deployed database.
+
+## Set up budget alerts
+
+AWS costs can spike unexpectedly — a misconfigured auto-scaling policy, a traffic surge, or a forgotten stack. [Budget alerts](/managing-costs/budgets) notify you when spending exceeds a threshold, giving you time to react before the bill grows.
+
+Start with two thresholds: 80% (early warning) and 100% (immediate action). Budgets can be scoped to your whole organization or to individual stacks. The first two AWS budgets are free; additional budgets cost ~$0.02/day each.
+
+## Cost optimization checklist
+
+Use this checklist when reviewing a stack's cost profile:
+
+- [ ] All Lambda functions and Fargate tasks use `arm64` architecture
+- [ ] Lambda memory is profiled and right-sized (not left at default)
+- [ ] Container CPU/memory matches actual utilization (check metrics)
+- [ ] Auto-scaling is configured for container services with variable traffic
+- [ ] Load balancing type matches traffic volume (API Gateway vs ALB)
+- [ ] Database engine matches workload pattern (serverless vs fixed instance)
+- [ ] Database `multiAz` is disabled for non-production stages
+- [ ] Log retention is reduced for development/staging stages
+- [ ] Unused stages are deleted
+- [ ] Budget alerts are configured with 80% and 100% thresholds
+- [ ] CDN is enabled for services with cacheable responses
+- [ ] Batch jobs use spot instances where safe
+- [ ] No unnecessary NAT Gateways
+
+## FAQ
+
+### How do I see what each resource costs?
+
+The Stacktape Console provides [per-resource cost breakdowns](/managing-costs/per-resource-breakdown) that attribute AWS charges to individual resources, stages, and projects. You can also view overall AWS spend across your organization using the [cost dashboards](/managing-costs/dashboards). AWS bills your AWS account directly — these tools help you understand the bill, but they don't add charges.
+
+### Does Stacktape add cost on top of AWS?
+
+Stacktape charges a subscription fee that is separate from your AWS bill. AWS resources are billed directly by AWS to your connected AWS account. The Stacktape subscription covers the Console, GitOps, observability integrations, and the CLI tooling. See [billing and subscription](/stacktape-console/billing-and-subscription) for plan details.
+
+### Can Fargate containers scale to zero?
+
+No. AWS Fargate requires a minimum of 1 running instance. Container-based resources ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)) always have at least one instance running and billing. If your workload has periods of zero traffic, a [Lambda function](/resources/compute/lambda-function) is cheaper — it costs nothing when idle.
+
+### How much cheaper is ARM/Graviton?
+
+ARM-based (Graviton) compute is ~20% cheaper per unit than x86 across Lambda functions, Fargate containers, and Redis instances. For Lambda, billing is per GB-second — the same function at the same memory costs ~20% less on `arm64`. For Fargate, the per-vCPU and per-GB-hour rates are ~20% lower. Most modern application runtimes (Node.js, Python, Go, Java, .NET) run on ARM without changes.
+
+### When should I use Aurora Serverless v2 vs standard RDS?
+
+Use Aurora Serverless v2 when your database traffic is variable, unpredictable, or has significant idle periods — it scales from 0.5 ACU and you pay only for what you use. Use standard RDS when traffic is steady and predictable — a fixed-size instance avoids the per-ACU premium of Aurora Serverless. For dev/staging, Aurora Serverless v2 at `minCapacity: 0.5` is almost always cheaper since it scales down when unused.
+
+### How do I reduce Lambda cold start costs without provisioned concurrency?
+
+Provisioned concurrency eliminates cold starts but bills for idle instances. Alternatives that reduce cold starts without the idle cost: use `arm64` (Graviton processors start faster), keep functions small (smaller deployment packages initialize faster), and increase memory (more CPU for initialization). For non-latency-critical endpoints, cold starts of 1–5 seconds are usually acceptable and cost nothing extra.
+
+### What's the cheapest way to host a static website?
+
+A [hosting bucket](/resources/frontend/static-hosting) (S3 + CloudFront CDN) is the cheapest option for static sites. S3 storage costs pennies per GB, and CloudFront charges ~$0.01 per 10,000 requests. There's no compute instance running — you pay only for storage and data transfer. This works for React, Vue, Angular, Astro (static mode), or any framework that produces static HTML/JS/CSS output.
+
+### How does DynamoDB on-demand pricing compare to provisioned?
+
+DynamoDB on-demand mode (the default in Stacktape) charges per read and write operation with no idle cost. Provisioned mode lets you reserve a fixed throughput (reads/writes per second) at a lower per-unit price but bills continuously even at zero traffic. On-demand is cheaper for variable or low-traffic tables. Provisioned with auto-scaling is cheaper when you have sustained, predictable throughput patterns.
+
+### Should I use a CDN for my API?
+
+A CDN helps when your API returns cacheable responses — public data, search results, configuration, or any response that's the same for multiple users. It reduces origin load and data transfer costs. Skip the CDN for APIs where every response is unique and personalized. The CDN has no base monthly cost (~$0.01/10k requests + ~$0.085/GB transfer), so the financial risk of trying it is low.
+
+### How do I prevent unexpected cost spikes?
+
+Set up [budget alerts](/managing-costs/budgets) with thresholds at 80% and 100% of your expected monthly spend. Cap auto-scaling with `maxInstances` on container services and `maxCapacity` on Aurora Serverless v2 databases. Use `reservedConcurrency` on Lambda functions to cap the maximum concurrent instances (at no extra cost). Review the [per-resource breakdown](/managing-costs/per-resource-breakdown) weekly to catch anomalies early.

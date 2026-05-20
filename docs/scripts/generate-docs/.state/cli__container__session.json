@@ -1,0 +1,275 @@
+{
+  "pageId": "cli__container__session",
+  "pageRoute": "cli/container-session",
+  "startedAt": "2026-05-17T22:28:43.387Z",
+  "updatedAt": "2026-05-17T22:32:40.875Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__container__session\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "No forbidden patterns present: no YAML resource blocks, no StacktapeConfig type, no fenced TypeScript with defineConfig, no marketing language, and every bash block contains exactly one command.",
+            "The Info callout ('does not require a configuration file') directly addresses a question first-time users will have and is accurately grounded in the source (commandRequiresConfig: false).",
+            "The 'Multiple running instances' section accurately mirrors the source behavior — the CLI prompts with short task ID (last segment after '/') plus start time, and the page describes this correctly.",
+            "Common errors section is grounded in actual error paths (stpErrors.e119 for invalid resource, stpErrors.e120 for multi-container without --container) and gives the reader actionable recovery steps.",
+            "Related commands section is well-chosen and distinguishes container:session (interactive shell) from debug:container-exec (non-interactive output capture) — a comparison readers will need.",
+            "The Arguments reference uses <CliCommandsApiReference> as required by the CLI section instructions rather than a hand-authored table.",
+            "All --container error semantics are accurately described: the error fires when multiple containers exist AND --container is omitted, OR when --container is provided but doesn't match any container name."
+          ],
+          "problems": [
+            "Section ordering deviates from the CLI section instructions which prescribe: intro paragraph → usage example → auto-generated reference → Examples → Related commands. The page inserts 'Important flags', 'Multiple running instances', and 'Common errors' between Usage and the Arguments reference, meaning readers reach the reference late after already seeing partial flag coverage in prose.",
+            "The 'Important flags' H2 section partially duplicates what the Arguments reference table already covers (--command, --container descriptions appear in both places), creating mild redundancy without adding enough depth to justify the split.",
+            "No mention of the ECS Exec prerequisite: for container:session to work, ECS Exec must be enabled on the service. If Stacktape enables this automatically, the page should say so explicitly; if the user needs to do anything, it must be documented. Silence on this point is a real gotcha for first-time users who hit an 'ExecuteCommandDisabledException' and have no context.",
+            "The intro paragraph says 'You can run any command you like inside the container' implicitly by describing use cases, but it never states the default shell is /bin/sh until deep in the 'Important flags' section — the default should appear earlier since many containers don't have bash installed."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reorder to match CLI section instructions: intro → single Usage block → Arguments reference → Examples → Related commands. Move 'Important flags' content into an 'Examples' section or annotate the Arguments reference prose instead of creating a separate H2 before the reference.",
+            "Add a one-sentence note near the top about the default shell being /bin/sh (e.g., 'By default, the command starts /bin/sh inside the container.') so readers with bash-only containers know immediately to use --command /bin/bash.",
+            "Clarify the ECS Exec enablement story. If Stacktape sets enableExecuteCommand automatically on all ECS services it deploys, say so: 'Stacktape enables ECS Exec on all deployed container workloads automatically, so no extra configuration is required.' If it does not, this is a prerequisite that needs documentation.",
+            "The multi-instance prompt description ('task ID and its start time') is accurate but could be made more precise by noting it shows the short task ID (the last segment of the ARN) rather than the full ARN, matching the actual source behavior.",
+            "Consider adding a brief note on what happens when zero tasks are running (the command will fail to find a task ARN), so readers who forget to deploy first get a clear mental model rather than a cryptic error."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The intro paragraph is concise, accurate, and well-scoped — correctly identifies ECS Exec and SSM as the underlying mechanism.",
+            "Both `--container` and `--command` flags are explained with prose motivation (when and why to use them) before showing the example, which is better than jumping straight to a code block.",
+            "The multi-instance selection behavior (prompt with short task ID + start time) is accurately sourced from the command implementation in `src/commands/container-session/index.ts`.",
+            "The `commandRequiresConfig: false` behavior is correctly surfaced as an Info callout — useful context for scripted/CI use.",
+            "Common errors map accurately to the two `stpErrors.e119`/`stpErrors.e120` throw paths in source: resource not found, and multiple containers without `--container`.",
+            "Each bash block contains exactly one command — the copy-button trap is avoided throughout.",
+            "Related commands are well-chosen and cover the three most natural adjacent needs (non-interactive exec, bastion access, log inspection)."
+          ],
+          "problems": [
+            "The arguments reference (`<CliCommandsApiReference>`) is placed after the inline flag documentation and examples sections, rather than immediately after the initial usage example. The CLI section instructions prescribe: 'Then a usage example. Then the auto-generated reference. Then Examples.' Burying the reference this deep makes it harder for a reader to quickly look up a flag they don't recognize.",
+            "The bottom 'Examples' section substantially repeats examples already shown in the 'Important flags' section. The `--container` and `--command` examples appear in both places with nearly identical invocations. This adds length without adding information.",
+            "The `/bin/sh` default is stated as fact ('By default, the session starts `/bin/sh`') but is not grounded in any of the provided source files. The `runEcsExecSsmShellSession` implementation is not in the source list, and the `commandDefinitions['container:session']` entry does not mention a default. This is AWS ECS Exec behavior, not a Stacktape-documented default — the claim should either be sourced or attributed to ECS Exec."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move `<CliCommandsApiReference>` to immediately follow the initial usage example, per CLI section instructions. Prose sections on flags, multi-instance behavior, and errors can follow the reference table.",
+            "Consolidate or drop the bottom 'Examples' section. The `--container` and `--command` invocations are already shown with full context in 'Important flags'. Keep only genuinely new patterns (e.g., a combined flags example) or remove the section to avoid padding.",
+            "Soften or attribute the `/bin/sh` default claim: 'ECS Exec uses `/bin/sh` unless you specify `--command`' makes clear this is AWS behavior, not a Stacktape-specific default. Alternatively, omit the specific shell name and write 'the container's default shell'.",
+            "The 'Important flags' heading is non-standard for CLI pages. Renaming it 'Flags' or 'Key flags' better matches typical reference page conventions and is shorter.",
+            "The multi-instance selection section mentions 'task ID and its start time' — the source actually sorts by taskArn and shows the short ID (last segment after '/') plus startedAt. This is accurate as written, but a note that the displayed ID is the short suffix of the full task ARN would help users who then need to use the full ARN elsewhere (e.g., with `debug:container-exec --taskArn`)."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and aligned with the command definition: interactive session inside a deployed container using ECS Exec and SSM.",
+            "Usage example includes all required flags: `--stage`, `--region`, and `--resourceName`.",
+            "The page uses the required `<CliCommandsApiReference command=\"container:session\" ... />` component instead of hand-authoring the flags table.",
+            "The multi-container behavior and multi-task selection behavior are practical and mostly grounded in `src/commands/container-session/index.ts`.",
+            "Related commands are relevant and help readers choose between interactive shell access, one-shot command execution, bastion sessions, and logs."
+          ],
+          "problems": [
+            "The repeated claim that `/bin/sh` is the default shell is not grounded in the provided source files. `src/commands/container-session/index.ts` passes `globalStateManager.args.command` to `runEcsExecSsmShellSession`, but the provided sources do not define the fallback command.",
+            "Several H2 sections are not self-contained for extraction. `## Usage` begins with a code block, `## Important flags` begins with a flag description, and `## Examples` begins with an imperative sentence rather than a paragraph explaining the section concept.",
+            "`## Common errors` appears before the generated arguments reference, which conflicts with the human-maintained CLI page rhythm: intro, usage example, auto-generated reference, examples, related commands.",
+            "The `--command` prose says the user can “run a specific command,” but `container:session` is an interactive session command. The source description says the argument specifies a command to run inside the container to start the interactive session; the wording should stay narrow to avoid implying one-shot exec behavior handled by `debug:container-exec`.",
+            "The `--container` example uses `myWorkload --container nginx` without grounding that `nginx` is an available container name. It is not invalid, but `sidecar` or a clearly illustrative phrase in prose would reduce ambiguity.",
+            "The page has no FAQ. For a CLI reference page this is not as critical as a resource page, but this command has useful searchable questions about ECS Exec vs `debug:container-exec`, multi-container workloads, and whether a config file is required."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify the unsupported `/bin/sh` default-shell claim unless a provided source file confirms that fallback. Use narrower wording such as “Use `--command` to specify the command that starts the interactive session inside the container.”",
+            "Reorder the page to match the CLI section instructions: lead paragraph, usage example, `<CliCommandsApiReference ... />`, examples for non-obvious patterns, then related commands. Move `Common errors` after the arguments reference or fold errors into examples/troubleshooting after the reference.",
+            "Add a self-contained opening paragraph under each H2 that currently starts with a code block or terse label, especially `Usage`, `Important flags`, and `Examples`.",
+            "Revise the `--command` section so it does not imply `container:session` is the right command for capturing output from a one-shot command; point that use case to `debug:container-exec`."
+          ],
+          "optionalImprovements": [
+            "Add a short `## Troubleshooting` section instead of `## Common errors`, using the exact source-grounded cases: resource not found among deployed ECS task-definition workloads, invalid or missing container name, and multiple running tasks prompting selection.",
+            "Add a compact FAQ with 3-5 high-value questions: whether the command needs a config file, how it differs from `debug:container-exec`, what happens with multiple running tasks, how to choose a container in multi-container workloads, and what AWS feature is used underneath.",
+            "Make the usage paragraph mention that `--stage`, `--region`, and `--resourceName` are required, matching `requiredArgs` in `src/config/cli/commands.ts`.",
+            "Avoid repeating nearly identical command examples between `Usage`, `Important flags`, and `Examples`; keep one basic example plus focused examples for `--container` and `--command`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the CLI command definition and implementation. The main factual risk is the repeated `/bin/sh` default-shell claim, which is not present in the provided command source. There is also one unsupported over-specific statement about init containers in the multi-container selection behavior.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This opens an interactive shell (`/bin/sh` by default)…” and “By default, the session starts `/bin/sh`.”",
+              "reason": "The provided sources show that `--command` is optional and that the implementation passes the parsed `command` value to `runEcsExecSsmShellSession`, but they do not document `/bin/sh` as the default. The default may exist in an unprovided helper, but it is not grounded in the supplied source files.",
+              "suggestedFix": "Remove the default-shell claim or narrow it to source-grounded wording: “Use `--command` to specify the command that starts the interactive session inside the container.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\container-session\\index.ts",
+                  "quote": "const { command } = globalStateManager.args;\n\n  await runEcsExecSsmShellSession({\n    task,\n    containerName,\n    region: globalStateManager.region,\n    command\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "command: command.optional()"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If the target resource runs more than one container (main container, sidecars, init containers), you must specify which container to connect to.”",
+              "reason": "The implementation checks ECS task definition `containerDefinitions` and requires `--container` when more than one container definition exists. The provided sources do not mention init containers for this command, and ECS task definitions do not expose init containers as a documented Stacktape concept here. The “init containers” wording is therefore over-specific.",
+              "suggestedFix": "Use narrower wording: “If the target workload has more than one container definition, specify the container name with `--container`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\container-session\\index.ts",
+                  "quote": "const containersInTaskDefinition = ecsServiceTaskDefinition.containerDefinitions.map(({ name }) => name);\n  if (\n    (containersInTaskDefinition.length > 1 && !container) ||\n    (container && !containersInTaskDefinition.includes(container))\n  ) {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The required flags in the usage examples match the command definition: `region`, `stage`, and `resourceName`.",
+            "The claim that the command does not require a Stacktape configuration file is grounded by `commandRequiresConfig: false` in the implementation.",
+            "The `CliCommandsApiReference` command value matches the documented command, and the route exists in the navigation index.",
+            "Related command links point to valid routes in the provided documentation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the CLI command definition and implementation, but it overstates a few runtime behaviors that are not grounded in the provided command source. The main fixes are to avoid claiming a `/bin/sh` default, narrow the supported-resource wording to ECS service-backed workloads, and avoid saying multiple-container omission always produces a container-listing error without noting invalid container names share the same path.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This opens an interactive shell (`/bin/sh` by default)…” and “By default, the session starts `/bin/sh`.”",
+              "reason": "The provided command definition only says `--command` specifies a command to run inside the container. The implementation passes `globalStateManager.args.command` through to `runEcsExecSsmShellSession`, but the provided source does not show a `/bin/sh` default. That default may exist in an unprovided helper, but it is not grounded in the supplied source files.",
+              "suggestedFix": "Say that `--command` specifies the command used to start the interactive session, and omit the `/bin/sh` default unless the SSM session helper source is available and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "With `stacktape container:session`, it specifies a command to run inside the container to start the interactive session."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\container-session\\index.ts",
+                  "quote": "const { command } = globalStateManager.args;\n\n  await runEcsExecSsmShellSession({\n    task,\n    containerName,\n    region: globalStateManager.region,\n    command\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command works with any ECS-based container workload, including web services, private services, worker services, and multi-container workloads.”",
+              "reason": "The implementation resolves only deployed workloads with an ECS task definition and then looks for an ECS service CloudFormation child resource. The phrase “any ECS-based container workload” is broader than the source supports and could imply support for ECS-backed resources that are not ECS services.",
+              "suggestedFix": "Narrow the wording to “deployed Stacktape container resources backed by an ECS service” or list only resource types confirmed elsewhere in the command source, without saying “any.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\container-session\\index.ts",
+                  "quote": "const workloadInfo = deployedStackOverviewManager.deployedWorkloadsWithEcsTaskDefinition.find(\n    ({ nameChain }) => nameChain[0] === resourceName\n  );"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\container-session\\index.ts",
+                  "quote": "cloudformationResourceType === 'AWS::ECS::Service' ||\n        cloudformationResourceType === 'Stacktape::ECSBlueGreenV1::Service'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“If the target resource runs more than one container … you must specify which container to connect to. Omitting this flag when multiple containers exist produces an error listing the available container names.”",
+              "reason": "The source shows the same error path is used both when a multi-container task omits `--container` and when a provided `--container` value is not in the task definition. The draft documents only the omission case and misses the invalid-container case, which is useful for troubleshooting.",
+              "suggestedFix": "Change the description to say the CLI raises the container-selection error when multiple containers exist and `--container` is omitted, or when `--container` does not match one of the available container names.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\container-session\\index.ts",
+                  "quote": "if (\n    (containersInTaskDefinition.length > 1 && !container) ||\n    (container && !containersInTaskDefinition.includes(container))\n  ) {\n    throw stpErrors.e120({ containerResourceName: resourceName, availableContainers: containersInTaskDefinition });\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Debug, inspect files, check environment variables, or troubleshoot issues in a live container.”",
+              "reason": "The command source supports debugging and inspecting running containers, but “check environment variables” is an example of what a shell can do rather than a behavior specifically documented in the provided source. This is low risk, but it is not directly grounded.",
+              "suggestedFix": "Either remove “check environment variables” or phrase it as an example of what users commonly do once they have a shell, not as a Stacktape-provided feature.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required flags in the usage example match `requiredArgs: ['region', 'stage', 'resourceName']`.",
+            "The draft correctly uses `<CliCommandsApiReference command=\"container:session\" ... />` for the generated arguments table.",
+            "The related-command links point to routes present in the navigation index.",
+            "The claim that the command does not require a Stacktape configuration file is grounded by `commandRequiresConfig: false` in the implementation."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking issues for the `container:session` CLI reference. The page covers the command's required arguments, important command-specific optional arguments, uses the generated CLI API reference, and the shell examples are demonstrative and copyable.",
+          "issues": [],
+          "positiveFindings": [
+            "The usage examples include all required flags: `--stage`, `--region`, and `--resourceName`.",
+            "The page uses `<CliCommandsApiReference command=\"container:session\" ... />` instead of hand-authoring the flags table.",
+            "The command-specific optional flags `--command` and `--container` are explained in prose and demonstrated with separate one-command shell blocks.",
+            "The draft correctly distinguishes `container:session` from `debug:container-exec` in related commands: interactive shell session versus non-interactive command execution."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\container-session.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T22:32:40.875Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\container-session\\index.ts": "4fff574c4eb4845aa9b92d7aea1601ee08a1b351",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\container-session.md": "f9daf4e780af337fa7dbe7ba1ccf9c18892909da"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

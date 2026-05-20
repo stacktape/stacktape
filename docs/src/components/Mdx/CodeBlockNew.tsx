@@ -914,6 +914,9 @@ export function CodeBlockNew({
         }
 
         if (isCancelled) return;
+        if (typeof window !== 'undefined' && processedCode.renderCode.includes('stacktape dev')) {
+          console.info('[debug-codeblock] rendered html:', html);
+        }
         setRenderedHtml(html);
       } catch (error) {
         if (isCancelled) return;
@@ -1422,8 +1425,9 @@ export function CodeBlockNew({
                 padding: '0 18px',
                 lineHeight: '1.75',
                 minHeight: '1.75em',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
+                whiteSpace: 'pre',
+                fontVariantLigatures: 'none',
+                fontFeatureSettings: '"liga" 0, "calt" 0'
               },
               '.stacktape-shiki-pre .stacktape-highlighted-line': {
                 background:
@@ -1435,8 +1439,9 @@ export function CodeBlockNew({
                 opacity: 0.75
               },
               '.stacktape-shiki-pre .line span': {
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
+                whiteSpace: 'pre',
+                fontVariantLigatures: 'none',
+                fontFeatureSettings: '"liga" 0, "calt" 0'
               }
             }}
             dangerouslySetInnerHTML={{ __html: renderedHtml }}

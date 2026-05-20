@@ -1,0 +1,217 @@
+---
+title: 'Visual Config Editor'
+order: 125
+seoTitle: 'Visual Config Editor | Stacktape Console Docs'
+seoDescription: 'Write Stacktape configs in the browser with IntelliSense, preset templates, AI config generation, and price estimation. Preview CloudFormation output and manage templates.'
+---
+
+# Visual Config Editor
+
+The Stacktape Console includes a browser-based config editor for creating and editing Stacktape configurations without leaving the browser. It provides IntelliSense with hover documentation, autocompletion, preset templates, price estimation, and AI-powered config generation from existing Git repositories — an interactive editing experience for building infrastructure configurations directly in the Console.
+
+## What the config editor does
+
+The visual config editor lets you write Stacktape configuration files in a Monaco-based editor with language-aware features. In the Stacktape Console, navigate to **Config editor** in the sidebar to open it. The editor loads a selected template into an interactive editing environment where you can write, validate, and preview your configuration.
+
+The editor supports both YAML and TypeScript configurations. You can switch between the two formats using the dropdown options in the editor — "Switch config to YAML" or "Switch config to TypeScript". The editor converts your config automatically during the switch using built-in conversion utilities. For YAML configs, the editor provides schema-based validation. For TypeScript configs, the Stacktape SDK type definitions provide type-checked IntelliSense.
+
+Configurations are stored as **templates** — named configs managed in the Console. The template selector at the top of the editor lets you:
+
+- **Select** an existing template to load it into the editor.
+- **Create** a new empty template.
+- **Edit** the name of an existing template.
+- **Delete** templates you no longer need.
+- **Copy** a template's ID to the clipboard.
+
+Templates are sorted by most recently updated. Think of templates as drafts: you write and refine your config in the editor, then copy it to your project for use with the [CLI](/cli/deploy) or [GitOps](/ci-cd-and-gitops/gitops-with-console).
+
+<ConsoleScreenshot
+  src="/static/screenshots/console-config-editor.png"
+  alt="Stacktape Console's visual config editor showing a Stacktape configuration with IntelliSense autocompletion for resource properties"
+  caption="The config editor provides IntelliSense, hover docs, preset templates, and price estimation."
+/>
+
+## Editor views
+
+The config editor provides four tabs, each showing a different representation of your configuration.
+
+### Editor
+
+The main editing view where you write and modify your Stacktape config. Hover over any property to see its documentation, including type information, defaults, and allowed values. Trigger autocompletion manually with `Ctrl+Space` on Windows/Linux or `Cmd+Space` on Mac.
+
+The editor toolbar includes controls for selecting presets, starting AI generation, saving changes, adding resources to the config (Stacktape resources, scripts, or raw CloudFormation resources), and toggling fullscreen mode. When you have unsaved changes, a save button appears — click it or press `Ctrl+S` (Windows/Linux) or `Cmd+S` (Mac) to save to the current template.
+
+Certain properties in the config have interactive adjustment controls. Clicking these properties opens a modal dialog where you can configure the property through a form interface rather than editing the raw config text. This is useful for properties with many options — like selecting a container packaging mode, choosing a database engine, or picking a Fargate CPU/memory combination.
+
+### CloudFormation template
+
+A read-only view showing your Stacktape config statically compiled into an AWS CloudFormation template. Use this to inspect what AWS resources Stacktape will create from your configuration. This view is approximate — some values are only resolved during actual deployment, so the output is not 100% accurate. The template recompiles automatically as you edit your config.
+
+### Tree view
+
+A hierarchical tree view of the compiled CloudFormation resources. Like the CloudFormation template view, this representation is approximate and some values are only known at deploy time. The tree view is useful for navigating large configurations and understanding the relationship between compiled resources.
+
+### Isometric diagram
+
+A 3D isometric architecture diagram of your stack, showing AWS resources, VPC boundaries, and traffic flow. This gives you a visual overview of your infrastructure layout based on the current configuration.
+
+## Walkthrough
+
+### Opening the editor
+
+In the Stacktape Console, navigate to **Config editor** in the left sidebar. The editor opens with a template selector at the top. If you have existing templates, the most recently updated one loads automatically. Otherwise, create a new template to start editing.
+
+When you open the editor for the first time with an empty config, an overlay prompts you to choose between starting with a **YAML configuration** or a **TypeScript configuration**. This sets the initial language mode for the editor.
+
+### Starting from a preset
+
+The fastest way to get a working config is to start from a preset. Click **Select a preset** in the editor toolbar to open a dropdown organized into three categories:
+
+- **Web Frameworks** — presets for framework-based web applications (Next.js, Astro, Remix, and others), deployed as serverless or container workloads.
+- **Backend APIs** — presets for container-based web services, optionally bundled with a SQL database, Redis, or MongoDB Atlas.
+- **Backend jobs** — presets for scheduled tasks, queue processors, private services, and worker services.
+
+Selecting a preset populates the editor with a ready-made configuration. From there, customize resource names, packaging paths, environment variables, and other properties to match your project. The preset adapts to whatever language mode the editor is in — YAML or TypeScript.
+
+### Using IntelliSense
+
+As you type, the editor provides autocompletion suggestions. If suggestions don't appear automatically, press `Ctrl+Space` (Windows/Linux) or `Cmd+Space` (Mac) to trigger them. Hover over any property name to see its documentation, including the expected type, default value, and allowed values.
+
+For properties that support interactive adjustment (like container packaging, database engines, or compute resources), the editor highlights them as clickable. Click to open a form-based dialog where you can configure the property visually, then the editor inserts the result back into your config.
+
+### Adding resources to your config
+
+Click the **+** button in the editor toolbar to add new elements to your configuration:
+
+- **Stacktape resource** — opens a dialog to choose a resource type (Lambda function, web service, database, etc.) and give it a name. The resource definition is inserted into your config automatically.
+- **Script** — adds a deployment script or hook to your config.
+- **CloudFormation resource** — adds a raw CloudFormation resource for cases where you need to use AWS resources not directly supported by Stacktape.
+
+### Saving your config
+
+When you modify the config, an unsaved-changes indicator appears on the Editor tab. Save with `Ctrl+S` (Windows/Linux) or `Cmd+S` (Mac), or click the save button in the toolbar. Changes are saved to the current template.
+
+<Info>
+Templates linked to a specific stage (created when adding a new stage in the Console) are read-only in the config editor. The editor shows a link to the stage's configuration page where you can edit them.
+</Info>
+
+## Price estimation
+
+The config editor includes a price estimator that calculates approximate monthly AWS costs based on your current configuration. The estimator updates automatically as you edit, showing a per-resource cost breakdown that you can expand for details.
+
+The price estimate appears when your config includes resources that incur AWS costs — compute workloads, databases, load balancers, and similar. Resources with unconfigured cost-inducing properties (like a container packaging placeholder that hasn't been set) are excluded from the total until configured.
+
+Use the estimator to compare the cost impact of different resource choices — for example, switching between Fargate CPU/memory combinations, or choosing between RDS instance classes. The total is shown with an asterisk to indicate it is an approximation.
+
+<Info>
+Price estimates are approximations based on listed AWS pricing. Actual costs depend on usage patterns, data transfer, and regional pricing differences.
+</Info>
+
+## AI config generation
+
+The config editor can generate a Stacktape configuration from an existing Git repository. This feature analyzes your codebase and produces a configuration tailored to your project's structure and dependencies.
+
+### Starting a generation
+
+Click **AI generate** in the editor toolbar to open the generation dialog. The flow is:
+
+1. **Choose repository type** — **Private** or **Public**.
+   - **Private**: select a repository from your connected Git provider installations. If no repositories appear, connect a Git provider from the **Git integrations** page in the Console.
+   - **Public**: paste any public Git repository URL.
+2. **Select a branch**. The editor auto-selects the default branch when available.
+3. **Start generation**. The button is disabled until both a repository and branch are selected. The editor creates a temporary project for the generation process and removes it automatically when generation completes.
+
+Once complete, the generated config appears in the editor. Review and customize it before using it to deploy.
+
+See [AI config generation](/using-with-ai/config-generation-from-repository) for more detail on how the repository analysis works.
+
+<Warning>
+AI-generated configs are a starting point, not a finished product. Always review the generated resources, packaging paths, and environment variables before deploying.
+</Warning>
+
+## Common tasks
+
+### Switching between YAML and TypeScript
+
+The editor supports both YAML and TypeScript configurations. To switch, use the dropdown in the editor (accessible via the options menu) — choose "Switch config to YAML" or "Switch config to TypeScript". The editor converts your config automatically. If the conversion fails (for example, due to complex TypeScript logic that can't be represented in YAML), the editor shows an error and keeps the original format.
+
+### Copying the config to your project
+
+Copy the config from the editor and paste it into a `stacktape.ts` or `stacktape.yml` file in your project directory. Use it with [`stacktape deploy`](/cli/deploy) to deploy your stack, or set up [GitOps](/ci-cd-and-gitops/gitops-with-console) for automatic deployments on push.
+
+### Going fullscreen
+
+Click the fullscreen button in the toolbar to expand the editor to the full browser window. Press `Esc` to exit fullscreen mode. Fullscreen is useful when working with large configurations that benefit from more vertical space.
+
+### Editing a stage-linked config
+
+When a template was created for a specific project stage in the Console, it appears as read-only in the config editor. The editor displays a link to the stage's configuration page. Navigate there to edit the config.
+
+## Troubleshooting
+
+### IntelliSense not appearing
+
+If autocompletion doesn't trigger automatically, press `Ctrl+Space` (Windows/Linux) or `Cmd+Space` (Mac) to invoke it manually. The editor loads language features (type definitions, schema) when it first opens — if IntelliSense is not yet available, wait a moment for the loading to complete.
+
+### CloudFormation preview shows placeholder values
+
+The CloudFormation template view is a static compilation. Values that depend on deploy-time information — such as resolved [secrets](/configuration/secrets), [resource parameters](/configuration/referenceable-parameters), or stage-specific values — appear as placeholders. This is expected behavior. The actual deployment resolves all values.
+
+### Config linked to a stage is read-only
+
+Templates created for a specific project stage (via "Add new stage" in the Console) appear as read-only in the config editor. This is by design — edit them on the stage's own configuration page instead. The editor shows a link to navigate there directly.
+
+### AI generation button is disabled
+
+The **AI generate** button requires both a repository and a branch to be selected before you can start generation. For private repositories, you also need at least one connected Git provider installation. If the repository dropdown shows "No repositories available" or "You need to connect a Git provider first", connect a provider from the Git integrations page in the Console.
+
+### Config conversion fails
+
+When switching between YAML and TypeScript, the conversion may fail if the config contains constructs that don't translate cleanly between formats — for example, TypeScript configs with dynamic logic or complex expressions. The editor shows an error toast and keeps your config in the original format. In this case, manually rewrite the config in the target format.
+
+## Related features
+
+- [Configuration files](/configuration/configuration-files) — Understand YAML vs TypeScript config formats and the `defineConfig` pattern.
+- [AI config generation](/using-with-ai/config-generation-from-repository) — Deep dive into how the AI generator analyzes your repository.
+- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — Auto-deploy configs when you push to your repository.
+- [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — How projects and stages relate to configs.
+- [Secrets](/configuration/secrets) — Reference secrets in your config with the `$Secret()` directive.
+- [Connecting resources](/configuration/connecting-resources) — Use `connectTo` to wire resources together.
+
+## FAQ
+
+### Can I use the config editor without deploying?
+
+Yes. The config editor is a standalone tool for writing and managing Stacktape configurations. You can create, edit, and save templates without triggering any deployment. When you're ready to deploy, copy the config to your project and run [`stacktape deploy`](/cli/deploy), or use [GitOps](/ci-cd-and-gitops/gitops-with-console) to deploy automatically on push. The editor is useful for prototyping infrastructure configurations before committing them to your repository.
+
+### Does the editor validate my config in real-time?
+
+The editor validates your configuration as you type. For YAML, it checks the config against the Stacktape JSON schema and shows diagnostics for invalid properties or values. For TypeScript, the SDK type definitions provide type-level validation. The editor also runs additional checks — it validates CPU and memory combinations for Fargate resources and file paths when repository information is available. The CloudFormation template view compiles your config server-side, catching structural issues that local schema validation alone might miss.
+
+### Should I use the visual config editor or my local IDE?
+
+Both work well, and many teams use both at different stages. The config editor is best for getting started — presets, AI generation, interactive property adjustment, and price estimation help you build a working config quickly without installing anything. Once your project matures and the config lives in version control, most teams edit directly in their IDE (VS Code, Cursor, etc.) using the [TypeScript config](/configuration/configuration-files) format, which gives you the same IntelliSense locally via the `stacktape` npm package. The config editor remains useful for quick prototyping and cost comparisons.
+
+### Can I generate a config from a private repository?
+
+Yes. Choose the **Private** repository type in the AI generation dialog. The dropdown lists repositories from your connected Git provider installations (GitHub, GitLab, or other providers). If no repositories appear, you need to connect a Git provider first from the Git integrations page in the Stacktape Console.
+
+### What is the difference between templates and config files?
+
+Templates are named configurations stored in the Stacktape Console. They exist in the browser-based editor for drafting and iterating. Config files (`stacktape.ts` or `stacktape.yml`) live in your project repository and are what the CLI and GitOps system use for deployments. You can copy a template's contents into a config file, or edit config files directly in your IDE with the same TypeScript IntelliSense provided by the `stacktape` npm package.
+
+### Is the CloudFormation preview the exact template that gets deployed?
+
+The CloudFormation preview is a static compilation — it shows what resources Stacktape will create, but some values are only resolved during actual deployment. Deploy-time values like secret references, resource parameters, and stage-specific substitutions appear as placeholders. The preview is useful for understanding your stack's structure and catching configuration errors, but the exact template used during deployment may differ in these dynamic values.
+
+### Does the price estimator cover all AWS costs?
+
+The estimator covers the primary flat costs of the resources in your config — compute workloads, databases, load balancers, and similar. It does not include usage-dependent costs like data transfer, API request volume, or storage growth, which depend on your actual traffic patterns. Resources with unconfigured properties are excluded from the total. Treat the estimate as a baseline for comparing resource choices, not as a precise monthly bill prediction.
+
+### Can I add raw CloudFormation resources in the editor?
+
+Yes. Click the **+** button in the editor toolbar and select **CloudFormation resource**. This lets you add AWS resources that Stacktape doesn't have a dedicated abstraction for. The raw resource is inserted into your config's `cloudformationResources` section. For more on this escape hatch, see [raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources).
+
+### What happens if AI config generation fails?
+
+The generation process creates a temporary project in the Console, runs the analysis, and cleans up the temporary project automatically afterward — regardless of whether generation succeeds or fails. If generation fails, check that the repository URL is correct and the branch exists. For private repositories, verify that your Git provider installation has access to the repository. You can retry by starting a new generation from the same dialog.

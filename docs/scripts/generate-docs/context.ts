@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { marked } from '../utils/marked-mdx-parser';
 import { getBackboneSections } from './backbones';
+import { pageDefinitions } from './pages';
 import { getPricingSummary } from './pricing-summary';
 import type {
   CliCommandReferenceArg,
@@ -164,10 +165,6 @@ const aiDocsRecipeByRoute: Record<string, string> = {
   'recipes/database-migrations': 'database-migrations'
 };
 
-const aiDocsTroubleshootingByRoute: Record<string, string> = {
-  'reference/troubleshooting/cloudformation-stack-states': 'cloudformation-stack-states'
-};
-
 // Page route prefix → resource slug (used when the route doesn't carry the slug as the last segment).
 const resolveResourceSlugFromRoute = (route: string): string | undefined => {
   const segments = route.split('/');
@@ -208,13 +205,6 @@ const resolveAutoAugmentedSources = async ({ page }: { page: PageDefinition }): 
     }
   }
 
-  if (page.kind === 'troubleshooting') {
-    const troubleshootingBase = aiDocsTroubleshootingByRoute[page.route];
-    if (troubleshootingBase) {
-      candidates.push(join(aiDocsRoot, 'troubleshooting', `${troubleshootingBase}.md`));
-    }
-  }
-
   if (page.kind === 'cli' && page.cliCommand) {
     candidates.push(join(aiDocsRoot, 'cli-ref', `${page.cliCommand.replaceAll(':', '-')}.md`));
   }
@@ -249,6 +239,63 @@ const buildCliCommandReference = async (command: string) => {
     return argA.name.localeCompare(argB.name);
   });
   return { command, sortedArgs };
+};
+
+// Capitalize a kebab-cased URL segment for navigation headers. "configuration-files" → "Configuration Files".
+const titleCaseSegment = (segment: string) =>
+  segment
+    .split('-')
+    .map((word) => (word.length === 0 ? word : word[0].toUpperCase() + word.slice(1)))
+    .join(' ');
+
+// Decide the group header for a page in the navigation index. Two-level for sections that
+// naturally split (resources/<category>, packaging/<function|containers>, configuration/triggers,
+// reference/troubleshooting); single-level for everything else.
+const getNavigationGroupKey = (page: PageDefinition): string => {
+  const segments = page.route.split('/');
+  if (segments[0] === 'resources' && segments.length >= 3) {
+    return `Resources / ${titleCaseSegment(segments[1])}`;
+  }
+  if (segments[0] === 'packaging' && segments.length >= 3) {
+    return `Packaging / ${titleCaseSegment(segments[1])}`;
+  }
+  if (segments[0] === 'configuration' && segments[1] === 'triggers' && segments.length >= 3) {
+    return 'Configuration / Triggers';
+  }
+  if (segments.length === 1) {
+    return 'Root';
+  }
+  return titleCaseSegment(segments[0]);
+};
+
+// Build the navigation index injected into writer + verifier prompts. Renders every page
+// in pageDefinitions grouped by section, ordered by each page's `order`. The verifier uses
+// this to flag invented cross-link routes as high-severity issues.
+const buildNavigationIndex = (): string => {
+  const groups = new Map<string, PageDefinition[]>();
+  for (const p of pageDefinitions) {
+    const key = getNavigationGroupKey(p);
+    const list = groups.get(key);
+    if (list) {
+      list.push(p);
+    } else {
+      groups.set(key, [p]);
+    }
+  }
+  const sortedGroups = [...groups.entries()]
+    .map(([key, pages]) => ({ key, pages: [...pages].sort((a, b) => a.order - b.order) }))
+    .sort((a, b) => a.pages[0].order - b.pages[0].order);
+
+  const lines: string[] = [];
+  for (const { key, pages } of sortedGroups) {
+    lines.push(`${key}:`);
+    for (const p of pages) {
+      const desc = (p.shortDescription || '').replace(/\s+/g, ' ').trim();
+      lines.push(`- /${p.route} — ${desc}`);
+    }
+    lines.push('');
+  }
+  return lines.join('\n').trim();
 };
 
 export const buildContextPack = async ({ page, examplePath }: { page: PageDefinition; examplePath?: string }): Promise<ContextPack> => {
@@ -302,6 +349,7 @@ export const buildContextPack = async ({ page, examplePath }: { page: PageDefini
     structurePlan,
     pipelinePlan,
     styleGuide,
+    navigationIndex: buildNavigationIndex(),
     backboneSections: getBackboneSections(page.template),
     sectionInstructions: resolveSectionInstructions({ config: sectionInstructionsConfig, page }),
     exampleDocument: examplePath && exampleContent ? { filePath: examplePath, content: exampleContent } : undefined,

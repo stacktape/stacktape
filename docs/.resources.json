@@ -7,6 +7,48 @@
     "referenceableParams": { "url": "Website URL" }
   },
   {
+    "name": "Astro website",
+    "description": "Astro SSR website",
+    "resourceType": "astro-web",
+    "category": "compute-resource",
+    "referenceableParams": { "url": "Website URL" }
+  },
+  {
+    "name": "Nuxt website",
+    "description": "Nuxt SSR website",
+    "resourceType": "nuxt-web",
+    "category": "compute-resource",
+    "referenceableParams": { "url": "Website URL" }
+  },
+  {
+    "name": "SvelteKit website",
+    "description": "SvelteKit SSR website",
+    "resourceType": "sveltekit-web",
+    "category": "compute-resource",
+    "referenceableParams": { "url": "Website URL" }
+  },
+  {
+    "name": "SolidStart website",
+    "description": "SolidStart SSR website",
+    "resourceType": "solidstart-web",
+    "category": "compute-resource",
+    "referenceableParams": { "url": "Website URL" }
+  },
+  {
+    "name": "TanStack Start website",
+    "description": "TanStack Start SSR website",
+    "resourceType": "tanstack-web",
+    "category": "compute-resource",
+    "referenceableParams": { "url": "Website URL" }
+  },
+  {
+    "name": "Remix website",
+    "description": "Remix SSR website",
+    "resourceType": "remix-web",
+    "category": "compute-resource",
+    "referenceableParams": { "url": "Website URL" }
+  },
+  {
     "name": "Lambda Function",
     "description": "Short-lived serverless functions able to quickly scale up to 1000s of parallel executions with pay-per-use pricing.",
     "resourceType": "function",

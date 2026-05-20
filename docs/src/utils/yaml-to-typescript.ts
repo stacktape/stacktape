@@ -13,6 +13,7 @@ const RESOURCE_TYPE_TO_CLASS: Record<string, string> = {
   'worker-service': 'WorkerService',
   'multi-container-workload': 'MultiContainerWorkload',
   function: 'LambdaFunction',
+  'edge-lambda-function': 'EdgeLambdaFunction',
   'batch-job': 'BatchJob',
   bucket: 'Bucket',
   'hosting-bucket': 'HostingBucket',
@@ -32,6 +33,12 @@ const RESOURCE_TYPE_TO_CLASS: Record<string, string> = {
   'open-search-domain': 'OpenSearchDomain',
   'efs-filesystem': 'EfsFilesystem',
   'nextjs-web': 'NextjsWeb',
+  'astro-web': 'AstroWeb',
+  'nuxt-web': 'NuxtWeb',
+  'sveltekit-web': 'SvelteKitWeb',
+  'solidstart-web': 'SolidStartWeb',
+  'tanstack-web': 'TanStackWeb',
+  'remix-web': 'RemixWeb',
   bastion: 'Bastion'
 };
 
@@ -48,6 +55,7 @@ const PACKAGING_TYPE_TO_CLASS: Record<string, string> = {
   'external-buildpack': 'ExternalBuildpackPackaging',
   'custom-dockerfile': 'CustomDockerfilePackaging',
   'prebuilt-image': 'PrebuiltImagePackaging',
+  nixpacks: 'NixpacksPackaging',
   'custom-artifact': 'CustomArtifactLambdaPackaging'
 };
 

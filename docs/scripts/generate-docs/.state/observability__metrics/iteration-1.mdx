@@ -1,0 +1,268 @@
+---
+title: 'Metrics'
+order: 88
+seoTitle: 'CloudWatch Metrics for AWS Resources | Stacktape Docs'
+seoDescription: 'View CloudWatch metrics for Lambda, ECS, RDS, API Gateway, DynamoDB, S3, and more using the Stacktape Console dashboard or the debug:metrics CLI command. No setup required.'
+---
+
+# Metrics
+
+Stacktape gives you two ways to view AWS CloudWatch metrics for your deployed resources: a visual dashboard in the Stacktape Console and the [`stacktape debug:metrics`](/cli/debug-metrics) CLI command. Metrics are collected automatically — no instrumentation or configuration required. Every deployed resource emits CloudWatch metrics that track throughput, latency, errors, and resource utilization.
+
+## Console metrics dashboard
+
+The Stacktape Console displays pre-configured metric charts for every resource in your stack. Charts appear automatically on the stage details page and update based on the selected time range. The Console groups charts by resource, so a [web service](/resources/compute/web-service) shows both its ECS container metrics (CPU, memory) and its API Gateway metrics (requests, errors, latency) side by side.
+
+Six time range presets are available:
+
+| Preset | Duration | Aggregation period |
+|--------|----------|-------------------|
+| 1h     | 1 hour   | 60 seconds        |
+| 6h     | 6 hours  | 5 minutes         |
+| 1d     | 1 day    | 15 minutes        |
+| 3d     | 3 days   | 30 minutes        |
+| 7d     | 7 days (default) | 1 hour   |
+| 30d    | 30 days  | 6 hours           |
+
+The default view is 7 days. Shorter presets give finer granularity — use 1h when debugging a live incident, 30d for spotting weekly traffic patterns or slow resource leaks.
+
+You can filter the dashboard to show metrics for a single resource, which is useful when a stack contains many resources and you want to focus on one.
+
+<ConsoleScreenshot
+  src="/static/screenshots/console-metrics-dashboard.png"
+  alt="Stacktape Console metrics dashboard showing Lambda invocations, duration, and error charts for a deployed stage with 7-day time range selected"
+  caption="The metrics dashboard shows charts for all resources in a stage. Use the time range selector to zoom in on recent activity."
+/>
+
+## CLI: `stacktape debug:metrics`
+
+The [`stacktape debug:metrics`](/cli/debug-metrics) command fetches a single CloudWatch metric for a specific resource and renders it as a sparkline chart in your terminal. Use it for quick spot-checks without leaving your terminal, or pipe structured JSON output to scripts and monitoring tools.
+
+### Basic usage
+
+Fetch Lambda invocation counts for the last hour (the default time range).
+
+```bash
+stacktape debug:metrics --stage prod --region eu-west-1 --resourceName api --metric Invocations
+```
+
+The command requires four flags: `--stage`, `--region`, `--resourceName` (the name of the resource as defined in your Stacktape config), and `--metric` (the CloudWatch metric name).
+
+### Time range
+
+By default, the CLI fetches the last 1 hour of data. Use `--startTime` to specify a different lookback window. The flag accepts relative durations or absolute ISO timestamps.
+
+Fetch the last 30 minutes of CPU data for an ECS workload.
+
+```bash
+stacktape debug:metrics --stage prod --region eu-west-1 --resourceName backend --metric CPUUtilization --startTime 30m
+```
+
+Fetch metrics from a specific point in time.
+
+```bash
+stacktape debug:metrics --stage prod --region eu-west-1 --resourceName api --metric Errors --startTime "2025-05-16T08:00:00Z"
+```
+
+Relative time supports `s` (seconds), `m` (minutes), `h` (hours), and `d` (days) — for example `1h`, `30m`, `7d`, `60s`.
+
+### Aggregation period and statistic
+
+The `--period` flag controls the aggregation window in seconds. The default is 300 (5 minutes). The `--stat` flag selects the statistic: `Sum`, `Average`, `Maximum`, `Minimum`, or `p99`. The default is `Average`.
+
+Fetch maximum Lambda duration with 60-second granularity.
+
+```bash
+stacktape debug:metrics --stage prod --region eu-west-1 --resourceName api --metric Duration --stat Maximum --period 60 --startTime 1h
+```
+
+<Tip>
+Use `Sum` for count-based metrics (Invocations, Errors, Throttles) and `Average` or `Maximum` for utilization and latency metrics. `p99` is useful for latency when you care about tail performance rather than averages.
+</Tip>
+
+### Terminal output
+
+In a standard terminal, the command renders a sparkline chart with summary statistics (Min, Max, Avg, Sum) and the time range. When running in agent mode (AI coding assistants, CI scripts), the output switches to structured JSON containing the full array of timestamped datapoints, which is useful for programmatic consumption.
+
+### Supported resource types (CLI)
+
+The CLI currently supports metrics for four resource types:
+
+| Resource type | `--metric` values |
+|--------------|-------------------|
+| [Lambda function](/resources/compute/lambda-function) (`function`) | `Invocations`, `Errors`, `Duration`, `Throttles`, `ConcurrentExecutions` |
+| [Multi-container workload](/resources/compute/multi-container-workload) (`multi-container-workload`) | `CPUUtilization`, `MemoryUtilization` |
+| [Relational database](/resources/databases/relational-database) (`relational-database`) | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadLatency`, `WriteLatency` |
+| [HTTP API Gateway](/resources/networking/http-api-gateway) (`http-api-gateway`) | `Count`, `4XXError`, `5XXError`, `Latency`, `IntegrationLatency` |
+
+If you need metrics for other resource types (DynamoDB, S3, CloudFront, etc.), use the Console dashboard which supports a broader set of resources.
+
+## Console vs CLI
+
+The Console and CLI serve different workflows. Use the right tool for the situation.
+
+<FeatureComparisonTable
+  columns={["Console dashboard", "CLI debug:metrics"]}
+  features={[
+    { name: "Interaction", values: { "Console dashboard": "Visual charts", "CLI debug:metrics": "Terminal sparkline or JSON" } },
+    { name: "Scope", values: { "Console dashboard": "All resources at once", "CLI debug:metrics": "One resource, one metric" } },
+    { name: "Resource types", values: { "Console dashboard": "9 (Lambda, ECS, RDS, API Gateway, DynamoDB, S3, CloudFront, Cognito, Redis)", "CLI debug:metrics": "4 (Lambda, ECS, RDS, API Gateway)" } },
+    { name: "Time range", values: { "Console dashboard": "Preset (1h to 30d)", "CLI debug:metrics": "Custom (relative or absolute)" } },
+    { name: "Custom statistic", values: { "Console dashboard": false, "CLI debug:metrics": "Sum, Average, Max, Min, p99" } },
+    { name: "Scriptable output", values: { "Console dashboard": false, "CLI debug:metrics": "JSON in agent mode" } },
+    { name: "Best for", values: { "Console dashboard": "Daily monitoring, team visibility", "CLI debug:metrics": "Debugging, CI scripts, quick checks" } }
+  ]}
+/>
+
+## Metrics by resource type
+
+Each resource type emits a different set of CloudWatch metrics. The tables below list what the Console charts for each resource type.
+
+### Lambda functions
+
+[Lambda function](/resources/compute/lambda-function) metrics track invocation volume, execution time, and errors.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| Invocations | count | Total number of function executions per period |
+| Duration | ms | Average execution time — watch for increases that signal performance regressions |
+| Errors | count | Failed invocations (exceptions, timeouts, out-of-memory) |
+
+The CLI additionally supports `Throttles` (invocations rejected due to concurrency limits) and `ConcurrentExecutions` (number of function instances running simultaneously).
+
+### Container workloads (ECS)
+
+[Web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload) all run on AWS ECS and emit the same container-level metrics.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| CPU utilization | % | Percentage of allocated CPU in use — sustained values above 80% suggest you need to scale up or add more containers |
+| Memory utilization | % | Percentage of allocated memory in use — hitting 100% causes OOM kills and container restarts |
+
+Web services additionally show API Gateway metrics (requests, 5xx errors, latency) because Stacktape routes their traffic through an API Gateway.
+
+### Relational databases (RDS)
+
+[Relational database](/resources/databases/relational-database) metrics surface the health of the underlying RDS or Aurora instance.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| CPU utilization | % | Database engine CPU usage |
+| Free memory | MB | Memory available to the database engine — consistently low values mean you need a larger instance class |
+| Database connections | count | Active connections — spikes may indicate connection leaks |
+| Free storage | MB | Remaining disk space — running out halts writes |
+
+The CLI supports two additional metrics: `ReadLatency` and `WriteLatency` (measured in seconds), which track I/O performance.
+
+### HTTP API Gateway
+
+[HTTP API Gateway](/resources/networking/http-api-gateway) metrics track request volume and error rates at the gateway layer.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| Requests | count | Total API requests per period |
+| 5xx Errors | count | Server-side errors — these indicate problems in your backend code or infrastructure |
+| Latency | ms | End-to-end request latency including backend processing |
+
+The CLI supports two additional metrics: `4XXError` (client errors such as 404 or 403) and `IntegrationLatency` (time spent calling the backend, excluding API Gateway overhead).
+
+### DynamoDB
+
+[DynamoDB table](/resources/databases/dynamodb) metrics track read and write throughput.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| Consumed read capacity units | count | Read throughput consumed — compare against provisioned capacity (if not using on-demand mode) |
+| Consumed write capacity units | count | Write throughput consumed |
+
+### S3 buckets
+
+[S3 bucket](/resources/storage/s3-bucket) and [hosting bucket](/resources/frontend/static-hosting) metrics track storage growth.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| Bucket size | MB | Total size of objects in the bucket |
+| Number of objects | count | Object count — useful for monitoring upload-heavy workloads |
+
+AWS S3 storage metrics are reported daily with up to a 48-hour delay, so short time ranges may show sparse data.
+
+### CloudFront (CDN)
+
+[Hosting buckets](/resources/frontend/static-hosting) with a CDN show CloudFront distribution metrics. Resources with a [CDN](/resources/networking/cdn) enabled also emit these metrics.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| Requests | count | Total edge requests |
+| Downloaded | MB | Bytes transferred from CloudFront to viewers |
+| Uploaded | MB | Bytes uploaded from viewers through CloudFront |
+| Error rate | % | Percentage of requests that returned any error |
+| 4xx errors | % | Client error rate (missing assets, bad URLs) |
+| 5xx errors | % | Server error rate (origin failures) |
+
+### Cognito (user auth pool)
+
+[User auth pool](/resources/security/user-auth-pool) metrics track authentication activity.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| SignUps | count | Successful user registrations |
+| SignIns | count | Successful authentication events |
+
+### Redis
+
+[Redis cluster](/resources/databases/redis) metrics are available in the Console dashboard and cover cache performance and resource utilization.
+
+| Chart | Unit | What it tells you |
+|-------|------|-------------------|
+| CPU utilization | % | Cache node CPU usage |
+| Cache memory | MB | Memory consumed by cached data |
+| Cache hits | count | Requests served from cache — a healthy cache has a high hit-to-miss ratio |
+| Cache misses | count | Requests that required a backend lookup |
+| Evictions | count | Items evicted to free memory — frequent evictions mean the cache is too small |
+| Network in | MB | Inbound traffic to the cache node |
+| Network out | MB | Outbound traffic from the cache node |
+| Current connections | count | Active client connections |
+
+## Using metrics with alarms
+
+Metrics become actionable when paired with [alarms](/observability/alarms). An alarm watches a specific metric and triggers when it crosses a threshold — for example, notifying your team when Lambda error count exceeds 10 in a 5-minute window or when database CPU stays above 90% for 15 minutes. Set up [alert channels](/observability/alert-channels) (Slack, email, Discord, Teams, webhook) to receive notifications when alarms fire.
+
+For cost-related metrics and optimization, see [Managing Costs](/managing-costs/overview).
+
+## FAQ
+
+### What metrics are collected automatically?
+
+Every deployed Stacktape resource emits CloudWatch metrics without any configuration. AWS services publish metrics to CloudWatch by default — Stacktape surfaces them in the Console dashboard and through the CLI. No agents, SDKs, or instrumentation code is needed.
+
+### How much do CloudWatch metrics cost?
+
+AWS CloudWatch provides basic monitoring metrics at no additional charge for most services (Lambda, ECS, RDS, API Gateway, DynamoDB, S3, CloudFront, ElastiCache). Basic monitoring publishes metrics at 1-minute or 5-minute intervals depending on the service. Detailed monitoring (sub-minute granularity) and custom metrics incur additional charges. For most Stacktape deployments, the metrics shown in the Console and CLI are covered by the free tier. See [Managing Costs](/managing-costs/overview) for broader cost context.
+
+### Can I send CloudWatch metrics to Datadog, Grafana, or another monitoring tool?
+
+Stacktape does not provide a built-in integration for forwarding metrics to third-party monitoring platforms. However, the underlying AWS CloudWatch metrics are standard and accessible through the AWS Console, AWS CLI, or CloudWatch API. You can set up metric streams or use third-party agents independently. For log forwarding specifically, see [Log forwarding](/observability/log-forwarding).
+
+### Why does the Console show more resource types than the CLI?
+
+The Console dashboard renders pre-configured charts for nine resource types (Lambda, ECS, RDS, API Gateway, DynamoDB, S3, CloudFront, Cognito, Redis). The CLI `debug:metrics` command currently supports four (Lambda, ECS, RDS, API Gateway). The Console is the better choice for daily monitoring across all resource types. The CLI is designed for targeted, scriptable queries on the most common resource types.
+
+### How do I check if my database is running out of connections?
+
+Use the Console dashboard to view the "Database connections" chart for your [relational database](/resources/databases/relational-database), or run `stacktape debug:metrics --resourceName myDb --metric DatabaseConnections --stage prod --region eu-west-1 --startTime 24h`. A sudden spike in connection count often indicates a connection leak in application code. Most RDS instance classes support a few hundred concurrent connections by default.
+
+### What is the difference between Latency and IntegrationLatency for API Gateway?
+
+`Latency` measures the total time from when API Gateway receives a request to when it returns a response. `IntegrationLatency` measures only the time spent calling the backend (your Lambda function or container). The difference is API Gateway overhead (routing, authorization, response mapping). If `Latency` is high but `IntegrationLatency` is low, the bottleneck is at the gateway layer. If both are high, your backend is slow.
+
+### How far back can I view metrics?
+
+AWS CloudWatch retains metric data at varying resolutions: 1-minute datapoints for 15 days, 5-minute datapoints for 63 days, and 1-hour datapoints for 455 days (approximately 15 months). The Console preset goes up to 30 days. The CLI accepts any `--startTime` value within CloudWatch's retention window.
+
+### Can I create custom application metrics?
+
+Stacktape's built-in metrics surface AWS service metrics (invocations, CPU, memory, etc.), not application-level business metrics. To publish custom metrics, use the AWS CloudWatch SDK in your application code to call `PutMetricData`. These custom metrics then appear in the AWS CloudWatch Console. You can also create [alarms](/observability/alarms) on custom metrics by referencing them in your Stacktape config.
+
+### What does high memory utilization on an ECS container mean?
+
+Memory utilization above 80% on an ECS container means the container is using most of its allocated memory. At 100%, the container is killed (OOM) and restarted automatically. Frequent OOM kills appear as container restarts in logs. To fix this, either increase the memory allocation in your resource config or optimize your application's memory usage. Check the [web service](/resources/compute/web-service) or [multi-container workload](/resources/compute/multi-container-workload) page for scaling options.

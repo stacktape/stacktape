@@ -1,0 +1,307 @@
+{
+  "pageId": "cli__bucket__sync",
+  "pageRoute": "cli/bucket-sync",
+  "startedAt": "2026-05-17T22:14:04.651Z",
+  "updatedAt": "2026-05-17T22:17:34.715Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__bucket__sync\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Two-mode usage (config mode vs. direct bucket ID) is clearly separated with distinct prose and individual example commands — makes the most common decision immediately obvious.",
+            "The file-deletion Warning callout is prominent and placed immediately after the usage section, which is exactly where a first-time reader needs it.",
+            "The headers-preset table is the best part of the page: a concrete, scannable reference showing all six preset values with their behavior in one place.",
+            "Examples section uses realistic flag combinations (prod/staging stages, CDN invalidation, custom profile) that a reader can copy with minimal editing.",
+            "Related commands section is well-chosen and links the natural follow-on tasks (deploy, delete, package-workloads)."
+          ],
+          "problems": [
+            "Section ordering deviates from the CLI page instructions, which prescribe: intro → usage example → auto-generated reference → examples → related commands. The page places the long 'Important flags' section and 'Examples' BEFORE the argument reference table, burying `<CliCommandsApiReference>` at the very bottom after hundreds of words of prose.",
+            "The runtime source (`src/commands/bucket-sync/index.ts`) shows that in config mode, `excludeFilesPatterns` and `fileOptions` from the resource's `directoryUpload` configuration are also applied automatically during sync. Neither property is mentioned anywhere on the page, creating a silent behavior gap for users who have those set.",
+            "The '### --sourcePath' and '### --resourceName' subsections under 'Important flags' add no decision-support value — they restate what the usage examples already show. They dilute scannability without helping the reader act.",
+            "The validation rules are partially implicit: you cannot mix `--stage`/`--resourceName` with `--bucketId`, and providing `--sourcePath` alone (without `--bucketId`) is also invalid. The source's `validateInputs()` enforces this but the page only describes the happy paths, leaving the reader to discover these constraints at runtime."
+          ],
+          "mandatoryFixes": [
+            "Reorder sections to match CLI section instructions: move `<CliCommandsApiReference>` immediately after the Usage section (before 'Important flags'/'Key flags' and before Examples). The auto-generated reference table is the primary reference artifact; prose elaboration on specific flags should follow it, not precede it.",
+            "Add a brief note in the config-mode description (or in 'Important flags') that when using `--stage` + `--resourceName`, the sync also applies `excludeFilesPatterns` and `fileOptions` from the resource's `directoryUpload` configuration automatically. This is silent behavior that changes what gets uploaded and must be documented."
+          ],
+          "optionalImprovements": [
+            "Remove or merge the '### --sourcePath' and '### --resourceName' subsections — they restate the usage examples verbatim. If kept, they need concrete decision-support content (e.g. when would you use an absolute vs. relative path? what happens if the directory doesn't exist?) or they should be folded into a single prose paragraph.",
+            "Add a short validation note (one sentence or a `<Warning>`) explaining that `--stage`/`--resourceName` and `--bucketId` are mutually exclusive modes — using both at once throws an error. This is the most common misconfiguration a new user will attempt.",
+            "Add a 4-6 entry FAQ covering: 'What happens to files in S3 not in my local directory?', 'Can I sync without deleting existing files?', 'Does the command require a deployed stack?', 'How do I verify the sync completed?', 'When should I use --invalidateCdnCache vs. waiting for TTL expiry?'",
+            "Mention `disableS3TransferAcceleration` in the config-mode description for completeness — teams in regions where S3 Transfer Acceleration is unavailable will hit this silently and may be confused by the config option having no effect."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear two-mode usage examples with distinct bash blocks — config mode vs. bucket-ID mode are properly separated, making the mutual exclusion obvious.",
+            "The Warning callout about file deletion (mirror-sync, not additive) is correctly placed and sourced from the deleteRemoved: true behavior in src/commands/bucket-sync/index.ts.",
+            "The headersPreset table is accurate against the allowedValues in the sortedArgs object and the longDescription, and per-preset behavior is clearly labeled.",
+            "Correct use of <CliCommandsApiReference command=\"bucket:sync\" sortedArgs={...}> — no hand-authored flags table.",
+            "The note that --headersPreset CLI flag overrides directoryUpload.headersPreset from config is source-grounded (getHeadersPreset() checks CLI arg first, then config) and practically important."
+          ],
+          "problems": [
+            "FACTUAL ERROR: The --sourcePath section states it is 'ignored in config mode (the path comes from your Stacktape config's directoryUpload.directoryPath).' This is wrong. Per validateInputs() in src/commands/bucket-sync/index.ts, the condition missesOptionsForSyncUsingBucketId = (bucketId && !sourcePath) || (sourcePath && !bucketId) evaluates truthy when sourcePath is set but bucketId is not — which is exactly the config mode. Providing --sourcePath without --bucketId throws stpErrors.e12, not a silent ignore. A practitioner who reads this and adds --sourcePath to a config-mode invocation will hit a cryptic validation error.",
+            "Completeness gap: the source code's getSkipFilesConfig() and getFilterFilesConfig() show that directoryUpload.excludeFilesPatterns and directoryUpload.fileOptions are also applied during sync when using config mode. Neither property is mentioned anywhere on the page. A user whose bucket config uses excludeFilesPatterns will be confused when the CLI silently applies filters they didn't know were wired up.",
+            "Completeness gap: disableS3TransferAcceleration is read from config (getIsS3TransferAccelerationDisabled()) and can affect upload performance in regions where transfer acceleration is unavailable. The page doesn't mention it at all.",
+            "The CDN invalidation timing note ('may take a few seconds') understates reality. The source event message says 'few seconds' but CloudFront cache invalidations routinely take 1-5 minutes. Readers deploying to production and immediately testing may be confused. The prose should at minimum align with the source's own wording or note that timing varies."
+          ],
+          "mandatoryFixes": [
+            "Fix the --sourcePath factual error: replace 'Required when using --bucketId mode; ignored in config mode' with accurate behavior: '--sourcePath is only valid with --bucketId. Providing --sourcePath without --bucketId (i.e., in config mode) causes a validation error. In config mode, the source directory is always read from directoryUpload.directoryPath in your Stacktape configuration.' This is grounded in validateInputs() in src/commands/bucket-sync/index.ts."
+          ],
+          "optionalImprovements": [
+            "Add a brief note under the config-mode usage example that directoryUpload.excludeFilesPatterns and directoryUpload.fileOptions are also applied when syncing via config mode, so users aren't surprised by filtered/modified uploads.",
+            "Align the CDN invalidation timing note with CloudFront reality: say 'invalidation typically takes 1-5 minutes to propagate across all edge locations' rather than 'a few seconds'.",
+            "The package-workloads related command link and its rationale ('useful when you need to inspect artifacts before a sync or deploy') is a stretch for a bucket sync context. Consider replacing it with a more relevant sibling like deploy (which includes bucket directoryUpload as part of the full stack deploy lifecycle).",
+            "The intro paragraph opens with 'The bucket:sync command synchronizes...' — per house style, CLI pages should open with a more direct 'what does this do and when would you use it' framing. Consider shortening to lead with the decision: 'Use bucket:sync to push local build output to an S3 bucket without re-deploying the full stack — useful for content updates, static site refreshes, and CI-only asset pipelines.'"
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is clear, self-contained, and accurately explains the command's main behavior and deletion semantics.",
+            "Examples are realistic, copyable, and use one shell command per fenced block with required `--region` shown.",
+            "The page correctly uses `<CliCommandsApiReference command=\"bucket:sync\" ... />` instead of hand-authoring a flags table.",
+            "The `headersPreset` table is useful and matches the allowed values shown in the source."
+          ],
+          "problems": [
+            "The `--sourcePath` description says it is ignored in config mode, but source validation rejects `sourcePath` unless `bucketId` is also provided. That is a factual bug.",
+            "The page order does not follow the CLI-page instruction: the auto-generated argument reference should come after the usage example and before deeper examples/non-obvious patterns.",
+            "Several H2 sections are weak for extraction. `## Important flags` has no self-contained opening paragraph, and `## Usage` starts with “There are two ways” instead of naming `bucket:sync`.",
+            "The usage section does not explicitly state invalid combinations from `validateInputs`: config mode requires both `--stage` and `--resourceName`, bucket-ID mode requires both `--bucketId` and `--sourcePath`, and the two modes cannot be combined.",
+            "The page does not mention the grounded error behavior for inaccessible source directories or invalid argument combinations, even though `src/commands/bucket-sync/index.ts` validates both.",
+            "Related commands are partly weak: `package-workloads` is not a close sibling for bucket syncing based on the provided source; `deploy` is relevant, but the other closest relation is not clearly established."
+          ],
+          "mandatoryFixes": [
+            "Correct the `--sourcePath` section: replace “ignored in config mode” with source-grounded wording that `--sourcePath` is only valid with `--bucketId`; config mode reads `directoryUpload.directoryPath`.",
+            "Move `<CliCommandsApiReference command=\"bucket:sync\" ... />` directly after the main usage examples, then place deeper examples after it, matching the CLI section instructions.",
+            "Add a short, self-contained opening paragraph under `## Important flags` or rename/restructure the section so every H2 has extractable context."
+          ],
+          "optionalImprovements": [
+            "Add a compact “Target selection” table comparing config mode and bucket-ID mode, including required flags and where the source directory comes from.",
+            "Add a short “Validation” or “Common errors” section grounded in the source: invalid mode combinations raise `e12`, and inaccessible directories raise `e13`.",
+            "Mention that config mode also uses `directoryUpload.excludeFilesPatterns`, `directoryUpload.fileOptions`, and `directoryUpload.disableS3TransferAcceleration` when present, because the runtime reads those values from the bucket config.",
+            "Clarify that CDN invalidation only runs when `--invalidateCdnCache` is provided and connected CloudFront distributions are found; otherwise the sync completes without cache invalidation.",
+            "Consider trimming or replacing `package-workloads` in Related commands unless a closer sibling is source-supported."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the bucket:sync command source and uses the generated CLI reference component correctly. I found a few source-grounding problems around headers, ignored flags in direct bucket mode, and related-command wording.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Configures HTTP cache-control and content-type headers on uploaded files based on a framework-optimized preset.”",
+              "reason": "The provided sources support that headersPreset configures HTTP headers and list cache-related behavior, but they do not support the more specific claim that content-type headers are configured by this preset.",
+              "suggestedFix": "Narrow the sentence to: “Configures HTTP headers on uploaded files based on a selected preset, mostly for cache behavior used by static sites and SPA builds.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "headersPreset: headersPreset.optional()"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bucket-sync\\index.ts",
+                  "quote": "headersPreset: getHeadersPreset(),"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“Sync to an arbitrary S3 bucket with a preset for Astro: stacktape bucket:sync --bucketId my-astro-site-bucket --sourcePath ./dist --region us-east-1 --headersPreset astro-static-website”",
+              "reason": "When using --bucketId mode, the runtime loads user credentials directly and does not initialize config services. In that path, the uploaded directory configuration still passes excludeFilesPatterns, fileOptions, and disableS3TransferAcceleration from config helper functions, but those helpers only read config when resourceName is present. The draft explains sourcePath but does not warn that config-only directoryUpload options are unavailable in bucketId mode.",
+              "suggestedFix": "Add a short caveat after the bucketId example: “In bucket ID mode, Stacktape uses the explicit --sourcePath and --headersPreset CLI inputs; config-only directoryUpload options such as excludeFilesPatterns and fileOptions are read only when syncing by --stage and --resourceName.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bucket-sync\\index.ts",
+                  "quote": "if (!globalStateManager.args.bucketId) {\n    await initializeStackServicesForWorkingWithDeployedStack({\n      commandModifiesStack: false,\n      commandRequiresConfig: true\n    });\n  } else {\n    await loadUserCredentials();\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bucket-sync\\index.ts",
+                  "quote": "return resourceName\n    ? configManager?.allBuckets?.find((bucket) => bucket.name === resourceName)?.directoryUpload?.excludeFilesPatterns\n    : undefined;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“package-workloads — packages compute resources without deploying; useful when you need to inspect artifacts before a sync or deploy.”",
+              "reason": "The source supports package-workloads as a compute packaging command useful before deploying. It does not support connecting package-workloads to bucket:sync, which syncs a local directory to S3 and does not use packaged compute artifacts.",
+              "suggestedFix": "Remove package-workloads from related commands, or replace it with a closer command such as preview-changes if you want a deployment-adjacent sibling. Keep related commands focused on deploy/delete or other bucket-adjacent workflows supported by source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'package-workloads': {\n    description: `Packages your compute resources and prepares them for deployment.\n\nThis is useful for inspecting the packaged artifacts before deploying.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“delete — deletes the entire stack, including any S3 buckets and their contents.”",
+              "reason": "The delete command source says it deletes the stack and permanently removes all resources, but it does not specifically guarantee deletion of S3 bucket contents. Claiming bucket contents are deleted is stronger than the provided source and could mislead readers about data-destruction behavior.",
+              "suggestedFix": "Change to: “deletes the stack and its managed resources; back up any data you want to keep before running it.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Deletes your stack from AWS.\n\nThis action is irreversible and will permanently remove all resources in the stack. Be sure to back up any data you want to keep."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“It uploads new and changed files”",
+              "reason": "The command description and runtime call support directory synchronization, and deleteRemoved is explicit, but the provided sources do not spell out change detection or upload semantics in this level of detail.",
+              "suggestedFix": "Use the source wording: “synchronizes the contents of a local directory with an S3 bucket” and keep the deletion behavior explicit.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Use it to deploy static assets, update hosting bucket content, or push build output to S3 after a frontend build.”",
+              "reason": "Using bucket:sync for static assets and build output is a reasonable implication, but the provided source only states that the command synchronizes a local directory with an S3 bucket. The “hosting bucket” phrasing is not directly grounded in the source files for this page.",
+              "suggestedFix": "Narrow to: “Use it when you need a local build directory mirrored into an S3 bucket, either by resolving a bucket resource from a deployed Stacktape stack or by passing a bucket ID directly.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly states that only --region is universally required for bucket:sync, while the command validates either --stage plus --resourceName or --bucketId plus --sourcePath at runtime.",
+            "The two invocation modes are accurately described and match validateInputs in src/commands/bucket-sync/index.ts.",
+            "The warning that destination objects missing from the source are deleted is grounded by deleteRemoved: true and the command description.",
+            "The invalidateCdnCache section correctly states that Stacktape invalidates connected CloudFront distributions with /* when the flag is provided.",
+            "The CliCommandsApiReference component uses command=\"bucket:sync\" and the route exists in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and runtime implementation. The main factual issue is that it over-specifies uploaded header behavior beyond the provided sources. The examples, required `--region` usage, bucket selection modes, deletion behavior, CDN invalidation behavior, and generated CLI reference are generally well grounded.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Configures HTTP cache-control and content-type headers on uploaded files based on a framework-optimized preset.”",
+              "reason": "The provided CLI option description and runtime code support that `headersPreset` configures HTTP headers and cache behavior presets, but they do not state that Stacktape sets `content-type` headers. The draft should not name a specific header type that is not present in the source files.",
+              "suggestedFix": "Narrow the sentence to: “Configures HTTP headers on uploaded files based on a selected preset. The presets mainly control caching behavior for static websites and common frontend framework output directories.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "headersPreset: headersPreset.optional()"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bucket-sync\\index.ts",
+                  "quote": "headersPreset: getHeadersPreset(),"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "<p>Configures HTTP headers of uploaded files based on a selected preset.</p>"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The two bucket selection modes are grounded in both `src/config/cli/commands.ts` and `src/commands/bucket-sync/index.ts`: config mode requires `stage` plus `resourceName`, while direct mode requires `bucketId` plus `sourcePath`.",
+            "The warning that destination files missing from the source directory are deleted is grounded in the command description and runtime `deleteRemoved: true` behavior.",
+            "The `--invalidateCdnCache` section correctly states that Stacktape invalidates connected CloudFront distributions with `/*`, matching `invalidatePaths: ['/*']` in the runtime source.",
+            "The `--headersPreset` allowed values and preset descriptions match the generated CLI argument reference in the draft and the command option descriptions.",
+            "The page uses `<CliCommandsApiReference command=\"bucket:sync\" ... />` for the flags table and does not hand-author a replacement argument table.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page is mostly complete for a CLI reference page and uses the required API reference component, but one important argument interaction is documented incorrectly.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`--sourcePath`: \"Required when using `--bucketId` mode; ignored in config mode.\"",
+              "reason": "The implementation does not ignore `--sourcePath` in config mode. Validation rejects `sourcePath` unless `bucketId` is also provided, so a config-mode sync should use `--stage` + `--resourceName` without `--sourcePath`.",
+              "suggestedFix": "Change the wording to: \"Required when using `--bucketId`; do not use it with `--stage` + `--resourceName`. In config mode, Stacktape reads the path from the bucket resource's `directoryUpload.directoryPath`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bucket-sync\\index.ts",
+                  "quote": "const missesOptionsForSyncUsingBucketId = (bucketId && !sourcePath) || (sourcePath && !bucketId);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bucket-sync\\index.ts",
+                  "quote": "if (combinesWrongOptions || missesOptionsForSyncFromConfig || missesOptionsForSyncUsingBucketId || missesAllOptions) { throw stpErrors.e12({}); }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents the two supported target-selection modes: `--stage` + `--resourceName`, or `--bucketId` + `--sourcePath`.",
+            "The page includes the required `<CliCommandsApiReference command=\"bucket:sync\" ... />` component instead of hand-authoring the argument table.",
+            "The `--headersPreset` section names every allowed preset shown in the generated argument reference.",
+            "The `--invalidateCdnCache` description is demonstrative and grounded in the implementation: the command invalidates connected CloudFront distributions with `/*`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\bucket-sync.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T22:17:34.715Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\bucket-sync\\index.ts": "c2284ef78536833d5fc3feb419dfa3c1ef700928",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\bucket-sync.md": "424b7a42a07b7fd4ab523d5ff2ed1f6ae224dbbb"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

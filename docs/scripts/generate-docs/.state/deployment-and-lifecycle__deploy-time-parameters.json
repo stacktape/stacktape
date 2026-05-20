@@ -1,0 +1,853 @@
+{
+  "pageId": "deployment-and-lifecycle__deploy-time-parameters",
+  "pageRoute": "deployment-and-lifecycle/deploy-time-parameters",
+  "startedAt": "2026-05-17T15:19:42.258Z",
+  "updatedAt": "2026-05-17T15:47:01.767Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\deployment-and-lifecycle__deploy-time-parameters\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with the exact label 'TypeScript' — no forbidden YAML blocks, no fenced TypeScript defineConfig blocks, no StacktapeConfig type style.",
+            "The config-time vs CloudFormation-time classification table in 'Resolution phases' is the highest-signal content on the page. It gives a reader an immediate mental model for the two-phase system without needing to read every directive section.",
+            "CLI command examples are correctly split into separate fenced bash blocks with prose labels above each — the copy-button trap is fully avoided.",
+            "Strong FAQ with genuine mix of Stacktape-specific, underlying-AWS-behavior, and comparison questions. The 'Should I use directives or TypeScript conditionals?' entry is opinionated and actionable — exactly what this audience needs.",
+            "Decision support throughout: every major section tells the reader *when* to use the feature and what the tradeoff is, not just how to configure it.",
+            "Realistic, copyable code examples in every section. The 'Callback parameters' example branching on `isProduction` is a real-world pattern readers can drop into their own configs.",
+            "The Tip callout for $CliArgs reading standard CLI args is well-placed and adds genuine value without padding."
+          ],
+          "problems": [
+            "The claim that embedded directives like `api-$Stage()-endpoint` are 'automatically converted to the equivalent $Format(...)' is not grounded in the provided source file (built-in-directives.ts only defines the directives; the auto-detection logic lives elsewhere in the resolver). The claim may be accurate but reads as asserted rather than sourced.",
+            "The $GitInfo properties table (branch, commit, username, gitUrl, hasUncommitedChanges) cannot be verified from the provided source — gitInfoManager.gitInfo is not in the source files. The error path in the source says 'Valid arguments are:' followed by Object.keys(gitInfo), but the actual keys are not listed.",
+            "The defineConfig callback parameters table (especially the `user` object with `id`, `name`, `email`) is not grounded in the provided source. The source file covers directives only, not the callback signature.",
+            "The $CfStackOutput 'picks up the new value on its next update' claim is an oversimplification. CloudFormation stacks linked via Fn::ImportValue (which $CfStackOutput produces) have restricted update semantics — the exporting stack cannot delete or modify an export while another stack is consuming it via ImportValue. This can surprise users who expect a clean live-link.",
+            "$Secret is described as a 'CloudFormation-time directive' that 'produces CloudFormation intrinsic functions'. The source shows it actually produces a CloudFormation *dynamic reference* (`{{resolve:secretsmanager:...}}`), not a CF intrinsic function. The distinction matters because dynamic references and intrinsic functions have different constraints (dynamic references can't be used in all CF resource properties). The page's framing bundles them together, which could mislead someone hitting a 'dynamic reference not supported here' error.",
+            "No <ApiReference> on the page. For a deployment/concept page this may be intentional, but if there is a type definition covering directive syntax or defineConfig callback shape it would add value at the bottom."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Ground the embedded directive auto-conversion claim or soften the wording: 'Stacktape detects directives embedded in string values and resolves them inline' — then cite the directive reference page for exact behavior rather than asserting the $Format equivalence, which isn't in the provided source.",
+            "Add a caveat to the $CfStackOutput section: 'CloudFormation prevents updating or deleting an export while any stack is consuming it via ImportValue. This means $CfStackOutput creates a hard dependency — deleting or renaming the exporting stack's output requires first removing all consumers.' This is the main gotcha for cross-stack references that bites real teams.",
+            "For $Secret, distinguish 'dynamic references' from 'intrinsic functions': 'The directive produces a CloudFormation dynamic reference (`{{resolve:secretsmanager:...}}`), which CloudFormation resolves at stack creation time. Note that dynamic references cannot be used in all resource properties — if you get a \"dynamic references are not supported\" error, use $SsmParam or inject the value through a Custom Resource instead.'",
+            "The $GitInfo section lists five properties but qualifies none as 'only available if git history is present'. Add a single sentence: 'Properties like commit and gitUrl may be unavailable in shallow clones or detached HEAD states; Stacktape will fall back to CI environment variables automatically.' This prevents a CI debugging surprise.",
+            "The last FAQ entry about `stacktape dev` behavior for CloudFormation-time directives is detailed and useful but is based on logic inferred from the source's `localResolveFunction` branches. Consider framing it as 'during dev mode, $Secret fetches the actual secret value from Secrets Manager...' with a link to the dev mode docs rather than describing the disableEmulation flag in the FAQ — the flag behavior is accurate per source but is an advanced escape hatch that may distract beginners.",
+            "Consider adding a short intro note that YAML configs support all directives too (since the source doesn't restrict them to TypeScript). Currently the page's first paragraph mentions TypeScript configs for the callback parameters, which is correct, but a reader might infer directives are TypeScript-only."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent separation of config-time vs CloudFormation-time directives — the 'Resolution phases' table is the clearest mental model for this distinction and readers can act on it immediately.",
+            "Comprehensive FAQ covering Stacktape-specific, underlying AWS, and comparison questions — well above the minimum bar, each answer is 2-4 sentences and self-contained.",
+            "Shell command examples correctly split into separate fenced blocks with prose labels (no copy-button trap).",
+            "All Stacktape config examples use <CodeBlock intellisense tabs={[...]}/>; no YAML Stacktape configs, no StacktapeConfig type, no fenced TypeScript for Stacktape config.",
+            "The `$CfStackOutput` vs `$StackOutput` tradeoff (snapshot vs live ImportValue) is explained accurately and concisely — this is the question most teams hit in production.",
+            "The CI fallback env-var details for `$GitInfo()` (GitHub Actions, GitLab, Bitbucket) are a practical production gotcha that most docs skip."
+          ],
+          "problems": [
+            "$Var() and $This() are listed in the 'Resolution phases' config-time directive enumeration but never documented anywhere on the page. A reader who sees them in that list will search for an explanation and find nothing. Either add a brief paragraph for each or remove them from the enumeration.",
+            "The embedded directive syntax claim ('api-$Stage()-endpoint is automatically converted to the equivalent $Format(...)') is not grounded in the provided source file (built-in-directives.ts does not implement string interpolation scanning). If this is supported, cite it; if it's handled by the config resolver layer, note that the source is in the config resolver rather than built-in-directives.ts.",
+            "The defineConfig callback parameters table lists projectName, command, awsProfile, cliArgs, and user — none of these are verifiable from the provided source file. The source only confirms stage (globalStateManager.targetStack.stage) and region (globalStateManager.region). Including ungrounded fields in a reference table risks misleading readers about what's actually available.",
+            "$CfStackOutput behavior is slightly misrepresented: the source shows that its resolveFunction calls the same resolveStackOutput helper as $StackOutput and validates the stack exists via awsSdkManager.getStackDetails at config time before emitting the ImportValue. The page implies it is purely a CF-time resolution with no config-time activity, which is inaccurate."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a brief 'Variables and config reuse' subsection for $Var() (returns the config's variables block) and $This() (returns the entire raw config) — two sentences each is enough; the current page lists them in the resolution phases but leaves readers with no explanation.",
+            "Add a caveat or source-grounded note to the embedded directive auto-conversion claim before shipping; if unverifiable from the provided source, remove or qualify it ('when a directive appears inside a string property, Stacktape detects and converts it — see the configuration reference for full details').",
+            "Tighten the defineConfig callback parameters table to only the fields confirmed by the directive source (stage, region, awsProfile/profile, awsAccountId); for the others, link to the TypeScript type definition or add a 'see the TypeScript type for the full list' note rather than enumerating possibly-wrong fields.",
+            "Note that $CfStackOutput still validates the referenced stack and output exist at config time (it calls the same AWS SDK stack lookup as $StackOutput); the only runtime difference is that the embedded value is a CloudFormation Fn::ImportValue rather than a static string.",
+            "The $SsmParam section could note that Stacktape pins the specific parameter version ID in the CloudFormation dynamic reference ({{resolve:ssm:...:VERSION}}), so the deployed stack always uses the version that existed at deploy time — relevant for teams rotating SSM parameters."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clear about why deploy-time parameters matter.",
+            "Most H2 headings are compact and scannable, and the page uses tables effectively for directive and metadata summaries.",
+            "Stacktape config examples use the required `CodeBlock intellisense` TypeScript form rather than forbidden YAML or fenced TypeScript config.",
+            "The `$CliArgs()` section is practical: it explains the `--` separator, string/boolean capture behavior, defaults, and includes one command per shell block."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source file, especially the `defineConfig` callback parameter table (`projectName`, `command`, `awsProfile`, `cliArgs`, `user`) and the statement that directives work identically in YAML and TypeScript configs.",
+            "The page describes directive embedding as automatically converted to `$Format(...)`, but the provided `built-in-directives.ts` source does not show that conversion behavior. If this comes from another resolver, that source needs to be included; otherwise narrow or remove the claim.",
+            "The `$GitInfo()` CI fallback details are more specific than the provided source supports. The source only shows `$GitInfo` delegates to `gitInfoManager.gitInfo` and validates property names against that object.",
+            "The FAQ answer for local development makes specific claims about `stacktape dev`, deployed stack outputs, AWS APIs, and `--disableEmulation` behavior. Parts are partially grounded by `localResolveFunction`, but the broader dev-mode behavior is not fully supported by the supplied source.",
+            "The page omits a clear API/reference-style summary of all built-in directives from the source, including `$Var`, `$This`, `$ResourceParam`, and `$CfResourceParam`, even though it mentions some only in passing.",
+            "The FAQ is broad and useful, but it is mostly Stacktape-specific. It has limited choosing/comparison coverage and little underlying AWS-service context beyond CloudFormation, Secrets Manager, and SSM."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the `defineConfig` callback parameter table. If only `built-in-directives.ts` is available, restrict the page to directive behavior proven by that file instead of documenting callback metadata.",
+            "Narrow unsupported conversion wording around embedded directives. Either cite/include the resolver source that proves automatic `$Format(...)` conversion, or state only the directive syntax proven by the provided source.",
+            "Revise `$GitInfo()` CI fallback claims unless the `git-info-manager` source is provided. Keep the grounded facts: `$GitInfo(property)` reads a property from git info and throws an error listing valid properties when the property is invalid.",
+            "Revise the dev-mode FAQ answer to match the source exactly: `localResolveFunction` exists for runtime directives, `$ResourceParam` can return `IDENTIFIER_FOR_MISSING_OUTPUT` when `disableEmulation` is set, and `$Secret()` / `$SsmParam()` fetch values through AWS SDK helpers. Avoid broader dev-mode claims not shown in source."
+          ],
+          "optionalImprovements": [
+            "Add a compact directive matrix with columns for directive, phase (`isRuntime` true/false), required parameters, and main use case. This would make the page more extractable and complete.",
+            "Add short coverage for `$Var()` and `$This()` or explicitly link them to the directives reference if the page is intentionally focused on deploy-time values.",
+            "Add a brief “When not to use deploy-time parameters” section: use static config for values that should not vary by deploy, use secrets for sensitive values, and avoid CLI args for settings that need auditability.",
+            "Strengthen the FAQ mix with one or two comparison questions, such as “Should I use `$Secret()` or `$CliArgs()` for credentials?” and “Should cross-stack values use `$StackOutput()` or `$CfStackOutput()`?”"
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided directive implementation for directive names, runtime/config-time split, file loading, secret/SSM behavior, and stack output validation. The main publication risks are unsupported claims about TypeScript callback parameters, CLI parsing rules, GitInfo property names/fallbacks, and dev-mode behavior that are not grounded in the single provided source file.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“During stacktape dev, CloudFormation-time directives like $Secret() and $ResourceParam() resolve from the deployed stack's outputs and AWS APIs… If the referenced resource hasn't been deployed yet, the directive throws an error unless emulation is disabled with the --disableEmulation flag.”",
+              "reason": "The source supports local resolution paths for individual directives, but the draft overgeneralizes them. $ResourceParam local resolution reads deployed stack overview resources, while $Secret local resolution calls Secrets Manager and has the missing-version guard commented out. The source does not support the broad statement that all CloudFormation-time directives resolve from deployed stack outputs and AWS APIs, nor the specific undeployed-resource behavior for $Secret.",
+              "suggestedFix": "Split this FAQ answer by directive. Say $ResourceParam local resolution reads the deployed stack overview and can return a missing-output identifier when --disableEmulation is set. Say $Secret local resolution fetches the secret value from Secrets Manager, and avoid claiming the same undeployed-resource behavior for it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "localResolveFunction: () => (resourceReference: string, property: string) => {\n      const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceReference });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "if (value === undefined || value === null) {\n        const err = getError({\n          type: 'DIRECTIVE',\n          message: `Can't resolve the result of $ResourceParam('${resourceReference}', '${property}') directive.`\n        });\n        if (isLocalInvoke) {\n          if (globalStateManager.args.disableEmulation) {\n            return IDENTIFIER_FOR_MISSING_OUTPUT;\n          }\n          err.hint = getDisableEmulationHint();\n          throw err;\n        }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "localResolveFunction: () => async (secretReference: string) => {\n      const secretName = secretReference.split('.')[0];\n      const secretVersionId =\n        stackManager?.existingStackDetails?.stackOutput[getStackOutputName(secretName, 'CurrentSecretVersionId')];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const { SecretString: secretValue } = await awsSdkManager.getSecretValue({\n          secretId: secretName,\n          versionId: secretVersionId\n        });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“$CfStackOutput() creates a CloudFormation Fn::ImportValue reference that resolves during stack creation.”",
+              "reason": "The source returns `ImportValue(result.ExportName)` for `$CfStackOutput()`. That is a CloudFormation import-value intrinsic, but the draft names it as `Fn::ImportValue`. The implementation evidence supports import-value behavior; avoid over-specific JSON/YAML intrinsic naming unless grounded elsewhere.",
+              "suggestedFix": "Write “$CfStackOutput() returns a CloudFormation ImportValue reference” or “creates an import-value reference” instead of naming `Fn::ImportValue`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "return directive === 'StackOutput' ? result.OutputValue : ImportValue(result.ExportName);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“$GitInfo() provides five properties: branch, commit, username, gitUrl, and hasUncommitedChanges… In CI environments, these fall back to provider-specific environment variables — GitHub Actions, GitLab CI, and Bitbucket Pipelines are detected automatically. You can also override any value with STP_GIT_* environment variables.”",
+              "reason": "The directive implementation only shows that `$GitInfo()` reads a property from `gitInfoManager.gitInfo` and reports whatever keys exist on that object. The provided source does not list the properties or CI fallback behavior, so the draft’s exact property list and provider/env-var claims are unsupported by this source set.",
+              "suggestedFix": "Narrow the section to what the provided source proves: `$GitInfo(property)` reads a property from Stacktape’s Git metadata, and invalid property names produce an error listing valid arguments. If this page must list exact properties and CI fallbacks, add the git-info-manager source to the source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const gitInfo = await gitInfoManager.gitInfo;\n      const res = gitInfo[property];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "`Valid arguments are: ${Object.keys(gitInfo).map(tuiManager.makeBold).join(', ')}`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Arguments after -- must start with --. A -- flag followed by a value is captured as a string. A -- flag with no following value is captured as boolean true.”",
+              "reason": "The `$CliArgs()` directive implementation proves only lookup behavior: Stacktape reads from parsed CLI args and additional args, then falls back to the default value. The provided source does not include CLI argument parsing rules for the `--` separator, string coercion, or boolean flags.",
+              "suggestedFix": "Keep the supported behavior: `$CliArgs(argName, defaultValue)` returns the parsed CLI/additional argument value or the default. Remove parsing-rule bullets unless the CLI parser source is added and confirms them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "resolveFunction: () => (argName, defaultValue) => {\n      return { ...globalStateManager.args, ...globalStateManager.additionalArgs }[argName] ?? defaultValue;\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The defineConfig callback receives a parameters object with metadata about the current deployment,” followed by the table of `stage`, `region`, `projectName`, `command`, `awsProfile`, `cliArgs`, and `user`.",
+              "reason": "The provided source file is authoritative for built-in directives, but it does not define the TypeScript `defineConfig` callback signature or the callback parameter object. Some of these values appear in `globalStateManager` inside directive implementations, but that does not prove they are exposed as `defineConfig` callback parameters with the listed names and types.",
+              "suggestedFix": "Either add the TypeScript config type source that defines `defineConfig` callback parameters, or remove/narrow the table to directive-based context that is grounded in this source: `$Stage()`, `$Region()`, `$Profile()`, `$AwsAccountId()`, and `$CliArgs()`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Stage',\n    isRuntime: false,\n    requiredParams: {},\n    resolveFunction: () => () => globalStateManager.targetStack.stage"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'CliArgs',\n    isRuntime: false,\n    requiredParams: { argName: 'string' },\n    resolveFunction: () => (argName, defaultValue) => {\n      return { ...globalStateManager.args, ...globalStateManager.additionalArgs }[argName] ?? defaultValue;\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Directives are string expressions that Stacktape detects and resolves during deployment. They follow the pattern `$DirectiveName(param1, param2)` and can appear as standalone values or embedded in larger strings.”",
+              "reason": "The provided source defines directive names, required parameters, and resolver functions, but it does not show the parser behavior for embedded directives or the general syntax grammar. The examples may be correct, but this source file alone does not prove the syntax details.",
+              "suggestedFix": "If parser/source for directive syntax is unavailable, phrase this cautiously: “Directive strings use calls such as `$Stage()` and `$CliArgs('name', 'default')`; Stacktape resolves the built-in directives listed below during config processing or stack creation.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The actual value never appears in the CloudFormation template in plaintext.”",
+              "reason": "The source shows `$Secret()` and `$SsmParam()` return dynamic reference strings, which supports the general idea for those directives. However, the statement appears under “Secrets and SSM parameters” and may be read as applying uniformly to all sensitive values and all contexts, while local resolution does fetch actual secret/parameter values.",
+              "suggestedFix": "Scope the sentence to deployed CloudFormation templates: “For deployed stacks, `$Secret()` and `$SsmParam()` return CloudFormation dynamic references instead of embedding the plaintext value in the generated template.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape stack names follow the `{projectName}-{stage}` format.”",
+              "reason": "The provided source error hint says full stack names are formatted as `{stackName}-{stage}`, not `{projectName}-{stage}`. The draft may be using project name as the stack name, but that relationship is not established in the provided source.",
+              "suggestedFix": "Use the source wording: “The error hint expects full stack names in `{stackName}-{stage}` format.” Only mention project name if another source proves project name is the stack-name prefix.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes config-time directives (`isRuntime: false`) from CloudFormation-time/runtime directives (`isRuntime: true`) using the directive list in `built-in-directives.ts`.",
+            "The `$File()` and `$FileRaw()` descriptions are grounded: `$File()` loads supported structured formats from the working directory and `$FileRaw()` loads raw file content.",
+            "The `$CliArgs()` fallback behavior is accurately described: when the parsed argument is absent, the directive returns the optional default value, which is `undefined` if omitted.",
+            "The `$Secret()` and `$SsmParam()` sections correctly describe dynamic-reference style resolution and error handling when the backing secret or parameter cannot be fetched.",
+            "All inspected markdown links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the directive implementation, but it makes several Stacktape-specific claims that are unsupported or contradicted by the provided source. The highest-impact issues are around CLI argument parsing, callback metadata, GitInfo fallback behavior, local dev directive behavior, and stack-name wording.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Custom arguments follow these rules: arguments after `--` must start with `--`; a `--` flag followed by a value is captured as a string; a `--` flag with no following value is captured as boolean `true`.",
+              "reason": "The provided directive source only shows `$CliArgs()` reading from `globalStateManager.args` and `globalStateManager.additionalArgs`; it does not define or validate the parsing rules for custom arguments. These rules may be true in CLI parsing code, but that source is not provided here, so this page cannot state them as grounded facts.",
+              "suggestedFix": "Narrow the wording to the sourced behavior: `$CliArgs('name', defaultValue)` reads a value from Stacktape CLI arguments or additional arguments and returns the default when the value is missing. Remove the parsing bullets unless CLI parser source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "resolveFunction: () => (argName, defaultValue) => {\n      return { ...globalStateManager.args, ...globalStateManager.additionalArgs }[argName] ?? defaultValue;\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The `defineConfig` callback receives `projectName`, `command`, `awsProfile`, `cliArgs`, and `user`, including user fields `id`, `name`, and `email`.",
+              "reason": "The provided source supports directive access to stage, region, profile, AWS account ID, and CLI args through `globalStateManager`, but it does not define the `defineConfig` callback parameter shape or the listed user fields. This is a Stacktape API surface claim and needs type-source grounding.",
+              "suggestedFix": "Either cite/include the `defineConfig` type source, or restrict the table to parameters proven by provided source. If callback metadata is not sourced for this page, remove the table or phrase it as a TypeScript-config pattern only where type definitions confirm it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Stage',\n    isRuntime: false,\n    requiredParams: {},\n    resolveFunction: () => () => globalStateManager.targetStack.stage"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Profile',\n    isRuntime: false,\n    requiredParams: {},\n    resolveFunction: () => () => globalStateManager.awsProfileName"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "In CI environments where Git commands are unavailable, `$GitInfo()` falls back to GitHub Actions, GitLab CI, and Bitbucket Pipelines environment variables automatically. You can also set `STP_GIT_COMMIT_SHA`, `STP_GIT_BRANCH_NAME`, `STP_GIT_USER_NAME`, and `STP_GIT_URL` explicitly in any CI provider.",
+              "reason": "The provided directive source only delegates `$GitInfo()` to `gitInfoManager.gitInfo` and validates property names against the returned object. It does not show CI provider fallback behavior or the named override environment variables.",
+              "suggestedFix": "Remove the CI fallback and `STP_GIT_*` override claims unless `git-info-manager` source is provided. Keep the grounded behavior: `$GitInfo(property)` reads a property from Git metadata and invalid property names produce an error listing valid keys.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const gitInfo = await gitInfoManager.gitInfo;\n      const res = gitInfo[property];\n      if (!res) {\n        throw new ExpectedError(\n          'DIRECTIVE',\n          `$GitInfo directive argument \"${tuiManager.makeBold(property)}\" is not a valid argument.`,\n          [`Valid arguments are: ${Object.keys(gitInfo).map(tuiManager.makeBold).join(', ')}`]\n        );\n      }\n      return res;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Stacktape stack names follow the `{projectName}-{stage}` format.",
+              "reason": "The provided source’s runtime error hint says full stack names are formatted as `{stackName}-{stage}`, not `{projectName}-{stage}`. The draft’s wording may lead readers to pass the wrong first argument to `$StackOutput()` or `$CfStackOutput()` if stack name and project name differ.",
+              "suggestedFix": "Change the sentence to: “The directive expects the full CloudFormation stack name; Stacktape’s error hint describes full names as `{stackName}-{stage}`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "'Make sure the stack is deployed and correctly spelled (full stack names are formatted as {stackName}-{stage})'"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "During `stacktape dev`, CloudFormation-time directives like `$Secret()` and `$ResourceParam()` resolve from the deployed stack's outputs and AWS APIs. `$Secret()` fetches the actual secret value from Secrets Manager. `$ResourceParam()` reads from the deployed stack overview. If the referenced resource hasn't been deployed yet, the directive throws an error unless emulation is disabled with the `--disableEmulation` flag.",
+              "reason": "The `$ResourceParam()` local resolver supports the missing-output behavior described, but the `$Secret()` local resolver does not use `disableEmulation`; the disable-emulation branch is commented out. The blanket statement about CloudFormation-time directives is therefore wrong for `$Secret()`.",
+              "suggestedFix": "Split the local-dev behavior by directive. State that `$ResourceParam()` checks the deployed stack overview and may return the missing-output identifier when `--disableEmulation` is set. State separately that `$Secret()` resolves through Secrets Manager and throws an error if resolution fails, without claiming `--disableEmulation` changes that behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "if (value === undefined || value === null) {\n        const err = getError({\n          type: 'DIRECTIVE',\n          message: `Can't resolve the result of $ResourceParam('${resourceReference}', '${property}') directive.`\n        });\n        if (isLocalInvoke) {\n          if (globalStateManager.args.disableEmulation) {\n            return IDENTIFIER_FOR_MISSING_OUTPUT;\n          }\n          err.hint = getDisableEmulationHint();\n          throw err;\n        }\n        throw err;\n      }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "// if (!secretVersionId) {\n      //   if (!globalStateManager.args.disableEmulation) {\n      //     // @todo think about this\n      //     throw new ExpectedError("
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`$SsmParam()` supports both plaintext and SecureString parameters.",
+              "reason": "The source shows Stacktape selecting `ssm-secure` only when the parameter type is `SecureString`, and `ssm` for every other type. It does not specifically limit or name the non-secure case as “plaintext,” so the wording is a little broader and less precise than the implementation.",
+              "suggestedFix": "Use implementation wording: “`$SsmParam()` uses a secure dynamic reference for `SecureString` parameters and a standard SSM dynamic reference for other parameter types.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const paramType = param.Parameter.Type;\n      const paramVersion = String(param.Parameter.Version);\n      const resolvePrefix = paramType === 'SecureString' ? 'ssm-secure' : 'ssm';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`$Secret()` actual value never appears in the CloudFormation template in plaintext.",
+              "reason": "The source supports that `$Secret()` returns a Secrets Manager dynamic reference string rather than the secret value, but it also fetches the secret value during resolution to validate existence and JSON keys. The draft’s claim is acceptable if scoped to the generated template, but the surrounding prose says “resolve during stack creation,” which hides the CLI-side lookup.",
+              "suggestedFix": "Clarify both parts: “Stacktape looks up the secret during deployment to validate the reference and pin the current version, then writes a Secrets Manager dynamic reference into the template rather than plaintext.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "secret = await awsSdkManager.getSecretValue({ secretId: secretName });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "return `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::${secret.VersionId}}}`;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`$File()` supports JSON, YAML, `.env`, and INI formats.",
+              "reason": "The source says `$File()` can load “.env, JSON, YAML or INI files.” It does not explicitly say all JSON/YAML/INI extension variants or exact parser behavior. This is mostly correct, but the page should stick to the source wording and avoid implying broader format support than the loader may implement.",
+              "suggestedFix": "Use the exact supported list from the error text: “`.env`, JSON, YAML, or INI files.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "File directive can only load from .env, JSON, YAML or INI files."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes config-time directives (`isRuntime: false`) from CloudFormation-time/runtime directives (`isRuntime: true`) for the directive names present in `built-in-directives.ts`.",
+            "The draft correctly states that `$CliArgs()` accepts an argument name and optional default, and that missing values fall back to the provided default.",
+            "The draft correctly describes `$FileRaw()` as loading raw file content as a string.",
+            "The draft correctly states that `$StackOutput()` returns the output value while `$CfStackOutput()` returns an import-style CloudFormation reference through `ImportValue`.",
+            "The draft uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape config examples and does not hand-author YAML config examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness review found no publication-blocking issues. Because the page has no primary config type, the normal property-walk check does not apply; I treated the built-in directives list as the relevant API surface and focused on directive coverage and whether examples demonstrate their sections.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft acknowledges all directive names present in `builtInDirectives`: `File`, `FileRaw`, `CliArgs`, `Stage`, `Region`, `Profile`, `AwsAccountId`, `Format`, `Var`, `This`, `ResourceParam`, `CfResourceParam`, `Secret`, `SsmParam`, `CfFormat`, `StackOutput`, `CfStackOutput`, and `GitInfo`.",
+            "Each `<CodeBlock intellisense>` example demonstrates the section topic it appears under: callback parameters, deployment context directives, custom CLI arguments, external files, Git metadata, string formatting, cross-stack outputs, and secrets/SSM parameters.",
+            "The page correctly uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape config examples, and shell examples use one command per fenced block."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\deployment-and-lifecycle__deploy-time-parameters\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Resolution-phase taxonomy (config-time vs CloudFormation-time) is explained early and referenced consistently throughout — this is the single most important mental model for this page and the page nails it.",
+            "Every major directive gets its own subsection with a working, copyable code example. The CLI argument syntax (`-- --logLevel debug`) is shown concretely, which is genuinely hard to find elsewhere.",
+            "The FAQ is thorough (11 Q&A pairs), mixes Stacktape-specific, use-case, and comparison questions, and includes detailed answers about dev-mode behavior sourced directly from the implementation.",
+            "The opening paragraph is self-contained, 40-75 words, names the concept and the directive family up front — strong AEO posture.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'`. No forbidden YAML or plain-object patterns found.",
+            "Directive facts are source-grounded: `$CliArgs` merging behavior, `$Secret` version-pinning and `{{resolve:secretsmanager:...}}` template reference, `$SsmParam` ssm-secure/ssm prefix logic, `$StackOutput` requiring exported outputs — all match the source implementation.",
+            "Decision guidance between TypeScript conditionals and directives is concrete and opinionated, which is exactly what first-time users need.",
+            "H2 headings are short noun-form labels throughout. FAQ H3s correctly use question form."
+          ],
+          "problems": [
+            "The deployment-context-directives table includes a 'Source' column with `globalStateManager.targetStack.stage` for `$Stage()`. This is an internal implementation detail that will confuse a first-time reader who has no idea what `globalStateManager` is. The other three rows in the same column use user-friendly descriptions ('Target AWS region', 'Target AWS account', 'Configured AWS profile'), making the inconsistency especially jarring.",
+            "The 'Variables and self-reference' section has zero code examples — two short sentences only. Every other section (9 sections) includes at least one `<CodeBlock intellisense>` example. A first-time user reading this section has no working starting point for `$Var()` or `$This()`.",
+            "The page mentions `$ResourceParam()` and `$CfResourceParam()` in the resolution-phases list and in the FAQ but gives no example anywhere in the main body. The cross-link to `/configuration/referenceable-parameters` is present, but a reader who has never deployed a stack will not understand why these two directives exist or when they would reach for them vs `$StackOutput`. At minimum, a one-sentence 'when to use' in the cross-stack references section or a standalone callout would orient the reader.",
+            "The `$GitInfo` section lists 'Common property names include branch, commit, username, gitUrl, and hasUncommitedChanges' — these are not enumerated in the provided source file (the source only shows that invalid names produce an error listing valid arguments via `Object.keys(gitInfo)`). This is a minor source-grounding gap; the page appropriately adds a caveat but calling them 'common' implies authoritative knowledge the source doesn't support."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the 'Source' column from the deployment-context-directives table, or replace `globalStateManager.targetStack.stage` with a user-friendly description like 'Stage name passed via --stage CLI flag' — consistent with the other three rows.",
+            "Add a short code example to the 'Variables and self-reference' section showing `$Var().myDomain` and `$This()` in realistic property values, so the section matches the depth of every other section on the page.",
+            "Add a one-paragraph `$ResourceParam` / `$CfResourceParam` orientation at the end of the 'Cross-stack references' section (or as a short callout) explaining these are for same-stack resource references, with a cross-link — so readers understand the full directive landscape without having to leave the page to grasp the distinction.",
+            "For `$GitInfo` valid properties, either enumerate them (if grounded in a separate source file like git-info-manager.ts) or remove the 'common property names include...' list and rely solely on 'the error message lists all valid arguments' — that caveat is already present and is sufficient.",
+            "Consider adding a visual summary table of all 16 directives with their resolution phase, use case in one line, and a link anchor — readers who arrive knowing what they want to look up would benefit from a scannable 'all directives at a glance' reference above the FAQ."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Directive resolution-phase framework (config-time vs CloudFormation-time) is clearly and accurately explained, grounded in source isRuntime flags.",
+            "The `$CliArgs` behavior — merging `globalStateManager.args` with `additionalArgs`, returning `undefined` when no default is supplied — matches the source exactly.",
+            "`$Secret` local-resolution behavior (fetching actual secret from Secrets Manager, using version ID from stack output when available) is accurately described.",
+            "`$SsmParam` use of `ssm-secure` vs `ssm` dynamic reference prefix based on SecureString type is correctly sourced.",
+            "$StackOutput vs $CfStackOutput distinction (snapshot vs live import-value reference) is accurate and useful for production decision-making.",
+            "Shell command examples are in separate fenced blocks with prose labels — no copy-button trap.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS use-case, comparison questions) and is well-calibrated in depth.",
+            "The embedded-directive shorthand explanation (`api-$Stage()-endpoint`) and the `$CliArgs` default-value pattern are practically useful.",
+            "No forbidden patterns: no YAML resources block, no StacktapeConfig typed style, no fenced TypeScript with defineConfig, no marketing language."
+          ],
+          "problems": [
+            "$ResourceParam is one of the most important cross-resource reference directives — it appears in the resolution-phase table and one FAQ answer but has no dedicated section with an example. Any real multi-resource config uses it constantly. This is a significant completeness gap.",
+            "$CfResourceParam is listed in the resolution-phase table but is never explained, shown in an example, or compared to $ResourceParam. A developer who needs to reference a raw CloudFormation resource attribute gets no guidance.",
+            "The 'Git metadata' section lists specific property names — `branch`, `commit`, `username`, `gitUrl`, `hasUncommitedChanges` — as 'common property names'. The source file (built-in-directives.ts) does not enumerate valid property names; it only says the error message lists them. These names are ungrounded in the provided source.",
+            "The claim that embedded directives in strings are 'automatically converted' (e.g. `api-$Stage()-endpoint` → `$Format('api-{}-endpoint', '$Stage()')`) is not grounded in the provided source file. The built-in-directives.ts only defines directive implementations; the string-embedding detection would live in the config resolver/parser, which is not in scope.",
+            "The defineConfig callback section claims the callback receives 'stage, region, AWS account ID, profile, and CLI arguments' as an enumerated list. This is plausible but is not grounded in the provided source — the source file covers directives, not the defineConfig signature."
+          ],
+          "mandatoryFixes": [
+            "Add a dedicated '$ResourceParam' subsection (under 'CloudFormation-time directives' or as its own H2) with a working code example showing how to reference another resource's output (e.g. a database endpoint or bucket name). This is the primary pattern for wiring resources together and deserves at least the same depth as $Secret.",
+            "Add a '$CfResourceParam' subsection that explains it takes a raw CloudFormation logical resource name and a CloudFormation attribute (GetAtt/Ref), contrasted with $ResourceParam which takes a Stacktape resource name. Without this, readers who see $CfResourceParam in source or error messages have no documentation to consult.",
+            "Remove the specific Git property names (`username`, `gitUrl`, `hasUncommitedChanges`, etc.) from the '$GitInfo' section. The source only guarantees the error message lists valid arguments — replace the named list with: 'Pass a property name supported by Stacktape's Git metadata; if the name is invalid, the error message lists all valid arguments.' This avoids documenting ungrounded specifics.",
+            "Either ground the embedded-directive shorthand claim (`api-$Stage()-endpoint` auto-conversion) in the config-resolver source, or remove it from prose and the FAQ. If it belongs on this page, it needs a source citation — otherwise a reader who relies on it and finds it doesn't work has no recourse."
+          ],
+          "optionalImprovements": [
+            "The 'Variables and self-reference' section ($Var and $This) is very short — one paragraph for two directives. A small code example showing a variables block and a $Var() reference would make it actionable rather than just descriptive.",
+            "The resolution-phase table lists all directives but doesn't distinguish 'resolves to a scalar' (like $Stage) from 'resolves to an object' (like $File, $Var, $This) — a one-word 'Returns' column note ('string', 'object', 'CF intrinsic') would help readers quickly pick the right one.",
+            "Consider adding a brief warning in the $Secret section that $Secret resolves at CloudFormation stack creation time — not at deploy CLI time — so the resolved value is not visible in the generated template, which is the intended security behavior. Developers sometimes expect to see it in the YAML output.",
+            "The FAQ answer on 'How do CloudFormation-time directives behave during local development?' is the most technically detailed answer on the page and could reference `stacktape dev` more directly so readers know where to go if local resolution fails."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "Configuration examples follow the required TypeScript class-based `<CodeBlock intellisense>` pattern and avoid forbidden YAML or `StacktapeConfig` examples.",
+            "The page is practical: it covers the major directive families, shows realistic Lambda environment-variable examples, and splits shell commands into separate copyable blocks.",
+            "FAQ is broad enough for this page, with useful questions about CLI args, formatting, secrets, cross-stack references, local development, and stage-specific config."
+          ],
+          "problems": [
+            "Some TypeScript callback claims are not grounded in the provided source file. The source only defines built-in directives; it does not prove the `defineConfig` callback receives `stage`, `region`, AWS account ID, profile, or CLI arguments.",
+            "The page says deployment context is exposed through four directives, but the introduction and callback section also emphasize `$CliArgs()` as deploy-time context. The distinction is understandable but slightly inconsistent for extractive readers.",
+            "The `Git metadata` section lists common property names such as `branch`, `commit`, `username`, `gitUrl`, and `hasUncommitedChanges`. The provided source only proves that invalid keys produce an error listing valid keys; it does not show the concrete key set.",
+            "The Secrets section mentions creating secrets in the Stacktape Console, but the provided source file does not include Console behavior for secrets. The page should either cite a source-backed Console page or avoid implying a source-grounded Console workflow.",
+            "Several H2 sections are useful but thin on decision support. For example, External configuration files and Git metadata explain what the directives do, but give limited guidance on when not to use them or how to choose between approaches before the FAQ.",
+            "No API/reference summary table lists all directives, parameters, phase, and local-dev behavior in one place. The prose is good, but a table would be more extractable for answer engines and faster for developers scanning the page."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the claim that the `defineConfig` callback exposes AWS account ID, profile, and CLI arguments. Based on the provided source, safely document only the built-in directives unless callback type sources are included.",
+            "Replace the concrete `$GitInfo()` property examples with source-grounded wording, or add the source that defines the Git metadata shape. The current property list is unsupported by the provided file.",
+            "Remove the unsupported Stacktape Console secret-creation mention or add Console/secret source files that prove the behavior."
+          ],
+          "optionalImprovements": [
+            "Add a compact directive reference table with columns for directive, phase, required parameters, return behavior, and best use case.",
+            "Strengthen decision guidance in `External configuration files`: use `$File()` for committed structured config, `$FileRaw()` for text/blob content, and `$CliArgs()` for one-off deploy overrides.",
+            "Clarify the grouping around deployment context by saying `$Stage()`, `$Region()`, `$AwsAccountId()`, and `$Profile()` expose standard deployment context, while `$CliArgs()` reads both standard and additional CLI arguments.",
+            "Add a short caution that `$StackOutput()` and `$CfStackOutput()` require exported CloudFormation outputs, because non-exported outputs are explicitly rejected by the resolver.",
+            "Consider adding a brief comparison table for `$Format()` vs `$CfFormat()` and `$StackOutput()` vs `$CfStackOutput()` to improve snippet extraction."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided directive implementation, but it makes several Stacktape-specific claims that are not grounded in the only provided source file. The highest-risk issues are around TypeScript callback metadata, local-development behavior, CLI argument passing syntax, and invented details about directive parsing or GitInfo fields.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `defineConfig` callback in TypeScript configs receives deployment metadata ... stage, region, AWS account ID, profile, and CLI arguments.”",
+              "reason": "The provided source file defines built-in directives, but it does not define or document the `defineConfig` callback shape. The draft presents a specific callback API, including AWS account ID, profile, and CLI arguments, without source support in the provided files.",
+              "suggestedFix": "Either remove this section or narrow it to only the example parameters that are explicitly supported by the code-block validator/source available elsewhere. With the provided source only, document `$Stage()`, `$Region()`, `$AwsAccountId()`, `$Profile()`, and `$CliArgs()` as directives, not as callback fields.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Stage',\n    isRuntime: false,\n    requiredParams: {},\n    resolveFunction: () => () => globalStateManager.targetStack.stage"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'CliArgs',\n    isRuntime: false,\n    requiredParams: { argName: 'string' },\n    resolveFunction: () => (argName, defaultValue) => {\n      return { ...globalStateManager.args, ...globalStateManager.additionalArgs }[argName] ?? defaultValue;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Pass custom arguments after a `--` separator when running a CLI command.”",
+              "reason": "The provided source supports reading `globalStateManager.additionalArgs`, but it does not document how CLI syntax populates `additionalArgs`. The `--` separator behavior is CLI-specific and is not grounded in the provided command source.",
+              "suggestedFix": "Remove the `--` syntax claim unless CLI parser source is added. Safer wording: “`$CliArgs()` reads values from Stacktape CLI arguments and additional arguments made available to the command.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "return { ...globalStateManager.args, ...globalStateManager.additionalArgs }[argName] ?? defaultValue;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A directive like `$Stage()` can be a standalone property value. You can also embed directives directly in strings — for example, `api-$Stage()-endpoint` is automatically converted to the equivalent `$Format('api-{}-endpoint', '$Stage()')` call.”",
+              "reason": "The provided source defines the `$Format()` directive itself, but it does not show parser behavior for detecting embedded directives or converting embedded directive strings into `$Format()` calls.",
+              "suggestedFix": "Keep the `$Format()` behavior that is supported by source. Remove the automatic embedded-directive conversion claim unless the directive parser source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Format',\n    requiredParams: { interpolatedString: 'string' },\n    isRuntime: false,\n    resolveFunction:\n      () =>\n      (interpolatedString: string, ...values: any[]) => {\n        validateFormatDirectiveParams(interpolatedString, 'Format', values);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“`$CfStackOutput()` returns a CloudFormation import-value reference that resolves during stack creation. If the source stack's exported output changes, the consuming stack picks up the new value on its next update — unlike `$StackOutput()`, which snapshots the value at deploy time.”",
+              "reason": "The source shows `$CfStackOutput()` calls the same `resolveStackOutput` helper and returns `ImportValue(result.ExportName)`. The “picks up the new value on its next update” wording is too broad because the import references the export name, not an arbitrary changed output value, and CloudFormation exported values have their own update restrictions. The source supports ImportValue vs OutputValue, not the lifecycle guarantee stated in the draft.",
+              "suggestedFix": "Say: “`$CfStackOutput()` returns a CloudFormation `ImportValue` for the exported output, while `$StackOutput()` resolves the current output value during CLI execution and writes that value into the template.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "return directive === 'StackOutput' ? result.OutputValue : ImportValue(result.ExportName);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The directive is lazy-loaded — it only reads Git information when the directive is actually used in the config. Common property names include `branch`, `commit`, `username`, `gitUrl`, and `hasUncommitedChanges`...”",
+              "reason": "The source supports `lazyLoad: true` and says invalid arguments list valid keys dynamically, but it does not enumerate the specific GitInfo property names. The listed property names are unsupported by the provided source.",
+              "suggestedFix": "Keep the lazy-loading behavior and invalid-argument behavior. Remove the specific property list unless `gitInfoManager` source is provided, or phrase it as an example only if grounded elsewhere.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'GitInfo',\n    requiredParams: { property: 'string' },\n    isRuntime: false,\n    lazyLoad: true,"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "[`Valid arguments are: ${Object.keys(gitInfo).map(tuiManager.makeBold).join(', ')}`]"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“During local resolution (in `stacktape dev`), `$CfFormat()` performs simple string interpolation...” and the FAQ answer describing `$ResourceParam()`, `$Secret()`, and `$SsmParam()` behavior during `stacktape dev`.",
+              "reason": "The source supports local resolve functions for these directives, but only `$ResourceParam()` explicitly checks the current command for `dev`. The draft generalizes the behavior to `stacktape dev` for `$CfFormat()`, `$Secret()`, and `$SsmParam()` without source evidence that these local resolve functions are used specifically by dev mode.",
+              "suggestedFix": "Narrow the wording to “When Stacktape performs local directive resolution...” and only mention `dev` for `$ResourceParam()`, where the source checks `globalStateManager.command`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const isLocalInvoke = ['dev'].includes(globalStateManager.command);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "localResolveFunction:\n      () =>\n      (interpolatedString: string, ...values: any[]) => {\n        let res = interpolatedString;\n        values.forEach((val) => {\n          res = res.replace('{}', val);\n        });\n        return res;\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Directives are string expressions that Stacktape detects and resolves during deployment.”",
+              "reason": "The source distinguishes config-time directives (`isRuntime: false`) from runtime/CloudFormation-time directives (`isRuntime: true`). Saying all directives resolve “during deployment” is imprecise and may blur CLI/config-time resolution with CloudFormation-time resolution.",
+              "suggestedFix": "Use narrower wording: “Stacktape detects directive strings while processing the config. Some directives resolve during CLI config processing; runtime directives produce values or CloudFormation expressions that resolve later.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Access nested properties with dot notation after the closing parenthesis: `$File('./config.json').database.host`.”",
+              "reason": "The source error message explicitly supports property access after `$File()`, but only demonstrates one property level. Nested dot traversal may be implemented elsewhere, but it is not shown in the provided source file.",
+              "suggestedFix": "Use the source-supported wording and example: “The loaded file is parsed and its properties can be accessed with dot notation, such as `$File(\"myfile.json\").myProperty`.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes config-time directives from CloudFormation-time/runtime directives using the source’s `isRuntime` split.",
+            "The `$File()` and `$FileRaw()` descriptions match the source: `$File()` loads supported structured formats from `globalStateManager.workingDir`, and `$FileRaw()` loads raw file content.",
+            "The `$Secret()` description is mostly grounded: the source validates the secret, supports JSON key access, stores the current version ID as a stack output, and returns a Secrets Manager dynamic reference.",
+            "The `$SsmParam()` description is grounded: the source uses `ssm-secure` for `SecureString`, `ssm` otherwise, and pins the parameter version in the dynamic reference.",
+            "The Stacktape config examples follow the required `<CodeBlock intellisense>` TypeScript pattern and do not include hand-authored YAML."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided built-in directive source, especially around directive names, runtime/config-time phases, file loading, secrets, SSM parameters, and stack output validation. The main risks are unsupported TypeScript callback and CLI-syntax claims, plus overbroad wording around `$CfStackOutput()` cross-region behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“To reference a stack in a different AWS region, pass the region as the third argument to either directive” and the related `$CfStackOutput()` wording imply cross-region CloudFormation imports work the same way as `$StackOutput()`.",
+              "reason": "The source shows the optional `region` is used to fetch stack details, but `$CfStackOutput()` ultimately emits `ImportValue(result.ExportName)` with no region encoded. The draft can safely say both directives accept a third region argument, but it should not promise cross-region CloudFormation import behavior for `$CfStackOutput()` from this source.",
+              "suggestedFix": "Narrow the wording: `$StackOutput()` can fetch an exported output from the specified region at config-time. `$CfStackOutput()` emits a CloudFormation `ImportValue` reference after validating the exported output; avoid claiming it creates a cross-region import unless another source documents that behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const stackDetails = await awsSdkManager.getStackDetails(stackName, region);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "return directive === 'StackOutput' ? result.OutputValue : ImportValue(result.ExportName);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `defineConfig` callback in TypeScript configs receives deployment metadata” and the example destructuring `({ stage, region })`.",
+              "reason": "The provided source file documents built-in directives and their resolvers, not the `defineConfig` callback signature. The source grounds `$Stage()`, `$Region()`, `$Profile()`, `$AwsAccountId()`, and `$CliArgs()`, but not callback parameters such as `stage` or `region`.",
+              "suggestedFix": "Remove the callback-parameter section or rewrite it around the source-grounded directives. If this behavior is real, add the TypeScript config source/type file that defines the `defineConfig` callback contract before publishing this claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Stage',\n    isRuntime: false,\n    requiredParams: {},\n    resolveFunction: () => () => globalStateManager.targetStack.stage"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Region',\n    isRuntime: false,\n    requiredParams: {},\n    resolveFunction: () => () => globalStateManager.region"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Pass custom arguments after a `--` separator when running a CLI command,” including `stacktape deploy --stage production --region eu-west-1 -- --logLevel debug`.",
+              "reason": "The directive source only shows `$CliArgs()` reading from `globalStateManager.args` and `globalStateManager.additionalArgs`. It does not document how additional arguments are parsed from the CLI or whether the `--` separator is the supported syntax for `deploy`.",
+              "suggestedFix": "Either add CLI command/parser source for deploy argument handling, or phrase this cautiously as `$CliArgs()` reads values made available in Stacktape's normal and additional CLI argument maps, then link to the deploy CLI reference without asserting separator syntax.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "return { ...globalStateManager.args, ...globalStateManager.additionalArgs }[argName] ?? defaultValue;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Common property names include `branch`, `commit`, `username`, `gitUrl`, and `hasUncommitedChanges`.”",
+              "reason": "The source does not enumerate valid `$GitInfo()` property names. It reads a runtime `gitInfo` object and says the error message lists the valid arguments, so the draft’s concrete list is not grounded in the provided file.",
+              "suggestedFix": "Remove the concrete property list, or replace it with: “The valid property names come from Stacktape's Git metadata object; if you pass an invalid name, the error lists the available arguments.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const gitInfo = await gitInfoManager.gitInfo;\n      const res = gitInfo[property];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "[`Valid arguments are: ${Object.keys(gitInfo).map(tuiManager.makeBold).join(', ')}`]"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“You can also embed directives directly in strings — for example, `api-$Stage()-endpoint` is automatically converted to the equivalent `$Format('api-{}-endpoint', '$Stage()')` call.”",
+              "reason": "The provided source defines the `$Format()` resolver, but it does not include the parser or transformation logic that would prove embedded directives are detected and rewritten into `$Format()`. This may be true elsewhere, but it is not grounded in the supplied file.",
+              "suggestedFix": "Either add the directive parser source that implements embedded-directive conversion, or remove the automatic-conversion sentence and show explicit `$Format()` usage instead.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Can I nest directives? Yes. You can pass one directive as an argument to another.”",
+              "reason": "The source shows directive resolver functions, but not the parser/evaluator behavior that establishes nested directive evaluation order. The example may be correct, but nesting semantics are not proven by the provided source file.",
+              "suggestedFix": "Add the directive parser/resolution source, or make the FAQ answer narrower by showing `$Format()` with `$Stage()` only if that specific nested form is documented elsewhere.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and avoids hand-authored YAML.",
+            "The config-time versus CloudFormation-time directive grouping matches the `isRuntime: false` and `isRuntime: true` flags in the provided source.",
+            "The `$File()`, `$FileRaw()`, `$Secret()`, `$SsmParam()`, `$StackOutput()`, and `$CfFormat()` explanations are broadly grounded in the resolver implementations.",
+            "All checked internal documentation links point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers most built-in directives named in the provided source and uses the required CodeBlock format for Stacktape config examples. The main API-completeness gap is that it names `$ResourceParam()` and `$CfResourceParam()` but does not give readers a practical section for either directive, especially `$ResourceParam()`, which is central to referencing Stacktape resources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The page mentions `$ResourceParam()` in the resolution-phase list and in `$CfFormat()` guidance, but does not document how `$ResourceParam(resourceReference, property)` works.",
+              "reason": "`$ResourceParam()` is a built-in runtime directive with required `resourceReference` and `property` parameters. It validates that the Stacktape resource exists and that the requested referenceable parameter exists, and it has distinct local-resolution behavior in dev mode. Because this page is about deploy-time parameters and already discusses CloudFormation-time directives, omitting a practical `$ResourceParam()` section leaves out an important resource-reference path.",
+              "suggestedFix": "Add a short `## Resource parameters` section explaining that `$ResourceParam('resourceName', 'property')` reads a Stacktape resource's referenceable parameter during stack creation, fails when the resource or parameter is not referenceable, and is the right choice for values such as endpoints or ARNs produced by resources in the same stack. Link to `/configuration/referenceable-parameters` for the available parameter names.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'ResourceParam',\n    requiredParams: { resourceReference: 'string', property: 'string' },\n    isRuntime: true"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const resource = calculatedStackOverviewManager.getStpResource({ nameChain: resourceReference });\n      if (!resource) {\n        throw getNonExistingResourceError({ resourceName: resourceReference, directiveType: '$ResourceParam' });\n      }\n      if (resource.referencableParams?.[property] === undefined)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The page lists `$CfResourceParam()` as a CloudFormation-time directive, but gives no practical guidance on when to use it or how it differs from `$ResourceParam()`.",
+              "reason": "`$CfResourceParam()` is a built-in runtime directive with required `resourceName` and `property` parameters. The source shows it operates on raw CloudFormation resource names, checks CloudFormation `Ref`/`GetAtt` referenceability, and adds a stack output for the referenced value. Without this distinction, readers may confuse Stacktape resource references with raw CloudFormation resource references.",
+              "suggestedFix": "Add a concise advanced note: use `$CfResourceParam(resourceName, property)` only when referencing raw CloudFormation resources or escape-hatch resources by CloudFormation logical ID; for normal Stacktape resources, prefer `$ResourceParam()`. Mention that supported properties come from the CloudFormation resource's `Ref` and `GetAtt` referenceable attributes, with custom resources allowing arbitrary `GetAtt` properties.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'CfResourceParam',\n    requiredParams: { resourceName: 'string', property: 'string' },\n    isRuntime: true"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "const cfResource = templateManager.template.Resources[resourceName];\n      if (!cfResource) {\n        throw getNonExistingResourceError({ resourceName, directiveType: '$CfResourceParam' });\n      }\n      const { Ref: RefAttributes, GetAtt: GetAttAttributes } = referenceableTypes[cfResource.Type]"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The available deployment context mirrors what the built-in directives expose: stage, region, AWS account ID, profile, and CLI arguments.”",
+              "reason": "The provided source file proves the built-in directive names and their backing global-state fields, but it does not define the TypeScript `defineConfig` callback parameter shape. As an API-completeness auditor, I cannot validate that the callback exposes AWS account ID, profile, or CLI arguments from this source.",
+              "suggestedFix": "Narrow the sentence to the fields demonstrated in the example, or ground it in a source file that defines the `defineConfig` callback parameter type. For this draft, say only that the callback can use deployment metadata such as `stage` and `region` if those are grounded elsewhere.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Stage',\n    isRuntime: false,\n    requiredParams: {},\n    resolveFunction: () => () => globalStateManager.targetStack.stage"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\built-in-directives.ts",
+                  "quote": "name: 'Region',\n    isRuntime: false,\n    requiredParams: {},\n    resolveFunction: () => () => globalStateManager.region"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense tabs={[...]}>` with `label: 'TypeScript'`; the draft does not hand-author YAML Stacktape config.",
+            "The page acknowledges all built-in directive names present in the source file at least once: `$File`, `$FileRaw`, `$CliArgs`, `$Stage`, `$Region`, `$Profile`, `$AwsAccountId`, `$Format`, `$Var`, `$This`, `$ResourceParam`, `$CfResourceParam`, `$Secret`, `$SsmParam`, `$CfFormat`, `$StackOutput`, `$CfStackOutput`, and `$GitInfo`.",
+            "The CLI examples follow the one-command-per-block rule and avoid inline shell comments.",
+            "The examples under `Custom CLI arguments`, `External configuration files`, `Git metadata`, `$Format`, `$StackOutput`, and `Secrets and SSM parameters` demonstrate the directive being discussed rather than reusing a bare scaffold."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\deployment-and-lifecycle\\deploy-time-parameters.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 3, advisory high 0, verifier medium 11"
+}

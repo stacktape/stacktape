@@ -1,0 +1,145 @@
+---
+title: 'Connecting Your AWS Account'
+order: 122
+seoTitle: 'Connect Your AWS Account to Stacktape | Stacktape Docs'
+seoDescription: 'Connect your AWS account to Stacktape using a secure cross-account IAM role. No access keys needed — deploy to any region with automatic credential management.'
+---
+
+# Connecting Your AWS Account
+
+Stacktape deploys infrastructure into your own AWS account using a secure cross-account IAM role. You connect an AWS account once per organization, and Stacktape handles credential management automatically from that point — no manual AWS access keys required. Your projects and stages can deploy to any AWS region regardless of where the connection stack lives.
+
+## What This Part of the Console Does
+
+The AWS Accounts page in the Stacktape Console lets you establish and manage the trust relationship between Stacktape and your AWS accounts. When you connect an account, Stacktape creates a CloudFormation stack in your AWS account that provisions a cross-account IAM role. Stacktape then assumes this role to perform deployments, read logs, fetch metrics, and manage resources on your behalf.
+
+Each connected account appears in a table showing its name, AWS account ID, connection status, creation date, and primary regions. You can connect multiple AWS accounts to a single organization — for example, separate accounts for production and development.
+
+The connection is free. You only pay for the AWS resources that Stacktape deploys into your account.
+
+## Walkthrough
+
+Connecting an AWS account takes about two minutes. You need the `org:manage-aws-accounts` permission in your Stacktape organization.
+
+<FlowDiagram steps={[
+  { title: "Open the modal", description: "In the Stacktape Console, navigate to AWS Accounts and click Connect AWS account." },
+  { title: "Name the account", description: "Enter an arbitrary label (e.g. 'production' or 'dev-account'). This name is for your reference only." },
+  { title: "Create the stack in AWS", description: "Click Connect account in AWS console. A new tab opens to the AWS CloudFormation Quick Create Stack page in eu-west-1." },
+  { title: "Confirm in AWS", description: "In the AWS console, check the acknowledgment checkbox and click Create stack. Do not change the region." },
+  { title: "Wait for activation", description: "Return to Stacktape. The account shows as PENDING while CloudFormation provisions the role, then transitions to ACTIVE automatically." }
+]} />
+
+<Warning>The connection CloudFormation stack must be created in the **eu-west-1** region. The AWS Quick Create link opens in the correct region automatically — do not change it. After connection, your projects can deploy to any AWS region.</Warning>
+
+<ConsoleScreenshot src="/static/screenshots/console-aws-accounts-connect-modal.png" alt="Stacktape Console connect AWS account modal showing Step 1 (account name input) and Step 2 (instructions to create the stack in AWS console)" caption="The connection modal walks you through naming the account and creating the trust stack in AWS." />
+
+## Connection States
+
+Each connected AWS account has one of three states:
+
+| State | Meaning | Action needed |
+|-------|---------|---------------|
+| **ACTIVE** (green) | Connection is working. Stacktape can deploy to this account. | None. |
+| **PENDING** (orange) | The Quick Create Stack link was generated but the CloudFormation stack hasn't finished creating yet. | Open the "Finish the account connection" link and complete the stack creation in AWS. |
+| **BLOCKED** (red) | The connection failed or was revoked. The status reason explains why. | Check the status reason, fix the issue in AWS, and reconnect if needed. |
+
+The Console polls for status changes every two seconds while a PENDING account exists, so the transition to ACTIVE appears within seconds of the CloudFormation stack completing.
+
+## How the Connection Works
+
+Stacktape uses AWS cross-account AssumeRole — the standard, most secure pattern for third-party AWS access. The CloudFormation stack you create provisions:
+
+1. An IAM role with a trust policy that allows Stacktape's AWS account to assume it
+2. The permissions Stacktape needs to manage infrastructure in your account
+
+When you run a deploy, Stacktape requests temporary credentials by assuming this role. The credentials are short-lived and scoped to your account. You never share long-term AWS access keys with Stacktape.
+
+For a detailed breakdown of what permissions the role includes, see [AWS permissions](/stacktape-console/aws-permissions).
+
+## Common Tasks
+
+### Connecting multiple AWS accounts
+
+Organizations commonly connect separate AWS accounts for different purposes — a production account with stricter controls and a development account for experimentation. Click **Connect AWS account** again and repeat the walkthrough for each account. Each connection is independent.
+
+### Revoking access
+
+You can revoke Stacktape's access to your AWS account in two ways:
+
+- **From the Stacktape Console** — delete the connected account entry on the AWS Accounts page. This tells Stacktape to stop using the role, but the IAM role remains in your AWS account until you delete the CloudFormation stack manually.
+- **From the AWS Console** — delete the connection CloudFormation stack directly. This removes the IAM role, and the account will transition to BLOCKED in Stacktape.
+
+Either approach is immediate. For a clean disconnection, delete from the Stacktape Console first, then remove the CloudFormation stack in AWS.
+
+### Checking which regions an account uses
+
+The AWS Accounts table shows **Primary regions** for each connected account. These indicate which regions have active deployments. All regions remain available for new deployments regardless of what's shown here.
+
+## Troubleshooting
+
+### Account stuck in PENDING
+
+If your account remains PENDING for more than five minutes:
+
+1. Check the AWS CloudFormation console in **eu-west-1** for the connection stack. If it shows CREATE_FAILED, expand the events tab to find the failure reason.
+2. If you accidentally changed the region before creating the stack, delete it and use the "Finish the account connection" link from the Stacktape Console to retry in the correct region.
+3. If the Quick Create link expired, delete the PENDING entry in Stacktape and start a new connection.
+
+### Cannot delete a connected AWS account
+
+Stacktape prevents deletion when projects reference the account in their GitOps deployment configurations. The error message lists the affected projects. Remove or update the GitOps configurations for those projects first, then retry the deletion.
+
+### Account shows BLOCKED
+
+A BLOCKED state means the IAM role is no longer usable. Common causes:
+
+- The CloudFormation connection stack was deleted in AWS
+- The IAM role was manually modified or deleted
+- An AWS Service Control Policy (SCP) is blocking AssumeRole
+
+Check the status reason displayed in the table's Note column, fix the underlying issue in AWS, and reconnect the account if needed.
+
+### "You do not have permission to manage AWS accounts"
+
+This action requires the `org:manage-aws-accounts` permission. Ask your organization owner or admin to grant you the appropriate role. See [Team and access control](/stacktape-console/team-and-access-control) for details.
+
+## Related Features
+
+- [AWS permissions](/stacktape-console/aws-permissions) — details on what the cross-account role can do
+- [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — how connected accounts relate to your project structure
+- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — auto-deploy to connected accounts on push
+- [Deploy your first stage](/getting-started/deploy-your-first-stage) — uses a connected account to run your first deployment
+
+## FAQ
+
+### Do I need to create AWS access keys for Stacktape?
+
+No. Stacktape uses cross-account IAM role assumption, not static access keys. The connection CloudFormation stack creates an IAM role that Stacktape assumes with temporary credentials. You never need to generate, rotate, or store AWS access keys for Stacktape to work.
+
+### Can I deploy to any AWS region after connecting?
+
+Yes. The connection stack must be created in eu-west-1, but that's only where the IAM role lives. Once connected, you can deploy projects and stages to any AWS region — us-east-1, ap-southeast-1, or any other supported region.
+
+### Is connecting my AWS account free?
+
+Connecting the account itself is free — the CloudFormation stack only creates an IAM role, which has no AWS cost. You pay only for the resources Stacktape deploys into your account (Lambda functions, databases, containers, etc.) based on standard AWS pricing.
+
+### Can I connect the same AWS account to multiple Stacktape organizations?
+
+Yes, but each organization creates its own connection stack. If you need shared infrastructure across organizations, separate AWS accounts per organization is the cleaner pattern. Most teams use one AWS account per Stacktape organization, possibly with separate accounts for production and development.
+
+### What happens if I delete the CloudFormation connection stack in AWS?
+
+Stacktape loses the ability to assume the cross-account role. The connected account transitions to BLOCKED in the Console, and deployments to that account will fail. To restore access, delete the BLOCKED entry in Stacktape and create a new connection.
+
+### How long does the connection process take?
+
+Typically under two minutes. The CloudFormation stack creates a single IAM role, which provisions in 30-60 seconds. The Stacktape Console polls every two seconds and shows ACTIVE as soon as the stack completes.
+
+### Can I restrict what Stacktape can do in my account?
+
+The default connection uses a privileged role that allows Stacktape to manage all the AWS resources it needs for deployments. You can restrict access using AWS Service Control Policies (SCPs) at the organization level, or by modifying the IAM role's policy after creation — though narrowing permissions may prevent certain Stacktape features from working. See [AWS permissions](/stacktape-console/aws-permissions) for the full permission set.
+
+### What's the difference between connecting via Console vs CLI?
+
+Both paths create the same cross-account IAM role. The Console provides a guided visual flow with the Quick Create Stack link. The CLI equivalent is [`stacktape login`](/cli/login) followed by connecting an AWS profile with [`stacktape aws-profile:create`](/cli/aws-profile-create). The Console approach is recommended for initial setup; the CLI is useful for automation or headless environments.

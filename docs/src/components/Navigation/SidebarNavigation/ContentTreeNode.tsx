@@ -51,7 +51,12 @@ export function ContentTreeNode({
   const showActive = isClient && isActive;
 
   const isSubgroup = hasChildren;
-  const indent = ROW_BASE_INDENT + depth * DEPTH_STEP;
+  // Push the pill itself inward with depth so the hover/active background gets narrower as
+  // items nest deeper — visually reinforces hierarchy and avoids a wall of full-width pills.
+  // Padding only carries the base indent; the depth-based offset rides on the left margin so
+  // the label still lands in the same column.
+  const rowMarginLeft = ROW_OUTER_MARGIN_X + depth * DEPTH_STEP;
+  const indent = ROW_BASE_INDENT;
 
   // Whole-row interactive surface. Rounded pill with horizontal margin so it doesn't touch the
   // sidebar edge. Active state shows a small rounded indicator bar via `::before`. Hover/active
@@ -65,7 +70,7 @@ export function ContentTreeNode({
     alignItems: 'center',
     gap: '8px',
     minHeight: `${ROW_MIN_HEIGHT}px`,
-    margin: `1px ${ROW_OUTER_MARGIN_X}px`,
+    margin: `1px ${ROW_OUTER_MARGIN_X}px 1px ${rowMarginLeft}px`,
     paddingTop: `${ROW_PADDING_Y}px`,
     paddingBottom: `${ROW_PADDING_Y}px`,
     paddingLeft: `${indent}px`,
@@ -132,9 +137,17 @@ export function ContentTreeNode({
     />
   ) : null;
 
+  // Subgroup icon — only rendered on virtual subgroup nodes that have a configured icon
+  // (e.g. Resources/Compute, Packaging/Containers). Real pages and unconfigured virtual nodes
+  // skip it. The icon sits before the label and uses a slightly smaller size than the top-level
+  // group icon so the hierarchy reads visually.
+  const iconEl = item.icon ? (
+    <span css={{ flexShrink: 0, display: 'inline-flex', opacity: 0.85 }}>{item.icon({ size: 14 })}</span>
+  ) : null;
+
   return (
     <>
-      <li css={{ listStyle: 'none', display: 'block', padding: 0, margin: 0 }}>
+      <li data-guide-row="true" css={{ listStyle: 'none', display: 'block', padding: 0, margin: 0 }}>
         {hasChildren ? (
           <div
             role="button"
@@ -148,6 +161,7 @@ export function ContentTreeNode({
             }}
             css={interactiveRowStyles}
           >
+            {iconEl}
             <span css={labelStyles}>{item.title}</span>
             {chevronEl}
           </div>
@@ -174,18 +188,7 @@ export function ContentTreeNode({
               overflow: 'hidden',
               minHeight: 0,
               padding: 0,
-              margin: 0,
-              '&::before': {
-                content: '""',
-                position: 'absolute',
-                left: `${ROW_OUTER_MARGIN_X + ROW_BASE_INDENT + depth * DEPTH_STEP + 4}px`,
-                top: '4px',
-                bottom: '4px',
-                width: '1px',
-                background:
-                  'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 14%, rgba(255,255,255,0.1) 86%, rgba(255,255,255,0) 100%)',
-                pointerEvents: 'none'
-              }
+              margin: 0
             }}
           >
             {item.children.map((child) => (

@@ -1,0 +1,204 @@
+{
+  "pageId": "cli__info__whoami",
+  "pageRoute": "cli/info-whoami",
+  "startedAt": "2026-05-17T23:35:16.859Z",
+  "updatedAt": "2026-05-17T23:37:04.291Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__info__whoami\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded output field descriptions match the actual return shape in src/commands/info-whoami/index.ts (user, organization, role, connectedAwsAccounts, projects, permissions with isProjectScoped).",
+            "Role label enumeration (Owner, Admin, Developer, Viewer) is accurate per the ROLE_LABELS map in the source.",
+            "Correct use of <CliCommandsApiReference> with the exact three args from the command definition (logLevel, agent, outputFormat).",
+            "The early cross-reference to `stacktape login` is genuinely helpful for a first-time user who hasn't configured their API key yet.",
+            "The `--outputFormat jsonl` example calls out a real, non-obvious use case (CI/scripting) that adds value beyond the basic invocation.",
+            "No mandatory style violations — no forbidden YAML blocks, no StacktapeConfig type usage, no multi-command bash blocks with comment labels, no explanatory comments inside shell code blocks."
+          ],
+          "problems": [
+            "Section ordering deviates from the CLI section instructions: the section instructions specify 'usage example → auto-generated reference → Examples', but the page places Examples before Flags (the auto-generated reference). Flags should appear before Examples.",
+            "The first item in the Examples section (`stacktape info:whoami` with the description 'Verify your identity and check which organization you're operating in') is a verbatim repeat of the Usage section. This adds no new information and makes the Examples section feel padded.",
+            "Related commands lists four entries (login, logout, org:list, projects:list) but the section instructions cap it at 1–3 closest siblings.",
+            "No FAQ section. While narrow CLI pages can omit it, this command has several high-value questions a first-time user will ask that aren't answered in the prose: 'What if I don't have an API key?', 'What's the difference between a project and a stage?', 'How do I know which organization I'm in?'. Even 3–4 FAQ pairs would improve discoverability."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reorder sections to match CLI section instructions: Usage → Flags (<CliCommandsApiReference>) → Examples → Related commands.",
+            "Remove or replace the first Examples entry — it duplicates Usage. Start Examples with the jsonl variant (the first genuinely non-obvious pattern), then the debug-level logging variant.",
+            "Trim Related commands to the 3 closest siblings. login and logout are clearly closest; pick either org:list or projects:list as the third based on which is more likely to be used alongside whoami.",
+            "Add a short FAQ (3–5 pairs) covering: what happens when no API key is set, how to get an API key, what 'project-scoped' permissions mean, and one comparison question ('info:whoami vs info:stacks — when to use each'). These are the natural follow-up questions for a user who just ran this command for the first time."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Output fields are documented precisely and match the source return value (user id/name/email, organization id/name, role labels, connectedAwsAccounts with state, projects, optional isProjectScoped/permissions).",
+            "All three flags in the source (logLevel, agent, outputFormat) are correctly surfaced in the CliCommandsApiReference call with accurate allowed values.",
+            "The authentication requirement is called out explicitly and linked to the login command — important because info:whoami is not in commandsNotRequiringApiKey.",
+            "The jsonl output example is genuinely non-obvious and useful for CI/scripting use cases.",
+            "Related commands list is accurate and sourced (login, logout, org:list, projects:list all exist in commandDefinitions)."
+          ],
+          "problems": [
+            "Section ordering deviates from the prescribed CLI page structure. The section instructions specify: usage example → auto-generated reference (Flags) → Examples → Related commands. The page puts Examples before Flags. A developer hunting for the --outputFormat flag has to scroll past three examples to find it.",
+            "The basic `stacktape info:whoami` command appears twice verbatim — once in the Usage section code block, and again as the first entry in the Examples section ('Verify your identity and check which organization you're operating in'). This is redundant and dilutes the value of the Examples section."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move the Flags section (CliCommandsApiReference) above the Examples section to match the prescribed CLI page order: usage → flags reference → non-obvious examples → related commands.",
+            "Remove the duplicate bare `stacktape info:whoami` from the Examples section. Start Examples with the jsonl variant (first genuinely non-obvious pattern), dropping the redundant 'Verify your identity' block since it's already covered in Usage.",
+            "The MEMBER role maps to the 'Developer' label in source (ROLE_LABELS). The prose correctly lists Owner/Admin/Developer/Viewer as the four visible labels, but a brief note that API keys scoped to a project surface a 'permissions' field (matching isProjectScoped in the return value) would help readers debugging access issues."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The page follows the CLI-page structure: command purpose, usage, examples, generated flags reference, and related commands.",
+            "All shell examples are one command per fenced block with no explanatory comments inside the copyable command blocks.",
+            "The command behavior is mostly grounded in the source: user, organization, AWS accounts, projects, scoped permissions, JSONL output, and log-level options match the provided command and option definitions.",
+            "The `<CliCommandsApiReference command=\"info:whoami\" ... />` component is used instead of a hand-authored flags table."
+          ],
+          "problems": [
+            "The opening paragraph is only about 38 words, below the 40-75 word answer-first target, even though it does answer what the command does.",
+            "The related commands section lists four siblings, while the human-maintained CLI instruction asks for 1-3 closest siblings.",
+            "The output description says the organization role is one of Owner, Admin, Developer, or Viewer; source code also maps MEMBER to Developer and falls back to the raw role string for unknown values, so the wording should avoid implying an exhaustive set unless the source guarantees it.",
+            "The page could be more useful for automation by briefly explaining that `--agent` implies JSONL output, since that behavior is present in the generated flag description and is relevant to CLI consumers."
+          ],
+          "mandatoryFixes": [
+            "Reduce Related commands to 1-3 closest siblings, per the CLI section instruction."
+          ],
+          "optionalImprovements": [
+            "Expand the first paragraph to 40-75 words while keeping it concise and self-contained.",
+            "Change the role bullet to a narrower source-grounded wording, such as: \"the organization tied to your API key and the role label returned by the CLI.\"",
+            "Add one short example for agent mode if this page targets automation-heavy users: `stacktape info:whoami --agent`.",
+            "Consider moving the Examples section after Flags only if the project’s CLI pages consistently follow the stated order exactly; the current examples-before-flags layout is still easy to scan."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and implementation. I found one material issue: the prose overstates the human-readable output by saying project-scoped permissions are included, while the implementation only includes permissions in the returned command result and passes them to the TUI printer conditionally; the source does not establish that the printed output includes them only when scoped.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“The output includes: … Permissions — when your API key is scoped to a specific project, the permissions granted to it.”",
+              "reason": "The command implementation returns optional `permissions` and passes optional `permissions`/`isProjectScoped` to `printWhoami`, but the provided source does not show what `printWhoami` actually renders. The draft presents this as guaranteed user-visible output without the TUI printer source.",
+              "suggestedFix": "Narrow the wording to: “The command result can include project-scoped API key metadata, including `isProjectScoped` and `permissions`, when the API returns those fields.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\info-whoami\\index.ts",
+                  "quote": "const extData = data as typeof data & { isProjectScoped?: boolean; permissions?: string[] };"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\info-whoami\\index.ts",
+                  "quote": "permissions: extData.permissions"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The command purpose, usage, and lack of required flags match `commandDefinitions['info:whoami']`.",
+            "The described core returned fields are grounded in `src\\commands\\info-whoami\\index.ts`: user id/name/email, organization id/name, role label, connected AWS accounts, projects, and optional permissions.",
+            "The related command links all point to routes present in the provided navigation index.",
+            "The page uses the required `<CliCommandsApiReference command=\"info:whoami\" ... />` component and does not include forbidden Stacktape configuration examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and implementation. I found no publication-blocking factual errors. The only notable issue is a small overstatement about the organization role labels.",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Organization — the organization tied to your API key, including your role (Owner, Admin, Developer, or Viewer).”",
+              "reason": "The implementation maps OWNER, ADMIN, DEVELOPER, VIEWER, and MEMBER roles, with MEMBER displayed as “Developer”. The draft’s list of possible role labels is not strictly wrong for display output, but it may imply these are the only source roles rather than the rendered labels.",
+              "suggestedFix": "Narrow the wording to “including your displayed role, such as Owner, Admin, Developer, or Viewer.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The command purpose matches `commandDefinitions['info:whoami'].description`.",
+            "The usage example is correct and the command has no required flags.",
+            "The draft correctly uses `<CliCommandsApiReference command=\"info:whoami\" ... />` for the flags table.",
+            "The `outputFormat jsonl`, `logLevel debug`, and `agent` flags shown in the reference match the command’s allowed arguments.",
+            "All markdown cross-links point to routes present in the provided documentation navigation index.",
+            "The draft does not include forbidden Stacktape configuration examples, hand-authored YAML, or invalid CodeBlock usage."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API-completeness, union-variant, or code-example demonstrativeness issues found for the `info:whoami` CLI page. The draft documents the command's no-argument usage, includes examples for the non-obvious output and logging flags, and uses the required generated CLI reference component for the full flag table.",
+          "issues": [],
+          "positiveFindings": [
+            "The page uses one command per shell block and documents exactly one CLI command.",
+            "The available arguments for `info:whoami` are covered through `<CliCommandsApiReference command=\"info:whoami\" />`, matching the source command definition.",
+            "The examples demonstrate the specific flags they discuss: `--outputFormat jsonl` and `--logLevel debug`.",
+            "The described output fields align with the command implementation: user, organization, role, project scope, connected AWS accounts, projects, and permissions."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\info-whoami.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T23:37:04.291Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\info-whoami\\index.ts": "c814f670cdefe38164edd8512abb64ad453b63b4",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\info-whoami.md": "21965c6b3ad679c03409f479736d4f343e0e58b1"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

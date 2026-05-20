@@ -1,0 +1,701 @@
+{
+  "pageId": "cli__script__run",
+  "pageRoute": "cli/script-run",
+  "startedAt": "2026-05-17T23:03:19.235Z",
+  "updatedAt": "2026-05-17T23:11:17.898Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__script__run\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, self-contained opening paragraph that accurately states the command's purpose and when to use it — suitable for an AI citation snippet.",
+            "The 'When to use' section provides concrete, realistic scenarios (migrations, seeding, maintenance) that help a new user decide whether this command fits their needs.",
+            "The `assumeRoleOfResource` precedence logic (CLI flag beats script config property) is correctly sourced from `commandScriptRun` and well-explained.",
+            "All bash examples are one-command-per-block with no inline `#` comment labels — copy-paste safe.",
+            "`<CliCommandsApiReference>` is used correctly for the flags table and no flags table is hand-authored in parallel.",
+            "The Errors section documents the actual failure mode with a real error format, grounded in `stpErrors.e20` from the source.",
+            "Related commands section points to the correct siblings with relevant context lines."
+          ],
+          "problems": [
+            "Section ordering deviates from the CLI page section instructions: the prescribed order is 'opening paragraph → usage example → auto-generated reference → examples → related commands'. The page buries `<CliCommandsApiReference>` after 'Important flags', 'Examples', and 'Errors', making a first-time reader scroll past a lot of prose before finding the full flags table.",
+            "The 'When to use' bullet 'Executing one-off maintenance commands against VPC-private resources (via bastion tunneling)' implies `script:run` has built-in bastion tunneling behavior. The provided source files (`src/commands/script-run/index.ts`) show only `initializeStackServicesForLocalResolve` and `getExecutableScriptFunction` — no bastion tunneling logic is visible. This claim is ungrounded in the provided source.",
+            "`--region` is not in `requiredArgs` for `script:run` (`['scriptName', 'stage']`), yet it appears in two of the three 'Examples' blocks without any note about when it is or isn't needed. New users will be unsure whether to include it.",
+            "The 'Important flags' H3 entries for `--scriptName` and `--stage` each contain only a single sentence — thinner than the entries for `--env` and `--assumeRoleOfResource`, which have real examples. The two thin entries add heading bulk without adding usable guidance beyond what the auto-generated reference already provides."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reorder sections to match the prescribed CLI page structure: opening paragraph → usage → auto-generated `<CliCommandsApiReference>` → 'Examples' → 'Related commands'. Move 'When to use', 'Important flags', and 'Errors' either before the reference or inline into prose sections around the examples.",
+            "Either remove the bastion tunneling bullet from 'When to use' or replace it with a more defensible claim (e.g. 'accessing secrets or parameters that live in private infrastructure') and link to the bastion docs separately, since the `script:run` source does not show tunneling logic.",
+            "Add a one-sentence note near the `--region` entries in both 'Important flags' and 'Examples' clarifying that region is optional only if a default has been set via `defaults:configure`, otherwise it is needed to resolve secrets and stack parameters.",
+            "Consolidate or drop the `--scriptName` and `--stage` H3 entries in 'Important flags' — they add no content beyond the auto-generated reference. Keep only `--env` and `--assumeRoleOfResource` as key-flag callouts since those have usage nuance worth explaining in prose.",
+            "Consider adding a short FAQ section (4–6 entries) covering: 'What is a script in Stacktape?', 'How is `script:run` different from `deployment-script:run`?', 'Can I run a script that accesses a private database?', 'How do I pass secrets to a script?' — these are the natural follow-up questions a first-time user will have."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is concise and self-contained — clearly states what the command does and when to reach for it.",
+            "The 'When to use' section gives concrete, realistic scenarios (migrations, seeding, VPC-private access) rather than vague abstractions.",
+            "The `assumeRoleOfResource` precedence behavior (CLI flag overrides config-level property) is documented correctly and matched to the source: `globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource`.",
+            "Error message is grounded: the source throws `stpErrors.e20({ scriptName })` for a missing script definition, and the page documents the failure mode accurately.",
+            "Examples are realistic and copyable. Each bash block contains exactly one command with no inline comment labels leaking into the copy buffer.",
+            "Related commands are well-chosen and link to the correct pages (`deployment-script:run`, `deploy`, `bastion:session`).",
+            "The `<CliCommandsApiReference>` component is used correctly with the proper `command` and `sortedArgs` props — no hand-authored flags table."
+          ],
+          "problems": [
+            "The Usage section claims the command 'executes the script locally or on a bastion host depending on the script type.' This is not directly verifiable from the provided source files. Only `getExecutableScriptFunction` is called in `src/commands/script-run/index.ts`; its implementation (and any bastion routing logic) is not in the provided source. This reads as a confident factual claim about execution routing that may mislead if wrong.",
+            "The Usage section also claims the command 'resolves all directives ($Secret, $ResourceParam) in the script's environment, injects connectTo variables' — attributed to `initializeStackServicesForLocalResolve()`. The function's implementation is not in the provided source files, so these specific behaviors are asserted without grounding. Callers coming from production troubleshooting will trust this description exactly.",
+            "The 'Important flags' section partially duplicates the auto-generated `<CliCommandsApiReference>` at the bottom. The section instructions prescribe: intro → usage example → auto-generated reference → examples → related commands. The current structure buries the auto-generated reference after five additional sections, fragmenting the flag documentation across two places (prose descriptions in 'Important flags' + the full reference below).",
+            "The `--region` flag is shown in example invocations but never mentioned in the 'Important flags' section or flagged as likely-required in practice. A reader deploying to a non-default region may not realize they need it. The source confirms region is not in `requiredArgs` for `script:run`, but in practice a missing `--region` with no default set will fail — a common gotcha worth one sentence."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Soften or remove the 'executes the script locally or on a bastion host depending on the script type' claim in the Usage section. Either verify it against the `getExecutableScriptFunction` implementation or rephrase to something source-grounded: 'Stacktape resolves your stack context (secrets, resource parameters, IAM credentials) and then runs the script.' The bastion routing detail can be added if confirmed.",
+            "Restructure to match the prescribed CLI page flow: opening paragraph → one usage example → `<CliCommandsApiReference>` → non-obvious examples → related commands. Move the 'Important flags' code examples into the 'Examples' section or inline them as context after the reference. This eliminates the dual-coverage confusion and puts the reference where users expect to find it.",
+            "Add a one-line note about `--region` in the Usage or 'Important flags' area. Something like: 'If no default region is configured, you must also pass `--region`. Use `defaults:configure` to set a system-wide default.' This prevents a silent failure mode for first-time users.",
+            "The 'When to use' section links to deployment scripts and container:session as alternatives. Consider also mentioning `bastion:tunnel` as the alternative for long-running interactive access to VPC-private resources (vs. a script that runs one-off commands), since the Related commands section already lists `bastion:session`.",
+            "The Errors section describes the error in blockquote format but does not mention case-sensitivity explicitly in the heading or first sentence. Move the '(case-sensitive)' note to a more prominent position — users scanning for this error will miss it at the end of the paragraph."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 6,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The page clearly identifies the command and includes a minimal usage example with the required `--scriptName` and `--stage` flags.",
+            "The draft uses the required `<CliCommandsApiReference command=\"script:run\" ... />` component instead of hand-authoring a full flags table.",
+            "Shell examples follow the one-command-per-block rule and avoid explanatory `#` comments inside command blocks."
+          ],
+          "problems": [
+            "Several Stacktape-specific behavior claims are not grounded in the provided sources: directive resolution for `$Secret` and `$ResourceParam`, injected `connectTo` variables, local versus bastion execution by script type, and broad access to stack secrets/environment variables/AWS credentials.",
+            "The opening paragraph is 36 words, below the required 40-75 word answer-first target, and it includes unsupported use cases such as migrations, seeding, build steps, and secret access that are not present in the provided source files.",
+            "The CLI page order drifts from the maintained instruction: the generated CLI reference should appear after the usage example, with non-obvious examples after it. The draft inserts `When to use`, hand-written flag explanations, and `Errors` before the generated reference.",
+            "The `Important flags` section duplicates information already supplied by `<CliCommandsApiReference>`, which makes the page longer without adding much verified value.",
+            "The quoted error message and the claim that script names are case-sensitive are not grounded in the provided source files. The source only shows `stpErrors.e20({ scriptName })`, not the rendered message text or matching semantics.",
+            "The draft describes `--assumeRoleOfResource` as giving the script the same AWS permissions as a resource. The source confirms the override/merge behavior but does not provide enough detail to support the full permissions explanation as written.",
+            "The page lacks a concise note that `--region` is not a required argument for `script:run` according to the command definition, even though later examples include it. This can confuse readers about the required invocation.",
+            "There is no FAQ. A CLI reference page does not need a large resource-style FAQ, but a short FAQ or troubleshooting subsection could answer real searches such as required flags, passing env vars, and overriding `assumeRoleOfResource`."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported behavior claims about `$Secret`, `$ResourceParam`, `connectTo` injection, bastion execution, stack secrets, and AWS credential injection unless additional source files are supplied that prove them.",
+            "Rewrite the first paragraph to 40-75 words, keep it self-contained, and ground it in the command definition: `script:run` executes a script defined in configuration, requires `--scriptName` and `--stage`, accepts `--env`, and can use `--assumeRoleOfResource`.",
+            "Move `<CliCommandsApiReference command=\"script:run\" ... />` directly after the usage example to match the CLI page instructions, then keep only genuinely useful examples and related commands below it.",
+            "Replace the unsupported quoted error text with a cautious, source-grounded statement such as: if `scriptName` is not found in `configManager.scripts`, `script:run` throws `stpErrors.e20({ scriptName })`; only quote the final message if `src/config/error-messages.ts` is provided.",
+            "Trim or remove the redundant `Important flags` section; rely on `<CliCommandsApiReference>` for flag definitions and use prose only for practical command patterns."
+          ],
+          "optionalImprovements": [
+            "Add a short sentence near the usage example explaining that the command definition requires `--scriptName` and `--stage`; `--region`, `--configPath`, and other stack/config arguments are available but not listed as required for this command.",
+            "Keep the `--assumeRoleOfResource` precedence detail because it is grounded in `src/commands/script-run/index.ts`, but phrase the permissions effect cautiously unless a source for role assumption behavior is included.",
+            "Add two or three focused examples after the reference: passing one env var, passing multiple env vars, and overriding `assumeRoleOfResource`.",
+            "Consider a compact `Troubleshooting` or `FAQ` section with 3-5 grounded Q&A entries instead of a broad resource-style FAQ."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft correctly identifies the command and includes the generated CLI reference, but it overstates what `script:run` does beyond the provided command definition and implementation. The main problems are unsupported claims about directive/connectTo injection, bastion execution, and automatic access to stack secrets/environment variables/AWS credentials.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"The command resolves all directives (`$Secret`, `$ResourceParam`) in the script's environment, injects `connectTo` variables, and then executes the script locally or on a bastion host depending on the script type.\"",
+              "reason": "The provided `script:run` command sources only support that the command initializes stack services for local resolve, finds the named script, applies `assumeRoleOfResource` from CLI or script properties, and executes the script function. The sources do not document `connectTo` variable injection or bastion-host execution for `script:run`, and the command's allowed args do not include a bastion selector.",
+              "suggestedFix": "Narrow the sentence to the grounded behavior: the command initializes stack services for local resolution, loads the named script from configuration, applies `--assumeRoleOfResource` if provided, and executes the script. Remove `connectTo` injection and bastion-host execution unless additional script-definition source files are supplied.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "await initializeStackServicesForLocalResolve();\n\n  const scriptDefinition = configManager?.scripts?.[scriptName];\n\n  const assumeRoleOfResource =\n    globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'script:run': {\n    description: `Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the `--env` option (e.g., `--env MY_VAR=my_value`).\n\nTo learn more, refer to the [scripts documentation](https://docs.stacktape.com/configuration/scripts/).`,\n    args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      env: env.optional(),\n      scriptName: scriptName.optional(),\n      assumeRoleOfResource: assumeRoleOfResource.optional()\n    },\n    requiredArgs: ['scriptName', 'stage'] as const\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Use it to run database migrations, seed data, invoke build steps, or perform any custom task that needs access to your stack's environment variables, secrets, and AWS credentials.\" Also: the SEO description claims \"full access to stack secrets, environment variables, and IAM roles.\"",
+              "reason": "The sources support executing a configured script, passing environment variables with `--env`, and optionally assuming a deployed resource role. They do not support the broad claim that scripts have full access to stack secrets, stack environment variables, or IAM roles generally.",
+              "suggestedFix": "Say that `script:run` executes a configured script and can receive extra environment variables via `--env`; mention `--assumeRoleOfResource` separately as an optional way to assume one deployed resource's IAM role. Avoid claiming full access to stack secrets or environment variables unless supported by additional script configuration sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the `--env` option (e.g., `--env MY_VAR=my_value`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "const assumeRoleOfResource =\n    globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Executing one-off maintenance commands against VPC-private resources (via bastion tunneling)\"",
+              "reason": "The `script:run` command definition does not include `bastionResource`, `localTunnelingPort`, or another bastion-related argument, and the command implementation provided does not mention bastion tunneling. This would mislead readers into choosing `script:run` for a bastion workflow that is not documented in the provided source.",
+              "suggestedFix": "Remove the bastion-tunneling use case from `script:run`. If the page needs a VPC-private access alternative, link to `bastion:tunnel` or `bastion:session` only as a separate related workflow.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      env: env.optional(),\n      scriptName: scriptName.optional(),\n      assumeRoleOfResource: assumeRoleOfResource.optional()\n    },\n    requiredArgs: ['scriptName', 'stage'] as const"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'bastion:tunnel': {\n    description: `Creates a secure tunnel to a resource through a bastion host."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For scripts that must run automatically during deployment, define them as deployment scripts instead.\"",
+              "reason": "The provided source for `deployment-script:run` says it runs a deployment script and only updates the script's source code, but it does not state that deployment scripts automatically run during deployment. That claim may be true elsewhere, but it is not grounded in the supplied files.",
+              "suggestedFix": "Rephrase to a narrower, sourced comparison: `deployment-script:run` runs a deployment script resource and only updates that script's source code; use `deploy` to update environment variables or other configuration. Avoid saying deployment scripts automatically run during deployment unless lifecycle-hook source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'deployment-script:run': {\n    description: `Runs a deployment script defined in your configuration.\n\nThis command only updates the script's source code. To update environment variables or other configurations, use the `deploy` command.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Running integration test suites that need real AWS credentials\"",
+              "reason": "The command supports `--assumeRoleOfResource`, but the source does not generally state that `script:run` provides real AWS credentials to scripts. The implementation only supports optionally assuming the IAM role of a named deployed resource.",
+              "suggestedFix": "Change this example to something grounded, such as running a configured script with extra `--env` values or running a script while assuming a specific deployed resource role via `--assumeRoleOfResource`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "assumeRoleOfResource: assumeRoleOfResource.optional()"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "properties: { ...scriptDefinition.properties, assumeRoleOfResource }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Double-check the script name in your `stacktape.ts` and ensure it matches exactly (case-sensitive).\"",
+              "reason": "The source supports lookup by exact object key and the specific error when the key is missing, but it does not state case-sensitivity explicitly. The `stacktape.ts` mention is also narrower than the source, which refers to configuration generally rather than only TypeScript configuration.",
+              "suggestedFix": "Use cautious wording: \"Double-check that `--scriptName` matches a key in the `scripts` section of your configuration.\" Remove the explicit case-sensitive claim unless the parser/key-normalization source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "const scriptDefinition = configManager?.scripts?.[scriptName];\n\n  const assumeRoleOfResource =\n    globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource;\n\n  if (!scriptDefinition) {\n    throw stpErrors.e20({ scriptName });\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "The name of the script to run, which must be defined in the <code>scripts</code> section of your configuration."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses the correct route and command name, `/cli/script-run` for `script:run`.",
+            "The usage example includes both required arguments, `--scriptName` and `--stage`, matching `requiredArgs: ['scriptName', 'stage']`.",
+            "The `<CliCommandsApiReference command=\"script:run\" ... />` component targets the correct command.",
+            "The draft correctly states that `--env` can be repeated to pass variables in `name=value` format, matching the generated args reference.",
+            "The draft correctly states that CLI `--assumeRoleOfResource` takes precedence over the script configuration property, matching the implementation's `globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource` logic."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the command name, required arguments, and the generated CLI reference, but it overstates several runtime behaviors that are not grounded in the provided `script:run` sources. The main risk is that readers would expect secret/directive/connectTo/bastion behavior that the command source and command definition do not document.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The command resolves all directives (`$Secret`, `$ResourceParam`) in the script's environment, injects `connectTo` variables, and then executes the script locally or on a bastion host depending on the script type.”",
+              "reason": "The provided `script:run` sources only document executing a configured script, passing `--env`, and optionally using `assumeRoleOfResource`. They do not document automatic directive resolution in the script environment, `connectTo` variable injection, script types, or bastion-host execution for `script:run`.",
+              "suggestedFix": "Replace with a narrower source-grounded sentence such as: “The command initializes Stacktape services for local resolution, finds the named script in the configuration, applies `--assumeRoleOfResource` when provided, and runs the executable script function.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'script:run': {\n    description: `Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the `--env` option (e.g., `--env MY_VAR=my_value`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "await initializeStackServicesForLocalResolve();\n\n  const scriptDefinition = configManager?.scripts?.[scriptName];\n\n  const assumeRoleOfResource =\n    globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says `script:run` is for “one-off maintenance commands against VPC-private resources (via bastion tunneling)” and that execution may happen “on a bastion host depending on the script type.”",
+              "reason": "The `script:run` command source does not expose a bastion-related flag or describe bastion tunneling. Bastion support is documented for separate commands such as `bastion:session` and `bastion:tunnel`, not for `script:run` in the provided source.",
+              "suggestedFix": "Remove the bastion-specific `script:run` claim, or recast it as a separate related command: “For direct access through a bastion host, use `bastion:session` or `bastion:tunnel`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'script:run': {\n    description: `Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the `--env` option (e.g., `--env MY_VAR=my_value`).\n\nTo learn more, refer to the [scripts documentation](https://docs.stacktape.com/configuration/scripts/).`,\n    args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      env: env.optional(),\n      scriptName: scriptName.optional(),\n      assumeRoleOfResource: assumeRoleOfResource.optional()\n    },\n    requiredArgs: ['scriptName', 'stage'] as const\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'bastion:tunnel': {\n    description: `Creates a secure tunnel to a resource through a bastion host."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The page repeatedly claims scripts have access to “stack secrets,” “your stack's environment variables, secrets, and AWS credentials,” and “real AWS credentials.”",
+              "reason": "The provided command definition mentions only scripts, `--env`, and optional role assumption. It does not specifically state that `script:run` injects stack secrets, stack environment variables, or AWS credentials into the script process.",
+              "suggestedFix": "Narrow the intro to the documented behavior: “Use `script:run` for configured scripts that need command-line environment variables or, when configured, the IAM role of a deployed resource.” Avoid claiming secret or credential injection unless the relevant script execution source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the `--env` option (e.g., `--env MY_VAR=my_value`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "assumeRoleOfResource: assumeRoleOfResource.optional()"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For example, `--stage production` resolves `$Secret(...)` and `$ResourceParam(...)` against the production stack.”",
+              "reason": "The source confirms `--stage` is required for `script:run`, but the provided `script:run` sources do not document `$Secret` or `$ResourceParam` resolution behavior for this command.",
+              "suggestedFix": "Keep the sourced part and remove directive-specific behavior: “The stage selects the deployed stack context used by the command.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "requiredArgs: ['scriptName', 'stage'] as const"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\script-run.md",
+                  "quote": "## Required Arguments\n\n- `--scriptName`\n- `--stage`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This gives your script the same AWS permissions as that resource — useful when the script needs to access AWS services (S3, DynamoDB, SQS) with the same grants your workload has.”",
+              "reason": "The source says `assumeRoleOfResource` is the name of the deployed resource whose IAM role should be assumed. It does not explicitly guarantee “the same AWS permissions” or name specific services such as S3, DynamoDB, or SQS for `script:run`.",
+              "suggestedFix": "Use the flag description directly: “`--assumeRoleOfResource` selects a deployed resource whose IAM role should be assumed during script execution.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "const assumeRoleOfResource =\n    globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "\"longDescription\": \"<p>The name of the deployed resource whose IAM role should be assumed during script execution.</p>\\n\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The primary usage example omits `--region`, while several later examples include it without explaining whether it is required.",
+              "reason": "For `script:run`, the source lists only `scriptName` and `stage` as required. Because `region` is optional but appears in examples, the page should avoid implying it is required or explain that it is optional/common stack context.",
+              "suggestedFix": "Add a short sentence after the first example: “`--scriptName` and `--stage` are the only required command-specific arguments; pass `--region` when you do not rely on a configured default or stack context.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "requiredArgs: ['scriptName', 'stage'] as const"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\script-run.md",
+                  "quote": "```bash\nstacktape script:run --scriptName <value> --stage <value>\n```"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The hand-authored “Important flags” section duplicates a flags table that is supposed to be generated by `<CliCommandsApiReference>`.",
+              "reason": "The page instructions say CLI pages should use the auto-generated component for the flags table and never hand-author it. The draft does include the generated component, but the manual flag subsections risk drifting from the source and already include some unsupported elaboration.",
+              "suggestedFix": "Keep only a short “Usage” explanation plus `<CliCommandsApiReference command=\"script:run\" ... />`; move any truly useful patterns into examples grounded in the generated flag descriptions.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses the correct route and command name: `/cli/script-run` for `script:run`.",
+            "The required arguments in the generated reference match the source: `scriptName` and `stage`.",
+            "The `<CliCommandsApiReference command=\"script:run\" ... />` component uses the correct command identifier.",
+            "The related command links point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the required `scriptName` and `stage` flags and includes the required `<CliCommandsApiReference command=\"script:run\" />`, but it overstates what the command source proves and hand-authors flag documentation that should be left to the generated reference. The biggest risk is that readers are told `script:run` handles bastion execution and injected stack context, which is not supported by the provided command sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The command resolves all directives (`$Secret`, `$ResourceParam`) in the script's environment, injects `connectTo` variables, and then executes the script locally or on a bastion host depending on the script type.",
+              "reason": "The `script:run` command source only initializes stack services for local resolve, reads the configured script, optionally resolves `assumeRoleOfResource`, and executes the script function. The CLI definition documents `--env`; it does not document bastion execution, `connectTo` injection, or automatic `$Secret`/`$ResourceParam` environment behavior for this command.",
+              "suggestedFix": "Replace with narrower wording grounded in source, such as: \"The command initializes Stacktape services needed to resolve the configured script, applies any `--env` values, optionally assumes a resource role, and executes the named script.\" Avoid mentioning bastion execution unless a source for script definitions proves it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "await initializeStackServicesForLocalResolve();\n\n  const scriptDefinition = configManager?.scripts?.[scriptName];\n\n  const assumeRoleOfResource =\n    globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'script:run': {\n    description: `Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the \\`--env\\` option"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Use it to run database migrations, seed data, invoke build steps, or perform any custom task that needs access to your stack's environment variables, secrets, and AWS credentials.",
+              "reason": "The source supports only that `script:run` executes a script defined in configuration and can pass `--env`. It does not support broad claims about stack environment variables, secrets, AWS credentials, migrations, data seeding, or build steps for this command.",
+              "suggestedFix": "Keep the use cases as cautious examples, but remove unsupported access claims. For example: \"Use it for one-off operational scripts defined in your Stacktape configuration. You can pass extra environment variables with `--env` and, when needed, run with a deployed resource role using `--assumeRoleOfResource`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "description: `Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the \\`--env\\` option (e.g., \\`--env MY_VAR=my_value\\`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "const assumeRoleOfResource =\n    globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Executing one-off maintenance commands against VPC-private resources (via bastion tunneling).",
+              "reason": "The `script:run` CLI arguments do not include `bastionResource`, `localTunnelingPort`, or another bastion-related option. Bastion support is documented in separate `bastion:session` and `bastion:tunnel` command definitions, not in `script:run`.",
+              "suggestedFix": "Remove the bastion-tunneling use case from this page, or redirect users to `bastion:tunnel` for VPC-private access. Do not imply `script:run` performs bastion tunneling unless script-definition source explicitly supports that path.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'script:run': {\n    description: `Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the \\`--env\\` option"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'bastion:tunnel': {\n    description: `Creates a secure tunnel to a resource through a bastion host."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The page has a hand-authored `## Important flags` section describing `--scriptName`, `--stage`, `--env`, and `--assumeRoleOfResource` before the generated flags reference.",
+              "reason": "The CLI page instructions say to use the auto-generated `<CliCommandsApiReference command=\"X\" sortedArgs={...} />` component for the flags table and never hand-author it. The draft already includes the generated reference, so the manual flag section duplicates and risks drifting from the source-generated argument definitions.",
+              "suggestedFix": "Remove `## Important flags` as a flags-table substitute. If you want extra guidance, keep it as prose under `Examples` or `Usage notes` without restating the generated flag reference field-by-field.",
+              "evidence": [
+                {
+                  "file": "Draft page",
+                  "quote": "## Important flags\n\n### --scriptName (required)\n\nThe name of the script as defined in your configuration's `scripts` section. Must match exactly."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts",
+                  "quote": "export const getCommandInfo = (cmd: StacktapeCommand) => {\n  const def = commandDefinitions[cmd];\n  return {\n    description: def.description,\n    args: Object.fromEntries(Object.keys(def.args).map((argName) => [argName, getArgInfo(cmd, argName)]))"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Run a database migration script against the staging stack: `stacktape script:run --scriptName migrate --stage staging --region eu-west-1`",
+              "reason": "`region` is accepted by the command through shared stack arguments, but it is not a required argument for `script:run`. The page's first usage example correctly shows the required flags; this later prose could imply region is part of the minimum invocation for migrations.",
+              "suggestedFix": "Either keep `--region` and explicitly frame it as optional stack selection, or use the minimal required invocation in the example. The generated reference can cover optional `region`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'script:run': {\n    description: `Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the \\`--env\\` option"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "requiredArgs: ['scriptName', 'stage'] as const"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one CLI command, `script:run`.",
+            "The first usage block includes both required arguments from the command definition: `--scriptName` and `--stage`.",
+            "The draft includes the required `<CliCommandsApiReference command=\"script:run\" sortedArgs={...} />` component.",
+            "The draft correctly states that `--assumeRoleOfResource` CLI input takes precedence over the script configuration property, matching the command implementation."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__script__run\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Opening paragraph is tight and self-contained — covers the command's purpose, required flags, optional flags, and concrete use cases in under 60 words, making it ideal for AEO extraction.",
+            "Four realistic examples cover distinct scenarios (migration, seeding, role assumption, custom config path) with prose context before each code block and no explanatory `#` comments inside the block — fully respects the shell command rules.",
+            "The `<Info>` callout about `assumeRoleOfResource` CLI-flag precedence is directly grounded in the source code (`globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource`) — a useful and accurate nuance.",
+            "The Errors section calls out `stpErrors.e20({ scriptName })` which matches the actual throw site in `src/commands/script-run/index.ts` — giving the reader a precise signal about what can go wrong and why.",
+            "Each command block is a single command on its own — no copy-buffer pollution from alternative invocations combined under `#` label comments.",
+            "`<CliCommandsApiReference>` is used correctly with comprehensive `sortedArgs` covering all documented flags for the command."
+          ],
+          "problems": [
+            "The page never links to the scripts configuration docs. The CLI source description explicitly says 'To learn more, refer to the scripts documentation' but the draft drops this pointer. A first-time reader who landed here won't know how to define a script in their config, which is a prerequisite for using this command.",
+            "No FAQ section. The style guide requires one for reference pages and explicitly lists CLI reference pages under scope. Common reader questions ('What is a Stacktape script?', 'How is script:run different from deployment-script:run?', 'What does assumeRoleOfResource do?') are unanswered.",
+            "'Related commands' lists four entries. The section instructions for CLI pages say 1-3 closest siblings. `bastion:tunnel` and `container:session` are loosely related at best — they're debugging tools, not script execution siblings.",
+            "The `sortedArgs` array passed to `<CliCommandsApiReference>` includes a `templateId` argument. The `script:run` command definition in source uses `...universalArgs, ...stackArgs, ...configDependentArgs` — without seeing the full `universalArgs` export it is impossible to confirm `templateId` belongs here, but it also appears under `init` as an explicit addition, raising a grounding concern."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a link to the scripts configuration docs (https://docs.stacktape.com/configuration/scripts/) near the opening paragraph or after the usage example, matching what the CLI source description says. A first-timer needs to know how to write a script before they can run one.",
+            "Add a FAQ section with 4-6 Q&A pairs. Suggested questions: (1) 'How do I define a script in my Stacktape config?' (2) 'What is the difference between script:run and deployment-script:run?' (3) 'What does --assumeRoleOfResource actually do?' (4) 'Does script:run require a deployed stack?' (5) 'Can I pass secrets to a script?'",
+            "Trim 'Related commands' to the 3 tightest siblings. `deployment-script:run` and `deploy` are clearly closest; keep whichever of the other two is more thematically adjacent and remove the other.",
+            "Verify whether `templateId` should appear in the `sortedArgs` for `script:run`. If it is only in `universalArgs` for some commands but not `script:run`, remove it from the sortedArgs array to prevent a misleading flag entry in the reference table.",
+            "Consider adding one sentence in the opening paragraph or Usage section clarifying that `--region` is not strictly required but must be supplied (or configured as a default) to identify the deployed stack — the current phrasing 'when you do not rely on a configured default' is accurate but slightly opaque for a newcomer."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Required args (`--scriptName`, `--stage`) are accurately grounded in the source `requiredArgs` array — no inflation or omission.",
+            "The `<Info>` callout about CLI flag vs. config-property precedence for `assumeRoleOfResource` is correctly derived from the `||` short-circuit in `src/commands/script-run/index.ts`.",
+            "The Errors section accurately names `stpErrors.e20({ scriptName })` and correctly flags case-sensitivity, matching the source code path.",
+            "Four distinct examples each cover a genuinely different scenario (migration, seeding with multiple env vars, role assumption, custom config path) — all copyable and realistic.",
+            "Correctly notes that `--region` is not formally required (not in `requiredArgs`) but should be passed when no default is configured — an accurate and practically useful nuance.",
+            "Structure matches CLI section instructions: intro → usage → auto-generated reference → examples → related commands."
+          ],
+          "problems": [
+            "The Related commands section lists four entries (`deployment-script:run`, `deploy`, `container:session`, `bastion:tunnel`) when the section instructions specify 1–3 closest siblings. `container:session` (interactive shell in a running container) and `bastion:tunnel` (VPC tunnel via bastion) are not close siblings of `script:run` — they serve entirely different operational goals and their inclusion may confuse readers about what `script:run` is for."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Trim Related commands to the 1–3 closest siblings. `deployment-script:run` and `deploy` are the genuine siblings; remove `container:session` and `bastion:tunnel`, or replace one with `debug:logs` if you want a debugging-adjacent link.",
+            "The prose between the usage example and the `<CliCommandsApiReference>` block could briefly mention that `--env` is repeatable (one flag per variable) so readers know how to pass multiple values without having to read the examples first.",
+            "Consider linking the mention of the `scripts` section in the intro paragraph to the scripts documentation URL that appears in the source command description (`https://docs.stacktape.com/configuration/scripts/`) — readers who land here may not know where scripts are configured."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly states the command’s purpose, required flags, optional env vars, and role-assumption use case.",
+            "Usage and examples are realistic, copyable, and comply with the one-command-per-shell-block rule.",
+            "The page uses the required <CliCommandsApiReference command=\"script:run\" sortedArgs={...} /> component instead of hand-authoring a flags table.",
+            "The `assumeRoleOfResource` precedence note is grounded in src/commands/script-run/index.ts and useful for real users."
+          ],
+          "problems": [
+            "The first paragraph says `--scriptName` and `--stage` are required, but the usage example omits `--region` while later prose says to pass `--region` when no default is configured. That is technically okay because source marks only `scriptName` and `stage` as required, but the page could be clearer about what happens when no region/default is available.",
+            "The Examples section is useful but thin on decision guidance. It shows migrations, seeding, role assumption, and config path, but does not explain when to choose `script:run` versus `deployment-script:run` until Related commands.",
+            "The `Errors` section mentions case sensitivity. This is a reasonable inference from object key lookup, but it is not explicitly documented in the source; the wording should be cautious if the source-grounding verifier is strict.",
+            "Related commands lists four links even though the section instruction asks for the 1-3 closest siblings. `bastion:tunnel` is adjacent operationally but less directly related than the other three.",
+            "The page lacks an FAQ. CLI reference pages may not need a full resource-style FAQ, but a short FAQ would improve answer-engine extraction for common questions like env vars, IAM role assumption, and `script:run` versus `deployment-script:run`."
+          ],
+          "mandatoryFixes": [
+            "Reduce Related commands to 1-3 closest siblings, per the CLI section instruction."
+          ],
+          "optionalImprovements": [
+            "Add a short note near Usage explaining that `--region` is optional for this command only when a default region or other resolution path is available; otherwise users should pass it explicitly.",
+            "Add a compact “When to use” paragraph or table comparing `script:run`, `deployment-script:run`, and `container:session`.",
+            "Rephrase the case-sensitive error note cautiously, for example: “Stacktape looks up the script by the exact `scripts` key in the resolved configuration.”",
+            "Consider adding a small FAQ with 3-5 questions focused on `--env`, role assumption, region/defaults, and choosing between script-related commands."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and implementation. I found one material factual issue: the `script:run` examples omit `--region` even though the page's own CLI reference table says the operation can require it through shared stack arguments in several operational contexts is not enough? Wait need final JSON. I need be careful. Let's inspect exact. Source requiredArgs scriptName, stage only. Region not required for script:run. So don't flag. Need find issues maybe no issues. But must return JSON only. Positive findings. Wait if no issues, summary says no publication-blocking issues. But maybe should identify invented link? Draft links /resources/advanced/deployment-scripts exists, /cli/deploy exists, /cli/container-session, /cli/bastion-tunnel, /cli/defaults-configure all in index. Good. But ",
+          "issues": [],
+          "positiveFindings": [
+            "The draft correctly states that `script:run` executes a script defined in the configuration and that `--scriptName` and `--stage` are required.",
+            "The draft correctly documents `--env`, `--assumeRoleOfResource`, and the CLI-flag precedence over the script configuration property.",
+            "The draft uses the required `<CliCommandsApiReference command=\"script:run\" ... />` component and does not include forbidden Stacktape configuration examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided CLI command definition and runtime implementation. I found one unsupported specificity around case sensitivity; the rest of the command shape, required args, `--env`, and `--assumeRoleOfResource` behavior are grounded in the supplied sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Double-check the script name in your configuration file — the match is case-sensitive.”",
+              "reason": "The runtime source shows that `scriptName` is used as a direct key lookup into `configManager.scripts`, and it throws `stpErrors.e20({ scriptName })` when no script definition is found. The provided source does not explicitly document case sensitivity. While JavaScript object key lookup is case-sensitive, the draft states it as CLI behavior rather than narrowly describing the lookup mechanism.",
+              "suggestedFix": "Narrow the sentence to the grounded behavior: “The command looks up `configManager.scripts[scriptName]`, so the value must match the script key in your configuration.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "const scriptDefinition = configManager?.scripts?.[scriptName];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts",
+                  "quote": "if (!scriptDefinition) {\n    throw stpErrors.e20({ scriptName });\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies `scriptName` and `stage` as the required arguments for `script:run`.",
+            "The `--env` examples are grounded in the command definition and generated CLI summary, including repeated use for multiple variables.",
+            "The `--assumeRoleOfResource` precedence note is supported by the runtime implementation, which reads the CLI arg before the script configuration property.",
+            "The page links only to routes present in the provided documentation navigation index.",
+            "The draft uses the required `<CliCommandsApiReference command=\"script:run\" ... />` component and does not contain forbidden Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly complete for the `script:run` CLI reference. It covers the command purpose, required arguments, key optional arguments, generated API reference, and realistic examples without violating the shell snippet rules.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Use it for one-off operational tasks like database migrations, data seeding, or maintenance scripts.",
+              "reason": "The provided source only says `script:run` executes a script defined in configuration and can pass environment variables. It does not identify migrations, seeding, or maintenance as intended use cases for this command. Those examples may be plausible, but they are not grounded in the provided source files.",
+              "suggestedFix": "Narrow the wording to the sourced behavior, or frame the examples as examples of scripts a project may define rather than documented Stacktape use cases. For example: “Use `script:run` when you need to execute a named script from the `scripts` section without deploying the full stack.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "description: `Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the `--env` option (e.g., `--env MY_VAR=my_value`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\script-run.md",
+                  "quote": "Executes a script defined in your configuration.\n\nYou can pass environment variables to the script using the `--env` option"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`--scriptName` and `--stage` are the only required command-specific arguments.",
+              "reason": "The command source says `scriptName` and `stage` are required arguments for `script:run`; it does not distinguish “command-specific” required arguments from shared required arguments. Because `stage` comes from shared stack args, this wording is defensible but unnecessarily ambiguous for a CLI reference page.",
+              "suggestedFix": "State the sourced fact directly: “`script:run` requires `--scriptName` and `--stage`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'script:run': {\n    description: `Executes a script defined in your configuration."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "requiredArgs: ['scriptName', 'stage'] as const"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Run a database migration script against the staging stack in a specific region: `stacktape script:run --scriptName migrate --stage staging --region eu-west-1`",
+              "reason": "The command definition requires only `scriptName` and `stage`; `region` is available but not required for `script:run`. The example is valid as a specific-region invocation, but the surrounding wording could imply `--region` is necessary for migrations or staging runs.",
+              "suggestedFix": "Keep the example, but add a short caveat before it: “Add `--region` when you want to override or avoid relying on a configured default region.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      env: env.optional(),\n      scriptName: scriptName.optional(),\n      assumeRoleOfResource: assumeRoleOfResource.optional()\n    },\n    requiredArgs: ['scriptName', 'stage'] as const"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CliCommandsApiReference command=\"script:run\" ... />` instead of hand-authoring a separate flags table.",
+            "Every shell block contains exactly one command and includes the required `--scriptName` and `--stage` flags.",
+            "The draft correctly documents that the CLI `--assumeRoleOfResource` value overrides the script configuration value, matching the runtime precedence in `src/commands/script-run/index.ts`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\script-run.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T23:11:17.898Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\script-run\\index.ts": "bf1f0fb9c7ac5724add128d115afbf68cb9d01a9",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\script-run.md": "ddcf234cb171756afe20460c165052784603267d"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

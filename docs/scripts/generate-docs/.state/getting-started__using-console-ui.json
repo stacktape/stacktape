@@ -1,0 +1,829 @@
+{
+  "pageId": "getting-started__using-console-ui",
+  "pageRoute": "getting-started/using-console-ui",
+  "startedAt": "2026-05-16T15:06:54.019Z",
+  "updatedAt": "2026-05-16T15:22:07.887Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\getting-started__using-console-ui\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "First paragraph is well-scoped, self-contained, and accurately frames the page's purpose without meta-framing.",
+            "All claims are grounded in the source files: KPI card names (Total Deployments, Avg Duration, Error Rate, Automation Rate, AWS Costs), alarm trigger types, Issues error classifications, supported languages, CLI 3.8.0 requirement, and cost report cadence all match the Console source exactly.",
+            "The feature summary table (Logs / Metrics / Alarms / Issues / Costs / Secrets × Console location + CLI equivalent) is high-signal and scannable — the most useful single element on the page for a returning user.",
+            "Skip-ahead Info callout at the top and explicit 'Next →' link at the bottom satisfy the getting-started section requirements.",
+            "The Alarms section correctly captures the two-step creation model (saved in Console immediately; CloudWatch/EventBridge wiring applied on next deploy), grounded in Explanations.tsx alarmRules.",
+            "Issues section accurately describes log-pattern detection, supported languages, CLI version requirement, sampling/safety limits, and the two-step enable/disable lifecycle — all sourced from Explanations.tsx.",
+            "ConsoleScreenshot components are used for the three most complex sections (Overview, Alarms, Issues), giving visual anchors where prose alone is insufficient."
+          ],
+          "problems": [
+            "'What you got for free' H2 section opens with a paragraph that lists every feature already covered in the preceding seven sections word-for-word — this is padded backbone content restating earlier points. The table within it is useful but the prose is purely redundant.",
+            "The Logs and Metrics sections describe Console functionality in detail but never tell the reader where in the Console nav to navigate. The source's Navigation.tsx has no top-level '/logs' or '/metrics' route — these are per-stage views accessed from project/stage detail pages. Neither section names the navigation path, leaving a first-time user unable to locate either feature. They only clarify the location ('Per-stage detail') in the table at the very end of the page.",
+            "Unexplained AWS jargon in the Alarms section: 'EventBridge notification routing' appears without any plain-language context. The getting-started audience has 'light-to-moderate AWS experience' and this term is used as if self-evident.",
+            "Page length significantly exceeds the 400–800 word target stated in the getting-started section instructions. Each section reads at reference-page depth rather than hands-on step depth, which risks overwhelming a first-time user who just wants to know what the Console offers before moving on to CI/CD."
+          ],
+          "mandatoryFixes": [
+            "Remove the redundant prose paragraph from 'What you got for free' (the paragraph that re-lists all features the preceding sections already covered). Either keep only the table, rename the section to something like 'Quick reference', and drop the prose entirely — or fold the table into the final section without a dedicated H2. Do not pad backbone sections with restated content. (Penalizes completeness and scannability.)"
+          ],
+          "optionalImprovements": [
+            "Add a one-sentence Console navigation hint in the Logs and Metrics sections — e.g., 'Navigate to a project → select a stage → open the Logs tab' — so first-time users can actually find these views rather than learning they exist but not where.",
+            "Replace 'EventBridge notification routing' with plain language, e.g. 'the underlying alert delivery infrastructure', or add a parenthetical ('AWS EventBridge routes the alerts behind the scenes') to keep the term without losing the low-AWS audience.",
+            "Front-load the alert channel prerequisite in the Alarms section. Currently it appears after the main description, but a first-time user will try to create an alarm rule before knowing they need a channel configured first. Move 'Alarms require alert channels... Set up a channel first' to the opening of the section.",
+            "Trim each section by roughly 20–30% and rely on 'See X for the full guide' links earlier, so total page length approaches 400–800 words. The current depth is appropriate for reference pages, not a getting-started tour.",
+            "Add a screenshot or a brief nav hint for the Costs and Secrets sections, which have detailed prose but no visual anchor — inconsistent with the three sections that do have ConsoleScreenshot components."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Alarm trigger types are enumerated precisely and match the source (lambda-error-rate, lambda-duration, all six database metrics, HTTP API Gateway error rate/latency, ALB error rate/unhealthy targets) — no invented triggers.",
+            "Issues section is unusually accurate: CLI version 3.8.0 requirement, supported language list, two-step activation behavior, and the log-pattern limitation are all source-grounded from Explanations.tsx.",
+            "The summary table at the end is genuinely useful — it adds new information (Console nav paths and CLI equivalents) rather than just restating prose, and is highly scannable.",
+            "The alarm lifecycle behavior ('saving a rule in the Console does not immediately change CloudWatch; changes take effect on the next deployment') is accurately derived from both Explanations.tsx and AlarmsRulesPage.tsx.",
+            "Skip-ahead link and next-step link are both present and correctly positioned per Getting Started section requirements."
+          ],
+          "problems": [
+            "The 'What you got for free' section's prose paragraph restates every feature already covered in the preceding six H2 sections, adding no new information before the summary table. This matches the 'backbone section padded with restated content' mandatory-fix pattern.",
+            "The Console's Notifications feature (deployment event alerts — deploy success/failure/cancellation) is entirely absent. Navigation.tsx and Explanations.tsx both show it as a distinct Monitoring section with its own rules and history pages, separate from metric-based alarms. A reader finishing this page has no idea deployment event alerts exist.",
+            "The Issues section omits a meaningful production constraint sourced directly from Explanations.tsx: 'This also uses one of the two CloudWatch Logs subscription-filter slots on each monitored log group. On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured.' Teams with log forwarding will find Issues silently disabled on the next deploy — that's exactly the kind of gotcha this audience needs.",
+            "The Issues section does not mention the configurable high-volume sampling rate (10%–100%), documented in Explanations.tsx, which affects whether occurrence counts are exact or estimates and whether rare one-off errors are captured during error bursts.",
+            "Page is approximately 1,000–1,200 words before code blocks, roughly 50% over the Getting Started section target of 400–800 words. Each section is longer than needed for a step-4 orientation page."
+          ],
+          "mandatoryFixes": [
+            "The 'What you got for free' prose paragraph ('Every feature on this page — the overview dashboard, log streaming... was provisioned by the single stacktape deploy command...') restates content already established in the intro and in every preceding H2. Trim it to one transitional sentence that introduces the table (e.g., 'Here is a quick reference for where each feature lives in the Console and its CLI equivalent.'), or remove the prose entirely and open the section directly with the table."
+          ],
+          "optionalImprovements": [
+            "Add a brief Notifications subsection or callout within the Monitoring area. Even one sentence — 'The Console also includes Notification rules for deployment events (success, failure, cancellation); configure them under Monitoring → Notifications' — prevents readers from thinking alarms are the only alert mechanism.",
+            "In the Issues section, add a caveat sourced from Explanations.tsx: issue detection occupies one of the two CloudWatch Logs subscription-filter slots per log group. Stacks that already have Stacktape log forwarding configured will have Issues silently skipped on the next deployment — mention this so teams using log forwarding aren't surprised.",
+            "In the Issues section, briefly mention the sampling rate option (10%–100%): at lower rates occurrence counts become estimates and rare errors can be missed, which matters for high-traffic workloads.",
+            "Tighten each section by 20–30% to approach the 400–800 word Getting Started target. The Issues section in particular contains more operational depth than the other sections and could be summarized more aggressively with a link to the full Observability — Issues page."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first opening paragraph (57 words) is self-contained and accurately summarizes what the Console provides — suitable for AI extraction verbatim.",
+            "Alarm trigger types are enumerated precisely from source: Lambda error rate, Lambda duration, six database metrics, HTTP API Gateway error rate and latency, ALB error rate and unhealthy targets — no invented triggers.",
+            "Issues section is thoroughly grounded in Explanations.tsx: correct CLI version (3.8.0), supported languages (TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, PHP), log-pattern detection limitation, and the two-step apply behavior are all sourced accurately.",
+            "Time range selector values (7d, 14d, 30d, 90d, 6m, 1y) match the TIME_RANGE_TABS array in OverviewPage.tsx exactly.",
+            "The KPI cards (total deployments, avg duration, error rate, automation rate, AWS costs) and configurable gadget grid match the GADGETS registry and KpiCard components in source.",
+            "The skip-ahead Info callout at the top satisfies the getting-started requirement to avoid trapping returning users in the linear flow.",
+            "Summary table at the end of 'What you got for free' maps features to Console navigation paths and CLI equivalents — genuinely useful reference, not padding.",
+            "Secrets section correctly notes account-and-region scoping, matching SecretsPage.tsx behavior.",
+            "No Stacktape configuration examples — appropriate for a Console tour page; no opportunity for YAML or fenced-TypeScript violations.",
+            "FAQ correctly omitted — getting-started pages are explicitly exempt from the FAQ requirement."
+          ],
+          "problems": [
+            "H2 heading 'The Overview dashboard' opens with a definite article — inconsistent with the 1-5 word noun-form style guide (e.g., 'Overview' or 'Overview dashboard'). Minor but creates heading-form inconsistency across the section list.",
+            "Logs and Metrics sections are each 2-3 sentences plus a cross-link, making them the thinnest sections on the page. For a reader seeing these features for the first time, there is no concrete signal about what value they get — 'you can live-tail or search logs' and 'metrics are surfaced with no setup' are accurate but thin. A reader has no reason to click through unless they already know why they want logs.",
+            "Alarms section buries the prerequisite: a reader must configure alert channels before alarm rules deliver any notifications, but this is mentioned only in the last sentence. Readers who scan to the code path (or who click 'create alarm rule' immediately) will hit a dead end.",
+            "Issues section description mixes detection patterns ('tracebacks') with error-type taxonomy ('exit errors', 'handler-not-found failures'). The errorTypeLabels in IssuesPage.tsx lists caught/uncaught/unhandled_rejection/exit_error/handler_not_found/panic — 'tracebacks' is a log-pattern signal from Explanations.tsx, not an error type. The sentence is not wrong, but the framing slightly conflates two different concepts.",
+            "CLI commands stacktape secret:create, stacktape secret:get, stacktape secret:delete are linked at /cli/secret-create etc., but these routes are not confirmed in the provided source files. If those doc pages don't exist, the links will 404."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Shorten 'The Overview dashboard' H2 to 'Overview' or 'Overview dashboard' (drop the definite article) for consistency with the noun-form heading style.",
+            "Expand the Logs section by one sentence that explains the concrete value: e.g., 'Unlike raw CloudWatch, the Console pre-filters by project and stage and lets you jump directly from an Issues entry to the surrounding log context.' This makes the section extractable as a standalone snippet.",
+            "Expand the Metrics section similarly — one concrete sentence naming a few useful metrics the reader can act on (e.g., 'Lambda error rate and duration percentiles help spot regressions right after a deploy; database CPU and connection count signal scaling pressure before outages') rather than listing metric names without framing.",
+            "Front-load the alert channels prerequisite in the Alarms section: open with 'Alarm rules require an alert channel (Slack, Teams, email, Discord, or webhook) to deliver notifications — set one up first, then create alarm rules.' Moving this before the code-of-record details prevents readers from hitting a dead end.",
+            "Add one sentence about the Issues sampling rate control (documented in Explanations.tsx): 'The sampling rate (1–100%) limits the fraction of matching error events forwarded to the detector — useful for high-traffic workloads where every error is logged repeatedly.' This is a configuration detail that matters at scale.",
+            "Verify that /cli/secret-create, /cli/secret-get, and /cli/secret-delete routes exist in the docs site before publishing; if they don't, either link to a parent /cli page or remove the links."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The draft is well-structured for a Getting Started page and accurately represents most Console features. The navigation paths, alarm trigger types, issues detection mechanism, and secrets management descriptions align with the source code. However, there are a few factual inaccuracies: the Overview costs gadget is described as \"by AWS service\" when the source titles it \"by Project\", and the summary claim that everything was provisioned by the deploy command overstates reality given that alarms and issues require Console configuration before deploy wires them up.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The Overview dashboard also surfaces costs by AWS service and by Stacktape resource type, so you can quickly identify which resources drive spend.",
+              "reason": "The OverviewPage.tsx GADGETS array defines the cost gadget as `{ id: 'costs-project', title: 'AWS Costs by Project' }`, not 'by AWS service'. The UI title shown to users says 'AWS Costs by Project'. While the underlying TRPC endpoint is named `overviewCostsByService`, the user-facing gadget title contradicts the draft's 'by AWS service' claim.",
+              "suggestedFix": "Change to 'The Overview dashboard also surfaces costs by project and by resource type' to match the gadget titles in the source ('AWS Costs by Project' and 'AWS Costs by Resource').",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "{ id: 'costs-project', title: 'AWS Costs by Project', defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 } }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "{ id: 'costs-resource', title: 'AWS Costs by Resource', defaultLayout: { w: 6, h: 2, minW: 3, minH: 2 } }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Every feature on this page — the overview dashboard, log streaming, metrics collection, alarm infrastructure, automatic error tracking, cost attribution, and secrets management — was provisioned by the single `stacktape deploy` command you ran in the previous step.",
+              "reason": "Alarms require creating alarm rules in the Console BEFORE deploy provisions the CloudWatch alarms. Issues require enabling issue detection for projects in the Console BEFORE deploy adds the CloudWatch Logs subscription filters. Secrets are independently managed in AWS Secrets Manager, not provisioned by deploy. The claim that a single deploy provisions all of these is misleading.",
+              "suggestedFix": "Rephrase to acknowledge that basic infrastructure (logs, metrics, cost tagging) is provisioned by deploy, while alarms, issues, and secrets require additional Console configuration. For example: 'The basic observability infrastructure — log streaming, metrics collection, and cost tagging — was provisioned by your deploy. Alarms, issues, and secrets require a one-time Console setup, after which subsequent deploys wire them in automatically.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Deploy-time issue detection wiring is supported by Stacktape CLI version 3.8.0 and newer. Older CLI versions will not add the CloudWatch Logs subscriptions needed for new stacks to report Issues."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Logs | Per-stage detail | Metrics | Per-stage detail (in the summary table under 'Where in Console')",
+              "reason": "The Navigation.tsx source shows no dedicated 'Logs' or 'Metrics' top-level navigation items. These features appear to be accessed through project/stage detail pages (evidenced by navigate patterns like `/projects/${projectName}/${stage}/...`), but 'Per-stage detail' is not a named section in the Console navigation. Other entries in the same table use actual navigation paths (e.g. 'Monitoring → Alarms', 'Organization → Costs').",
+              "suggestedFix": "Consider using a more specific location description that matches the Console structure, or add a brief note that logs and metrics are accessed by navigating into a specific project and stage.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\components\\Navigation\\Navigation.tsx",
+                  "quote": "const monitoringRoutes: Route[] = [\n  {\n    icon: RiMailSendLine,\n    path: '/channels',\n    heading: 'Channels'\n  },"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Overview KPI cards (Total Deployments, Avg Duration, Error Rate, Automation Rate, AWS Costs) with sparkline trends exactly match the OverviewPage.tsx source implementation.",
+            "The time range selector values (7d, 14d, 30d, 90d, 6m, 1y) exactly match the TIME_RANGE_TABS constant in the source.",
+            "The alarm trigger types listed (Lambda error rate, Lambda duration, database CPU/memory/storage/latency/connections, HTTP API Gateway error rate and latency, ALB error rate and unhealthy targets) match the getTriggerLabel function in AlarmsRulesPage.tsx perfectly.",
+            "The Issues detection description (log-pattern based, supported languages: TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, PHP) accurately reflects the Explanations.tsx source.",
+            "The CLI 3.8.0 requirement for Issues CloudWatch Logs subscription filters matches the Explanations.tsx source.",
+            "The Costs page breakdown (by project, stage, region with AWS account and month selectors) exactly matches the CostsAndUsagePage.tsx implementation.",
+            "Console navigation paths in the summary table (Monitoring → Alarms, Monitoring → Issues, Organization → Costs, Configuration → Secrets) correctly match the category headings and route paths in Navigation.tsx.",
+            "All cross-links point to valid routes in the documentation pages navigation index.",
+            "The alarm rule lifecycle description (saved immediately in Console, CloudWatch alarms created on next deploy) accurately reflects the Explanations.tsx alarmRules text.",
+            "The Secrets page functionality (create, view, update, delete, scoped to AWS account and region) matches the SecretsPage.tsx modals and selectors."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the Console navigation and several provided Console pages, but it overstates what is available immediately after deploy and describes some Console behavior more broadly than the source supports. The main corrections should narrow automatic/zero-configuration claims around Issues, alarms, costs, and secrets, and avoid claiming every Overview gadget links to details.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Logs, metrics, alarms, issues, cost breakdown, and secrets management are all available without extra configuration. Every stack you deployed in the previous step is already reporting data here.\"",
+              "reason": "The source explicitly says Issues start disabled for new projects, issue detection requires configuration and CLI 3.8.0+ deployment wiring, costs may take time to appear, and alarm rules only create CloudWatch alarms after matching stacks are deployed. The draft overstates immediate, no-configuration availability across multiple Console features.",
+              "suggestedFix": "Narrow the opening to say the Console becomes the place to inspect deployed stacks, with Overview data, costs, secrets, alarms, and Issues available depending on the feature and setup. Explicitly note that Issues must be enabled and deployed with CLI 3.8.0+, costs are generated daily, and alarms require alarm rules.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\IssuesPage\\IssuesPage.tsx",
+                  "quote": "New projects start with\n            Issues turned off."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Reports are generated daily from AWS Cost and Usage Reports and may take up to a day to appear."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual\n        CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is\n        deployed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"Each gadget links through to the relevant detail page, so the Overview acts as your daily check-in surface.\"",
+              "reason": "The Overview source shows some gadgets receive click handlers, but several rendered gadgets are plain charts or tables without a click target. \"Each gadget links\" is too broad.",
+              "suggestedFix": "Say that key Overview items such as recent deployments, open issues, recent alerts, and budget alerts link to detail pages. Avoid saying every gadget links through.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "case 'deploy-freq':\n          return <DeploymentFrequencyChart organizationId={orgId} timeRange={timeRange} />;"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "case 'costs-resource':\n          return <CostsByResourceChart organizationId={orgId} />;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape automatically collects metrics from every resource type that emits them (Lambda functions, databases, load balancers, container workloads).\"",
+              "reason": "The provided Console sources do not support the claim that metrics are automatically collected from every emitting resource type, nor do they list these metric categories. The page source list does not include a Metrics page or metric query implementation.",
+              "suggestedFix": "Use narrower wording grounded in the page metadata and navigation, such as: \"The Console includes metrics views for deployed resources; see Observability — Metrics for the detailed metric reference.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\components\\Navigation\\Navigation.tsx",
+                  "quote": "const monitoringRoutes: Route[] = [\n  {\n    icon: RiMailSendLine,\n    path: '/channels',\n    heading: 'Channels'\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"Alarm rules monitor AWS CloudWatch metrics and alert you when thresholds are breached.\"",
+              "reason": "The source says alert delivery depends on the channel specified in the rule, and CloudWatch alarms/EventBridge routing are created or updated on the next deployment of matching stacks. The draft's first sentence omits that alarm rules are Console definitions until deployed and can read as immediate alerting behavior.",
+              "suggestedFix": "Revise to: \"Alarm rules define CloudWatch metric thresholds in the Console. Stacktape creates or updates the actual CloudWatch alarms and EventBridge notification routing on the next deployment of each matching project and stage.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "When a metric crosses your defined threshold, an alert is sent to the channel you specify."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual\n        CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is\n        deployed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape streams logs from every Lambda function and container workload to CloudWatch. You can live-tail or search historical logs directly from the Console, filtered by project, stage, and resource.\"",
+              "reason": "No provided source file documents the Console logs page, live tail, historical search, or the exact project/stage/resource filters. This is a Console UI flow claim without supporting console-app source in the provided list.",
+              "suggestedFix": "Keep only the grounded CLI link, or rewrite cautiously: \"Use the Console and `stacktape debug:logs` for deployed workload logs; see Observability — Logs for the detailed workflow.\"",
+              "evidence": []
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"The Costs page shows your AWS spend broken down by project, stage, and region.\"",
+              "reason": "The Costs page source headline is \"Costs per stack\" and its table columns are project name, stage, region, and month-to-date costs. The source also says the explanation is costs broken down by project and stage. Region is displayed, but the page is not a general regional breakdown dashboard.",
+              "suggestedFix": "Say: \"The Costs page lists month-to-date costs per stack, with project, stage, and AWS region shown for each row.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "headline=\"Costs per stack\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "columnHeaders={['Project name', 'Stage', 'Region', 'Month-to-date costs', ['', 30]]}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Secrets are scoped to an AWS account and region.\"",
+              "reason": "The Secrets page UI selects an AWS account and AWS region to list secrets, but the provided explanatory source only says secrets are stored in AWS Secrets Manager. The exact scoping statement is plausible from AWS, but not explicitly documented as Stacktape behavior in the provided source.",
+              "suggestedFix": "Ground the statement in the UI: \"The Secrets page asks you to choose an AWS account and AWS region before listing or changing secrets.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx",
+                  "quote": "label={\n              <span css={{ ...typographyCss, fontWeight: 'bold', marginLeft: '5px', fontSize: '0.825rem' }}>\n                AWS account\n              </span>\n            }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx",
+                  "quote": "label={\n              <span css={{ ...typographyCss, fontWeight: 'bold', marginLeft: '5px', fontSize: '0.825rem' }}>\n                AWS region\n              </span>\n            }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"Every feature on this page — the overview dashboard, log streaming, metrics collection, alarm infrastructure, automatic error tracking, cost attribution, and secrets management — was provisioned by the single `stacktape deploy` command you ran in the previous step.\"",
+              "reason": "Several listed features are Console features or require separate setup. Issues can be disabled and require configuration plus deployment wiring. Alarm rules are saved in the Console and actual alarms/routing are created on the next deployment of matching stacks. Secrets are managed through the Console or CLI against AWS Secrets Manager, not provisioned by the prior stack deploy.",
+              "suggestedFix": "Replace this section with a narrower summary: \"A deploy gives the Console enough stack metadata to show deployments, costs when reports arrive, and stack-scoped operational views. Some features are opt-in: configure alarm rules, enable Issues, create alert channels, and manage secrets separately.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\IssuesPage\\IssuesPage.tsx",
+                  "quote": "Configure Issues for one or more projects to start capturing runtime errors here. Matching stages need to be\n            deployed with Stacktape CLI 3.8.0 or newer before AWS log subscriptions are added. New projects start with\n            Issues turned off."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual\n        CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is\n        deployed."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Manage sensitive values (API keys, passwords, tokens) stored securely in AWS Secrets Manager."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Overview dashboard description is mostly grounded: the default `/overview` route, KPI cards, time range tabs, and listed dashboard gadgets are visible in `OverviewPage.tsx`.",
+            "The Issues section is substantially grounded in `Explanations.tsx` and `IssuesPage.tsx`, including CLI 3.8.0+, log-pattern detection, supported language families, status filters, project/stage filtering, and the limitation that detection is not full tracing.",
+            "The alarm trigger list in the draft matches the trigger labels in `AlarmsRulesPage.tsx`.",
+            "All markdown links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is not an API resource page, so primary-type API completeness and union-variant checks do not apply. The main risks are unsupported Console workflow claims and a few over-broad statements that go beyond the provided Console source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape streams logs from every Lambda function and container workload to CloudWatch. You can live-tail or search historical logs directly from the Console, filtered by project, stage, and resource.”",
+              "reason": "The provided source files do not include a Console logs page or log-viewing implementation. The only grounded Console navigation related to deployments is the recent deployments click-through to a deployment detail route with `?tab=logs`, which does not support the broader claims about every Lambda/container workload, live tail, historical search, or filter dimensions.",
+              "suggestedFix": "Narrow the Console claim to what is sourced, or remove the Console live-tail/search details. For example: “Recent deployments on the Overview dashboard link to the deployment detail view, including its logs tab. From the CLI, use `stacktape debug:logs` for log inspection.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "navigate(`/projects/${projectName}/${stage}/deployment-detail/${opId}?tab=logs`)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CloudWatch metrics for your resources — invocation counts, error rates, duration percentiles, CPU/memory utilization, request counts — are surfaced in the Console with no setup.”",
+              "reason": "The provided source files show Overview deployment statistics and cost widgets, but they do not include a metrics Console page or source for the listed CloudWatch metric categories. The draft makes a broad metrics-surfacing claim that is not grounded in the supplied files.",
+              "suggestedFix": "Replace this section with a narrower, sourced statement about Overview metrics, or defer details to the linked Observability metrics page without enumerating unsupported metric names.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "<KpiCard label=\"Total Deployments\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "<KpiCard label=\"Avg Duration\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "<KpiCard label=\"Error Rate\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Each gadget links through to the relevant detail page, so the Overview acts as your daily check-in surface.”",
+              "reason": "The Overview source wires click handlers for recent deployments, open issues, recent alerts, and budget status, but several chart/table gadgets are rendered without navigation callbacks. Saying each gadget links through is broader than the implementation.",
+              "suggestedFix": "Change to “Several Overview gadgets link to detail pages, including recent deployments, open issues, recent alerts, and budget alerts.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "case 'deploy-freq': return <DeploymentFrequencyChart organizationId={orgId} timeRange={timeRange} />;"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "case 'recent-deploys': return ( <RecentDeploymentsTable organizationId={orgId} onClickItem={(projectName, stage, opId) => navigate(`/projects/${projectName}/${stage}/deployment-detail/${opId}?tab=logs`)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every feature on this page — the overview dashboard, log streaming, metrics collection, alarm infrastructure, automatic error tracking, cost attribution, and secrets management — was provisioned by the single `stacktape deploy` command you ran in the previous step.”",
+              "reason": "The supplied source supports some Console features, but not that all listed features are provisioned by one deploy. It also contradicts sourced details for alarms and issues, where Console settings are saved/configured separately and AWS wiring changes on a subsequent deployment for matching stacks.",
+              "suggestedFix": "Split the claim. Say the deployed stack appears in Console and Overview data is available there. For alarms and issues, state the sourced two-step behavior: configure in Console, then redeploy matching stages for AWS wiring changes.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Changes apply in two steps. For stacks that already have issue detection wiring, the Console starts or stops accepting new issue events for matching projects and stages immediately. The AWS wiring changes on the next deployment of each matching stage"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“For most teams, this replaces the need for a separate error-tracking service.”",
+              "reason": "The source describes Issues as log-pattern-based and explicitly says it is not a complete observability or tracing system. The replacement claim is product guidance that is not grounded in the supplied source and may overstate the feature for teams needing full APM/tracing behavior.",
+              "suggestedFix": "Use the source-backed caveat: “Issues is best for recurring runtime failures that appear in logs. Teams that need full tracing or APM should keep a dedicated observability tool.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Because detection starts from log messages, it can miss errors that do not match those patterns and it can also pick up application logs that merely look like errors. It is best for recurring runtime failures, not a complete observability or tracing system."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Reference them in your Stacktape configuration using the `$Secret()` directive — they're injected at runtime without appearing in your config file or version control.”",
+              "reason": "The provided Console source supports that secrets are stored in AWS Secrets Manager and can be referenced in Stacktape configuration, but it does not mention the `$Secret()` directive or the specific runtime injection behavior. Those may be true elsewhere, but they are not grounded in the supplied files for this page.",
+              "suggestedFix": "Either cite/source the configuration directives file in the page’s source set, or narrow this sentence to: “Secrets created here can be referenced in your Stacktape configuration.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Secrets created here can be referenced in your Stacktape configuration and are injected into your workloads at runtime."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx",
+                  "quote": "headline=\"Secrets\""
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft preserves the Getting Started sequence and ends with the required next-step link to `/getting-started/ci-cd`.",
+            "The Overview dashboard section is mostly well grounded in `OverviewPage.tsx`, including the default route, KPI card names, time ranges, and gadget list.",
+            "The Alarms section correctly reflects the two-step behavior for saved Console rules and CloudWatch/EventBridge changes on the next matching deployment.",
+            "The Issues section includes important sourced caveats: CLI 3.8.0 requirement, log-pattern-based detection, supported language families, status filters, project/stage filtering, and the fact that detection is not full tracing."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\getting-started__using-console-ui\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Skip-ahead Info callout and clear next-step link correctly implement the getting-started page contract — returning users are not trapped.",
+            "Quick reference table genuinely earns its place by consolidating CLI equivalents, Console locations, and setup requirements that are not fully visible from the prose alone.",
+            "Issues section is the strongest on the page: it explains the log-pattern detection approach, names supported runtimes, calls out the CLI 3.8.0+ requirement, quantifies the high-volume sampling mechanism, and honestly caveats that detection is not a full APM system — all grounded in the source.",
+            "Alarms section accurately describes the deferred wiring behavior from the source (rules saved in Console, CloudWatch alarms created or updated on the next deploy) — an important nuance that would otherwise confuse readers wondering why nothing fired.",
+            "First paragraph is self-contained and answers 'what is this and why does it matter' cleanly, with no 'this guide will cover' framing.",
+            "ConsoleScreenshots are placed one per major section with descriptive alt text that communicates the UI content even before the image loads."
+          ],
+          "problems": [
+            "Logs and Metrics sections tell the reader to 'use the Console' but never say WHERE in the Console. The Navigation source shows logs and metrics live under Projects → Stage detail. A first-time user who just deployed and opens the Overview dashboard cannot find their application logs from this page.",
+            "The Alarms section uses 'EventBridge notification routing' without explanation — this is invisible AWS infrastructure jargon that adds no value for a low-AWS-experience reader and can safely be replaced with 'alert routing' or omitted.",
+            "The Issues section uses 'CloudWatch Logs subscription filters' twice — a phrase that means nothing to the target audience. The Explanations.tsx source uses 'log subscriptions' or 'log routing' in plain prose and the doc page should match.",
+            "The page links `stacktape secret:create`, `stacktape secret:get`, and `stacktape secret:delete` to `/cli/secret-create`, `/cli/secret-get`, `/cli/secret-delete`. These paths are not confirmed in the provided source files (the git status list is truncated). If the routes are wrong, the section contains broken links.",
+            "The Config Editor (template editor) is a prominent nav item from the Navigation source and was featured in the earlier getting-started step as a visual config tool, but it is completely absent from this page despite being in the Console sidebar."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add one sentence in the Logs section telling readers where to navigate: 'In the Console, open your project, select the stage, and choose the Logs tab.' This is the most important missing piece for the target audience.",
+            "Add an equivalent one-sentence navigation hint in the Metrics section ('open the project stage and choose the Metrics tab') before deferring to the Observability page.",
+            "Replace 'EventBridge notification routing' in the Alarms section with 'alert routing' — same meaning, zero jargon cost.",
+            "Simplify 'CloudWatch Logs subscription filters' to 'log subscriptions' in the Issues section to match the plain-language register of the rest of the page.",
+            "Verify `/cli/secret-create`, `/cli/secret-get`, and `/cli/secret-delete` exist as doc routes before publishing; if they do not, link to a single Secrets reference page or remove the links.",
+            "Add a two-sentence mention of the Config Editor under the Overview section or as its own short section — it was highlighted in the first getting-started step and it lives in the main nav, so a reader opening the Console will see it and wonder what it is.",
+            "The 'Quick reference' heading reads like a summary section (padding risk), but it earns its place via the CLI column. Consider trimming the word 'Quick' — 'Reference' or 'Console features at a glance' is more scannable at small font sizes."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Quick Reference table is the page's strongest element — one lookup surface confirms setup requirements, CLI equivalents, and Console locations without re-reading prose sections.",
+            "Alarm trigger enumeration (all 12 trigger types) is precisely verified against AlarmsRulesPage.tsx — no invented types, no omissions.",
+            "Issues section accurately calls out the two-step activation model: Console toggle changes Console-side immediately, AWS CloudWatch Logs subscription filters change on next deploy with CLI 3.8.0+. Both facts are grounded in Explanations.tsx.",
+            "Cost section correctly captures the daily-report delay and the per-account + per-month filter model from CostsAndUsagePage.tsx.",
+            "Skip-ahead link and next-step link are in place and section instructions are followed correctly.",
+            "Overview dashboard KPI cards and time-range tabs (7d/14d/30d/90d/6m/1y) accurately reflect OverviewPage.tsx source — no invented fields.",
+            "'If you have no deployed stages yet, the Console shows a getting-started guide instead' is verified directly against the OverviewPage.tsx hasStages conditional rendering."
+          ],
+          "problems": [
+            "Alert channel types listed as 'Slack, Teams, email, Discord, or webhook' go beyond what the source confirms. Explanations.tsx channels entry says 'for example, a Slack channel, an email address, or a webhook' — Teams and Discord are not mentioned in any provided source file. A Getting Started reader who follows this page to set up an alarm channel may expect Teams or Discord to be available and find they are not, or find they are — either way the claim is unsupported and should be scoped to what the source confirms.",
+            "Logs and Metrics sections are each 3-4 sentences that immediately redirect to other pages with no hands-on entry point. For a Getting Started step described in section instructions as 'hands-on', these sections add no actionable guidance for a reader who just deployed their first stack and wants to see their logs right now. Even a one-line example of what to look for, or a note about where logs appear by default in the Console, would improve the section.",
+            "The Notifications feature (deployment event alerts — deploy succeeded, failed, canceled) appears as a distinct nav item under Monitoring (Channels, Notifications → Rules/History, Alarms…) but is entirely absent from the page. A reader finishing this step will not know that deployment failure alerting is separate from metric alarms and requires its own notification rule setup. This is not a critical omission for Getting Started but it's a gap that will cause confusion when a reader goes to the Console and sees 'Notifications' as a prominent sibling to 'Alarms'.",
+            "CLI commands in the Quick Reference table (stacktape info:operations, stacktape issues:list, stacktape issues:resolve, stacktape secret:get, stacktape secret:delete) cannot be verified from the provided source files. The page links these to CLI reference paths as if they are confirmed commands. If any of these command names are wrong, the Quick Reference becomes actively misleading."
+          ],
+          "mandatoryFixes": [
+            "Narrow the alert channel types claim to match source. Replace 'Slack, Teams, email, Discord, or webhook' with the source-confirmed phrasing. Explanations.tsx says 'a Slack channel, an email address, or a webhook' as examples. Either quote those three types specifically, or write 'alert channels such as Slack, email, and webhooks' with a link to the Channels docs page where the reader can see the full list — do not assert Teams and Discord as supported without source grounding."
+          ],
+          "optionalImprovements": [
+            "Logs section: add a one-sentence orientation about where logs appear in the Console for a reader who just deployed — e.g. navigate to the project stage detail page and open the Logs tab. The current section only describes CLI usage and links out, which does not serve the 'hands-on' Getting Started audience.",
+            "Notifications section: add a short paragraph (or a row in the Quick Reference table) for Monitoring → Notifications. Distinguish it from alarms: notifications fire on deployment events (deploy succeeded, failed, canceled), not metric thresholds. A reader who wants to know when their deploy fails will look for this and not find it.",
+            "The secret create bash command shows --secretValue sk-abc123 inline, which ends up in shell history. Consider showing the flag with a placeholder like YOUR_SECRET_VALUE and adding a note that omitting --secretValue causes the CLI to prompt for it interactively, avoiding shell history exposure.",
+            "The Overview dashboard description mentions 'KPI cards for total deployments, average duration, error rate, automation rate, and AWS costs' but doesn't mention the gadget grid is configurable (user can rearrange, add, or remove gadgets). The DashboardGrid component in OverviewPage.tsx makes this clear — worth one sentence so readers aren't confused when they find a grid that looks different from the screenshot.",
+            "Consider adding a one-line mention of the Activity page (Organization → Activity in Navigation.tsx) which shows a log of CLI operations across the organization — useful for teams who want to know who ran which deploy and when."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first paragraph is self-contained (56 words), names the resource and its value immediately — extractable as a Featured Snippet.",
+            "Quick Reference table at the bottom is excellent: maps each Console feature to its navigation path, CLI equivalent, and setup requirement in one scannable surface.",
+            "Skip-ahead Info callout at the top and 'Next →' footer link satisfy the Getting Started linear-flow requirements.",
+            "Source grounding is solid throughout: KPI card labels, gadget list, time-range tabs (7d/14d/30d/90d/6m/1y), Issues CLI 3.8.0 version requirement, alarm trigger types, and daily cost-report latency all match the console-app source files exactly.",
+            "Issues section is the page's most thorough section — covers detection scope, language support, opt-in requirement, version gate, log-pattern caveat, and sampling, all grounded in Explanations.tsx.",
+            "No forbidden style violations: no YAML Stacktape config, no StacktapeConfig type import, no fenced TypeScript block with defineConfig, no marketing language.",
+            "CLI command links are provided for every major feature, giving developers an immediate alternative to the Console workflow.",
+            "The Alarms section correctly distinguishes between saving a rule in the Console and when the actual CloudWatch wiring takes effect — a non-obvious two-phase behaviour that the source confirms."
+          ],
+          "problems": [
+            "H2 heading 'The Overview dashboard' uses a definite article inconsistently with all other H2s ('Logs', 'Metrics', 'Alarms', 'Cost dashboards', 'Secrets management'). The 'The' prefix adds no information and breaks the noun-form convention.",
+            "The Logs section and Metrics sections each consist of a single sentence that immediately defers to other docs pages. Even for a Getting Started page, this gives the reader no sense of what they will actually see — CloudWatch metrics for what resources? What does a log entry look like? One concrete sentence each would improve extractability.",
+            "H2 'Issues (automatic error tracking)' is longer than the 1–5 word noun-form target. The parenthetical clarification belongs in the section's opening sentence, not in the heading.",
+            "The page is noticeably longer than the 400–800 word Getting Started target. The Overview dashboard section in particular could be trimmed — the gadget enumeration ('deployment frequency charts, recent deployments, open issues, recent alerts, cost breakdowns by project and by resource type, budget status, and automation ratio') could be compressed to a shorter list now that the Quick Reference table covers the same ground.",
+            "The bash example command 'stacktape secret:create --secretName MY_API_KEY --secretValue sk-abc123' embeds a hard-coded secret value. This is a trivially realistic example, but the surrounding prose does not note that passing secret values as CLI flags is visible in shell history — a relevant gotcha for security-conscious readers."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rename H2 'The Overview dashboard' to 'Overview' to match the noun-form convention used by every other section heading on the page.",
+            "Rename H2 'Issues (automatic error tracking)' to 'Issues' and move 'automatic error tracking' into the opening sentence of the section.",
+            "Add one concrete sentence to each of the Logs and Metrics sections describing what the reader will see — e.g. 'The Console shows CloudWatch log streams for each Lambda function and buildpack container; clicking a stream filters to that workload's entries.' This makes those sections extractable by AI engines rather than pure redirects.",
+            "Trim the gadget enumeration in the Overview section. The Quick Reference table already maps features to Console paths — the paragraph-length list of gadget names reads as padding once the table exists. A two-sentence summary of what the dashboard shows (deployments, costs, open issues) is sufficient.",
+            "Mention the event-sampling-rate option (100% default, lower to reduce detector invocations during error bursts) in the Issues section — it is surfaced in Explanations.tsx and is a meaningful operational decision that teams will face once they enable Issues.",
+            "Consider adding a one-line prose note before the 'stacktape secret:create' bash example flagging that passing secret values via CLI flags records them in shell history, and recommending environment-variable or stdin input for sensitive values in automation contexts.",
+            "The Notifications feature (deployment-event alerts scoped to succeeding/failing deploys, living at /notifications in the Console nav) is present in the source but not mentioned anywhere on the page. A single-sentence mention under Alarms or in the Quick Reference table would make the Console navigation picture complete for readers who want deploy-failure alerts without setting up metric-based alarms."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Below the KPIs, a configurable gadget grid displays deployment frequency charts, recent deployments, open issues, recent alerts, cost breakdowns by project and by resource type, budget status, and automation ratio.",
+              "reason": "The word 'configurable' implies users can customize the gadget grid (add/remove/reorder gadgets). The source defines a GADGETS array with defaultLayout properties (suggesting some runtime flexibility like resize/drag), but whether users can actually configure which gadgets appear is not directly confirmed from the provided DashboardGrid import alone. Additionally, the list omits 5 of 12 gadgets (Deployments by Runner Type, Deployments by Trigger, Deployments by Project, Deployments by User, and the implicit separation of Deployment Frequency as stacked area chart).",
+              "suggestedFix": "Consider saying 'a dashboard grid' or 'a gadget grid' without 'configurable' unless the DashboardGrid component confirms user customization. Optionally mention the additional gadgets or use 'including' to signal the list is non-exhaustive.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "const GADGETS: GadgetConfig[] = [\n  { id: 'deploy-freq', title: 'Deployment Frequency', defaultLayout: { w: 6, h: 2, minW: 3, minH: 2 } },\n  {\n    id: 'recent-deploys',\n    title: 'Recent Deployments',\n    scrollable: true,\n    defaultLayout: { w: 2, h: 2, minW: 2, maxW: 4, minH: 2 }\n  },"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The Console includes metrics views for deployed resources. CloudWatch metrics — invocation counts, error rates, duration percentiles, CPU/memory utilization — are accessible for resources that emit them.",
+              "reason": "The provided source files (Navigation.tsx, OverviewPage.tsx, etc.) do not show a dedicated 'Metrics' page route in the Console navigation. The draft claims metrics are under 'Project → Stage detail' in the Quick Reference table, but no source file confirms this navigation path. The specific metrics listed (invocation counts, error rates, duration percentiles, CPU/memory utilization) are not enumerated in the provided console-app source.",
+              "suggestedFix": "Keep the claim general ('the Console provides metrics views') and avoid listing specific metric names unless source confirms them. The Quick Reference 'Project → Stage detail' path is reasonable but unverified — consider softening or removing the location claim if no source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\components\\Navigation\\Navigation.tsx",
+                  "quote": "const routes: Route[] = [\n  {\n    path: '/overview',\n    icon: BiCategoryAlt,\n    heading: 'Overview',\n    isDefaultRoute: true\n  },\n  {\n    path: '/template-editor',\n    icon: LuFileJson2,\n    heading: 'Config editor'\n  }\n];"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Overview dashboard description is accurately grounded: all five KPI cards (Total Deployments, Avg Duration, Error Rate, Automation Rate, AWS Costs) with sparkline trends match the OverviewPage.tsx source exactly.",
+            "Time range selector options (7d, 14d, 30d, 90d, 6m, 1y) match the TIME_RANGE_TABS constant precisely.",
+            "The Issues section is thoroughly and accurately grounded in both IssuesPage.tsx and Explanations.tsx — supported languages, error types (uncaught, unhandled_rejection, exit_error, handler_not_found, panic), CLI version requirement (3.8.0+), filtering capabilities, and log-pattern-based detection are all confirmed.",
+            "Alarm trigger types listed in the draft (Lambda error rate, Lambda duration, database CPU/memory/storage/latency/connections, HTTP API Gateway error rate and latency, ALB error rate and unhealthy targets) exactly match the 12 trigger types in AlarmsRulesPage.tsx.",
+            "The Costs page description matches CostsAndUsagePage.tsx — table columns (Project name, Stage, Region, Month-to-date costs), AWS account/month selectors, and drilldown navigation to stage-level costs are all confirmed.",
+            "The Secrets page behavior (select AWS account + region, then CRUD secrets) accurately reflects SecretsPage.tsx with its account selector, region selector, and create/show/update/delete modals.",
+            "All cross-links point to valid documentation routes from the provided navigation index — no invented links.",
+            "Console navigation paths in the Quick Reference table (Monitoring → Alarms, Monitoring → Issues, Organization → Costs, Configuration → Secrets) match the Navigation.tsx route structure and category headings.",
+            "The 'getting-started guide' fallback when no stages exist correctly reflects the source condition: hasResolvedProjects && !hasStages renders the GettingStarted component.",
+            "The Overview's isDefaultRoute: true in Navigation.tsx confirms the draft's claim that Overview is the Console's default landing route."
+          ],
+          "summary": "The draft is well-grounded in the provided console-app source files. Claims about the Overview dashboard KPIs, time range options, gadget contents, Issues behavior, Alarms trigger types, Costs page layout, Secrets page workflow, and Console navigation paths are all accurately supported. Cross-links are all valid. Only two low-severity issues found: (1) the term 'configurable' for the gadget grid is plausible but not directly confirmed from the source, and (2) specific metric types listed for the Console metrics view lack source confirmation in the provided files. No high or medium severity issues detected."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Console source files and avoids the forbidden Stacktape config patterns. The main risks are a few over-specific Console/CLI claims that are not backed by the provided source list, plus one overstatement around Issues replacing error tracking.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“Supported triggers include Lambda error rate, Lambda duration, database CPU/memory/storage/latency/connections, HTTP API Gateway error rate and latency, and Application Load Balancer error rate and unhealthy targets.”",
+              "reason": "The source supports these alarm families, but the database trigger wording is too broad. The Console trigger labels distinguish free memory, free storage, read latency, write latency, CPU utilization, and connection count. Writing “memory/storage/latency/connections” hides those exact trigger types and could mislead readers configuring alarm rules.",
+              "suggestedFix": "Use the exact Console trigger names: Lambda error rate, Lambda duration, database connection count, database CPU utilization, database free memory, database free storage, database read latency, database write latency, HTTP API Gateway error rate, HTTP API Gateway latency, Application Load Balancer error rate, and Application Load Balancer unhealthy targets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlarmsPage\\AlarmsRulesPage.tsx",
+                  "quote": "{ label: 'Database connection count', value: 'database-connection-count' },\n      { label: 'Database CPU utilization', value: 'database-cpu-utilization' },\n      { label: 'Database free memory', value: 'database-free-memory' },\n      { label: 'Database free storage', value: 'database-free-storage' },\n      { label: 'Database read latency', value: 'database-read-latency' },\n      { label: 'Database write latency', value: 'database-write-latency' }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“For most teams, this replaces the need for a separate error-tracking service.”",
+              "reason": "The source frames Issues as a log-pattern-based error inbox and explicitly cautions that it is not complete observability or tracing. The draft’s replacement claim is broader than the source supports and could make readers overestimate the feature compared with a full error-tracking/APM product.",
+              "suggestedFix": "Replace with narrower wording, for example: “For many teams, Issues is a useful first error inbox for recurring runtime failures. Keep a dedicated tracing or APM tool when you need request traces, custom context, release tracking, or client-side error capture.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Because detection starts from log messages, it can miss errors that do not match those patterns and it can also pick up application logs that merely look like errors. It is best for recurring runtime failures, not a complete observability or tracing system."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You select an AWS account and a month to see the breakdown, then drill into an individual stage for resource-level detail.”",
+              "reason": "The provided Costs page source supports month-to-date costs per stack and navigation from a row to a stage costs route, but it does not show or describe resource-level detail. The available explanation says costs are broken down by project and stage, not by resource.",
+              "suggestedFix": "Narrow the claim to what the source shows: “You select an AWS account and a month to see month-to-date costs per stack, then open a stack’s costs page for more detail.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Shows your AWS costs broken down by project and stage, so you can see exactly where your money is going."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "columnHeaders={['Project name', 'Stage', 'Region', 'Month-to-date costs', ['', 30]]}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The CLI supports filter patterns, time ranges, and live tailing from your terminal” and “Use `stacktape debug:metrics` for CLI-based queries.”",
+              "reason": "The draft makes specific CLI capability claims, but no CLI command source files are included in the provided source list for this page. These may be true, but they are not verifiable from the supplied sources.",
+              "suggestedFix": "Either verify these against the relevant `src/commands/**` files before publishing, or keep the Getting Started page less specific and point readers to the linked CLI reference pages for command options.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The Console includes metrics views for deployed resources. CloudWatch metrics — invocation counts, error rates, duration percentiles, CPU/memory utilization — are accessible for resources that emit them.”",
+              "reason": "The provided source files include the Overview dashboard and navigation, but not the project/stage metrics view implementation. The metric names are plausible, yet this page’s source list does not directly ground which metric views or metric series are exposed in the Console.",
+              "suggestedFix": "Either add the relevant Console metrics source files to the page source set or narrow the section to: “The Console includes metrics views for deployed resources; see Observability — Metrics for the detailed metric reference.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the documented `stacktape debug:logs` command and links it to `/cli/debug-logs`, not an invented `stacktape logs` command.",
+            "All markdown cross-links in the draft point to routes present in the provided navigation index.",
+            "The Overview dashboard description is largely grounded in `OverviewPage.tsx`, including KPI labels, time ranges, gadget titles, and empty-state behavior.",
+            "The Issues section is mostly well grounded in `Explanations.tsx` and `IssuesPage.tsx`, including explicit enablement, CLI 3.8.0 wiring, filters, status values, language coverage, grouping behavior, and log-pattern caveats.",
+            "The page contains no hand-authored Stacktape YAML, no plain-object `StacktapeConfig` examples, and no fenced Stacktape TypeScript config examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API completeness issues were found because this Getting Started page has no primary config type, no documented union-type properties, and no Stacktape configuration `<CodeBlock intellisense>` examples to audit. I found a few source-grounding risks in the Console prose that should be tightened before publication.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The CLI supports filter patterns, time ranges, and live tailing from your terminal.”",
+              "reason": "The provided source list does not include the `debug:logs` CLI implementation or a logs page source. The only grounded logs-related evidence in the provided Console source is a navigation target to a deployment detail logs tab, not the CLI feature set.",
+              "suggestedFix": "Either remove the CLI capability details from this Getting Started page or verify them against `src/commands/**/debug-logs` before keeping them. A grounded version from the current sources would be narrower: “Recent deployments can open deployment details with the logs tab selected, and the CLI reference covers `stacktape debug:logs`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx",
+                  "quote": "navigate(`/projects/${projectName}/${stage}/deployment-detail/${opId}?tab=logs`)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CloudWatch metrics — invocation counts, error rates, duration percentiles, CPU/memory utilization — are accessible for resources that emit them.”",
+              "reason": "The provided sources do not include the metrics page, metrics CLI source, or resource metric mappings. This detailed metric list is not grounded in the Console source provided for this page.",
+              "suggestedFix": "Narrow the section to what is source-backed or add the metrics source files. For example: “The Console includes operational views for deployed stacks; use the Metrics deep dive for resource-specific CloudWatch metric coverage.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\components\\Navigation\\Navigation.tsx",
+                  "quote": "const monitoringRoutes: Route[] = ["
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For most teams, this replaces the need for a separate error-tracking service.”",
+              "reason": "The Issues source describes log-pattern detection as useful but explicitly says it is not a complete observability or tracing system. The replacement claim is broader than the source supports and may mislead readers with tracing, source maps, release tracking, or user-session needs.",
+              "suggestedFix": "Replace with a bounded recommendation: “For teams that mainly need recurring runtime error grouping, Issues can reduce routine log searching. Keep a dedicated APM or error tracker when you need tracing, user/session context, or richer application telemetry.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Because detection starts from log messages, it can miss errors that do not match those patterns and it can also pick up application logs that merely look like errors. It is best for recurring runtime failures, not a complete observability or tracing system."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“then drill into an individual stage for resource-level detail.”",
+              "reason": "The Costs source shows a per-stack table with a row action that navigates to a stage costs route, but the provided source does not show that target page or confirm resource-level detail there. The Overview page separately has an “AWS Costs by Resource” gadget, but that does not prove the Costs page drill-down behavior.",
+              "suggestedFix": "Narrow the wording to the source-backed behavior: “select an AWS account and month, then open a stack’s costs page from the table row.” Only mention resource-level drill-down if the target project/stage costs page source is included and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "columnHeaders={['Project name', 'Stage', 'Region', 'Month-to-date costs', ['', 30]]}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "navigate(`/projects/${item.serviceName || (item as TODO).projectName}/${item.stage}/costs`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“The Secrets page lets you create, view, update, and delete secrets stored in AWS Secrets Manager… they’re injected at runtime without appearing in your config file or version control.”",
+              "reason": "The Console source supports create/view/update/delete and AWS Secrets Manager storage. The final clause is ambiguous because the `$Secret()` directive reference appears in configuration; what should not appear in config or version control is the secret value.",
+              "suggestedFix": "Clarify: “Reference secrets with `$Secret()` in Stacktape configuration; the secret value stays in AWS Secrets Manager instead of being committed to your config file.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx",
+                  "quote": "import type { SecretListEntry } from '@aws-sdk/client-secrets-manager';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx",
+                  "quote": "<Button\n            key=\"create-new-secret-button\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx",
+                  "quote": "<ShowSecretModal"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx",
+                  "quote": "<DeleteSecretModal"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx",
+                  "quote": "<UpdateSecretModal"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Secrets created here can be referenced in your Stacktape configuration and are injected into your workloads at runtime."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "No forbidden hand-authored YAML or plain-object `StacktapeConfig` examples appear in the draft.",
+            "The page preserves the Getting Started flow and ends with the required next-step link to `/getting-started/ci-cd`.",
+            "The Overview dashboard description is mostly well grounded in `OverviewPage.tsx`, including KPI cards, time ranges, gadget names, and empty-state behavior.",
+            "The Alarms and Issues sections are comparatively strong: the trigger list, deployment timing, CLI 3.8.0 requirement, status filters, and log-pattern caveat are all backed by the provided Console source."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\getting-started\\using-console-ui.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-16T15:22:07.887Z",
+  "inputHashes": {
+    "C:\\Projects\\console-app\\src\\components\\Navigation\\Navigation.tsx": "a190942d99a7035b7ba85c557e420ef6e3778bde",
+    "C:\\Projects\\console-app\\src\\Explanations.tsx": "3f2604010b1492917861d68a6940ceab8d04a693",
+    "C:\\Projects\\console-app\\src\\pages\\OverviewPage\\OverviewPage.tsx": "96418dc6ef8c0152ea1419de1a8d7b287dc6794f",
+    "C:\\Projects\\console-app\\src\\pages\\IssuesPage\\IssuesPage.tsx": "3c6f4195bac1383cef7c5f90747094e9da99b28a",
+    "C:\\Projects\\console-app\\src\\pages\\AlarmsPage\\AlarmsRulesPage.tsx": "b8855cf6f0ebe9adff68845b12a375f7ea39e0fa",
+    "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx": "7556c6f8e46a7484dd0e5c1eb0cd67b6dae3a66c",
+    "C:\\Projects\\console-app\\src\\pages\\SecretsPage\\SecretsPage.tsx": "427a95dcdc7dd2a0a60fc7a998666e1677da46bf"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

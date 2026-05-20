@@ -1,0 +1,1098 @@
+{
+  "pageId": "deployment-and-lifecycle__rollbacks",
+  "pageRoute": "deployment-and-lifecycle/rollbacks",
+  "startedAt": "2026-05-17T14:36:44.927Z",
+  "updatedAt": "2026-05-17T14:53:57.491Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\deployment-and-lifecycle__rollbacks\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Decision table at the top immediately directs the reader to the right command — this is the correct design for a two-command page with distinct failure scenarios.",
+            "The two rollback commands are consistently kept separate across every section, preventing the reader from conflating them.",
+            "Rollback safety warnings section is well-grounded in the source (`unsafeDirectives`, `hasTypeScriptTransforms`, `hasAfterDeployHooks`, `hasCustomDirectives`) and gives genuinely actionable context.",
+            "CLI examples are clean — one command per fenced block, no explanatory `#` comments inside the blocks.",
+            "The page accurately reflects that rollback requires no local config or source code (`commandRequiresConfig: false` in source), and the FAQ reinforces this for CI/CD scenarios.",
+            "The new-version-number creation behavior during rollback (rolling back from v5 to v3 creates v6) is correctly derived from the source and explained clearly — this is a non-obvious design choice.",
+            "FAQ covers all three required categories: Stacktape-specific questions, underlying AWS behavior, and choosing/comparison questions, and most answers are self-contained snippets suitable for AI extraction.",
+            "`<Warning>` callouts are placed at the right moments (disableAutoRollback in production, skipped resources leaving stack out of sync) without overuse."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` component used in the 'How it works' subsection is not in the documented MDX component palette and may not exist. If the component is unknown to the MDX renderer, the entire 'How it works' block renders broken or as raw JSX for the reader.",
+            "`--resourcesToSkip` parameter documented in the 'Skipping problematic resources' subsection and in the decision table is NOT grounded in the provided `cf-rollback/index.ts` source. The command source accesses no such arg from `globalStateManager.args` — the entire `commandCfRollback` function uses no CLI arguments beyond the stack target. This flag may not exist.",
+            "`triggerRollbackOnAlarms` and `monitoringTimeAfterDeploymentInMinutes` in `deploymentConfig` are documented in detail (code example, prose, config reference table) but are not grounded in either provided source file. The rollback command source checks `rollbackSafety` metadata but contains no alarm monitoring logic.",
+            "The deployment configuration reference table documents `disableAutoRollback`, `terminationProtection`, and `cloudformationRoleArn` without any grounding in the provided source files. These may be real properties but cannot be verified from the available source.",
+            "No `<ApiReference>` component appears on the page. While this is a deployment page (not a strict resource page), the `deploymentConfig` block has a typed shape in the schema. A `<ApiReference definitionName='DeploymentConfigProps' />` (or equivalent type name from the schema) would anchor the configuration reference section and replace the manually maintained prose table."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace `<FlowDiagram>` with a numbered markdown list or `<ol>` steps. The five steps (Resolve target version → Verify artifacts → Check rollback safety → Deploy old template → Restore bucket content) read cleanly as a numbered list and remove the dependency on an unverified component.",
+            "Either verify `--resourcesToSkip` against the CLI arg schema / a broader source file, or remove the 'Skipping problematic resources' subsection and its mention in the decision table. Documenting a flag that may not exist is worse for first-time users than omitting the subsection.",
+            "Verify `triggerRollbackOnAlarms` and `monitoringTimeAfterDeploymentInMinutes` against the `deploymentConfig` type definition. If real, keep the section; if not found, either remove or narrow to a prose description of CloudFormation's native rollback-on-alarm mechanism without claiming these as Stacktape config properties.",
+            "Look up the canonical type name for `deploymentConfig` in `@generated/schemas/config-schema.json` or `types/stacktape-config/*.d.ts` and replace the prose configuration reference table with `<ApiReference definitionName='...' />` so the table stays in sync with the schema automatically.",
+            "In the decision table row for `stacktape cf:rollback --resourcesToSkip`, replace the column content with a note referencing the dedicated subsection only if the flag is confirmed to exist — or remove the row entirely pending confirmation."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear two-command distinction established immediately with a decision table — the reader can self-route in under 10 seconds without reading prose.",
+            "Safety warnings section is tightly grounded in the source's `checkRollbackSafety()` logic — all four warning categories (unsafeDirectives, hasTypeScriptTransforms, hasAfterDeployHooks, hasCustomDirectives) are accurately represented.",
+            "Version numbering format (v000001, v000002, etc.) and the 'new version number' behavior of rollback are correctly sourced from the command logic.",
+            "The distinction between 'stack healthy but code is broken' vs 'stack itself is in a failed CF state' is explained precisely and drives good routing. `commandRequiresConfig: false` behavior is surfaced in the FAQ ('doesn't require the original source code').",
+            "Rollback of bucket-synced content and its fallback warning are both grounded in `restoreBucketSyncFromManifest` and its catch block. The page accurately represents this as best-effort with a warning.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-service-level, comparison/choosing). 10 entries are appropriately diverse.",
+            "Section instructions compliance: CloudFormation stack states (UPDATE_FAILED, UPDATE_ROLLBACK_FAILED) are described inline in the cf:rollback section as required.",
+            "CLI examples are one-command-per-block with no inline `#` comment pollution."
+          ],
+          "problems": [
+            "FACTUAL / UNGROUNDED CLAIM — `stacktape cf:rollback --resourcesToSkip` flag: The source file `src/commands/cf-rollback/index.ts` never accesses `globalStateManager.args` and calls `stackManager.rollbackStack()` with no arguments. There is no evidence in the provided source that `--resourcesToSkip` is a supported CLI flag for this command. The page confidently shows an example command and a detailed explanation of skipping behavior, but this is entirely ungrounded.",
+            "UNVERIFIED MDX COMPONENT — `<FlowDiagram steps={[...]} />` is used in the 'How it works' section but does not appear in the documented MDX component palette (style guide, doc system, or any listed component). If this component does not exist in the docs rendering pipeline, the page will fail to render. The five-step flow diagram is the only substantive content in that subsection.",
+            "UNGROUNDED DEFAULTS — `deploymentConfig` property defaults cited in the table (previousVersionsToKeep: 10, monitoringTimeAfterDeploymentInMinutes: 0, disableAutoRollback: false, terminationProtection: false) and properties themselves (triggerRollbackOnAlarms, cloudformationRoleArn) do not appear in either provided source file. The provided sources cover only the rollback command execution logic, not the config type definitions. These may be correct, but they cannot be verified from the provided source set and risk being wrong if the actual defaults differ.",
+            "The 'Deployment configuration reference' table introduces `cloudformationRoleArn` and `terminationProtection` which are described inline as rollback-adjacent safety features, but neither appears anywhere in the rollback command source — they are conceptually adjacent, not rollback-specific. Including them without grounding increases the risk of inaccuracy."
+          ],
+          "mandatoryFixes": [
+            "REMOVE OR VERIFY `--resourcesToSkip` from the `cf:rollback` examples and prose. The source `src/commands/cf-rollback/index.ts` shows `stackManager.rollbackStack()` called with no arguments and makes no reference to `globalStateManager.args` at all. The entire 'Skipping problematic resources' subsection (command example, prose explanation, and the follow-up Warning callout) is based on an ungrounded CLI flag. Either locate the CLI argument parser source that proves this flag exists and cite it, or remove the subsection entirely and replace with a note that recovery from truly unrollbackable resources requires direct AWS Console or CLI intervention.",
+            "REPLACE `<FlowDiagram steps={[...]} />` with a standard Markdown ordered list or prose description. This MDX component is not in the documented component palette. If it does not exist in the rendering pipeline, the page will fail. The content (5 named steps) is straightforward to render as a numbered list under the 'How it works' H3 without a custom component."
+          ],
+          "optionalImprovements": [
+            "Add `<ApiReference definitionName=\"DeploymentConfigProps\" />` (verify the exact type name in `types/stacktape-config/*.d.ts`) to replace or supplement the hand-maintained 'Deployment configuration reference' table. The hand-maintained table will drift from the actual type; the ApiReference component renders directly from the schema.",
+            "The `deploymentConfig` default values (e.g., `previousVersionsToKeep: 10`, `monitoringTimeAfterDeploymentInMinutes: 0`) should be verified against the actual type definitions before publication. If the sources for those types (likely `types/stacktape-config/deployment-config.d.ts` or similar) were included in a future revision, defaults could be confirmed or corrected.",
+            "The 'Artifact retention' subsection states the default is 10 versions but this is not confirmed by the two provided source files. If this is wrong (e.g., the real default is 5), the code example will mislead users setting `previousVersionsToKeep: 20` thinking they are doubling a 10-version default. Worth verifying from the type definition source before ship.",
+            "The `triggerRollbackOnAlarms` code example references `'api-error-rate-alarm'` as a string from the `alarms` section, but the page never explains where alarms are defined or links to an alarms page. A one-line note pointing to the alarms documentation would make this example actionable.",
+            "The FAQ entry on 'gradual deployments' links to `/deployment-and-lifecycle/gradual-deployments` and claims rollback 'bypasses' canary/linear strategies — this behavioral claim is not visible in the provided source and should be verified or softened to 'typically bypasses'."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the requested length.",
+            "The comparison table between version rollback and CloudFormation rollback is useful and scannable.",
+            "Shell examples follow the one-command-per-block rule and are easy to copy.",
+            "The page clearly distinguishes `stacktape rollback` from `stacktape cf:rollback` at a conceptual level."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source files. The sources only show behavior for `src/commands/rollback/index.ts` and `src/commands/cf-rollback/index.ts`, but the draft documents many deploymentConfig properties, defaults, alarm behavior, and production recommendations not present in those files.",
+            "`stacktape cf:rollback --resourcesToSkip ...` is unsupported by the provided `cf-rollback` command source. The source calls `stackManager.rollbackStack()` with no visible argument handling for skipped resources.",
+            "The automatic rollback on alarm section, `triggerRollbackOnAlarms`, `monitoringTimeAfterDeploymentInMinutes`, `disableAutoRollback`, `terminationProtection`, and `cloudformationRoleArn` claims are unsupported by the provided source files.",
+            "The artifact retention section overstates unsupported details: `deploymentConfig.previousVersionsToKeep`, the default of `10`, and S3/ECR cost guidance are not grounded in the provided command sources. The source only hints that old versions may be cleaned up based on `previousVersionsToKeep`.",
+            "The FAQ includes unsupported or over-specific claims, including 1-5 minute rollback duration, well-under-$1/month storage cost, CI/CD machine requirements, gradual deployment bypass behavior, and database/resource deletion behavior.",
+            "The page mentions Console capability in the FAQ (`or the Stacktape Console`) without console-app source. The section instructions explicitly require CLI behavior and Console behavior not be blurred.",
+            "Several H2 headings are longer than the preferred compact noun-form style, especially `When to use each rollback type` and `Deployment configuration reference`.",
+            "The page is practically useful on the surface, but because many commands/properties and defaults are unverified or unsupported, a reader could copy guidance that does not match the actual CLI behavior."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the `--resourcesToSkip` guidance for `stacktape cf:rollback`; the provided `cf-rollback` command source does not show support for skipped resources.",
+            "Remove or source-ground the deploymentConfig reference table and examples for `triggerRollbackOnAlarms`, `monitoringTimeAfterDeploymentInMinutes`, `disableAutoRollback`, `terminationProtection`, and `cloudformationRoleArn`.",
+            "Replace unsupported defaults and pricing claims, especially `previousVersionsToKeep` default `10`, `monitoringTimeAfterDeploymentInMinutes` default `0`, storage cost estimates, and rollback duration estimates, with cautious wording or remove them.",
+            "Remove the Stacktape Console claim unless console-app source is provided; keep this page strictly about the CLI behavior shown in `src/commands`.",
+            "Revise the FAQ so each Stacktape-specific answer is grounded in the provided rollback command sources, or clearly narrow it to behavior the sources prove."
+          ],
+          "optionalImprovements": [
+            "Shorten H2s to compact labels such as `Rollback types`, `Version rollback`, `CloudFormation rollback`, `Artifact retention`, and `FAQ`.",
+            "Add a small CLI behavior table listing only the source-supported flags: `--listVersions`, `--targetVersion`, and `--rollbackSteps` for `stacktape rollback`.",
+            "Mention the exact source-grounded initialization behavior: both commands set `commandRequiresConfig: false` and `commandModifiesStack: true`.",
+            "Keep the rollback flow, but remove unsupported steps or make wording match the source exactly: resolve target version, verify artifacts, warn from rollback safety metadata, prepare rollback template, deploy via CloudFormation, restore bucket sync from manifest if possible.",
+            "Add a brief note that `stacktape rollback --listVersions` prints `No previous deployment versions found.` when no available versions exist, since that behavior is directly visible in source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft matches the broad split between `rollback` and `cf:rollback`, but it makes several Stacktape-specific claims that are not supported by the provided command sources. The highest-impact issue is documenting CLI flags and deploymentConfig properties that are not present in the supplied rollback command implementations.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`stacktape cf:rollback --resourcesToSkip LogicalId` and the whole “Skipping problematic resources” section claim that `cf:rollback` accepts `--resourcesToSkip` and passes skipped resources to CloudFormation.",
+              "reason": "The provided `cf:rollback` command does not read a `resourcesToSkip` argument or pass any arguments into the rollback call. It only calls `stackManager.rollbackStack()` with no parameters, then deletes rolled-back deployment artifacts.",
+              "suggestedFix": "Remove the `--resourcesToSkip` example and the guidance about skipping resources unless another provided CLI source confirms the flag. Narrow the `cf:rollback` section to the behavior shown in source: it triggers `stackManager.rollbackStack()` and then cleans up rolled-back deployment artifacts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft documents Stacktape config properties `triggerRollbackOnAlarms`, `monitoringTimeAfterDeploymentInMinutes`, `disableAutoRollback`, `terminationProtection`, and `cloudformationRoleArn`, including defaults and behavior.",
+              "reason": "None of these deploymentConfig properties appear in the provided rollback or cf-rollback source files. The provided sources only ground rollback command behavior; they do not ground config examples or defaults for deploymentConfig.",
+              "suggestedFix": "Remove the deployment configuration reference and config examples unless the relevant Stacktape config type source is provided. Keep only `previousVersionsToKeep` as a cautious mention tied to artifact cleanup, because that property appears in the rollback command hint, but do not state a default without source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const { targetVersion: versionArg, rollbackSteps } = globalStateManager.args;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The default is 10 versions” for `deploymentConfig.previousVersionsToKeep`.",
+              "reason": "The supplied source confirms that old versions may be cleaned up based on `previousVersionsToKeep`, but it does not state the default value. A numeric default is a Stacktape-specific claim and needs type or validator evidence.",
+              "suggestedFix": "Say only that rollback availability depends on the `previousVersionsToKeep` setting, or add the authoritative config type/validator source before documenting the default.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "Old versions may have been cleaned up based on the previousVersionsToKeep setting."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`triggerRollbackOnAlarms` accepts alarm names (from your stack's `alarms` section) or full ARNs. The alarm must already exist from a prior deployment — a newly created alarm only takes effect on the next deploy.”",
+              "reason": "The provided sources do not mention alarm-triggered rollback, alarm identifiers, prior-deployment requirements, or post-deploy monitoring. This is detailed Stacktape-specific behavior with no support in the supplied files.",
+              "suggestedFix": "Remove the automatic rollback on alarm section unless the relevant deploymentConfig type and deployment implementation sources are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, a failed CloudFormation deployment automatically rolls back to the previous state. You can disable this to inspect the failed state before deciding how to proceed.”",
+              "reason": "The provided rollback sources do not describe deploy-time CloudFormation rollback defaults or a Stacktape `disableAutoRollback` configuration path. This may be true elsewhere, but it is not grounded in the supplied source list.",
+              "suggestedFix": "Remove this section or replace it with a narrower statement: `cf:rollback` can be run without local config and calls CloudFormation rollback through Stacktape, then cleans up rolled-back deployment artifacts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every successful deployment stores a versioned snapshot of the CloudFormation template and all packaged artifacts (Lambda zips, container images) in your stack's deployment bucket.”",
+              "reason": "The source supports versioned rollback templates and artifact verification, but it does not enumerate Lambda zips, container images, ECR, or the exact storage layout. The wording over-specifies internals beyond the provided source.",
+              "suggestedFix": "Narrow the statement to what the command source shows: Stacktape resolves a previous version, verifies artifacts for that version, prepares a rollback template for the next version, and deploys that template.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const templateUrl = await deploymentArtifactManager.prepareRollbackTemplate(targetVersion, newVersion);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“If your config is purely declarative (no `$File`, no hooks, no transforms), rollbacks replay cleanly every time.”",
+              "reason": "The source says Stacktape warnings are based on rollback safety metadata and returns `isSafe` only when certain metadata flags are absent. The command does not guarantee that every declarative config rolls back cleanly every time; it still verifies artifacts and can fail during stack deployment.",
+              "suggestedFix": "Replace with cautious wording: “If Stacktape does not report rollback-safety warnings, the rollback has fewer replay risks, but artifact verification or the CloudFormation update can still fail.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await verifyArtifactsExist(targetVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await stackManager.deployStackForRollback(templateUrl);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "throw err;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The only time spent is the CloudFormation stack update itself, which typically takes 1-5 minutes depending on the number and type of resources being updated.”",
+              "reason": "The source shows rollback verifies artifacts, prepares a rollback template, deploys it, and attempts bucket-sync restoration. It provides no timing data. The specific 1-5 minute estimate is unsupported by the supplied sources.",
+              "suggestedFix": "Remove the numeric timing claim. Say that rollback avoids requiring local source/config and uses stored deployment artifacts, but deployment time still depends on the CloudFormation stack update and any restored bucket-synced content.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await stackManager.deployStackForRollback(templateUrl);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.restoreBucketSyncFromManifest(targetVersion);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes `stacktape rollback` from `stacktape cf:rollback` at a high level: the former resolves a target version and deploys a prepared rollback template, while the latter calls CloudFormation rollback through `stackManager.rollbackStack()`.",
+            "The draft correctly states that both rollback commands do not require the local config file; both source files initialize deployed-stack services with `commandRequiresConfig: false`.",
+            "The draft correctly describes `--listVersions`, `--targetVersion`, and `--rollbackSteps` for `stacktape rollback`; those arguments are read in the rollback command source.",
+            "The draft correctly notes that bucket-synced content restoration is attempted after version rollback and that Stacktape warns if restoration fails."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is close on the core split between `stacktape rollback` and `stacktape cf:rollback`, but it overstates several behaviors that are not present in the provided command sources. The biggest publication risks are the unsupported `cf:rollback --resourcesToSkip` option, unsupported automatic rollback/deploymentConfig details, and numeric/cost defaults not grounded in the provided sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "`stacktape cf:rollback --resourcesToSkip LogicalId` skips problematic resources during recovery, and the draft gives a `--resourcesToSkip` example.",
+              "reason": "The provided `cf-rollback` command source does not read `resourcesToSkip` or pass any resources to the rollback operation. It only calls `stackManager.rollbackStack()` with no arguments, so the documented CLI option is unsupported by the provided source.",
+              "suggestedFix": "Remove the `--resourcesToSkip` scenario, example, and follow-up guidance unless another provided CLI source proves the flag exists. Describe `stacktape cf:rollback` narrowly as triggering `stackManager.rollbackStack()` and then cleaning up rolled-back deployment artifacts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft documents automatic rollback on alarms with `deploymentConfig.triggerRollbackOnAlarms` and `monitoringTimeAfterDeploymentInMinutes`, including claims about alarm names/ARNs, newly created alarms taking effect on the next deploy, default `0`, and recommended 3-10 minutes.",
+              "reason": "The provided rollback and cf-rollback command sources do not mention deployment alarm configuration or monitoring windows. These claims may be true elsewhere, but they are not grounded in the provided source files for this page.",
+              "suggestedFix": "Remove the automatic rollback-on-alarm section and the corresponding rows in the deployment configuration table unless the relevant config type or deploy command source is added. If kept, ground every property name, accepted value, and default in the appropriate source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const { targetVersion: versionArg, rollbackSteps } = globalStateManager.args;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft documents `deploymentConfig.disableAutoRollback`, says the default failed CloudFormation deployment automatically rolls back, and says disabling it leaves the stack in `UPDATE_FAILED`.",
+              "reason": "Neither provided command source mentions `disableAutoRollback`, CloudFormation auto-rollback defaults, or the resulting stack state. This is a Stacktape configuration claim that would affect how readers configure production deployments, but it is not supported by the provided files.",
+              "suggestedFix": "Remove the disabling automatic rollback section and the deployment configuration table row unless the relevant config type/deploy source is included. If the source is available later, scope the stack-state wording to the exact behavior in that source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`deploymentConfig.previousVersionsToKeep` has default `10`, controls retained previous versions, and raising it increases S3/ECR storage costs.",
+              "reason": "The rollback command references `previousVersionsToKeep` only in an error hint when a target version is unavailable. The provided sources do not define the property, its default, or storage-cost behavior.",
+              "suggestedFix": "Keep only the grounded fact that old versions may have been cleaned up based on the `previousVersionsToKeep` setting. Remove the default value, config example, and cost recommendation unless the config type source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Both rollback mechanisms work directly with artifacts already stored in AWS.",
+              "reason": "The version rollback path clearly verifies and prepares stored deployment artifacts, but the `cf:rollback` source triggers CloudFormation rollback and only cleans up rolled-back deployment artifacts afterward. The statement incorrectly applies artifact-based behavior to both mechanisms.",
+              "suggestedFix": "Rewrite the opening paragraph to say `stacktape rollback` uses stored deployment artifacts, while `stacktape cf:rollback` asks CloudFormation to roll back the existing stack state and then cleans up artifacts from the failed deployment.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Stacktape verifies all referenced Lambda/container artifacts still exist in S3/ECR.",
+              "reason": "The source verifies artifacts for the target version but does not enumerate storage backends or artifact types in the command. The S3/ECR and Lambda/container specifics are not grounded in the provided file.",
+              "suggestedFix": "Use the source wording: Stacktape verifies artifacts for the target version. Avoid naming S3, ECR, Lambda bundles, or container images unless a provided artifact-manager source proves those details.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft claims rollbacks skip all packaging/uploading and typically take 1-5 minutes, and that keeping 10 versions costs well under $1/month.",
+              "reason": "The provided rollback command does show reuse of rollback artifacts through `prepareRollbackTemplate`, but it does not provide timing or pricing. The specific 1-5 minute duration and under-$1/month cost are unsupported numbers.",
+              "suggestedFix": "Remove the timing and dollar figures. A grounded version can say rollback prepares the old template and deploys it as a CloudFormation stack update, so the elapsed time depends on the resources CloudFormation updates.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const templateUrl = await deploymentArtifactManager.prepareRollbackTemplate(targetVersion, newVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await stackManager.deployStackForRollback(templateUrl);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says the rolled-back template patches the version output, and says rolling back from `v000005` to `v000003` creates `v000006` containing the `v000003` template.",
+              "reason": "The source supports preparing a rollback template with `targetVersion` and `newVersion`, and the TUI message says the target is deployed as the new version. However, the internal detail that Stacktape patches the version output and the exact contents of the new version are not fully visible in the provided command source.",
+              "suggestedFix": "Narrow the wording to the visible behavior: Stacktape prepares the template for the target version, deploys it as the stack's next version, and reports the new deployment version after completion.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes `stacktape rollback` from `stacktape cf:rollback` at a high level: version rollback targets an older Stacktape deployment version, while `cf:rollback` calls CloudFormation rollback behavior.",
+            "The draft correctly states that both commands do not require the local config file; both command initializers set `commandRequiresConfig: false`.",
+            "The draft correctly documents `--listVersions`, `--targetVersion`, and `--rollbackSteps` for `stacktape rollback`; those argument names are visible in the rollback command source.",
+            "The draft correctly describes rollback safety warnings for unsafe directives, TypeScript transforms, after-deploy hooks, and custom directives; those warning categories are present in the rollback command source.",
+            "The draft correctly states that bucket-synced content restoration is attempted after version rollback and that Stacktape warns users to redeploy from the original commit if static website content cannot be restored."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the two rollback commands and the main `stacktape rollback` flow, but it includes several unsupported operational claims and one unsupported CLI option. The biggest completeness/API concern is that the `cf:rollback --resourcesToSkip` path is documented even though the provided command source does not expose or read that option.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "`stacktape cf:rollback --resourcesToSkip LogicalId` skips problematic resources during recovery.",
+              "reason": "The provided `cf-rollback` command source never reads `resourcesToSkip` or forwards any argument to `stackManager.rollbackStack()`. Documenting this option would cause users to run a command that is not grounded in the provided CLI implementation.",
+              "suggestedFix": "Remove the `--resourcesToSkip` row and section unless another source file proves the option exists. In this page, describe `stacktape cf:rollback` only as calling CloudFormation rollback for the target stack and cleaning up rolled-back deployment artifacts afterward.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`triggerRollbackOnAlarms`, `monitoringTimeAfterDeploymentInMinutes`, `disableAutoRollback`, `terminationProtection`, and `cloudformationRoleArn` are documented in the deployment configuration reference.",
+              "reason": "The provided source files are rollback command implementations and do not define `deploymentConfig` or these properties. Because the page's primary type is unknown and no config type source is provided, these configuration claims are not grounded in the supplied sources.",
+              "suggestedFix": "Either add the authoritative deployment config type source to the page source set or remove the deployment configuration reference table and the related config examples. Keep only the CLI rollback behavior proven by `src/commands/rollback/index.ts` and `src/commands/cf-rollback/index.ts`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const { targetVersion: versionArg, rollbackSteps } = globalStateManager.args;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (globalStateManager.args.listVersions) {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Automatic rollback on alarm is described as a Stacktape configuration feature with `triggerRollbackOnAlarms` and `monitoringTimeAfterDeploymentInMinutes`.",
+              "reason": "The provided rollback command source does not mention alarm-triggered rollback or post-deployment monitoring. This may exist elsewhere, but it is not grounded in the supplied source files for this audit.",
+              "suggestedFix": "Remove this section or require the relevant deployment config and CloudFormation deployment-manager sources. If retained with source support, distinguish CloudFormation deployment rollback behavior from the artifact-based `stacktape rollback` command.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await stackManager.deployStackForRollback(templateUrl);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The FAQ says rollback can be run from the Stacktape Console.",
+              "reason": "The source set contains CLI command implementations only and no `console-app` source. The page instructions explicitly require CLI behavior and Console behavior to be distinguished and not blurred.",
+              "suggestedFix": "Remove the Console claim, or add Console source proving rollback is exposed there. A grounded replacement is: `You can run stacktape rollback from any machine with Stacktape installed and access to the target AWS account.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Keeping 10 old versions costs well under $1/month in S3 and ECR storage.",
+              "reason": "The provided source files contain no pricing data. The pricing rules prohibit inventing AWS list prices or estimates that are not present in the provided source.",
+              "suggestedFix": "Replace with a non-numeric cost caveat grounded in behavior: retained versions use deployment bucket and artifact storage, so higher retention can increase storage costs. Do not quote a dollar amount without pricing source data.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Version rollback typically takes 1-5 minutes.",
+              "reason": "The rollback command source shows that Stacktape verifies artifacts, prepares a rollback template, deploys it through CloudFormation, and restores bucket-sync content if possible, but it contains no duration estimate.",
+              "suggestedFix": "Say that version rollback skips packaging and artifact upload because it reuses stored artifacts, but the remaining time depends on the CloudFormation stack update and affected resources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const templateUrl = await deploymentArtifactManager.prepareRollbackTemplate(targetVersion, newVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await stackManager.deployStackForRollback(templateUrl);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes `stacktape rollback` from `stacktape cf:rollback` as separate recovery mechanisms.",
+            "The `stacktape rollback` coverage includes all CLI arguments visible in the source: `--targetVersion`, `--rollbackSteps`, and `--listVersions`.",
+            "The version-number behavior is grounded: the source resolves targets like `v000001` and deploys the target template as `stackManager.nextVersion`.",
+            "The rollback safety warning section is well aligned with the source conditions for unsafe directives, TypeScript transforms, custom directives, and `after:deploy` hooks.",
+            "The static hosting rollback caveat is grounded in `restoreBucketSyncFromManifest(targetVersion)` and the warning emitted when bucket-synced content cannot be restored."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\deployment-and-lifecycle__rollbacks\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening decision table maps failure scenarios directly to commands — exactly what a first-time reader needs. High signal, zero fluff.",
+            "Rollback safety warnings are tightly derived from the source: `unsafeDirectives`, `hasTypeScriptTransforms`, `hasAfterDeployHooks`, `hasCustomDirectives` all match `checkRollbackSafety()` in the source. This section will hold up to factual review.",
+            "Shell code examples are correctly one-per-block with no explanatory `#` comments bleeding into the copy buffer.",
+            "FAQ covers all three required categories: Stacktape-specific questions, AWS CloudFormation behavior questions, and comparison/choosing questions. Ten well-differentiated entries with no padding.",
+            "The `commandRequiresConfig: false` initialization is correctly surfaced as a practical benefit ('works from any machine, no source code needed'), grounded in the source.",
+            "Bucket-sync restoration is correctly called out, sourced from `deploymentArtifactManager.restoreBucketSyncFromManifest(targetVersion)` in the rollback command.",
+            "Version numbering format (`v000001`, `v000002`) is correctly derived from the source's `padStart(6, '0')` logic, giving readers concrete correlation handles.",
+            "No forbidden style violations: no YAML config blocks, no `StacktapeConfig` type imports, no fenced TS blocks with `defineConfig`, CodeBlock usage is technically correct throughout."
+          ],
+          "problems": [
+            "**FABRICATED FEATURE — `--resourcesToSkip` for `cf:rollback`**: The source `src/commands/cf-rollback/index.ts` only calls `stackManager.rollbackStack()` with no arguments and has zero handling of a `resourcesToSkip` parameter. The draft presents a detailed `--resourcesToSkip MyBrokenLambda MyOtherResource` example, a dedicated 'Skipping problematic resources' subsection, and a Warning callout describing its behavior — all unsupported by the provided source. If this flag does not exist, readers attempting it will get an unknown-flag error. This is a publication blocker.",
+            "**Ungrounded `deploymentConfig` property table**: Properties `previousVersionsToKeep` (default: 10), `triggerRollbackOnAlarms`, `monitoringTimeAfterDeploymentInMinutes`, `disableAutoRollback`, `terminationProtection`, `cloudformationRoleArn`, `publishEventsToArn` and their defaults do not appear in any of the provided source files. These may exist in type definition files not included, but as presented they are unverified claims. If any name or default is wrong, the code examples and reference table will mislead readers.",
+            "**`UPDATE_FAILED` / `UPDATE_ROLLBACK_FAILED` state behavior attributed to `cf:rollback`**: The source only calls `stackManager.rollbackStack()`. The distinction between handling `UPDATE_FAILED` vs `UPDATE_ROLLBACK_FAILED` is not visible in the provided source — those are AWS CloudFormation states described as if they are Stacktape behavioral distinctions. The page should frame these as AWS CloudFormation facts rather than Stacktape command behavior, and the claim that `cf:rollback` handles both states differently should be softened to 'underlying CloudFormation native rollback handles both'.",
+            "**No `<ApiReference>` component**: While this is a 'deployment' kind page rather than a resource page, the `deploymentConfig` reference table occupies a full section that would benefit from an `<ApiReference>` pointing at the `DeploymentConfigProps` type (or equivalent). Without it, the table is a manually maintained duplicate of schema truth that will drift."
+          ],
+          "mandatoryFixes": [
+            "**Remove or verify `--resourcesToSkip` before publishing.** The `src/commands/cf-rollback/index.ts` source shows only `stackManager.rollbackStack()` with no parameter handling for `resourcesToSkip`. The entire 'Skipping problematic resources' subsection — including the example `stacktape cf:rollback ... --resourcesToSkip MyBrokenLambda MyOtherResource`, the explanatory paragraphs, and the Warning callout — must be removed unless verification against CLI argument parsing code (not in the provided source) confirms the flag exists. Presenting a non-existent CLI flag as a working feature is a publication-blocking factual error.",
+            "**Audit all `deploymentConfig` property names and defaults against the type definitions** (`types/stacktape-config/` or equivalent schema files) before publishing. The reference table asserts seven property names and five specific defaults none of which appear in the provided source. At minimum, verify `previousVersionsToKeep` default (claimed: 10), `monitoringTimeAfterDeploymentInMinutes` default (claimed: 0), and `disableAutoRollback` default (claimed: false) match the actual type definitions. If properties are correct, add an `<ApiReference definitionName=\"DeploymentConfigProps\" />` (or the correct type name) in place of, or alongside, the hand-maintained table."
+          ],
+          "optionalImprovements": [
+            "Clarify that `cf:rollback` triggers CloudFormation's `ContinueUpdateRollback` API under the hood. One sentence framing the AWS primitive it wraps would help readers who need to debug failures in the AWS Console.",
+            "The 'Deployment configuration reference' table mentions `cloudformationRoleArn` and `publishEventsToArn` without any surrounding prose context — first-time readers have no idea what these do. Either add a one-sentence description in the table's 'Description' column (the current entries are too terse) or drop them from the table and let the ApiReference handle them.",
+            "The automatic rollback on alarms section would benefit from one sentence explaining what 'alarm names from your stack's alarms section' means — readers new to the platform won't know whether these are CloudWatch alarms they define elsewhere in Stacktape config, external ARNs, or something else. The example uses `'api-error-rate-alarm'` as a string with no anchor to where that name comes from.",
+            "Consider adding a one-line note that `stacktape rollback` can be run from the Stacktape Console as well (if supported), or explicitly scoping 'from any machine' to CLI only — the FAQ entry 6 mentions the Console but the body of the page doesn't, creating a minor inconsistency in scope."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening comparison table is the clearest 'choose your command' signal possible — production engineers in an incident will immediately know which path to take.",
+            "Rollback safety-check warnings map exactly to what the source code detects (unsafeDirectives, hasTypeScriptTransforms, hasAfterDeployHooks, hasCustomDirectives) — zero fabricated safety categories.",
+            "Version numbering format (v000001, v000002, etc.), --listVersions flag, --targetVersion and --rollbackSteps flags are all confirmed by src/commands/rollback/index.ts and described accurately.",
+            "Bash examples follow one-command-per-block discipline throughout — no mixed-command copy-paste traps.",
+            "The FAQ spans all three required categories (Stacktape-specific, underlying AWS behavior, choosing/comparison) and the 10 entries are genuinely distinct and useful.",
+            "The 'creates a new version number' behavior (rollback from v5 to v3 creates v6) is correctly grounded in source and clearly explained — this is a non-obvious operational fact that production engineers need.",
+            "The Info callout about missing rollback safety metadata (predates rollback support) is grounded directly in the source's warning string."
+          ],
+          "problems": [
+            "FABRICATED FEATURE: `--resourcesToSkip` flag does not appear in src/commands/cf-rollback/index.ts. The complete commandCfRollback function is visible in the source and contains no globalStateManager.args.resourcesToSkip read, no parameter forwarding to stackManager.rollbackStack(), and no conditional logic around skipping resources. A production engineer hitting UPDATE_ROLLBACK_FAILED and trying this flag will get an unknown-flag error in an active incident.",
+            "The deploymentConfig properties table (previousVersionsToKeep, triggerRollbackOnAlarms, monitoringTimeAfterDeploymentInMinutes, disableAutoRollback, terminationProtection, cloudformationRoleArn, publishEventsToArn) are entirely absent from the provided source files. The rollback source only references previousVersionsToKeep (in a hint string) and the config types aren't in scope. These are plausible but ungrounded — the stated default of 10 for previousVersionsToKeep, the 0 default for monitoringTimeAfterDeploymentInMinutes, and the persistence behavior claimed for cloudformationRoleArn are all at risk of being wrong.",
+            "The FAQ answer for cf:rollback and UPDATE_ROLLBACK_FAILED states 'use stacktape cf:rollback --resourcesToSkip to skip the problematic resources' — this repeats the fabricated flag in a FAQ answer that an engineer would rely on during an incident.",
+            "The claim that cf:rollback handles UPDATE_FAILED vs UPDATE_ROLLBACK_FAILED differently ('for UPDATE_FAILED it initiates the rollback; for UPDATE_ROLLBACK_FAILED it continues the interrupted rollback') is not visible in the source. The source shows a single stackManager.rollbackStack() call with no branching on stack state."
+          ],
+          "mandatoryFixes": [
+            "Remove --resourcesToSkip from the cf:rollback section entirely — it is not present in src/commands/cf-rollback/index.ts. The complete function is shown in source with no argument reads for this flag. The 'Skipping problematic resources' subsection, its bash example, and the FAQ answer that recommends this flag must all be removed or replaced with accurate guidance. If the feature truly exists it must be verified against the actual CLI args definition file, not inferred.",
+            "Verify every deploymentConfig property default and behavior against the types/stacktape-config/*.d.ts files before publishing. At minimum: the default of 10 for previousVersionsToKeep, the persistence claim for cloudformationRoleArn, and the 0 default for monitoringTimeAfterDeploymentInMinutes are ungrounded in the provided source. If those types aren't in scope, narrow the prose to what the rollback source itself references rather than presenting an authoritative defaults table."
+          ],
+          "optionalImprovements": [
+            "The cf:rollback 'When to use' / 'You do NOT need this command when' formatting is good but the section would benefit from naming the exact CloudFormation state each condition maps to inline — e.g. 'A deployment failed mid-way (stack shows UPDATE_FAILED)' already does this well, but 'A previous automatic rollback itself failed (UPDATE_ROLLBACK_FAILED)' could also name the state on the first bullet instead of the second for parallel structure.",
+            "Add an <ApiReference definitionName=\"DeploymentConfigProps\" /> (or whatever the correct Props type name is from the config types) to anchor the deploymentConfig table — a busy engineer will want to drill into nested types rather than trust a hand-curated table.",
+            "The rollback bucket-sync restore failure warning ('you may need to redeploy from the original commit') is in the source but only surfaces in the try/catch. Consider surfacing this as an explicit operational note in the 'Rollback safety warnings' section so engineers know static sites have a separate failure mode.",
+            "The opening paragraph says 'Neither command requires your local source code or config file' — this is correct and important, but it's buried in the intro. Consider moving it to a callout or reinforcing it in the CLI usage examples to help engineers know they can run these from any machine with just AWS credentials."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "The page gives a clear initial decision table separating version rollback from CloudFormation rollback.",
+            "Shell examples follow the one-command-per-block rule and are easy to copy.",
+            "Stacktape config examples use <CodeBlock intellisense> with a TypeScript tab, not forbidden YAML or plain-object StacktapeConfig style.",
+            "The FAQ covers Stacktape-specific, AWS/CloudFormation, and decision-oriented questions rather than only repeating CLI syntax."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source files. The sources only show rollback command flow and cf-rollback command flow, but the draft documents deploymentConfig properties, alarm rollback, disableAutoRollback, terminationProtection, publishEventsToArn, and cloudformationRoleArn without provided source support.",
+            "The draft claims `stacktape cf:rollback` handles `UPDATE_FAILED`, `UPDATE_ROLLBACK_FAILED`, and `--resourcesToSkip`, but the provided cf-rollback source does not show those states or that flag. This is a high-risk factual/source-grounding issue.",
+            "The draft says `triggerRollbackOnAlarms` accepts alarm names or full ARNs, that newly created alarms only affect the next deploy, and that CloudFormation automatically rolls back within a post-deploy window. None of that appears in the provided source files.",
+            "The draft states defaults such as `previousVersionsToKeep: 10`, `monitoringTimeAfterDeploymentInMinutes: 0`, `disableAutoRollback: false`, and `terminationProtection: false` without source support in the provided files.",
+            "Several practical claims are too absolute for the source, including container images being deduplicated at the ECR layer level, rollbacks replaying cleanly every time for declarative configs, and gradual deployments being bypassed by rollback.",
+            "The page contains strong practical sections, but because much of the technical surface is unsupported by the provided sources, an answer engine could extract confident but unverified claims."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground every deploymentConfig claim. Keep only properties and defaults that are present in the provided source files, or add the relevant authoritative source files before documenting them.",
+            "Rewrite the CloudFormation rollback section to match the provided `src/commands/cf-rollback/index.ts`: it initializes deployed-stack services without requiring config, calls `stackManager.rollbackStack()`, and then deletes rolled-back deployment artifacts. Do not mention `--resourcesToSkip` or specific CloudFormation states unless a provided source proves them.",
+            "Remove or clearly narrow the automatic rollback on alarms section unless authoritative deploymentConfig/type/validator sources are provided. The current section is not supported by the rollback command sources.",
+            "Remove unsupported default values from the deployment configuration reference table, or add authoritative type/validator sources proving each default.",
+            "Replace unsupported absolute claims with source-grounded wording. For example, keep that rollback warns for `$File`, TypeScript transforms, custom directives, and `after:deploy` hooks because those warnings are in source; avoid claiming all purely declarative configs replay cleanly every time.",
+            "Re-check every FAQ answer for source support. Keep FAQs about command behavior shown in source, and delete or narrow FAQs about databases, gradual deployments, `resourcesToSkip`, alarm rollback, and termination protection unless supporting sources are added."
+          ],
+          "optionalImprovements": [
+            "Add a short “What the command actually does” section for `stacktape cf:rollback` based directly on the source: rollback spinner, `stackManager.rollbackStack()`, cleanup spinner, `deleteArtifactsRollbackedDeploy()`.",
+            "The version rollback section is the strongest part; keep the ordered flow, but trim any steps not visible in `src/commands/rollback/index.ts`.",
+            "If the page is meant to cover deploymentConfig rollback settings, include the relevant `types/stacktape-config` and validator source files in the source bundle so defaults and supported values can be documented confidently.",
+            "Consider splitting “Operational recovery” from “Deployment safety settings” if future sources support both. The current page tries to cover CLI recovery and deploy-time rollback policy, but only the CLI recovery sources were provided."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is clear and practical, but several Stacktape-specific claims are not grounded in the provided rollback command sources. The biggest problems are the alarm rollback configuration, deploymentConfig defaults/reference table, CloudFormation state handling, and --resourcesToSkip behavior, none of which are supported by the supplied files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "`stacktape cf:rollback --stage production --region eu-west-1 --resourcesToSkip MyBrokenLambda MyOtherResource` and the surrounding explanation that `--resourcesToSkip` skips CloudFormation logical IDs during rollback.",
+              "reason": "The provided `cf:rollback` command source does not read a `resourcesToSkip` argument or pass any arguments into the rollback call. This is a user-facing CLI flag claim that would change what readers type during an incident, so it needs direct CLI/source backing.",
+              "suggestedFix": "Remove the `--resourcesToSkip` example and the claim that Stacktape supports it unless the CLI command definition or `stackManager.rollbackStack()` source is added and confirms the flag. Narrow the section to the grounded behavior: the command calls Stacktape's stack rollback routine and then cleans up rolled-back deployment artifacts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The page claims `stacktape cf:rollback` handles `UPDATE_FAILED` and `UPDATE_ROLLBACK_FAILED`, initiates rollback for one state, continues rollback for the other, and only applies `--resourcesToSkip` in `UPDATE_ROLLBACK_FAILED`.",
+              "reason": "The provided `cf:rollback` source contains no explicit CloudFormation state branching or state-specific behavior. The command delegates to `stackManager.rollbackStack()`, so the draft's detailed state handling is not grounded in the supplied source.",
+              "suggestedFix": "Replace the detailed state-specific claims with cautious wording: `stacktape cf:rollback` calls Stacktape's CloudFormation rollback flow for the target stack and then cleans up rolled-back deployment artifacts. Only mention exact stack states if the relevant stack manager source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "const spinner = tuiManager.createSpinner({ text: `Rolling back stack ${tuiManager.prettyStackName(stackName)}` });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The entire `Automatic rollback on alarms` section claims `deploymentConfig.triggerRollbackOnAlarms` and `deploymentConfig.monitoringTimeAfterDeploymentInMinutes` configure automatic rollback on CloudWatch alarms, including accepted values, defaults, and next-deploy behavior for newly created alarms.",
+              "reason": "None of the provided source files contain these deploymentConfig properties, alarm monitoring behavior, defaults, or the claim that newly created alarms only take effect on the next deploy. These are Stacktape-specific configuration and behavior claims with no supplied type or runtime source backing.",
+              "suggestedFix": "Remove this section from this draft, or require the relevant `types/stacktape-config` and deployment runtime sources before documenting alarm-based rollback. If kept, every property, default, and behavior needs direct support from those sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "export const commandRollback = async () => {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "export const commandCfRollback = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The `Disabling automatic rollback` section claims `deploymentConfig.disableAutoRollback` defaults to false, leaves a failed deployment in `UPDATE_FAILED`, and can be used with `cf:rollback` for manual recovery.",
+              "reason": "The supplied sources do not define `disableAutoRollback`, its default, or its resulting CloudFormation state. This is a Stacktape-specific configuration claim and should be grounded in config types or deploy command source, neither of which is provided.",
+              "suggestedFix": "Remove the section or rewrite it only after adding the relevant deploymentConfig type and deploy behavior sources. Do not state the default or resulting stack state from the current source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The `Deployment configuration reference` table lists `previousVersionsToKeep`, `triggerRollbackOnAlarms`, `monitoringTimeAfterDeploymentInMinutes`, `disableAutoRollback`, `terminationProtection`, `cloudformationRoleArn`, and `publishEventsToArn` with defaults and descriptions.",
+              "reason": "Only `previousVersionsToKeep` appears indirectly in the supplied sources, and only as a setting name in an error hint. The provided files do not define the deploymentConfig schema, defaults, `terminationProtection`, `cloudformationRoleArn`, or `publishEventsToArn`. This table presents unsupported configuration reference material as authoritative.",
+              "suggestedFix": "Remove the table or replace it with a much narrower grounded note: old versions may be cleaned up based on `previousVersionsToKeep`. Add the deploymentConfig type source before documenting defaults and other properties.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`Versions older than the retention limit are automatically cleaned up and cannot be rolled back to.` and `The default is 10 versions.`",
+              "reason": "The rollback command source supports that old versions may have been cleaned up based on `previousVersionsToKeep`, but it does not define an automatic cleanup mechanism or a default value of 10. The specific default needs config type or runtime source backing.",
+              "suggestedFix": "Keep the supported part and remove the default: `Old versions may be cleaned up based on the previousVersionsToKeep setting. If a target version is no longer present in the deployment bucket, rollback fails and suggests --listVersions.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`Stacktape keeps deployment artifacts (Lambda bundles, container images) for a configurable number of previous versions.`",
+              "reason": "The source supports verifying artifacts for a previous version and mentions old versions may be cleaned based on `previousVersionsToKeep`, but it does not identify artifact categories as Lambda bundles or container images. That may be true elsewhere, but it is not grounded in the provided files.",
+              "suggestedFix": "Use source-grounded wording such as `Stacktape verifies the CloudFormation template and referenced deployment artifacts for the target version before rollback.` Avoid naming artifact types unless packaging/deployment artifact manager sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const templateUrl = await deploymentArtifactManager.prepareRollbackTemplate(targetVersion, newVersion);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`If your config is purely declarative (no $File, no hooks, no transforms, no custom directives), rollbacks replay cleanly every time.`",
+              "reason": "The source checks several safety metadata fields and warns for risky features, but it does not guarantee that absence of these features makes rollback clean every time. The command only computes `isSafe` from a subset of metadata and does not use it to provide a hard guarantee.",
+              "suggestedFix": "Narrow the claim: `If none of these warnings appear, Stacktape did not detect the rollback-safety risks represented in its metadata, but you should still verify the application after rollback.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "return {\n    isSafe: !safety.unsafeDirectives?.length && !safety.hasTypeScriptTransforms && !safety.hasCustomDirectives,\n    warnings\n  };"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "for (const warning of warnings) {\n    tuiManager.warn(warning);\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes `stacktape rollback` as a previous-version redeploy from `stacktape cf:rollback` as a CloudFormation rollback command at a high level.",
+            "The `stacktape rollback --listVersions`, `--targetVersion`, and `--rollbackSteps` usage is grounded in the rollback command source.",
+            "The description that version rollback prepares the old template as a new deployment version is supported by `prepareRollbackTemplate(targetVersion, newVersion)` and the completion message.",
+            "The warning that `after:deploy` hooks are not re-executed during rollback is directly supported by the rollback safety warning source.",
+            "All cross-links used in the draft point to routes present in the supplied documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the two rollback command implementations for the core distinction between `rollback` and `cf:rollback`, command links, no-config requirement, target-version resolution, artifact verification, safety warnings, template replay, and artifact cleanup. The main factual risks are unsupported or contradicted details around `cf:rollback` state handling and several deploymentConfig/automatic-rollback claims that are not grounded in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`stacktape cf:rollback --resourcesToSkip ...` is documented as a supported flag, and the draft says `cf:rollback` handles `UPDATE_ROLLBACK_FAILED` by optionally skipping problematic resources.",
+              "reason": "The provided `cf:rollback` command implementation does not read CLI args and calls `stackManager.rollbackStack()` with no `resourcesToSkip` parameter. The source does not support the documented flag or the skip behavior.",
+              "suggestedFix": "Remove the `--resourcesToSkip` usage and the claim that Stacktape exposes resource skipping through `cf:rollback`, unless a CLI command-definition source proving the flag is added. Narrow the page to say `cf:rollback` triggers Stacktape's CloudFormation rollback flow and cleans up rolled-back deployment artifacts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says `cf:rollback` handles both `UPDATE_FAILED` and `UPDATE_ROLLBACK_FAILED`, and that `--resourcesToSkip` only applies when the stack is in `UPDATE_ROLLBACK_FAILED` state.",
+              "reason": "The provided command source does not inspect or document CloudFormation stack states. It only initializes stack services, calls `stackManager.rollbackStack()`, and then deletes rolled-back deployment artifacts.",
+              "suggestedFix": "Avoid naming exact stack states as Stacktape-supported behavior unless source for `stackManager.rollbackStack()` or CLI docs is provided. A safe version is: use `stacktape cf:rollback` when Stacktape needs to trigger the stack rollback flow after a failed deployment.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "export const commandCfRollback = async () => {\n  await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "try {\n    await stackManager.rollbackStack();\n    spinner.success({ text: `Stack ${tuiManager.prettyStackName(stackName)} rolled back` });\n  } catch (error)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft states that `triggerRollbackOnAlarms` accepts alarm names or full ARNs, that newly created alarms only affect the next deploy, and that `monitoringTimeAfterDeploymentInMinutes` defaults to `0`.",
+              "reason": "None of the provided rollback command sources define or read `deploymentConfig.triggerRollbackOnAlarms` or `deploymentConfig.monitoringTimeAfterDeploymentInMinutes`. These may be real config properties, but they are not grounded in the supplied source files for this verification task.",
+              "suggestedFix": "Remove the automatic rollback section or mark it narrowly only if the relevant config type/runtime deployment source is added. Do not state accepted values, timing behavior, or defaults from the current source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const { targetVersion: versionArg, rollbackSteps } = globalStateManager.args;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft states `deploymentConfig.previousVersionsToKeep` defaults to `10`, controls retained deployment artifact versions, and that versions older than the retention limit are automatically cleaned up.",
+              "reason": "The rollback command references `previousVersionsToKeep` only in an error hint. The provided source supports that old versions may be cleaned up based on that setting, but it does not define the property shape, default value, cleanup timing, or storage behavior.",
+              "suggestedFix": "Keep the grounded part: old versions may have been cleaned up based on `previousVersionsToKeep`. Remove the `10` default and detailed retention/storage guidance unless the config type or artifact-manager source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says `disableAutoRollback` keeps failed deployments in `UPDATE_FAILED`, and recommends using it only in non-production stages.",
+              "reason": "The provided rollback and cf-rollback sources do not define `deploymentConfig.disableAutoRollback`, its default, or the resulting CloudFormation state. The production/non-production recommendation depends on behavior not present in the supplied source files.",
+              "suggestedFix": "Remove the `disableAutoRollback` section from this page unless deployment configuration source is provided. If retained with more source, distinguish AWS CloudFormation behavior from Stacktape config behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The deployment configuration reference table documents `terminationProtection`, `cloudformationRoleArn`, and `publishEventsToArn` with defaults and rollback-related behavior.",
+              "reason": "The provided rollback command sources do not define these deploymentConfig properties, their defaults, or the claim that `cloudformationRoleArn` is persisted and reused for rollback after removal from config.",
+              "suggestedFix": "Remove these rows from a rollback page unless the relevant config type/deploy source is provided. If the page needs a config reference, limit it to properties proven by the supplied source, such as `previousVersionsToKeep` being referenced in rollback error guidance.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const { targetVersion: versionArg, rollbackSteps } = globalStateManager.args;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says `stacktape rollback` creates a new deployment version and examples such as rolling back from `v000005` to `v000003` creates `v000006`.",
+              "reason": "The command source supports preparing the rollback template with `stackManager.nextVersion` and printing the new version, but the exact arithmetic example depends on `stackManager.nextVersion`, whose implementation is not in the provided source.",
+              "suggestedFix": "Keep the general claim that rollback deploys the target version as `stackManager.nextVersion`. Avoid hard-coding arithmetic examples unless `stackManager.nextVersion` implementation is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const newVersion = stackManager.nextVersion;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "tuiManager.info(`Rollback to ${targetVersion} complete. New deployment version: ${newVersion}`);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says bucket-synced static hosting content is restored from a stored manifest.",
+              "reason": "The source supports an attempted restore via `restoreBucketSyncFromManifest(targetVersion)`, but it does not prove that the stack specifically includes static hosting with bucket sync or define the manifest format. The warning only mentions static websites as a possible follow-up if restoration fails.",
+              "suggestedFix": "Phrase this as an attempted restore: Stacktape tries to restore bucket-synced content from the version manifest; if that fails and the stack has static websites, the CLI warns that redeploying from the original commit may be needed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.restoreBucketSyncFromManifest(targetVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "Could not restore bucket-synced content. If your stack has static websites, you may need to redeploy from the original commit."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly links the CLI commands to `/cli/rollback` and `/cli/cf-rollback`, both of which exist in the provided navigation index.",
+            "The draft correctly states that both rollback commands do not require a config file; both command initializers set `commandRequiresConfig: false`.",
+            "The `rollback` flag names `--listVersions`, `--targetVersion`, and `--rollbackSteps` are grounded in `globalStateManager.args` usage in the rollback command source.",
+            "The safety-warning coverage is well grounded: the source explicitly warns about missing rollback safety metadata, unsafe directives, TypeScript transforms, custom directives, and `after:deploy` hooks.",
+            "The page avoids forbidden hand-authored YAML and uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft explains the two rollback paths clearly, but it goes far beyond the provided command sources in several places. The biggest API-completeness problem is that it documents deploymentConfig properties and rollback flags that are not present in the supplied sources, and it omits a few CLI behaviors that are directly visible in the rollback command implementation.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft documents `stacktape cf:rollback --resourcesToSkip MyBrokenLambda MyOtherResource` and says the flag accepts CloudFormation logical resource IDs.",
+              "reason": "The provided `cf:rollback` command source does not read `resourcesToSkip`, pass arguments into `stackManager.rollbackStack`, or show any flag handling. Based on the supplied source, this flag is not grounded.",
+              "suggestedFix": "Remove the `--resourcesToSkip` subsection unless the page source list includes CLI option definitions or stack manager code proving support. If kept, ground it in the actual CLI option source and CloudFormation rollback implementation.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says `deploymentConfig.previousVersionsToKeep`, `triggerRollbackOnAlarms`, `monitoringTimeAfterDeploymentInMinutes`, `disableAutoRollback`, `terminationProtection`, `cloudformationRoleArn`, and `publishEventsToArn` control rollback behavior and lists defaults.",
+              "reason": "The supplied sources are only the rollback and cf-rollback command implementations. They do not define `deploymentConfig`, these properties, or their defaults. This is outside API completeness for the provided page source set and risks documenting unsupported defaults.",
+              "suggestedFix": "Either add the authoritative config type/source files to the page source list, or remove the deployment configuration reference and examples. Keep only command behavior grounded in the two command sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const { targetVersion: versionArg, rollbackSteps } = globalStateManager.args;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says versions older than the retention limit are automatically cleaned up and cannot be rolled back to, and that Stacktape keeps deployment artifacts for a configurable number of previous versions with default `10`.",
+              "reason": "The rollback command only reports available versions and errors when a target version is not in `availablePreviousVersions`, with a hint mentioning `previousVersionsToKeep`. The source does not show cleanup behavior, configurability, or the default value.",
+              "suggestedFix": "Narrow the wording to the sourced behavior: `stacktape rollback` can only target versions present in the deployment bucket; if a target is missing, the command points readers to `--listVersions` and mentions that old versions may have been cleaned up based on `previousVersionsToKeep`. Do not state a default unless the config type source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (!availableVersions.includes(targetVersion)) {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft says rollback safety warnings cover `after:deploy` hooks and then says clean rollbacks replay cleanly if there are no `$File`, hooks, transforms, or custom directives.",
+              "reason": "The source warns about `hasAfterDeployHooks`, but the returned `isSafe` boolean does not include `hasAfterDeployHooks`; only unsafe directives, TypeScript transforms, and custom directives affect `isSafe`. The command also ignores `isSafe` and prints warnings only. The draft should avoid implying a formal safety gate based on after-deploy hooks.",
+              "suggestedFix": "Say Stacktape prints rollback warnings for unsafe directives, TypeScript transforms, after-deploy hooks, and custom directives, then proceeds. Avoid stating that these checks guarantee clean replay or that after-deploy hooks participate in a formal safe/unsafe decision.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (safety.hasAfterDeployHooks) {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "isSafe: !safety.unsafeDirectives?.length && !safety.hasTypeScriptTransforms && !safety.hasCustomDirectives"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says `triggerRollbackOnAlarms` accepts alarm names or ARNs, newly created alarms only take effect on the next deploy, and CloudFormation automatically rolls back if an alarm fires within the monitoring window.",
+              "reason": "No supplied source defines alarm-based rollback configuration or behavior. The rollback command source does not reference alarms, deployment monitoring windows, or CloudFormation rollback triggers.",
+              "suggestedFix": "Remove the alarm-based rollback section from this page unless the relevant deployment config and deploy command sources are included. If included later, cite the exact config type and deploy behavior source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "export const commandRollback = async () => {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "export const commandCfRollback = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft says `stacktape rollback --listVersions` prints the current version and all versions that still have artifacts in the deployment bucket.",
+              "reason": "The source prints `No previous deployment versions found.` and returns before printing the current version when `availablePreviousVersions` is empty. The draft should mention this behavior because it affects a common diagnostic command.",
+              "suggestedFix": "Add a caveat: if no previous versions are available, `--listVersions` prints `No previous deployment versions found.`; otherwise it prints the current version and available rollback targets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (!versions.length) {\n    tuiManager.info('No previous deployment versions found.');\n    return null;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "tuiManager.info(`Current version: ${currentVersion || 'unknown'}`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft explains target version resolution but omits the no-op case when the requested target version is already current.",
+              "reason": "The rollback source explicitly handles `targetVersion === currentVersion` by printing that there is nothing to do and returning. This is a user-visible CLI behavior worth documenting in the version rollback section.",
+              "suggestedFix": "Add a short note: if `--targetVersion` resolves to the current stack version, `stacktape rollback` exits without changing the stack.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (targetVersion === currentVersion) {\n    tuiManager.info(`Target version ${targetVersion} is already the current version. Nothing to do.`);\n    return null;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says `cf:rollback` handles `UPDATE_FAILED` and `UPDATE_ROLLBACK_FAILED`, and that `--resourcesToSkip` only applies in `UPDATE_ROLLBACK_FAILED`.",
+              "reason": "The provided `cf:rollback` command source does not describe supported CloudFormation states or state-specific behavior. It simply initializes stack services, calls `stackManager.rollbackStack()`, and cleans up rolled-back deployment artifacts.",
+              "suggestedFix": "Either add `cloudformation-stack-manager` source to ground the supported states, or narrow the page to: `stacktape cf:rollback` calls Stacktape's CloudFormation rollback path for the target stack and then cleans up rolled-back deployment artifacts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await stackManager.rollbackStack();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\cf-rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes `stacktape rollback` from `stacktape cf:rollback` at a high level: the former prepares and deploys a previous template version, while the latter calls the CloudFormation rollback path and cleans up artifacts.",
+            "The draft correctly states that rollback commands do not require the local config file; both command initializers set `commandRequiresConfig: false`.",
+            "The draft correctly describes the default rollback step behavior as one version back when `--targetVersion` is not provided."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\deployment-and-lifecycle\\rollbacks.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.1, hard blockers 7, advisory high 2, verifier medium 13"
+}

@@ -1,0 +1,452 @@
+{
+  "pageId": "cli__debug__alarms",
+  "pageRoute": "cli/debug-alarms",
+  "startedAt": "2026-05-17T22:05:43.905Z",
+  "updatedAt": "2026-05-17T22:10:50.482Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__debug__alarms\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, action-oriented intro paragraph that states what the command does and when to use it.",
+            "Each shell block contains exactly one command — no multi-command copy-button traps.",
+            "The 'What it does' section accurately maps source code fields (AlarmInfo struct: name, resource, state, metric, threshold, comparison, lastUpdated, reason) to the reader's perspective.",
+            "The 'reason' field is correctly scoped to ALARM-state-only alarms, matching the source logic.",
+            "The combined-filter example (--resourceName + --state ALARM) is the most realistic and useful snippet on the page — it shows real-world usage, not just individual flag demos.",
+            "Read-only note ('The command is read-only and does not modify any resources') correctly reflects commandModifiesStack: false in the source.",
+            "Related commands section links to the three closest debug siblings, all appropriate."
+          ],
+          "problems": [
+            "Structural ordering violation: the section instructions prescribe 'paragraph → usage → auto-generated reference → examples → related commands'. The page instead orders: usage → what it does → important flags → examples → flags reference → related commands. The Flags reference (auto-generated CliCommandsApiReference) is buried after Examples, which is the reverse of the prescribed order.",
+            "The 'Important flags' section describes --resourceName, --state, and --agent with individual bash blocks, then the Examples section repeats essentially the same invocation patterns. This creates redundancy and increases scroll distance before the reader reaches the flags table.",
+            "Missing context about alarm provenance: the page says 'Stacktape queries CloudWatch for all alarms prefixed with the stack name' but never tells the reader where these alarms come from (i.e. that Stacktape auto-creates CloudWatch alarms for deployed resources). A first-time user seeing zero results would have no idea why.",
+            "The --agent flag description says it 'switches output to JSON format (NDJSON)' but the source (commandDebugAlarms) calls tuiManager.info(JSON.stringify({ alarms: filteredAlarms }, null, 2)) — pretty-printed JSON, not newline-delimited NDJSON. Minor inaccuracy that could confuse readers piping output."
+          ],
+          "mandatoryFixes": [
+            "Reorder sections to match the prescribed CLI page structure: move the <CliCommandsApiReference> block immediately after the Usage section (or after 'What it does' at most), and place Examples after the reference table. The current order (Examples → Flags reference) inverts the prescribed sequence and buries the flags table."
+          ],
+          "optionalImprovements": [
+            "Add one sentence near the top clarifying that CloudWatch alarms are created automatically by Stacktape for deployed resources, so readers know why alarms exist and what to expect when running the command on a fresh stack.",
+            "Collapse or remove the 'Important flags' section. The individual flag explanations duplicate what the flags table already covers, and the example invocations duplicate the Examples section. The flags table is the authoritative reference; prose between Usage and Examples should stay minimal.",
+            "Clarify the --agent output format: the source outputs a single pretty-printed JSON object, not NDJSON. Update the description to 'outputs a single JSON object' or verify whether the tuiManager layer serializes differently in agent mode.",
+            "Add an 'INSUFFICIENT_DATA' explanation — it's one of the three valid state values but the page never tells the reader when they'd see it (alarms that haven't received enough metric data points yet), which is a common source of confusion for first-time CloudWatch users."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 6,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Lead paragraph is concise (under 60 words) and self-contained — works as a standalone AI-cited snippet.",
+            "The 'What it does' bullet list is accurately sourced from the AlarmInfo struct in src/commands/debug-alarms/index.ts, including the correct conditional display of `reason` only for ALARM state.",
+            "The 'read-only, does not modify any resources' clarification is a high-value safety note that operators look for.",
+            "All shell code blocks are one command each — no multi-command blocks with comment labels in the copy buffer.",
+            "The final combined-filter example (--resourceName + --state ALARM) is the highest-signal example on the page and a realistic production debugging pattern.",
+            "Correct use of <CliCommandsApiReference> with a complete sortedArgs payload derived from source."
+          ],
+          "problems": [
+            "Structural violation of the prescribed CLI page rhythm. Section instructions explicitly specify: lead paragraph → usage → auto-generated reference → examples → related commands. The page inserts 'What it does' and 'Important flags' sections before examples, and pushes the CliCommandsApiReference to the very end after the Examples section. Developers scanning for a specific flag have to scroll through all the prose and examples first.",
+            "The 'Important flags' section duplicates content that is already in the CliCommandsApiReference component. Each flag (--resourceName, --state, --agent) gets its own prose paragraph AND its own bash example, then also appears in the sortedArgs table below. The repetition adds length without adding new information; the prose paragraphs do not surface constraints or edge cases that aren't in the table.",
+            "The 'What it does' H2 section partially restates the lead paragraph (same core claim about CloudWatch alarm states, stack prefix query). The bullet list is the only net-new content and could be a compact note in the lead section rather than a standalone H2.",
+            "No FAQ section. The CLI section instructions don't mandate one, but questions like 'What alarms does Stacktape create automatically?' and 'How do I set up alarms in the first place?' are real things a developer reading this page will wonder about. Omitting them leaves a gap for readers who haven't yet deployed alarms and don't know what they're looking for."
+          ],
+          "mandatoryFixes": [
+            "Reorder sections to match the prescribed CLI page rhythm: (1) lead paragraph, (2) Usage bash block, (3) <CliCommandsApiReference>, (4) Examples, (5) Related commands. Move the output-fields bullet list from 'What it does' into a short paragraph after the Usage block, or keep it as a collapsed note — do not make it a full H2 that buries the flags reference.",
+            "Collapse or remove the 'Important flags' H2 section. The prose it contains (what --resourceName, --state, and --agent do) is already documented in the CliCommandsApiReference sortedArgs. If contextual bash examples for the two most-used flags are retained, fold them into the Examples section rather than a separate flags prose section, to avoid documenting the same flags twice."
+          ],
+          "optionalImprovements": [
+            "Add a 3-5 entry FAQ covering: 'What alarms does Stacktape create for my resources?' (answer: automatically created during deploy per resource type), 'Can I add custom alarms to my stack?', 'Why do some alarms show no resource name?' (answer: the alarm name doesn't match the stack-prefix + resource-name pattern parsed in the source), 'What does INSUFFICIENT_DATA mean?' (CloudWatch hasn't received enough data points yet to evaluate the threshold).",
+            "The --agent flag description says 'switches output to JSON format (NDJSON)' but the source shows it emits a single JSON object via tuiManager.info(JSON.stringify(...)) — not NDJSON (one object per line). Narrow the wording to 'outputs a single JSON object' to avoid misleading readers building scripts around the output format.",
+            "Mention that --projectName is an optional flag that scopes the stack lookup when multiple projects share a region+stage combination — currently the page shows only --stage and --region in all examples, which may confuse users whose stacks require --projectName to disambiguate."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The opening paragraph is self-contained, within the target length, and clearly explains that `debug:alarms` shows CloudWatch alarm states for a deployed stack.",
+            "Usage examples are copyable and each shell block contains one command with required `--stage` and `--region` flags shown.",
+            "The page uses the required `<CliCommandsApiReference command=\"debug:alarms\" ... />` component and does not hand-author a flags table.",
+            "The prose correctly describes key source-grounded behavior: stack-name alarm prefix lookup, optional `--resourceName` filtering, optional state filtering, and read-only initialization."
+          ],
+          "problems": [
+            "The `--agent` prose says output is JSON format (NDJSON), but `src/commands/debug-alarms/index.ts` prints pretty JSON with `JSON.stringify({ alarms: filteredAlarms }, null, 2)` in agent mode, not NDJSON for this command.",
+            "The page order drifts from the CLI section instructions: the auto-generated reference should come immediately after the usage example, before additional examples, but the draft places hand-written flag guidance and examples before the reference.",
+            "The `What it does` section asserts the table displays fields such as threshold, comparison, last updated, and reason, but the provided source only shows those fields being assembled and does not include `printAlarmsTable`; wording should be narrowed unless the formatter source is provided.",
+            "The `Important flags` section partly duplicates the generated flags reference and risks getting out of sync, especially for generic flags like `--agent` and `--outputFormat`.",
+            "The page lacks an FAQ. CLI reference pages can be shorter than resource pages, but this command would benefit from a small FAQ covering state filtering, resource filtering, read-only behavior, and when to use alarms versus logs or metrics.",
+            "The heading `What it does` is acceptable but less extractable than a compact noun heading like `Alarm Output` or `Behavior`; its first paragraph is reasonably self-contained but could name `debug:alarms` explicitly."
+          ],
+          "mandatoryFixes": [
+            "Correct the `--agent` description for this command: do not call it NDJSON unless the command implementation actually emits NDJSON; say agent mode prints a JSON object containing the filtered alarms, or omit the format claim.",
+            "Reorder the CLI page to match the required structure: short intro, `Usage`, `<CliCommandsApiReference command=\"debug:alarms\" sortedArgs={...} />`, optional `Examples`, then `Related commands`.",
+            "Narrow or verify the output-field claims. If `printAlarmsTable` is not in the source list, phrase as data returned by the command includes state, resource when identifiable, metric, threshold, comparison, last update timestamp, and ALARM reasons, rather than guaranteeing rendered table columns."
+          ],
+          "optionalImprovements": [
+            "Add a short FAQ with 4-6 useful questions, such as whether the command modifies resources, what `INSUFFICIENT_DATA` means, how `--resourceName` matches Stacktape resources, when to use `debug:alarms` versus `debug:logs`, and when to use `debug:metrics`.",
+            "Move most hand-written flag explanation into examples and let `<CliCommandsApiReference>` own the complete flag details.",
+            "Clarify that `--resourceName` matches the Stacktape resource name inferred from the alarm name and verified against the deployed stack overview; alarms that cannot be matched still appear unless a resource filter is used.",
+            "Mention `--projectName` or `--awsAccount` only if useful for users with multiple projects/accounts, since those flags appear in the generated reference but are not currently explained in examples."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the CLI definition and command implementation, but it overstates the `--agent` output format for this command. The implementation emits one pretty-printed JSON object for `debug:alarms`, not NDJSON/JSONL.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`--agent` switches output to JSON format (NDJSON), which is useful for programmatic consumption by scripts or AI coding agents.",
+              "reason": "For `debug:alarms`, the command implementation checks agent mode and prints a single pretty-printed JSON object. That is JSON, but it is not NDJSON/JSONL because it is not one JSON object per line.",
+              "suggestedFix": "Change the prose to: \"`--agent` switches output to JSON for programmatic consumption by scripts or AI coding agents.\" Avoid saying NDJSON for this command unless the implementation changes.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-alarms\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ alarms: filteredAlarms }, null, 2));\n  } else {\n    printAlarmsTable(filteredAlarms);\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Required flags in the usage examples match `requiredArgs: ['stage', 'region']` for `debug:alarms`.",
+            "The `--resourceName` filter is grounded in the implementation, which filters alarm infos by exact resource name.",
+            "The `--state` filter and the documented alarm states are grounded in the command definition and implementation using CloudWatch `StateValue`.",
+            "The statement that the command is read-only is grounded by `commandModifiesStack: false` in the command initialization.",
+            "All markdown cross-links point to routes present in the provided navigation index.",
+            "The draft uses the required `<CliCommandsApiReference command=\"debug:alarms\" ... />` component and does not include forbidden Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI definition and `debug-alarms` implementation, but it overstates the exact agent-mode output format. The strongest source-backed behavior is: the command initializes read-only stack services, describes CloudWatch alarms by stack-name prefix, optionally filters by CloudWatch state and Stacktape resource name, maps alarm fields, and prints either a table or agent-mode JSON output.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`--agent` switches output to JSON format (NDJSON), which is useful for programmatic consumption by scripts or AI coding agents.",
+              "reason": "The command implementation does not emit NDJSON records for `debug:alarms`; in agent mode it prints a single pretty-printed JSON object containing an `alarms` array. The generic `--agent` flag description says NDJSON, but command source is authoritative for this command’s actual output.",
+              "suggestedFix": "Change the prose to: “`--agent` switches to agent-oriented output. For `debug:alarms`, the command prints a JSON object with an `alarms` array.” Avoid promising NDJSON for this command unless the implementation changes.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-alarms\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ alarms: filteredAlarms }, null, 2));\n  } else {\n    printAlarmsTable(filteredAlarms);\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The usage examples include the required `--stage` and `--region` flags shown in `commandDefinitions['debug:alarms'].requiredArgs`.",
+            "The `--resourceName` and `--state` filters are grounded in both the command definition and implementation.",
+            "The alarm fields listed in the draft are grounded in the `AlarmInfo` mapping in `src/commands/debug-alarms/index.ts`, including `reason` only for alarms in `ALARM` state.",
+            "The related command links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page mostly satisfies CLI-page structure and documents the core `debug:alarms` arguments, but it contains one important output-format inaccuracy for `--agent` and over-specifies the `--state` accepted values beyond the argument schema.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`--agent` switches output to JSON format (NDJSON), which is useful for programmatic consumption by scripts or AI coding agents.",
+              "reason": "The command implementation prints a single pretty-printed JSON object in agent mode, not NDJSON/JSONL. The generic `agent` flag description says NDJSON, but the command-specific runtime behavior for `debug:alarms` is more precise and contradicts the page prose.",
+              "suggestedFix": "Change the prose to: \"`--agent` prints the alarms payload as JSON for programmatic consumption.\" Avoid calling it NDJSON unless the command implementation changes to one JSON object per line.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-alarms\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ alarms: filteredAlarms }, null, 2));\n  } else {\n    printAlarmsTable(filteredAlarms);\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'debug:alarms': {\n    description: `View CloudWatch alarm states for stack resources.\n\nShows all alarms configured for the stack with their current state (OK, ALARM, INSUFFICIENT_DATA).\nFilter by resource name or alarm state.`,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`--state` filters alarms by their current state. Accepted values are `OK`, `ALARM`, and `INSUFFICIENT_DATA`.",
+              "reason": "The command description names those CloudWatch states, but the CLI option schema shown in the generated reference does not enumerate allowed values for `state`; it is exposed as a string. The runtime casts the provided string to the AWS `StateValue` enum, but the provided source does not show validation that rejects other strings before execution.",
+              "suggestedFix": "Write this more cautiously: \"Use CloudWatch alarm state values such as `OK`, `ALARM`, or `INSUFFICIENT_DATA`.\" Keep the API reference as the source of exact flag typing.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "state: alarmState.optional()"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-alarms\\index.ts",
+                  "quote": "const stateValue = state ? (StateValue[state as keyof typeof StateValue] as StateValue) : undefined;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one command and includes realistic invocations with the required `--stage` and `--region` flags.",
+            "The page uses the required `<CliCommandsApiReference command=\"debug:alarms\" ... />` component instead of hand-authoring the full flags table.",
+            "The documented `--resourceName` filter is grounded in the command implementation, which filters mapped alarm records by exact Stacktape resource name.",
+            "The listed table fields align with the command's `AlarmInfo` shape: name/resource/state/metric/threshold/comparison/lastUpdated/reason, with `reason` only included for alarms in `ALARM` state."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__debug__alarms\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is concise, self-contained, and accurately describes the command as read-only — exactly what a new user needs before running an unfamiliar command.",
+            "Five examples covering distinct use cases (all alarms, by state, by resource, combined filters, agent/JSON mode) are realistic and copyable — the most important part of a CLI reference page.",
+            "Agent mode is explicitly documented with output format (JSON `alarms` array), which is non-obvious and genuinely useful.",
+            "The output table's column descriptions (state, resource, metric, threshold, comparison, last state change, reason for ALARM-state alarms) are grounded in the source `AlarmInfo` type and give the reader a useful preview.",
+            "Correct use of `<CliCommandsApiReference>` — no hand-authored flags table.",
+            "Related commands section links to the three closest siblings: `debug:logs`, `debug:metrics`, and `info:stack`, which are precisely the commands a user would reach for before or after `debug:alarms`."
+          ],
+          "problems": [
+            "The page never explicitly states that no config file is required (the source shows `commandRequiresConfig: false`). A new user who hasn't yet deployed or whose `stacktape.ts` isn't in the current directory may be confused about whether to pass `--configPath`.",
+            "The `--state` filter description in prose says 'values such as `OK`, `ALARM`, or `INSUFFICIENT_DATA`' — 'such as' implies the list might be incomplete, but it is exhaustive. A definitive 'one of' phrasing would be clearer.",
+            "There is no guidance on the empty-result case: if no alarms match the filters, a new user may not know whether that means the stack has no alarms configured, the filters narrowed too much, or the stack is not yet deployed. A one-sentence note would avoid a confusion dead-end.",
+            "The `--resourceName` filter description says it 'narrows results to a single resource' but the source applies client-side filtering by matching the parsed alarm name against stack resources. If the resource name doesn't match any deployed resource (e.g. typo), the filter silently returns zero results — worth noting."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a one-liner after the opening paragraph: 'No configuration file is required — the command only needs `--stage` and `--region` to identify the deployed stack.'",
+            "Tighten the `--state` filter description: 'Use `--state` to limit output to one of three CloudWatch alarm states: `OK`, `ALARM`, or `INSUFFICIENT_DATA`.' Remove 'such as'.",
+            "Add a sentence in the Usage section for the empty-result case: 'If no alarms are returned, the stack may not have configured CloudWatch alarms, or the active filter is too narrow.'",
+            "Consider a brief note that `--resourceName` matches the logical resource name as written in the Stacktape configuration (e.g. `paymentHandler`), not the AWS physical resource ID, to preempt a common mistake."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All described behavior is grounded in the source: alarm name prefix querying (`alarmNamePrefix: stackName`), the AlarmInfo fields shown in the table (name, resource, state, metric, threshold, comparison, lastUpdated, reason), and the agent-mode JSON output shape (`{ alarms: [...] }`) all match `src/commands/debug-alarms/index.ts` exactly.",
+            "Correctly scopes the `reason` field to alarms in `ALARM` state, matching the source code's conditional spread: `...(alarm.StateReason && alarm.StateValue === StateValue.ALARM && { reason: alarm.StateReason })`.",
+            "Examples build from simple to combined-filter scenarios in a logical progression, covering the most common production debugging workflows.",
+            "No mandatory style violations: no YAML Stacktape config, no `StacktapeConfig` type pattern, no multi-command bash blocks, no explanatory `#` comments inside shell blocks.",
+            "Related commands section selects the three most relevant sibling debug/info commands (`debug:logs`, `debug:metrics`, `info:stack`), which are the natural next steps after checking alarms.",
+            "The command structure correctly follows CLI page rhythm: short opening paragraph → usage example → `<CliCommandsApiReference>` → examples → related commands."
+          ],
+          "problems": [
+            "The page does not mention that `debug:alarms` does NOT require a Stacktape config file (`commandRequiresConfig: false` in the source). Most stack commands need `--configPath`; this one does not, which means a user can run it against any deployed stack even without local config. Omitting this is a meaningful gap for someone who has deployed infrastructure from CI and wants to debug alarms on a machine without the repo checked out.",
+            "The page describes the state filter accepting `OK`, `ALARM`, or `INSUFFICIENT_DATA` but does not clarify that these values are case-sensitive at the CLI level (they are mapped to the `StateValue` enum from `@aws-sdk/client-cloudwatch`). A user passing `alarm` instead of `ALARM` may get unexpected results — this is a production gotcha worth a one-liner.",
+            "No mention of what happens when the `--resourceName` filter matches no resource in the deployed stack's resource map. The source code filters silently (`filteredAlarms` returns empty), so a mistyped resource name produces an empty result rather than an error. This is easy to misdiagnose as 'no alarms configured'."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a one-liner after the opening paragraph noting that `debug:alarms` does not require a config file (`--configPath`), making it usable in CI or from any machine that has AWS credentials and the Stacktape CLI installed.",
+            "Add a one-sentence note near the `--state` description that the value is case-sensitive and must be uppercase (`ALARM`, `OK`, `INSUFFICIENT_DATA`).",
+            "Add a brief callout — one sentence is enough — that if `--resourceName` returns an empty result, the resource name may not match a deployed resource in the stack's resource inventory, rather than meaning no alarms exist for that resource.",
+            "Consider adding a note that the command works without a pre-existing configuration, which distinguishes it from the `configDependentArgs` commands and is useful context when debugging from a machine without the project repo."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph clearly explains what `debug:alarms` does, when to use it, and that it is read-only.",
+            "Usage example includes the required `--stage` and `--region` flags.",
+            "Examples are copyable, one command per shell block, and cover the main filters: all alarms, `--state`, `--resourceName`, combined filters, and `--agent`.",
+            "The page uses the required `<CliCommandsApiReference command=\"debug:alarms\" ... />` component rather than hand-authoring the flags table."
+          ],
+          "problems": [
+            "The page says the non-agent output is an \"interactive table\", but the source only shows `printAlarmsTable(filteredAlarms)` and does not establish that the table is interactive. This wording should be narrowed to \"table output\" or \"terminal table\".",
+            "The page claims the command displays alarms \"associated with a deployed stack,\" but the runtime source is more precise: it calls CloudWatch `describeAlarms` with `alarmNamePrefix: stackName`. The current wording is probably directionally correct, but the page should explicitly anchor the behavior to the stack-name alarm prefix to avoid implying a richer association model.",
+            "The `--state` filter prose says values \"such as\" `OK`, `ALARM`, or `INSUFFICIENT_DATA`; the command description says these are the supported states, so \"such as\" is unnecessarily loose.",
+            "The page does not mention that `--resourceName` filtering only matches alarms whose parsed alarm name maps back to a known Stacktape resource in the deployed stack overview. That is an important practical caveat when a user expects every CloudWatch alarm with the stack prefix to match a resource.",
+            "The `--agent` section says the command prints a JSON object, while the generated global `agent` flag description says agent mode uses JSONL/NDJSON. The command source supports this page's JSON-object claim, but the page should avoid broader statements about agent-mode format and describe only this command's output."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Change \"interactive table\" to \"terminal table\" or \"table output\".",
+            "Replace \"associated with a deployed stack\" with a more source-grounded phrase such as \"CloudWatch alarms whose names start with the target stack name\".",
+            "Change \"state values such as `OK`, `ALARM`, or `INSUFFICIENT_DATA`\" to \"state values `OK`, `ALARM`, or `INSUFFICIENT_DATA`\".",
+            "Add a short note that `--resourceName` filters by the Stacktape resource name parsed from the alarm name and matched against the deployed stack resource list.",
+            "Add a brief troubleshooting sentence for empty results: no stack-prefixed alarms matched the selected stage, region, resource name, or state filter. Keep it cautious unless error-message sources are provided."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided command definition and implementation. I found two issues: one likely wrong claim about non-agent output being interactive, and one unsupported level of detail about exact table columns because the formatter implementation is not in the provided sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“In agent mode (`--agent`), the command prints a JSON object containing an `alarms` array instead of the interactive table.”",
+              "reason": "The implementation distinguishes agent mode from the normal table output, but the provided source does not support calling the normal alarm table interactive. The command calls `printAlarmsTable(filteredAlarms)` with no interactive controls visible in the provided source. The global `--agent` docs say it disables interactive terminal UI generally, but this specific command's implementation only shows JSON vs table output.",
+              "suggestedFix": "Change to: “In agent mode (`--agent`), the command prints a JSON object containing an `alarms` array instead of the table output.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-alarms\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ alarms: filteredAlarms }, null, 2));\n  } else {\n    printAlarmsTable(filteredAlarms);\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Shows all alarms configured for the stack with their current state (OK, ALARM, INSUFFICIENT_DATA).\nFilter by resource name or alarm state."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape queries CloudWatch for all alarms prefixed with the stack name and displays a table showing each alarm's state, associated resource, monitored metric, threshold, comparison operator, last state change, and reason (for alarms in `ALARM` state).”",
+              "reason": "The implementation maps those fields into `AlarmInfo` and passes them to `printAlarmsTable`, but the provided source list does not include `src/commands/_utils/debug-formatters`, so the exact rendered table columns are not verifiable from the supplied sources.",
+              "suggestedFix": "Narrow the wording to what the command implementation proves: “Stacktape queries CloudWatch for alarms prefixed with the stack name, maps each alarm to its state, resource when matched, metric, threshold, comparison operator, last update time, and ALARM-state reason, then prints the filtered result.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required `--stage` and `--region` arguments match `src/config/cli/commands.ts`.",
+            "The `--resourceName` and `--state` filters are supported by both the command definition and runtime implementation.",
+            "The read-only claim is grounded by `commandModifiesStack: false` in the command initialization.",
+            "All related-command links point to routes present in the provided navigation index.",
+            "The page uses the required `<CliCommandsApiReference command=\"debug:alarms\" ... />` component for the flags table."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly source-grounded for the `debug:alarms` command. I did not find publication-blocking factual issues against the provided CLI definition and command implementation.",
+          "issues": [],
+          "positiveFindings": [
+            "The page uses only the documented command route `/cli/debug-alarms` and related links that exist in the navigation index.",
+            "The usage examples include the required `--stage` and `--region` flags shown in `commandDefinitions['debug:alarms'].requiredArgs`.",
+            "The `--resourceName`, `--state`, and `--agent` behavior described in prose matches the provided command implementation and CLI argument metadata.",
+            "The page uses the required `<CliCommandsApiReference command=\"debug:alarms\" ... />` component and does not hand-author Stacktape configuration examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the required command, required flags, API reference component, and realistic one-command examples. I found one medium issue where the agent-mode prose narrows the output format in a way that conflicts with the CLI argument description in the same source set.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "In agent mode (`--agent`), the command prints a JSON object containing an `alarms` array instead of the interactive table.",
+              "reason": "The command implementation does stringify `{ alarms: filteredAlarms }`, but the generated CLI argument description for `--agent` says agent mode uses JSONL/NDJSON output. Saying it prints “a JSON object” without caveat may mislead readers about the line-oriented output contract described for agent mode.",
+              "suggestedFix": "Phrase this as: “With `--agent`, Stacktape disables the interactive table and emits machine-readable output containing an `alarms` array.” Avoid promising a single non-NDJSON JSON document unless the CLI reference source is updated.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-alarms\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ alarms: filteredAlarms }, null, 2));\n  } else {\n    printAlarmsTable(filteredAlarms);\n  }"
+                },
+                {
+                  "file": "Draft page",
+                  "quote": "In agent mode (`--agent`), the command prints a JSON object containing an `alarms` array instead of the interactive table."
+                },
+                {
+                  "file": "Draft page / CliCommandsApiReference data",
+                  "quote": "Uses strict JSONL/NDJSON output (one JSON object per line)"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one CLI command and uses `<CliCommandsApiReference command=\"debug:alarms\" ... />` instead of hand-authoring a flags table.",
+            "All shell examples include the required `--stage` and `--region` flags, matching `requiredArgs: ['stage', 'region']`.",
+            "The optional `--resourceName` and `--state` filters are documented and demonstrated, matching the command source.",
+            "The related commands are close siblings for alarm debugging: `debug:logs`, `debug:metrics`, and `info:stack`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\debug-alarms.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T22:10:50.482Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\debug-alarms\\index.ts": "15b31eb4c46618ef6db155712472c9815ff312ef",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\debug-alarms.md": "67d9b9583821948651d1d8cf1887ecf4b78de082"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

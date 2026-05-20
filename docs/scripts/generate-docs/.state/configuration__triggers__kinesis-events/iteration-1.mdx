@@ -1,0 +1,247 @@
+---
+title: 'Kinesis Events'
+order: 280
+seoTitle: 'Kinesis Event Triggers for Lambda Functions | Stacktape Docs'
+seoDescription: 'Configure Kinesis Data Stream triggers for Lambda functions in Stacktape. Covers batching, enhanced fan-out, consumption modes, retry strategies, and dead-letter routing.'
+---
+
+# Kinesis Events
+
+A Kinesis event trigger invokes a [Lambda function](/resources/compute/lambda-function) whenever new records arrive in a [Kinesis Data Stream](/resources/messaging/kinesis-stream). Stacktape polls the stream and delivers records in configurable batches — making Kinesis triggers the primary tool for real-time data processing: clickstream analytics, log ingestion, IoT telemetry, and event-driven pipelines that require ordered, replayable delivery.
+
+## When to use
+
+Kinesis event triggers are the right choice when your workload needs **ordered, high-throughput, near-real-time record processing** with the ability to replay data. Concrete scenarios:
+
+- **Clickstream and behavioral analytics** — aggregate user events as they happen, feeding dashboards or ML pipelines.
+- **Log and metric ingestion** — centralize logs from many producers into a single stream, then route to storage, alerting, or indexing.
+- **IoT and sensor telemetry** — handle thousands of records per second with per-shard ordering guarantees.
+- **Event sourcing** — replay the stream from a known position to rebuild state or reprocess after a bug fix.
+
+Kinesis preserves record order within each shard and retains records for replay (AWS Kinesis supports retention from 24 hours up to 8,760 hours / 365 days). Multiple independent consumers can read the same data without removing it from the stream — unlike SQS, where a consumed message is deleted.
+
+## When NOT to use
+
+Kinesis shards carry a base hourly cost and add shard-management complexity that isn't justified for every workload. Skip Kinesis triggers when:
+
+- **Simple task decoupling without ordering** — an [SQS trigger](/configuration/triggers/sqs-events) is simpler to operate and auto-scales consumers without manual shard management.
+- **Fan-out from a single event to multiple targets** — an [SNS trigger](/configuration/triggers/sns-events) or [EventBridge event bus trigger](/configuration/triggers/event-bus-events) is a better fit when each event should invoke multiple independent handlers simultaneously.
+- **Low-volume, irregular workloads** — if you process fewer than a few hundred events per second, SQS (pay-per-message) or EventBridge (pay-per-event) is more cost-effective than provisioning shards. Kinesis on-demand mode reduces this gap but still has higher base costs than SQS.
+
+## Basic example
+
+This configuration creates a [Kinesis stream](/resources/messaging/kinesis-stream) and a [Lambda function](/resources/compute/lambda-function) that processes records from it. The `kinesisStreamName` value must match the stream's resource name in the returned `resources` object.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  KinesisIntegration,
+  KinesisStream
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const clickStream = new KinesisStream();
+
+  const processor = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/process-records.ts'
+    }),
+    events: [
+      new KinesisIntegration({
+        kinesisStreamName: 'clickStream',
+        batchSize: 100,
+        startingPosition: 'LATEST'
+      })
+    ]
+  });
+
+  return {
+    resources: { clickStream, processor }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+The `KinesisStream` resource defaults to on-demand capacity mode, so no shard count is required. Stacktape auto-configures the IAM permissions the Lambda function needs to read from the stream.
+
+To consume from a Kinesis stream **not** managed by your stack, use `streamArn` instead of `kinesisStreamName` and pass the full ARN of the external stream.
+
+### Handler code
+
+Each invocation receives a batch of Kinesis records. Record data is **base64-encoded** — decode it in your handler before processing.
+
+```typescript
+export const handler = async (event: any) => {
+  for (const record of event.Records) {
+    const data = Buffer.from(record.kinesis.data, 'base64').toString('utf-8');
+    const payload = JSON.parse(data);
+    console.info(`Key: ${record.kinesis.partitionKey}`, payload);
+  }
+};
+```
+
+## Consumption modes
+
+Kinesis supports two ways for a Lambda function to read records from a stream. The choice affects throughput, latency, and cost.
+
+<FeatureComparisonTable
+  columns={['Direct polling (default)', 'Enhanced fan-out']}
+  features={[
+    { name: 'How it works', values: { 'Direct polling (default)': 'Lambda polls each shard ~1/sec', 'Enhanced fan-out': 'Dedicated push connection per shard' } },
+    { name: 'Throughput', values: { 'Direct polling (default)': 'Shared across all consumers of the shard', 'Enhanced fan-out': 'Dedicated per consumer' } },
+    { name: 'Latency', values: { 'Direct polling (default)': 'Standard', 'Enhanced fan-out': 'Lower' } },
+    { name: 'Additional AWS cost', values: { 'Direct polling (default)': 'None', 'Enhanced fan-out': 'Per consumer-shard-hour + per GB' } },
+    { name: 'Best for', values: { 'Direct polling (default)': 'Single consumer, cost-sensitive', 'Enhanced fan-out': 'Multiple consumers, latency-sensitive' } }
+  ]}
+/>
+
+### Direct polling
+
+Direct polling is the default behavior — any Kinesis trigger without `autoCreateConsumer` or `consumerArn` uses it. Lambda polls each shard approximately once per second and shares the shard's read throughput (2 MB/sec per shard on AWS Kinesis) with any other consumers reading from the same shard. This mode works well when you have a single consumer per stream and don't need sub-second processing latency. No additional configuration is needed.
+
+**Use direct polling** for most workloads. It has no additional cost beyond the base Kinesis stream pricing and is the simplest to operate. Only consider enhanced fan-out when you hit throughput contention or need lower latency.
+
+### Enhanced fan-out
+
+Set `autoCreateConsumer` to `true` to create a dedicated stream consumer. Each consumer gets its own read throughput per shard, and records are pushed via HTTP/2 instead of being polled. This eliminates throughput contention with other consumers and reduces processing latency.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  KinesisIntegration,
+  KinesisStream
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const telemetry = new KinesisStream();
+
+  const aggregator = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/aggregate.ts'
+    }),
+    events: [
+      // [!code focus-start]
+      new KinesisIntegration({
+        kinesisStreamName: 'telemetry',
+        autoCreateConsumer: true,
+        batchSize: 500,
+        maxBatchWindowSeconds: 30
+      })
+      // [!code focus-end]
+    ]
+  });
+
+  return {
+    resources: { telemetry, aggregator }
+  };
+});
+`
+    }
+  ]}
+/>
+
+**Use enhanced fan-out** when multiple Lambda functions (or other applications) read from the same stream, or when you need the lowest possible processing latency. It adds per-consumer-shard-hour and per-GB AWS charges on top of base Kinesis pricing.
+
+If you already manage a dedicated consumer externally, pass its ARN via `consumerArn` instead. The `autoCreateConsumer` and `consumerArn` options are mutually exclusive.
+
+## Batching
+
+Kinesis delivers records to your Lambda function in batches. Two properties control when a batch is dispatched:
+
+- **`batchSize`** — maximum number of records per batch. Accepts 1 to 10,000. Defaults to **10**. Increase for higher throughput and fewer invocations; decrease for lower per-invocation latency.
+- **`maxBatchWindowSeconds`** — maximum seconds to wait before invoking, even if `batchSize` hasn't been reached. Maximum is 300 seconds. When omitted, the function fires as soon as records are available.
+
+The function is invoked when **either** threshold is met — whichever comes first. For high-throughput streams, setting `batchSize` to several hundred and `maxBatchWindowSeconds` to 10–30 seconds reduces invocation count and cost. For latency-sensitive processing, keep both values low.
+
+### Parallelization
+
+By default, Lambda processes one batch at a time from each shard, preserving strict record order. Set `parallelizationFactor` to process multiple batches from the same shard concurrently. This increases throughput but means records within the same shard may be processed out of order across concurrent batches. Each individual batch still preserves internal order. Use parallelization only when your handler is idempotent and order-independent, or when it partitions work by a secondary key within each record.
+
+## Starting position
+
+The `startingPosition` property determines where the Lambda function begins reading when the event source mapping is first created:
+
+| Value | Behavior | Use when |
+|---|---|---|
+| `TRIM_HORIZON` (default) | Reads from the oldest available record in the stream | Backfilling data, initial setup, ensuring no records are missed |
+| `LATEST` | Reads only records arriving after the trigger is created | Real-time processing where historical records are irrelevant |
+
+<Info>Starting position applies only when the event source mapping is first created. On subsequent deployments, the function resumes from its last checkpoint — it does not reset to the configured starting position.</Info>
+
+## Error handling
+
+When a Lambda function throws an error while processing a Kinesis batch, the **entire batch is retried** — including records that were already processed before the failure. Your handler must be **idempotent**: processing the same record twice should produce the same result without unintended side effects (duplicate writes, duplicate charges, etc.).
+
+### Limiting retries
+
+Set `maximumRetryAttempts` to cap how many times a failed batch is retried. Without a limit, a persistently failing record **blocks the entire shard** because Kinesis event source mappings preserve shard ordering — the service won't advance past a failed batch. Setting a finite retry count (3–5 for most workloads) prevents a single bad record from stalling all processing on that shard.
+
+<Warning>Without `maximumRetryAttempts`, a single poison-pill record can block a shard indefinitely, causing the iterator age to grow until records start expiring from the stream's retention window.</Warning>
+
+### Bisecting failed batches
+
+Enable `bisectBatchOnFunctionError` to split a failed batch in half before retrying each half independently. This helps isolate the specific record causing the failure when only one record in a large batch triggers an error. Combined with a retry limit, bisection progressively narrows the problem until the bad record is either processed successfully or routed to the failure destination.
+
+### Failure destination
+
+Configure `onFailure` to route batches that exhaust all retry attempts to an [SQS queue](/resources/messaging/sqs-queue) or [SNS topic](/resources/messaging/sns-topic) for inspection and manual reprocessing. The destination receives metadata about the failed batch — shard ID, start and end sequence numbers, and the error details. Without a failure destination, records that exceed the retry limit are effectively skipped as the event source mapping advances past them.
+
+The `onFailure` property takes an ARN and the destination type (`'sqs'` or `'sns'`). Use [`$ResourceParam()`](/configuration/directives) to reference the ARN of a queue or topic defined in your stack instead of hardcoding it.
+
+<Tip>For robust production pipelines, always configure all three: `maximumRetryAttempts`, `bisectBatchOnFunctionError`, and `onFailure`. This combination isolates bad records, prevents shard blocking, and preserves failed data for later reprocessing.</Tip>
+
+## FAQ
+
+### Can I use a Kinesis stream from another AWS account or stack?
+
+Yes. Use the `streamArn` property instead of `kinesisStreamName` and pass the full ARN of the external stream. For cross-account streams, ensure the stream's resource policy grants your Lambda function's execution role permission to read from it. If using enhanced fan-out with an external consumer, pass `consumerArn` directly.
+
+### How do I monitor a Kinesis-triggered Lambda function?
+
+Use [`stacktape debug:logs`](/cli/debug-logs) to tail the function's logs from the CLI. In the [Stacktape Console](/stacktape-console/console-overview), you can view logs, invocation metrics, and error rates. AWS CloudWatch also publishes Kinesis-specific metrics like `IteratorAge` — a rising iterator age signals that your function is falling behind the stream tip and can't keep up with incoming data volume.
+
+### What happens if my function can't keep up with the stream?
+
+When records arrive faster than your function processes them, the iterator age grows — meaning there's an increasing delay between when a record is written and when it's processed. To catch up, increase `batchSize` so each invocation handles more records, add `parallelizationFactor` for concurrent batch processing per shard, increase function memory (which increases CPU), or add more shards to the underlying stream. For sustained high throughput with multiple consumers, use enhanced fan-out.
+
+### How much does a Kinesis Data Stream cost?
+
+AWS Kinesis charges per shard-hour for provisioned mode, plus per-PUT-payload-unit for all writes. On-demand mode charges per GB written and read, with no shard management. Enhanced fan-out adds per-consumer-shard-hour and per-GB-retrieved charges. Kinesis has no free tier for provisioned shards. For low-traffic workloads, [SQS](/resources/messaging/sqs-queue) with its generous free tier and pay-per-message model is usually cheaper.
+
+### What is the maximum record size in Kinesis?
+
+AWS Kinesis accepts individual records up to 1 MB. The Lambda event source mapping delivers batches up to 10,000 records or the Lambda payload limit (6 MB), whichever is reached first. If your records are large, keep `batchSize` low to avoid hitting the payload limit.
+
+### When should I use Kinesis vs SQS vs EventBridge?
+
+Use **Kinesis** when you need ordered, replayable, high-throughput streaming where multiple consumers can independently read the same data. Use **[SQS](/configuration/triggers/sqs-events)** for simple decoupled task processing where each message is consumed once and ordering doesn't matter. Use **[EventBridge](/configuration/triggers/event-bus-events)** for content-based event routing — matching events by patterns and fanning out to different targets based on type or payload. SQS is the simplest and cheapest for most workloads; Kinesis is the right tool when ordering, replay, or multi-consumer access matters.
+
+### Can I use Kinesis triggers with container workloads?
+
+No. Kinesis event triggers are available only for [Lambda functions](/resources/compute/lambda-function). If you need a container-based Kinesis consumer, run your own consumer application (such as the AWS Kinesis Client Library) inside a [worker service](/resources/compute/worker-service) or [multi-container workload](/resources/compute/multi-container-workload), and grant access to the stream using [`connectTo`](/configuration/connecting-resources).
+
+### Should I use TRIM_HORIZON or LATEST for starting position?
+
+Use `TRIM_HORIZON` (the default) when you need to process all existing records in the stream — for example, during initial setup or when replaying data after a bug fix. Use `LATEST` when you only care about new records arriving after deployment and historical records are irrelevant. The starting position applies only when the trigger is first created; subsequent redeployments resume from the last checkpoint regardless of this setting.
+
+### How do I handle poison-pill records that always fail?
+
+Combine `maximumRetryAttempts` with `bisectBatchOnFunctionError` and an `onFailure` destination. The bisect strategy narrows down the failing record by splitting each retry in half. The retry limit prevents infinite blocking. The failure destination captures the bad batch's metadata (shard, sequence numbers, error) for later inspection and manual reprocessing. Design your handler to be idempotent so retried records don't produce duplicate side effects.

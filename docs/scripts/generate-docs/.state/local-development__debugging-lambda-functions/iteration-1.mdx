@@ -1,0 +1,253 @@
+---
+title: 'Debugging Lambda Functions'
+order: 113
+seoTitle: 'Debugging Lambda Functions in Dev Mode | Stacktape Docs'
+seoDescription: 'Debug AWS Lambda functions with Stacktape dev mode. Real-time log streaming, automatic hot reload on file changes, and local database tunnels for rapid serverless development.'
+---
+
+# Debugging Lambda Functions
+
+Stacktape [dev mode](/local-development/dev-mode-overview) keeps Lambda functions deployed on AWS while enabling a fast edit-deploy-test loop. When you change a source file, Stacktape rebuilds and uploads the function code in seconds — without a full stack redeployment. Logs stream back to your terminal in real time, giving you immediate visibility into function behavior.
+
+## How Lambda debugging works in dev mode
+
+Lambda functions in dev mode remain deployed on AWS Lambda infrastructure. Unlike container workloads (which run locally in Docker), functions execute in their real AWS environment — with real IAM permissions, real event sources, and real service integrations. This means you're always testing against production-equivalent behavior.
+
+The dev mode workflow for Lambda functions:
+
+1. **Build and upload** — Stacktape packages your function code locally and uploads it to S3
+2. **Hotswap update** — The deployed Lambda function code is updated via the AWS SDK (no CloudFormation changeset)
+3. **Log streaming** — CloudWatch logs are fetched every 500ms and displayed in your terminal
+4. **File watching** — Source file changes trigger automatic rebuild and redeployment
+
+This approach trades sub-millisecond local execution for high-fidelity testing. Your function runs in the same Lambda runtime, with the same memory limits, timeout constraints, and network access it will have in production.
+
+## Starting dev mode with Lambda functions
+
+Run [`stacktape dev`](/cli/dev) to start dev mode. Lambda functions appear as selectable resources in the interactive picker, or you can specify them directly.
+
+To run all resources:
+
+```bash
+stacktape dev --stage dev --resources all
+```
+
+To run only specific Lambda functions:
+
+```bash
+stacktape dev --stage dev --resources myApi,myWorker
+```
+
+To exclude specific resources:
+
+```bash
+stacktape dev --stage dev --skipResources heavyBatchJob
+```
+
+The first time you run dev mode for a stage, Stacktape deploys a minimal "dev stack" automatically. This stack contains only the infrastructure your functions need (API Gateway endpoints, event source mappings, IAM roles) without the heavier resources you might have in production.
+
+## Real-time log streaming
+
+Dev mode streams CloudWatch logs to your terminal every 500ms. Each function's logs appear in its own section of the dev TUI, color-coded by request ID so you can follow individual invocations.
+
+The log stream includes:
+
+- **Request start/end markers** with request ID
+- **Cold start duration** (from Lambda INIT_REPORT)
+- **Billed duration and memory usage** (from Lambda REPORT)
+- **Your application logs** (`console.log`, `console.error`, etc.)
+- **Error stack traces** with JSON payload parsing
+
+<Tip>Structure your logs as JSON objects. The dev TUI and [`stacktape debug:logs`](/cli/debug-logs) both handle JSON logs well, and you can later use CloudWatch Logs Insights queries to search structured fields.</Tip>
+
+## File watching and hot reload
+
+When you pass the `--watch` flag, Stacktape monitors all source files that were included in the function's package. Any file change triggers an automatic rebuild and redeployment.
+
+```bash
+stacktape dev --stage dev --watch
+```
+
+Without `--watch`, the dev TUI still supports manual rebuilds:
+
+- Type `rs` and press Enter to rebuild all workloads
+- Type `rs myFunctionName` to rebuild a specific function
+
+After each rebuild, Stacktape re-scans the source file list so newly added files are also watched.
+
+<Info>Rebuild time depends on your function's package size. A typical Node.js/TypeScript function rebuilds and deploys in 2-5 seconds. The dev TUI shows the zipped package size after each deploy.</Info>
+
+## Connecting functions to local databases
+
+When you run databases locally in dev mode (Postgres, MySQL, Redis, DynamoDB), Lambda functions on AWS cannot reach `localhost` on your machine. Stacktape solves this with TCP tunnels that expose your local database ports through a public relay server.
+
+The tunnel flow:
+
+1. Stacktape starts local databases (Docker containers on your machine)
+2. For each local database, a TCP tunnel is opened through a relay server (`bore.pub` by default)
+3. Lambda environment variables (like `STP_MY_DB_CONNECTION_STRING`) are updated to point to the tunnel's public endpoint
+4. Your function connects to the local database through the tunnel as if it were a remote service
+
+This happens automatically for any Lambda function that references a local resource via `connectTo` or `$ResourceParam()` directives.
+
+### Tunnel limitations
+
+- **VPC-attached Lambda functions cannot use tunnels.** Functions with `joinDefaultVpc: true` connect through the VPC's private network and cannot reach the public tunnel relay. Options: set `dev.remote: true` on the database to use the deployed AWS instance, remove `joinDefaultVpc` during development, or exclude the function with `--skipResources`.
+- **The function must be deployed.** Tunnels update the Lambda's environment variables via the AWS SDK, which requires the function to exist. The dev stack deployment creates the function before tunnels are set up.
+- **Tunnel startup adds a few seconds.** The relay connection and Lambda env var update happen in parallel with workload startup to minimize delay.
+
+### Disabling tunnels
+
+If tunnels cause issues (corporate firewall blocking bore.pub, for example), disable them:
+
+```bash
+stacktape dev --stage dev --noTunnel
+```
+
+With tunnels disabled, Lambda functions use whatever connection strings were set at deploy time. You can point functions at deployed AWS databases by marking those resources as remote in your config with `dev.remote: true`.
+
+### Custom tunnel server
+
+Set the `STACKTAPE_TUNNEL_SERVER` environment variable to use a self-hosted bore-compatible relay server instead of the default `bore.pub`.
+
+## Viewing logs for deployed stacks
+
+Outside of dev mode, use [`stacktape debug:logs`](/cli/debug-logs) to view logs from any deployed Lambda function:
+
+```bash
+stacktape debug:logs --resourceName myApi --stage production
+```
+
+This fetches the last hour of logs by default (up to 100 events). Customize the time range and output:
+
+View the last 30 minutes of logs:
+
+```bash
+stacktape debug:logs --resourceName myApi --stage production --startTime 30m
+```
+
+Filter logs containing "ERROR":
+
+```bash
+stacktape debug:logs --resourceName myApi --stage production --filter "ERROR"
+```
+
+Use CloudWatch Logs Insights for structured queries:
+
+```bash
+stacktape debug:logs --resourceName myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
+```
+
+The `--startTime` flag accepts both relative values (`1h`, `30m`, `1d`) and absolute ISO timestamps. The `--limit` flag controls how many log events are returned (default: 100).
+
+<Warning>CloudWatch Logs Insights queries are billed by the amount of data scanned. For high-volume functions, use narrow time ranges and specific filters to control cost.</Warning>
+
+## Debugging strategies
+
+Lambda functions in dev mode run on AWS, so traditional local debugger attachment (breakpoints, step-through) is not available. Use these approaches instead:
+
+### Structured logging
+
+Add structured log statements at key points in your function. JSON logs work well because you can query specific fields later:
+
+```typescript
+export const handler = async (event: any) => {
+  console.info(JSON.stringify({ action: 'request_received', path: event.path, method: event.httpMethod }));
+
+  try {
+    const result = await processRequest(event);
+    console.info(JSON.stringify({ action: 'request_processed', statusCode: result.statusCode }));
+    return result;
+  } catch (error) {
+    console.error(JSON.stringify({ action: 'request_failed', error: error.message, stack: error.stack }));
+    throw error;
+  }
+};
+```
+
+### Rapid iteration with watch mode
+
+The `--watch` flag gives you the fastest feedback loop. Make a change, save the file, and the function redeploys in seconds. Combined with real-time log streaming, this replaces most use cases where you'd reach for a debugger.
+
+### Testing HTTP functions directly
+
+For Lambda functions with HTTP API Gateway triggers, the dev TUI displays the live endpoint URL. You can hit it directly with curl, a browser, or any HTTP client while watching logs stream in the terminal.
+
+### Using the agent mode
+
+For AI-assisted debugging workflows, dev mode supports an `--agent` flag that starts a background daemon with an HTTP API. Coding assistants and AI agents can trigger rebuilds, read logs, and inspect function state programmatically.
+
+```bash
+stacktape dev --stage dev --agent
+```
+
+The agent runs on port 7331 by default (configurable with `--agentPort`). Stop it when done:
+
+```bash
+stacktape dev:stop --agentPort 7331
+```
+
+## Environment variable restoration
+
+When dev mode exits (Ctrl+C or `stacktape dev:stop`), Stacktape automatically restores all Lambda environment variables to their original values. This ensures your deployed functions aren't left pointing at tunnel URLs that no longer exist.
+
+If restoration fails (network issue, Lambda in-progress update), you'll see a warning with the affected function names. In that case, redeploy the affected functions to reset their configuration:
+
+```bash
+stacktape deploy --stage dev
+```
+
+## Dev mode vs deployed-stack debugging
+
+| Aspect | Dev mode (`stacktape dev`) | Deployed stack (`debug:logs`) |
+|--------|---------------------------|-------------------------------|
+| Log latency | ~500ms (streamed) | Historical fetch |
+| Code updates | Seconds (hotswap) | Minutes (full deploy) |
+| Database connectivity | Local databases via tunnels | AWS-deployed databases |
+| File watching | Automatic or manual rebuild | Not applicable |
+| TUI | Interactive dashboard | Single command output |
+| Cost | Dev stack + tunnel relay | Production stack |
+
+Use dev mode for active development and rapid iteration. Use `debug:logs` for investigating issues in deployed production or staging stacks.
+
+## FAQ
+
+### Can I set breakpoints in Lambda functions during dev mode?
+
+No. Lambda functions run on AWS infrastructure, not locally, so you cannot attach a local debugger. The tradeoff is that you test against the real Lambda runtime environment. Use structured logging and the 500ms log streaming for rapid feedback instead of breakpoints.
+
+### How fast is the rebuild cycle for a Lambda function?
+
+A typical Node.js or TypeScript function rebuilds and deploys in 2-5 seconds after a file change. The time depends on package size (bundling and upload) and AWS Lambda's code update propagation. The dev TUI shows the zipped package size to help you track bundle growth.
+
+### Do my Lambda function's event sources work in dev mode?
+
+Yes. The dev stack deploys real event source mappings (HTTP API Gateway, SQS triggers, schedules, etc.). For HTTP-triggered functions, the dev TUI shows the live URL you can use for testing. Event sources like SQS and DynamoDB Streams continue to fire against the deployed function.
+
+### What happens if a tunnel disconnects during dev mode?
+
+Stacktape automatically attempts to reconnect tunnels with exponential backoff (up to 3 attempts with 5-second intervals). If reconnection fails, the affected Lambda function will lose connectivity to the local database. Restart dev mode to re-establish the tunnel.
+
+### Can I use dev mode with a Lambda function that's in a VPC?
+
+VPC-attached Lambda functions (with `joinDefaultVpc: true`) cannot use tunnels to reach local databases because they route traffic through the VPC's private network, not the public internet. Your options are: use deployed AWS databases for that function (set `dev.remote: true` on the database), temporarily remove `joinDefaultVpc` during development, or exclude the function from dev mode with `--skipResources`.
+
+### How do I debug a Lambda function that's triggered by a schedule?
+
+Scheduled functions work normally in dev mode — the EventBridge schedule fires the deployed Lambda on its defined interval. Logs stream back to the dev TUI in real time. For faster iteration, you can also invoke the function manually through the AWS Console or CLI while dev mode streams the logs.
+
+### Does dev mode support Python, Go, or other Lambda runtimes?
+
+Dev mode works with any runtime supported by Stacktape's Lambda packaging (Node.js, TypeScript, Python, Go, Java, .NET, Ruby). The rebuild, upload, and log-streaming workflow is runtime-agnostic. File watching tracks whatever source files were included in the package.
+
+### How much does running dev mode cost?
+
+Dev mode deploys a minimal stack with only the resources your functions need. You pay standard AWS Lambda pricing for invocations during development (the free tier covers 1 million requests/month). The tunnel relay server (`bore.pub`) is free. Local databases run in Docker on your machine at zero AWS cost.
+
+### Can I run dev mode for only some functions while keeping others on the deployed stack?
+
+Yes. Use `--resources` to select specific functions, or `--skipResources` to exclude some. Unselected functions remain on whatever version was last deployed to that stage. This is useful when you're iterating on one function and don't want to affect others.
+
+### What's the difference between normal and legacy dev mode for Lambda debugging?
+
+Normal dev mode (default) deploys its own lightweight dev stack and can emulate databases locally. Legacy dev mode (`--devMode legacy`) requires an already-deployed stack and does not support local database emulation. Legacy mode is useful when you want to test against your full production-like stack without a separate dev stack.

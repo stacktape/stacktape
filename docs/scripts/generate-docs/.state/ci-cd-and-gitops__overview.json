@@ -1,0 +1,1124 @@
+{
+  "pageId": "ci-cd-and-gitops__overview",
+  "pageRoute": "ci-cd-and-gitops/overview",
+  "startedAt": "2026-05-17T18:12:12.751Z",
+  "updatedAt": "2026-05-17T18:31:16.457Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\ci-cd-and-gitops__overview\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening comparison table with all three paths side by side is exactly what a first-time reader needs — lets them make an informed choice before reading any further.",
+            "Consistent 'When fits / When to skip' blocks under each option give concrete decision support rather than just describing the feature.",
+            "The GitHub Actions workflow YAML example is realistic and immediately runnable — `--autoConfirmOperation` flag is called out explicitly, which is a real gotcha for CI users.",
+            "The `<Warning>` about PR preview environment costs is a high-value gotcha that directly prevents unexpected AWS bills for new users.",
+            "'Choosing the right approach' section with the combined-pattern table closes the page on a concrete recommendation rather than leaving the reader to synthesize.",
+            "FAQ mixes all three required categories: Stacktape-specific ('Do I need AWS credentials?'), AWS use-case ('How much does CodeBuild cost?'), and comparison ('Web service vs Lambda?'). Ten entries without obvious padding.",
+            "The codebuild:deploy description accurately reflects the source code behavior — local validation before upload, git zip, S3 upload, log streaming — grounded in `src/commands/codebuild-deploy/index.ts`."
+          ],
+          "problems": [
+            "'Choosing the right approach' H2 heading is sentence-form rather than the preferred 1-5 word noun label ('Comparison' or 'Picking an approach'). Same concern for 'Deployment automation options' and 'CodeBuild deploy from CLI'.",
+            "Bitbucket is listed as a supported GitOps provider throughout the page, but the provided source files only show GitHub/GitLab interaction patterns in the console app. The `getRepositoryDetailsFromGitUrl` helper and `CreateGitOpsConfigModal` are GitHub/GitLab-oriented — Bitbucket support is unverified from the available sources.",
+            "The self-hosted GitHub Actions runners section is markedly thinner than the other two path sections — it never shows the concrete runner label (`runs-on: [self-hosted, stacktape]` or similar) that a reader would need to actually wire this up, making the section feel incomplete compared to the GitHub Actions YAML example shown for custom CI/CD.",
+            "Stage name 10-character maximum is stated as fact in the 'Stacks per git branch' section, but this constraint does not appear in the provided source files for this page (it comes from CLAUDE.md memory). If the verifier reads only the inline source, this will be flagged as ungrounded."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Shorten verbose H2 headings to noun-form labels: 'Choosing the right approach' → 'Choosing an approach' (or 'Which path to use'); 'Deployment automation options' → 'Options comparison'; 'CodeBuild deploy from CLI' → 'CodeBuild deploy'.",
+            "Add a one-line concrete example under the self-hosted runners section showing the GitHub Actions `runs-on` label syntax (e.g. `runs-on: [self-hosted, stacktape]`), so readers can tell at a glance how the runner routing is declared — even a brief snippet would close the gap with the custom CI/CD section.",
+            "Either verify Bitbucket support against additional console-app source files or narrow the GitOps provider claim to 'GitHub and GitLab' until confirmed. If Bitbucket is genuinely supported, a parenthetical note about it being configured the same way is fine, but the current phrasing implies equal parity.",
+            "The 'stacks-per-branch' section mentions stage name max length of 10 characters. Add a source reference or hedge with 'check the deploy command reference for the current limit' to prevent a source-grounding flag in the verification pipeline."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comparison table is well-structured and genuinely aids decision-making — covers setup effort, maintenance, PR previews, custom steps, git providers, build infrastructure, and credential model in one place.",
+            "The codebuild:deploy description is accurately grounded in the source: zip via git (gitCreateZipArchive), upload to S3, start CodeBuild, stream CloudWatch logs back. The 'validates config and resolves resources locally before uploading' claim is correctly traced to calculatedStackOverviewManager.resolveAllResources() call in the source.",
+            "PR stage naming format 'pr-{#number}' is correctly sourced from the console code (gitDeploymentConfig.stage || 'pr-{#number}').",
+            "The Warning callout about PR preview environment AWS costs accumulating is an important, well-placed production concern.",
+            "Decision-support writing is genuinely opinionated — every sub-section has 'When to use / When to skip' guidance rather than just listing features.",
+            "The stacks-per-branch pattern section with dynamic stage name examples and explicit cleanup commands is realistic and directly actionable.",
+            "FAQ covers all three required categories: Stacktape-specific, AWS-specific (CodeBuild pricing, rollback), and comparison (GitOps vs custom CI).",
+            "The 'combined GitOps + custom CI' recommendation table is a strong concrete pattern that the audience can immediately apply."
+          ],
+          "problems": [
+            "The '@stacktape' job label claim for self-hosted GitHub Actions runners is not verifiable in the provided source files. This is a precise technical detail (the exact label string a developer would put in a workflow file) and if wrong it breaks the feature entirely.",
+            "The git provider enumeration 'GitHub, GitLab, and Bitbucket' for GitOps with Console is not directly supported by the provided source. GitOps.tsx handles a generic gitUrl without enumerating supported providers — this claim could be wrong or incomplete.",
+            "The 10-character stage name maximum is stated as fact in the stacks-per-branch section but is not grounded in the provided source files. An engineer relying on this for naming conventions could be surprised if the actual limit is different.",
+            "The codebuild:deploy source explicitly sets showSensitiveValues: false in the remote CodeBuild job (adjustArguments function) to prevent credential leakage in CloudWatch logs, even if the user originally passed --showSensitiveValues. This is a real production gotcha (users won't see sensitive values in CodeBuild log output even if they expect to) that is entirely absent from the page.",
+            "The local-then-remote confirmation flow of codebuild:deploy is missing: the source shows a user is prompted locally before upload (potentiallyPromptBeforeOperation), and then the remote CodeBuild run automatically gets --autoConfirmOperation injected. A user who expects a second confirmation inside CodeBuild will be confused."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a note under the codebuild:deploy section explaining that showSensitiveValues is forced to false in the remote build — users who want sensitive output must read it from the local post-deploy summary, not from CodeBuild logs. This is a source-grounded production gotcha worth surfacing.",
+            "Verify the '@stacktape' runner label against the self-hosted runner source before publishing — if incorrect, the entire self-hosted runner onboarding flow breaks for developers copying this page.",
+            "Verify and cite the exact set of supported git providers for GitOps with Console. If the console supports only GitHub and GitLab (common for a GitHub App integration), claiming Bitbucket support would mislead teams evaluating Stacktape.",
+            "Verify the 10-character stage name limit against a definitive source (type definitions or runtime validator) and either cite it precisely or soften the wording to 'short names are recommended' if the limit cannot be confirmed.",
+            "The 'Can a single git push trigger multiple deployments?' FAQ answer describes parallel multi-region fan-out — this is useful but the source doesn't confirm parallelism vs sequential execution. Soften to 'both configurations fire' rather than asserting they run in parallel unless confirmed.",
+            "Consider mentioning that codebuild:deploy adjustArguments strips the configPath to a project-relative path before uploading — relevant for monorepos or projects where the config lives in a subdirectory, since the path behavior after zip-extract differs from local."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and gives a clear high-level comparison of the three deployment automation paths.",
+            "The page is easy to scan: short H2s, comparison tables, concrete workflow snippets, and a broad FAQ make it useful for search and answer-engine extraction.",
+            "The CodeBuild deploy section is closer to the supplied source than most of the page: it correctly describes local validation/resource resolution, git zip archive creation, S3 upload, CodeBuild start, and log streaming.",
+            "The page explicitly distinguishes CodeBuild-managed runners from EC2-based runners, which matches the human-maintained section instruction at a structural level."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the supplied source files. Claims about GitLab, Bitbucket, self-hosted GitHub Actions runners, PR auto-delete, provider webhook registration, stage-name limits, GitOps matching behavior, multiple deployments from one push, rollback behavior, and build-runner defaults are not supported by the provided GitOps UI file or codebuild-deploy command source.",
+            "The GitOps section describes mechanics that are not visible in the provided Console source. The source shows a GitOps table with trigger, branch, stage, region, AWS account, creation modal, deletion modal, and default display value `pr-{#number}`; it does not prove provider support, webhook behavior, auto-delete, or how PR events redeploy.",
+            "The self-hosted GitHub Actions runners section is almost entirely unsupported by the provided sources. The page states EC2 lifecycle behavior, `@stacktape` labels, persistent EC2 instances, cached dependencies, configurable instance types, VPC access, and performance benefits without source grounding.",
+            "The Build runners section makes several unsupported or over-specific claims: CodeBuild is the default, EC2 runners are persistent, CodeBuild has per-minute billing, EC2 has fixed hourly cost, and EC2 runner startup is near-instant. These may be true elsewhere, but they are not established by the provided files.",
+            "The Custom CI/CD section gives a GitHub Actions workflow and API-key behavior that are not grounded in the supplied CLI or Console sources. The `STACKTAPE_API_KEY` detail is plausible, but the page needs source support for how custom CI authentication works.",
+            "The FAQ broadens beyond the source too aggressively. Several answers assert Stacktape-specific behavior that the supplied files do not prove, especially Git provider support, PR lifecycle, rollback behavior, CodeBuild pricing/free tier, and one-push-multiple-deployments behavior.",
+            "Some claims use confident language where the source is thin. For example, “All three options produce identical CloudFormation stacks” and “There is no conflict between the approaches” are broad system guarantees not supported by the supplied files.",
+            "The page has strong practical shape, but source-grounding failures reduce practical usefulness because readers may copy patterns or make architecture decisions based on unsupported behavior."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground every Stacktape-specific claim not supported by the provided files. In particular, revise claims about GitLab/Bitbucket support, PR auto-delete, self-hosted runner lifecycle, runner defaults, stage-name limits, rollback, and multiple deployments from one push unless additional source files are provided.",
+            "Rewrite the GitOps mechanics to match the supplied Console source narrowly: GitOps configurations have a deployment trigger (`PULL_REQUEST_OPENED` or push-to-branch), branch, stage display with `pr-{#number}` fallback, target region, and connected AWS account. Avoid describing webhook registration or auto-delete unless grounded in server-side source.",
+            "Either remove the self-hosted GitHub Actions runners section or make it a cautious pointer to the dedicated page without asserting `@stacktape`, EC2 lifecycle, caching, VPC access, or startup behavior from the current source set.",
+            "Revise the Build runners section to avoid unsourced defaults, startup-time, and cost-model claims unless the build-runners source is provided. Keep only the distinction required by the section instruction, or add the authoritative source files.",
+            "Replace unsupported FAQ answers with source-grounded Q&A. Keep CodeBuild deploy questions because the supplied CLI source supports them, but remove or soften answers about provider support, PR lifecycle, rollback, pricing, and multi-deploy webhook behavior.",
+            "For CodeBuild deploy, keep the concrete source-grounded mechanics: Stacktape resolves resources before uploading, zips the project with git, uploads the archive to S3, starts CodeBuild, records operation progress, streams CloudWatch logs, forces `autoConfirmOperation`, and suppresses sensitive values in CodeBuild logs."
+          ],
+          "optionalImprovements": [
+            "Add a short “Source-backed scope” framing through wording rather than meta commentary: say “Console GitOps configurations map a trigger, branch, stage, AWS account, and region” instead of broader implementation claims.",
+            "The opening comparison table is useful, but it should be trimmed to columns and rows that are source-backed or moved to a higher-level page with the missing source files included.",
+            "Use more cautious phrasing for AWS cost discussion unless pricing sources are included. For example, say CodeBuild deploy runs the build in AWS CodeBuild and links to a cost-focused build-runners page, rather than stating free-tier minutes or exact cost models here.",
+            "The page could keep the strong decision-oriented structure after revision: Deployment automation options, GitOps with Console, Custom CI/CD, CodeBuild deploy, Stacks per branch, Choosing, FAQ."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific claims that are not grounded in the two provided source files. The strongest issues are around GitOps provider support, PR preview lifecycle behavior, runner types/defaults, and self-hosted GitHub Actions runner mechanics. The CodeBuild deploy section is mostly aligned with the provided CLI source, but one sentence about uploading only after local validation should be narrowed.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Stacktape provides three paths to automated deployments, including self-hosted GitHub Actions runners on Stacktape-managed EC2 instances; self-hosted runners are one of the three automation options in the comparison table.",
+              "reason": "Neither provided source file contains the self-hosted GitHub Actions runner feature, GitHub Actions runner labels, Stacktape-managed EC2 instances for GitHub jobs, or runner lifecycle behavior. This is a central decision-making claim on the overview page and changes what readers think Stacktape supports from the supplied sources.",
+              "suggestedFix": "Remove the self-hosted GitHub Actions runner path from this page unless runner source files are provided. If kept, ground it in the relevant runner/GitHub App source and narrow the mechanics to what that source actually shows.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "import { CreateGitOpsConfigModal } from './CreateGitOpsConfigModal';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "export const commandCodebuildDeploy = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "GitOps with Console supports GitHub, GitLab, and Bitbucket repositories, and the Console registers the appropriate webhooks for push and pull request events.",
+              "reason": "The provided Console source shows GitOps configuration UI for a project repository and branch list, but it does not enumerate GitHub, GitLab, or Bitbucket support, nor does it show webhook registration mechanics. Provider support and webhook behavior are Stacktape-specific claims that need console/server integration source.",
+              "suggestedFix": "Write more narrowly: “GitOps configurations use the repository attached to the project and can deploy on push-to-branch or pull-request-opened events.” Only name providers and webhook registration if the corresponding source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "const { repositoryName, repositoryOwner } = projectDetailsQuery.isFetched\n    ? getRepositoryDetailsFromGitUrl(projectDetails!.gitUrl!)\n    : { repositoryName: null, repositoryOwner: null };"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "branches={projectDetails.branches?.map((branch) => branch.name)}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "GitOps PR previews are created on PR open, redeployed on each push to the PR branch, and optionally auto-deleted on PR close; GitOps handles stage creation on PR open and optional deletion on PR close automatically.",
+              "reason": "The provided GitOps UI source supports a `PULL_REQUEST_OPENED` trigger label and a default stage label of `pr-{#number}`, but it does not show PR branch push redeploy behavior or optional auto-deletion on PR close. These lifecycle mechanics are not grounded in the supplied source.",
+              "suggestedFix": "Keep the grounded part: GitOps configurations can use a pull-request-opened trigger, and when no stage is displayed the UI shows `pr-{#number}`. Remove or source the claims about push redeploys and auto-delete on PR close.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "gitDeploymentConfig.deployOnGitEvent === 'PULL_REQUEST_OPENED' ? (\n                  <Badge color=\"blue2\">PR Opened</Badge>\n                ) : (\n                  <Badge color=\"purple\">Push to Branch</Badge>\n                )"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "label: gitDeploymentConfig.stage || 'pr-{#number}',"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Build runners can be CodeBuild-managed or EC2-based; CodeBuild runners are the default; runner type is configured per project; Console actions run on a build runner.",
+              "reason": "The provided sources include the `codebuild:deploy` command and the GitOps configuration UI, but they do not define a build runner abstraction, an EC2 runner type, a default runner type, or per-project runner configuration. This affects reader decisions about deployment infrastructure and cost.",
+              "suggestedFix": "Limit this section to the sourced CodeBuild deploy behavior, or provide the build-runner source files. Do not claim an EC2 runner mode, default runner type, or per-project runner setting from the supplied sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await eventManager.startEvent({ eventType: 'PREPARE_PIPELINE', description: 'Preparing deployment pipeline' });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "build = await startCodebuildDeployment({"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The CLI authenticates via a `STACKTAPE_API_KEY` environment variable in custom CI, and raw AWS credentials are not needed in the pipeline.",
+              "reason": "The provided `codebuild:deploy` source passes `globalStateManager.apiKey` into the CodeBuild deployment, but it does not document the environment variable name `STACKTAPE_API_KEY`, custom CI authentication behavior, or absence of AWS credentials for normal `deploy` in arbitrary CI systems.",
+              "suggestedFix": "Either cite the CLI/global-state/API-key source or narrow the claim to the available CodeBuild source: CodeBuild deployment passes Stacktape user information including an API key to the remote build.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "stacktapeUserInfo: {\n        id: globalStateManager.userData.id,\n        apiKey: globalStateManager.apiKey\n      },"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`--autoConfirmOperation` skips the interactive confirmation prompt that would block CI runners.",
+              "reason": "The provided `codebuild:deploy` source shows `autoConfirmOperation` is set to true for the remote CodeBuild invocation after a local prompt has already happened. It does not define the CLI flag, document its user-facing behavior, or show that it skips prompts in arbitrary CI workflows.",
+              "suggestedFix": "Source this from the CLI command definitions or common prompt handling source. In the CodeBuild section, say only that the command forwards adjusted arguments to CodeBuild with `autoConfirmOperation` set after the local confirmation step.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "// setting auto confirm operation to skip potential prompt\n  // if we have gotten here, than we were already prompted before, so this should be fine\n  finalArgs.autoConfirmOperation = true;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Stage names have a maximum length of 10 characters.",
+              "reason": "Neither provided source file defines stage-name validation or length limits. This is a concrete numeric constraint and would directly affect how readers name stages in CI.",
+              "suggestedFix": "Remove the numeric limit unless the stage validation source is provided. A cautious alternative is: “Keep branch-derived stage names short and deterministic.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "['Stage name', 135],"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "finalArgs.stage = globalStateManager.targetStack.stage;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The `codebuild:deploy` command validates your configuration and resolves resources locally before uploading, so configuration errors surface immediately without waiting for CodeBuild to provision.",
+              "reason": "The source supports local resource resolving before preparing and uploading, and a comment says this is faster for resource resolving errors. The draft overstates that all configuration errors surface immediately; the source does not show complete local configuration validation semantics or guarantee all configuration errors are caught before CodeBuild.",
+              "suggestedFix": "Narrow to the exact sourced behavior: “Before uploading, `codebuild:deploy` initializes Stacktape services, validates guardrails, ensures missing secrets/SSM parameters, and resolves resources locally so many resource-resolution errors fail before CodeBuild starts.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "// it is faster to do resource resolving here and get error immediately\n    // compared to waiting for entire codebuild deploy to provision and then get the error\n    await calculatedStackOverviewManager.resolveAllResources();"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses only valid navigation links from the provided documentation index.",
+            "The CodeBuild deploy section correctly states that the command creates a git-based zip archive, uploads it to S3, starts a CodeBuild deployment, and streams CloudWatch logs back to the terminal.",
+            "The GitOps UI claims about two trigger labels, `Push to Branch` and `PR Opened`, and the default displayed stage label `pr-{#number}` are grounded in the provided Console source.",
+            "The draft avoids forbidden Stacktape configuration examples, hand-authored Stacktape YAML, and plain-object `StacktapeConfig` style."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific claims that are not supported by the two provided source files. The most important issues are around GitOps provider support, PR lifecycle behavior, runner behavior, self-hosted runner mechanics, and rollback semantics.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“GitOps (Console)” supports “GitHub, GitLab, Bitbucket”, and “Connect your GitHub, GitLab, or Bitbucket repository once…”",
+              "reason": "The provided GitOps Console source shows GitOps configurations for a project repository, but it does not enumerate supported git providers. No GitLab or Bitbucket integration source is provided, and the supplied GitOps page source only derives owner/repository details from the project git URL before opening the create modal.",
+              "suggestedFix": "Narrow the claim to “Connect a repository in the Stacktape Console” unless provider-specific source is available. If keeping provider names, cite source that explicitly lists GitHub, GitLab, and Bitbucket support.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "const { repositoryName, repositoryOwner } = projectDetailsQuery.isFetched\n    ? getRepositoryDetailsFromGitUrl(projectDetails!.gitUrl!)\n    : { repositoryName: null, repositoryOwner: null };"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“PR opened — create an isolated preview stage per pull request (`pr-{#number}` by default), with optional auto-deletion on PR close”; “deploys on PR open, redeploys on each push to the PR branch, and optionally deletes when the PR is merged or closed.”",
+              "reason": "The supplied Console source supports displaying a `PULL_REQUEST_OPENED` trigger and the fallback stage label `pr-{#number}`. It does not show auto-deletion on PR close, redeploy-on-push behavior, merge/close behavior, or isolated infrastructure semantics for PR stages.",
+              "suggestedFix": "Keep the supported claim that GitOps configurations can use a pull-request-opened trigger and default display label `pr-{#number}`. Remove or qualify auto-delete, redeploy-on-push, and close/merge behavior unless source for those lifecycle handlers is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "gitDeploymentConfig.deployOnGitEvent === 'PULL_REQUEST_OPENED' ? (\n                  <Badge color=\"blue2\">PR Opened</Badge>\n                ) : (\n                  <Badge color=\"purple\">Push to Branch</Badge>\n                )"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "label: gitDeploymentConfig.stage || 'pr-{#number}',\n              value: gitDeploymentConfig.stage || 'Z'"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Label a workflow job with `@stacktape`, and the Stacktape GitHub App provisions a runner, executes the job, and manages the instance lifecycle.”",
+              "reason": "No self-hosted GitHub Actions runner source or GitHub App source is included. The provided files do not support the `@stacktape` label syntax, runner provisioning mechanics, job execution behavior, or instance lifecycle management.",
+              "suggestedFix": "Remove the detailed runner mechanics from this overview or replace them with a cautious link to `/ci-cd-and-gitops/self-hosted-github-actions-runners` until the relevant source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await eventManager.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting codebuild deployment' });\n    build = await startCodebuildDeployment({"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“CodeBuild runners are the default. They require no setup… EC2 runners make sense…” and the table comparing CodeBuild-managed vs EC2-based startup time and cost model.",
+              "reason": "The provided source includes the `codebuild:deploy` command implementation but does not document a general build-runner abstraction, a default runner type, EC2 runner behavior, near-instant startup, persistent filesystem caches, or per-project runner configuration.",
+              "suggestedFix": "Restrict this section to the sourced `codebuild:deploy` behavior, or provide source files for build runner configuration before documenting CodeBuild-vs-EC2 defaults and tradeoffs.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "// prepare codebuild pipeline resources\n    const codebuildPipeline = await preparePipelineResources({\n      awsSdkManager,\n      awsAccountId,\n      deploymentBucketTransferAccelerationEnabled: configManager.isS3TransferAccelerationAvailableInDeploymentRegion\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All three options produce identical CloudFormation stacks.”",
+              "reason": "The supplied `codebuild:deploy` source shows CodeBuild deploy resolves resources and deploys through CodeBuild, but it does not compare GitOps, custom CI/CD, and self-hosted runners or guarantee identical CloudFormation output across those automation paths.",
+              "suggestedFix": "Use narrower wording: “Stacktape deployment automation ultimately deploys a Stacktape stack; the automation path mainly changes where the command runs and what triggers it.” Avoid claiming identical CloudFormation stacks unless source explicitly compares all paths.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "// it is faster to do resource resolving here and get error immediately\n    // compared to waiting for entire codebuild deploy to provision and then get the error\n    await calculatedStackOverviewManager.resolveAllResources();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Custom steps (tests, lint, approval gates)” are “Not supported” for GitOps, and “there is no hook for custom pre-deploy steps.”",
+              "reason": "The provided GitOps Console source only shows listing, creating, and deleting GitOps configurations. It does not define the full GitOps execution model or explicitly rule out custom steps, hooks, tests, linting, or approval gates.",
+              "suggestedFix": "Say GitOps configuration in the shown Console source is centered on git event, branch, stage, region, and AWS account. Recommend custom CI/CD for pre-deploy validation as guidance, but avoid absolute “not supported” language without source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The command validates your configuration and resolves resources locally before uploading — configuration errors surface immediately without waiting for CodeBuild to provision.”",
+              "reason": "The source shows Stacktape initializes services, validates guardrails, handles missing secrets and SSM params, resolves resources, prompts, then prepares CodeBuild resources, zips, uploads, and starts CodeBuild. The draft overstates “configuration errors surface immediately” because the source specifically mentions resource resolving, not every configuration error, and other failures can still occur later.",
+              "suggestedFix": "Narrow the statement to the source-backed behavior: `codebuild:deploy` resolves resources before starting the CodeBuild deployment so resource-resolution errors can surface before the remote build is provisioned.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "// it is faster to do resource resolving here and get error immediately\n    // compared to waiting for entire codebuild deploy to provision and then get the error\n    await calculatedStackOverviewManager.resolveAllResources();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For immediate rollback without a code change, use the CLI `rollback` command, which reverts to the previous CloudFormation stack version.”",
+              "reason": "The provided source files do not include rollback command behavior. The draft makes a specific Stacktape behavior claim about what `rollback` does, but only `codebuild-deploy` and GitOps UI source are available.",
+              "suggestedFix": "Link to `/cli/rollback` without describing exact rollback semantics, or provide the rollback command source and verify the behavior from it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "import { stackManager } from '@domain-services/cloudformation-stack-manager';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses only valid cross-links from the provided documentation navigation index.",
+            "The `codebuild:deploy` section correctly reflects several sourced mechanics: project zip creation, S3 upload, CodeBuild start, and CloudWatch log streaming.",
+            "The GitOps table’s displayed trigger labels `PR Opened`, `Push to Branch`, and fallback stage label `pr-{#number}` are grounded in the provided Console source."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly useful and covers the requested CI/CD decision surface, but several important claims are not grounded in the provided source files. The biggest risks are provider support, GitOps behavior details, runner behavior, and self-hosted GitHub runner mechanics that are not present in the two sources supplied for this page.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape provides three paths to automated deployments: GitOps via the Stacktape Console…, custom CI/CD pipelines…, and self-hosted GitHub Actions runners on Stacktape-managed EC2 instances.”",
+              "reason": "The provided sources show a GitOps Console page and the `codebuild:deploy` command implementation. They do not document self-hosted GitHub Actions runners or custom CI/CD as first-class Stacktape deployment automation paths.",
+              "suggestedFix": "Narrow the opening to the sourced options, or add source files for self-hosted runners and custom CI/CD. For this source set, say that the page compares Console GitOps and CodeBuild-based deploy automation, then link cautiously to custom CI/CD/self-hosted runner pages without describing their mechanics unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "import { CreateGitOpsConfigModal } from './CreateGitOpsConfigModal';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "export const commandCodebuildDeploy = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“GitOps (Console)” supports “GitHub, GitLab, Bitbucket”.",
+              "reason": "The provided GitOps source derives repository owner/name from `projectDetails.gitUrl` and renders GitOps configurations, but it does not enumerate supported git providers. No GitHub/GitLab/Bitbucket integration source is included.",
+              "suggestedFix": "Remove the provider list or phrase it as “configured from the repository connected to the project” unless provider integration sources are supplied. If the page must name providers, include and cite the relevant integration source files.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "const { repositoryName, repositoryOwner } = projectDetailsQuery.isFetched ? getRepositoryDetailsFromGitUrl(projectDetails!.gitUrl!) : { repositoryName: null, repositoryOwner: null };"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Label a workflow job with `@stacktape`, and the Stacktape GitHub App provisions a runner, executes the job, and manages the instance lifecycle.”",
+              "reason": "No provided source describes self-hosted GitHub Actions runner labels, GitHub App runner provisioning, job execution, or EC2 lifecycle management. The human instructions also say GitHub/GitLab mechanics should be grounded in GitHub app source when available, but that source is not provided here.",
+              "suggestedFix": "Replace this section with a short pointer to `/ci-cd-and-gitops/self-hosted-github-actions-runners`, or add the relevant GitHub App/runner source files and ground the workflow mechanics there.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "<Button rootCss={{ height: '34px' }} icon={<BiPlus css={{ marginRight: '-4px', marginLeft: '-8px', marginTop: '2px' }} size={22} />} visualType=\"primary\" width=\"250px\" text=\"New GitOps configuration\""
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "build = await startCodebuildDeployment({"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All three options produce identical CloudFormation stacks.”",
+              "reason": "The CodeBuild deploy source resolves resources and deploys through Stacktape, but the provided sources do not compare GitOps, custom CI/CD, and self-hosted runners or prove stack equivalence across all three automation paths.",
+              "suggestedFix": "Use narrower wording: “CodeBuild deploy resolves the same Stacktape configuration before starting the remote deployment.” Avoid claiming equivalence across unsourced automation paths.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await calculatedStackOverviewManager.resolveAllResources();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "const cfTemplateDiff = templateManager.getOldTemplateDiff();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“PR opened — create an isolated preview stage per pull request (`pr-{#number}` by default), with optional auto-deletion on PR close.”",
+              "reason": "The GitOps page source supports two visible trigger labels and shows `pr-{#number}` as the fallback stage label. It does not show deployment on PR close, auto-deletion behavior, or isolation semantics beyond stage naming.",
+              "suggestedFix": "Keep the grounded parts: “The Console lists a `PR Opened` trigger, and when no explicit stage is set the UI displays `pr-{#number}`.” Move auto-delete and PR-close behavior to a page with the relevant server-side webhook source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "gitDeploymentConfig.deployOnGitEvent === 'PULL_REQUEST_OPENED' ? ( <Badge color=\"blue2\">PR Opened</Badge> ) : ( <Badge color=\"purple\">Push to Branch</Badge> )"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "label: gitDeploymentConfig.stage || 'pr-{#number}',"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CodeBuild runners are the default.”",
+              "reason": "The provided `codebuild:deploy` implementation documents the CodeBuild deployment command, but it does not state that CodeBuild runners are the default for automated deployments or projects.",
+              "suggestedFix": "Remove the default claim unless a source file for project runner configuration is supplied. A safer sourced sentence is: “The `codebuild:deploy` command starts an AWS CodeBuild deployment after preparing pipeline resources and uploading a git archive.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "const codebuildPipeline = await preparePipelineResources({ awsSdkManager, awsAccountId, deploymentBucketTransferAccelerationEnabled: configManager.isS3TransferAccelerationAvailableInDeploymentRegion });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "build = await startCodebuildDeployment({"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The command validates your configuration and resolves resources locally before uploading.”",
+              "reason": "The source does show guardrail validation and local resource resolution before CodeBuild starts, but it does not show a general configuration validation step in this command body. The wording overstates the exact pre-upload checks visible in source.",
+              "suggestedFix": "Change to: “The command validates guardrails, checks missing secrets and SSM parameters, and resolves resources before creating and uploading the project archive.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await ensureMissingSecretsCreated(); await ensureMissingSsmParamsCreated();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await calculatedStackOverviewManager.resolveAllResources();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The webhook handler evaluates all GitOps configurations for your project and starts a deployment for every configuration that matches the event's branch and trigger type.”",
+              "reason": "The provided Console source lists multiple GitOps configurations and stores trigger/branch/stage/region/account fields, but it does not include webhook handler code or deployment fan-out behavior.",
+              "suggestedFix": "Remove this FAQ entry or rewrite it as a UI-grounded statement: “The Console can list multiple GitOps configurations for a project.” Add webhook/server source before documenting matching and parallel deployment behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "rows={gitDeploymentConfigs.map((gitDeploymentConfig) => ["
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "gitDeploymentConfigsQuery = trpc.gitDeploymentConfigurationsForApp.useQuery("
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft explicitly distinguishes CodeBuild-based runners from EC2-based runners, which matches the human-maintained section instruction, although several runner details need stronger sourcing.",
+            "The `codebuild:deploy` section is mostly demonstrative: it shows a single copyable command and describes behavior that is substantially visible in the command implementation, especially git archive creation, S3 upload, CodeBuild start, and CloudWatch log streaming.",
+            "The GitOps table and section mention the two trigger categories visible in the Console source: `PULL_REQUEST_OPENED` / PR Opened and Push to Branch.",
+            "The page uses separate shell command blocks for deploy and delete examples, satisfying the copy-button rule."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\ci-cd-and-gitops__overview\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "The FeatureComparisonTable at the very top is an excellent first-reader orientation — it lets someone decide which path to explore before reading a single body paragraph.",
+            "Every automation option has an explicit 'When to use' and 'When NOT to use' subsection with concrete, non-circular reasoning (e.g. 'if your workflow requires test suites, linting, approval gates'). This is rare in CI/CD docs and greatly helps first-timers.",
+            "The GitHub Actions YAML example is realistic, copyable, and annotated with the key flag (--autoConfirmOperation) explained in prose immediately after — a pattern many doc pages get wrong.",
+            "The codebuild:deploy behavior description ('validates configuration and resolves resources locally before uploading') is grounded precisely in source code behavior (resolveAllResources() runs before the S3 upload), not invented.",
+            "The Warning callout about PR preview stage costs and cleanup is well-placed and genuinely useful — first-timers routinely discover this the hard way.",
+            "The FAQ spans all three required categories (Stacktape-specific, AWS-service questions about CodeBuild cost, comparison/choice questions), and all 10 entries answer real questions a first-timer would search for.",
+            "The 'Choosing the right approach' section with the three-row table (staging/PR/production mapped to automation + rationale) is a strong closer — it synthesizes the page rather than just restating it.",
+            "Stage name constraints are documented with concrete examples, which prevents a common first-deploy failure."
+          ],
+          "problems": [
+            "The FAQ answer for 'How do I roll back a failed automated deployment?' links to `/cli/rollback`, but the modified-files list in git status shows `docs/docs/cli/cf-rollback.mdx`, not `rollback.mdx`. This is likely a broken link that a first-timer clicking through would hit immediately.",
+            "The GitOps section says 'Connect your repository in the Stacktape Console' but gives no link or pointer to where that onboarding step happens. A first-timer who hasn't connected a repo yet has nowhere to go — this is a gap for the most critical prerequisite of the entire GitOps path.",
+            "The term 'stage' is used heavily from the first paragraph onward with no brief definition or link to the concept page. Seasoned Stacktape users know a stage is an independent deployment environment; a first-timer reading this as their entry point may be confused by 'deploy to a stage' before understanding what that means."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the `/cli/rollback` link in the FAQ rollback answer — verify whether the correct route is `/cli/cf-rollback` and update accordingly.",
+            "In the GitOps with Console section's opening paragraph (or as a prerequisite callout), add a one-line note with a link to the repository-connection step in the Console, so first-timers know what to do before creating a GitOps configuration.",
+            "Add a one-sentence gloss of 'stage' on first use (e.g. 'a stage is an isolated deployment of your project — production, staging, or a PR preview') and optionally link to a concepts page. The term drives the entire page and a first-timer should not have to infer it.",
+            "Verify the `/getting-started/ci-cd` link in the Tip callout at the bottom exists; if the route doesn't exist yet, replace the Tip with a forward reference to the most relevant existing getting-started page.",
+            "The 'Build runners' section is the thinnest on the page — it essentially just describes what build runners are in two bullets and punts to the dedicated page. Consider adding a one-sentence recommendation (e.g. 'CodeBuild-managed is the right default for most teams; EC2 runners are for teams with high deployment frequency') so readers have a decision signal before clicking through."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The comparison table immediately orients the reader across deployment approaches with concrete, distinguishing rows (setup effort, customization, maintenance, PR previews).",
+            "The codebuild:deploy behavior is accurately sourced: local config validation and resource resolution before upload, git-based zip archive, S3 upload, then CodeBuild build with streamed logs — all matching the command source.",
+            "GitOps config fields (trigger type, branch, stage/`pr-{#number}`, region, AWS account) are correctly grounded in the console app source's `GitDeploymentConfiguration` model and UI column labels.",
+            "Every major deployment path gets paired 'When to use' and 'When NOT to use' guidance with concrete scenarios, not circular definitions.",
+            "The Warning about PR preview environment cost accumulation is a valuable production gotcha that engineers actually hit.",
+            "The GitHub Actions workflow example is realistic, copyable, and includes the non-obvious `--autoConfirmOperation` flag with explanation.",
+            "FAQ spans all three required categories: Stacktape-specific (stage naming, PR stage names), AWS service (CodeBuild cost model), and comparison/choosing (GitOps vs custom CI)."
+          ],
+          "problems": [
+            "The 'Automation options at a glance' FeatureComparisonTable covers only 3 options but the page documents 4 distinct deployment paths — CodeBuild deploy from CLI gets its own full H2 section but is entirely absent from the table. The table's stated purpose is to be an at-a-glance comparison, but it omits a first-class option. An engineer skimming the table would have no awareness of codebuild:deploy before reading further.",
+            "Stage name constraints in the FAQ ('lowercase alphanumeric characters and dashes, and must be at least 2 characters long') are stated as hard facts but are not grounded in any of the provided source files. An engineer making naming decisions for PR stages or branch-derived stages could be misled if the real constraints differ.",
+            "The Build runners section states 'Every automated deployment — whether triggered by GitOps, the codebuild:deploy CLI command, or a Console action — runs on a build runner.' This conflates the paths in a potentially misleading way: the direct `deploy` CLI command does NOT go through a build runner, but a reader could infer it does from this phrasing."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add CodeBuild deploy as a 4th column to the FeatureComparisonTable so the at-a-glance comparison is actually complete. Include relevant rows: setup (no pipeline files, one CLI command), customization (limited to build step offloading), maintenance (none), PR previews (manual, same as custom CI).",
+            "Either ground the stage name constraints claim in the actual source (validator, schema, or CLI command) or soften the FAQ wording to 'consult the deploy command reference for stage naming requirements' to avoid shipping a potentially wrong constraint.",
+            "Rewrite the Build runners section opener to clarify scope: build runners apply to GitOps-triggered deployments and the `codebuild:deploy` command — not to the standard `deploy` CLI command which runs locally. The current wording could lead engineers to believe their local deploys are also going through CodeBuild.",
+            "The 'When NOT to use GitOps' prose says GitOps 'is centered on mapping a git event to a deployment: trigger type, branch, stage, region, and AWS account' — this reads as a description of what GitOps IS, not why you'd avoid it. Reframe as a concrete limitation: GitOps has no pre-deploy hooks, no test/lint steps, and no conditional logic before the deploy fires.",
+            "The rollback FAQ answer references the `rollback` command only by link. Adding the actual invocation (e.g., `stacktape rollback --stage production --region us-east-1`) would make it consistent with other sections that show concrete commands, and more useful to engineers in a fire-drill situation."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly frames the four automation paths.",
+            "The comparison table is useful and gives a busy reader a quick decision surface.",
+            "GitOps trigger mechanics, PR stage naming as `pr-{#number}`, and visible configuration fields are mostly aligned with the provided Console source.",
+            "The `codebuild:deploy` section accurately reflects key source behavior: git zip archive, S3 upload, CodeBuild start, CloudWatch log streaming, local resource resolution, and automatic confirmation in the remote build.",
+            "Shell snippets follow the copy-button rules: one command per block and no explanatory comments inside the blocks.",
+            "FAQ is broad and includes Stacktape-specific, AWS CodeBuild, and choosing/comparison questions."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided sources, including GitOps being the “fastest path,” “no pipeline files to write or maintain,” “takes minutes to set up,” and “GitOps and custom CI/CD operate independently.” These may be true, but they are not supported by the supplied source files.",
+            "The page discusses self-hosted GitHub Actions runners, build runner behavior, EC2-based runners, cleanup via GitOps, rollback behavior, and multiple GitOps configurations triggering from one event without source files that establish those mechanics.",
+            "The GitOps section describes repository connection and deployment triggering more concretely than the provided `GitOps.tsx` source proves. The source supports displayed configuration fields and PR/push trigger labels, but not the full event-processing mechanics.",
+            "The custom CI/CD GitHub Actions example is practical, but the page has no provided CLI source for `deploy`, `delete`, `rollback`, or API key creation. Treating those as definitive behavior is under-grounded for this review set.",
+            "The CodeBuild pricing FAQ includes AWS free-tier and duration claims that are not in the provided source files. FAQ may use well-known AWS facts, but the “typical Stacktape deployment takes a few minutes” claim is Stacktape-specific and unsupported.",
+            "The page has good overview coverage, but some sections are thin decision-wise. Self-hosted runners and build runners mostly say when they are useful, without enough concrete tradeoff detail grounded in the supplied source.",
+            "The section “Choosing the right approach” repeats earlier guidance and contains unsupported claims about setup time, automatic PR previews, and no migration cost."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify unsupported Stacktape-specific claims that are not present in the supplied sources, especially “fastest path,” “takes minutes to set up,” “no migration cost,” “operate independently,” and “every matching git event triggers a deployment.”",
+            "For self-hosted GitHub Actions runners, build runners, EC2-based runners, rollback behavior, and cleanup via GitOps, either add source files that ground those claims or narrow the wording to links without asserting unsupported mechanics.",
+            "Revise GitOps mechanics to match the provided Console source precisely: visible configuration fields are deployment trigger, branch, stage name or `pr-{#number}`, target region, and connected AWS account; supported trigger labels shown are push to branch and PR opened.",
+            "Remove or source the Stacktape-specific claim that a typical deployment takes a few minutes in the CodeBuild pricing FAQ.",
+            "Trim or rewrite the “Choosing the right approach” section so it does not pad earlier content with unsupported setup-time and migration claims."
+          ],
+          "optionalImprovements": [
+            "Add a short note near `codebuild:deploy` that the remote command forces `autoConfirmOperation: true` and `showSensitiveValues: false`, since both are grounded in `adjustArguments` and useful in CI context.",
+            "Consider splitting the overview table into four columns by adding `codebuild:deploy` as its own option. The opening paragraph names it as a first-class path, but the table omits it.",
+            "Use more cautious wording for Console flows because the supplied source is a page component, not the backend GitHub app implementation requested by the human-maintained instructions.",
+            "Add one sentence explaining that the Console table excludes temporary PR GitOps configurations, if that distinction matters to the reader; the source filters `isTemporaryForPr`.",
+            "Replace “complete independent stack” with a sourced or more cautious phrase unless a lifecycle/source file proves all infrastructure isolation behavior for branch-derived stages."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the visible GitOps table fields and the CodeBuild deploy command flow, but it makes several Stacktape-specific behavioral claims that are not grounded in the provided source files. The main risk is over-describing GitOps backend behavior, CI authentication behavior, stage-name validation, rollback semantics, and self-hosted runner details without the corresponding source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Each path deploys through the same Stacktape engine — the difference is what triggers the deployment and where the build runs.”",
+              "reason": "The provided CodeBuild source shows `codebuild:deploy` initializes Stacktape services and starts a CodeBuild deployment, but the provided GitOps source only renders GitOps configurations in the Console. There is no source here showing that GitOps, custom CI/CD, and self-hosted GitHub Actions runners all deploy through the same engine.",
+              "suggestedFix": "Narrow the claim to the sourced distinction: `codebuild:deploy` runs deployment remotely in AWS CodeBuild, while custom CI/CD runs Stacktape CLI commands. For GitOps, say the Console stores GitOps configurations with trigger, branch, stage/region, and AWS account fields unless backend source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "build = await startCodebuildDeployment({\n      awsSdkManager,\n      awsAccountId,\n      codebuildPipeline,\n      commandArgs: adjustArguments({ cliArguments: globalStateManager.rawArgs }),"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "const gitDeploymentConfigs = (gitDeploymentConfigsQuery?.data || []).filter((config) => !config.isTemporaryForPr);"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Connect your repository in the Stacktape Console, create one or more GitOps configurations, and every matching git event triggers a deployment automatically.” Also: “When a matching git event fires, every configuration that matches the event's branch and trigger type starts a deployment.”",
+              "reason": "The GitOps Console source supports creating and listing GitOps configurations, including branch and trigger fields. It does not show the GitHub/GitLab webhook handling or deployment dispatch behavior, nor does it show that every matching configuration starts a deployment.",
+              "suggestedFix": "Replace backend trigger claims with a narrower sourced statement: `The Console lets you create GitOps configurations and displays their trigger type, branch, stage name, target region, and connected AWS account.` Only describe automatic event dispatch if the github-app/server source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "<Button\n          rootCss={{ height: '34px' }}\n          icon={<BiPlus css={{ marginRight: '-4px', marginLeft: '-8px', marginTop: '2px' }} size={22} />\n          visualType=\"primary\"\n          width=\"250px\"\n          text=\"New GitOps configuration\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The CLI authenticates via a `STACKTAPE_API_KEY` environment variable. Create an API key in the Console under API keys. You do not need to store raw AWS credentials in your pipeline — the CLI deploys through your connected AWS account.”",
+              "reason": "Neither provided source file documents the `STACKTAPE_API_KEY` environment variable, API key creation flow, or the absence of raw AWS credentials in arbitrary CI pipelines. The CodeBuild source shows a `globalStateManager.apiKey` being passed into the remote CodeBuild deployment, which is narrower than the draft’s CI-wide authentication claim.",
+              "suggestedFix": "For this overview, say custom CI/CD runs Stacktape CLI commands and link to the custom CI/CD page for authentication details, or provide the CLI/global-state source that documents `STACKTAPE_API_KEY`. Keep the CodeBuild statement limited to passing Stacktape user info to the remote build.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "stacktapeUserInfo: {\n        id: globalStateManager.userData.id,\n        apiKey: globalStateManager.apiKey\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Stage names must be lowercase alphanumeric with dashes only (minimum 2 characters).” and “The `deploy` and `codebuild:deploy` commands validate the stage name before proceeding.”",
+              "reason": "The provided sources do not contain the stage-name validator or the `deploy` command implementation. The CodeBuild command initializes services and resolves resources, but the exact stage-name character and length constraints are not present in the supplied source files.",
+              "suggestedFix": "Remove the exact stage-name constraint from this page unless the relevant validator source is included. A safe replacement is: `Use short, predictable stage names for branch-derived stages because stage names are reused in generated stack and resource names.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await initializeAllStackServices({\n      commandRequiresDeployedStack: false,\n      commandModifiesStack: true,\n      loadGlobalConfig: true,\n      requiresSubscription: true\n    });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "finalArgs.stage = globalStateManager.targetStack.stage;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Self-hosted GitHub Actions runners let you run GitHub Actions workflows on Stacktape-managed infrastructure in your AWS account instead of on GitHub's hosted runners.”",
+              "reason": "The provided source files do not include the self-hosted runner implementation or Console flow. The claim may be true elsewhere, but it is not grounded in the supplied GitOps Console component or `codebuild:deploy` source.",
+              "suggestedFix": "Keep the overview link, but phrase this as a navigation pointer rather than a detailed behavior claim, or include the runner source files. Example: `See Self-hosted GitHub Actions runners for the runner model and setup details.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "export function Component() {\n  const selectedOrg = useGlobalStore((store) => store.selectedOrganization);\n  const { projectName } = useParams();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "export const commandCodebuildDeploy = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every automated deployment — whether triggered by GitOps, the `codebuild:deploy` CLI command, or a Console action — runs on a build runner. Stacktape supports CodeBuild-managed runners and EC2-based runners.”",
+              "reason": "The provided CodeBuild source supports AWS CodeBuild for `codebuild:deploy`, but the source set does not include build-runner definitions or EC2 runner behavior. The GitOps Console source also does not show runner selection or runner execution.",
+              "suggestedFix": "Limit this section to a link and a high-level distinction only if backed by source elsewhere. In this source set, you can safely say `codebuild:deploy` starts an AWS CodeBuild build; avoid saying every automated deployment uses a build runner or that EC2 runners are supported.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await eventManager.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting codebuild deployment' });\n    build = await startCodebuildDeployment({"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "rows={gitDeploymentConfigs.map((gitDeploymentConfig) => ["
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For direct rollback without a code change, use the `rollback` CLI command, which restores a previous deployment version.”",
+              "reason": "The documentation navigation confirms `/cli/rollback` exists, but the provided source files do not include the rollback command implementation or its behavior. The statement describes concrete Stacktape behavior that is not grounded in the source set.",
+              "suggestedFix": "Link to the rollback CLI reference without describing restore semantics, or include the rollback command source. Example: `For direct rollback workflows, see the rollback CLI reference.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "export const commandCodebuildDeploy = async () => {"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "import { CreateGitOpsConfigModal } from './CreateGitOpsConfigModal';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A typical Stacktape deployment takes a few minutes depending on stack complexity and the number of resources being packaged.”",
+              "reason": "The CodeBuild source shows a polling loop and log streaming, but it does not provide timing expectations. This is a concrete duration claim about Stacktape deployments without support in the provided source files.",
+              "suggestedFix": "Remove the duration estimate or replace it with a non-numeric statement: `Deployment duration depends on resource packaging and AWS provisioning work.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "do {\n      await wait(1000);\n      build = await awsSdkManager.getCodebuildDeployment({ buildId: build.id });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "} while (build.buildStatus !== StatusType.SUCCEEDED);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses the documented `/cli/codebuild-deploy`, `/cli/deploy`, `/cli/delete`, `/cli/rollback`, and CI/CD page routes from the navigation index.",
+            "The `codebuild:deploy` description is partly grounded: the source shows project zipping via git, upload to S3, CodeBuild start, CloudWatch log streaming, local resource resolution before starting CodeBuild, and automatic `autoConfirmOperation` for the remote build.",
+            "The GitOps field list is mostly aligned with the Console table source: deployment trigger, branch, stage name, region, and AWS account are visible in the provided component."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is useful and mostly aligned with the two provided source files, but it overstates several GitOps and runner behaviors that are not grounded in the supplied Console/source files. The highest-risk issues are unsupported claims about GitOps trigger behavior, build runners, self-hosted GitHub Actions runners, rollback semantics, and stage-name validation.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Each GitOps configuration specifies: Deployment trigger — deploy on push to a branch, or when a pull request is opened … Region … AWS account …” and “every matching git event triggers a deployment automatically.”",
+              "reason": "The provided Console source supports that GitOps configurations are displayed with trigger, branch, stage, region, and AWS account fields, and that trigger labels include PR opened and push to branch. It does not include backend execution logic or the create modal implementation proving that every matching git event triggers a deployment automatically or that these are the full creation semantics.",
+              "suggestedFix": "Narrow the wording to what the source proves: GitOps configurations are shown with deployment trigger, branch, stage name, region, and AWS account; displayed trigger types are “PR Opened” and “Push to Branch.” Avoid claiming exact automatic execution mechanics unless backend GitOps source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "gitDeploymentConfig.deployOnGitEvent === 'PULL_REQUEST_OPENED' ? (\n                  <Badge color=\"blue2\">PR Opened</Badge>\n                ) : (\n                  <Badge color=\"purple\">Push to Branch</Badge>\n                )"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“GitOps with Console handles the PR preview pattern with a built-in pull-request-opened trigger. The stage is automatically named `pr-{#number}` based on the pull request number.”",
+              "reason": "The source shows that the table displays `pr-{#number}` when a GitOps configuration has no explicit stage. It does not prove the runtime stage is automatically named from the actual pull request number, nor that the trigger creates preview infrastructure.",
+              "suggestedFix": "Say that the GitOps table displays `pr-{#number}` for PR-opened configurations when no stage is set. Only describe actual PR preview creation if the GitHub app/backend source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "label: gitDeploymentConfig.stage || 'pr-{#number}',\n              value: gitDeploymentConfig.stage || 'Z'"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Every automated deployment — whether triggered by GitOps, the `codebuild:deploy` CLI command, or a Console action — runs on a build runner. Stacktape supports CodeBuild-managed runners and EC2-based runners.”",
+              "reason": "Neither provided source file documents a general build-runner abstraction, EC2-based runners, or Console action deployment runners. The codebuild-deploy source only supports AWS CodeBuild for that command.",
+              "suggestedFix": "Limit this page to the grounded `codebuild:deploy` behavior, or add source files for build runners before documenting CodeBuild-managed versus EC2-based runners.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await eventManager.startEvent({ eventType: 'DEPLOY', description: 'Deploying using codebuild' });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "build = await startCodebuildDeployment({\n      awsSdkManager,\n      awsAccountId,\n      codebuildPipeline,"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Self-hosted GitHub Actions runners let you run GitHub Actions workflows on Stacktape-managed infrastructure in your AWS account…” and “Stacktape manages runner infrastructure.”",
+              "reason": "The supplied source files do not include any self-hosted GitHub Actions runner implementation or configuration. The claim would change a reader’s CI architecture choice, but it is not grounded in the provided files.",
+              "suggestedFix": "Either remove the operational description and link to the dedicated page, or provide the self-hosted runner source files and verify the wording against them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "import { CreateGitOpsConfigModal } from './CreateGitOpsConfigModal';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "import {\n  getCodebuildLogStreamNameFromBuildInfo,\n  preparePipelineResources,\n  startCodebuildDeployment\n} from '@shared/aws/codebuild';"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stage names must be lowercase alphanumeric with dashes only (minimum 2 characters).” and “The `deploy` and `codebuild:deploy` commands validate the stage name before proceeding.”",
+              "reason": "The provided codebuild-deploy source does not show the stated stage-name regex, minimum length, or explicit validation behavior. It passes `globalStateManager.targetStack.stage` through to remote arguments, but the validation constraint itself is not present in the supplied source.",
+              "suggestedFix": "Remove the exact stage-name constraint unless the CLI argument/schema validation source is provided. A cautious alternative is: “Use short, stable stage names because stage names are used in stack and resource naming.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "finalArgs.stage = globalStateManager.targetStack.stage;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“For direct rollback without a code change, use the `rollback` CLI command, which restores a previous deployment version.”",
+              "reason": "The provided source files do not include the rollback command implementation or any evidence that rollback restores a previous deployment version. This is a Stacktape-specific behavioral claim about deployment recovery.",
+              "suggestedFix": "Link to `/cli/rollback` without describing exact restore behavior, or add the rollback command source and verify the wording against it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "return { stackInfo: detailedStackInfoSensitive };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You do not need to store raw AWS credentials in your pipeline — the CLI deploys through your connected AWS account.”",
+              "reason": "The provided codebuild-deploy source shows the command uses `globalStateManager.targetAwsAccount` and passes Stacktape user info/API key to CodeBuild, but it does not document authentication requirements for arbitrary custom CI/CD pipelines or prove that raw AWS credentials are never needed for `deploy`.",
+              "suggestedFix": "Narrow this to the grounded CodeBuild path: `codebuild:deploy` uses the target AWS account from Stacktape state and passes Stacktape user info to the remote build. For custom CI, avoid the “no AWS credentials” claim unless CLI auth source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "const { awsAccountId } = globalStateManager.targetAwsAccount;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "stacktapeUserInfo: {\n        id: globalStateManager.userData.id,\n        apiKey: globalStateManager.apiKey\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft gives detailed custom CI/CD examples using `stacktape deploy --autoConfirmOperation`, but the provided source only covers `codebuild:deploy`; the `deploy` command flags and custom CI auth behavior are not sourced.",
+              "reason": "The source file is specifically `src/commands/codebuild-deploy/index.ts`. It supports `codebuild:deploy` setting `autoConfirmOperation` for the remote build, but does not prove the `deploy` command’s flag behavior or custom CI workflow semantics.",
+              "suggestedFix": "Keep the `codebuild:deploy` command example. For `deploy` in custom CI, either add `src/commands/deploy/index.ts` and CLI command definitions as sources or reduce the example to a high-level statement that custom CI can run Stacktape CLI commands.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "const adjustArguments = ({ cliArguments }: { cliArguments: StacktapeArgs }) => {\n  const finalArgs: StacktapeCliArgs = serialize(cliArguments);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "finalArgs.autoConfirmOperation = true;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses existing navigation routes for all checked cross-links; no invented route was found.",
+            "The `codebuild:deploy` section is largely grounded: the source shows local initialization/resource resolution, git zip archive creation, S3 upload, CodeBuild start, CloudWatch log streaming, and forced `autoConfirmOperation` in the remote arguments.",
+            "The GitOps table fields in the draft match the visible Console table fields: deployment trigger, branch, stage name, region, and AWS account.",
+            "The page avoids forbidden Stacktape config examples, hand-authored Stacktape YAML, and incorrect ApiReference usage."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No primary config type is available for /ci-cd-and-gitops/overview, so API-property completeness cannot be audited. The main issues are unsupported CI/CD mechanics and runner claims that are not grounded in the two provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"The CLI authenticates via a `STACKTAPE_API_KEY` environment variable. Create an API key in the Console under API keys. You do not need to store raw AWS credentials in your pipeline — the CLI deploys through your connected AWS account.\"",
+              "reason": "The provided `codebuild:deploy` source shows `globalStateManager.apiKey` being passed into the remote CodeBuild deployment, but it does not document the `STACKTAPE_API_KEY` environment variable, Console API-key creation flow, or the broad claim that CI pipelines do not need AWS credentials.",
+              "suggestedFix": "Narrow the claim to what is sourced for `codebuild:deploy`: the remote build receives Stacktape user info including an API key. Move the broader custom CI authentication details to a page with CLI/auth source coverage, or add the relevant CLI/global-state source files.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "stacktapeUserInfo: {\n        id: globalStateManager.userData.id,\n        apiKey: globalStateManager.apiKey\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"GitOps with Console handles the PR preview pattern with a built-in pull-request-opened trigger. The stage is automatically named `pr-{#number}` based on the pull request number.\"",
+              "reason": "The Console source shows the GitOps table renders `pr-{#number}` when `stage` is empty and labels `PULL_REQUEST_OPENED` as `PR Opened`. It does not prove automatic stage creation semantics or that the placeholder is resolved from the pull request number at deployment time.",
+              "suggestedFix": "Use the narrower sourced wording: PR-trigger GitOps configurations are displayed with stage name `pr-{#number}` when no explicit stage is stored. If the automatic substitution behavior should be documented, include the server-side GitHub app/deployment source that performs it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "gitDeploymentConfig.deployOnGitEvent === 'PULL_REQUEST_OPENED' ? (\n                  <Badge color=\"blue2\">PR Opened</Badge>\n                ) : (\n                  <Badge color=\"purple\">Push to Branch</Badge>\n                )"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "label: gitDeploymentConfig.stage || 'pr-{#number}',\n              value: gitDeploymentConfig.stage || 'Z'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"This works with GitHub Actions, GitLab CI, CircleCI, Jenkins, or any system that can run shell commands.\"",
+              "reason": "The provided source files do not cover custom CI/CD provider compatibility. The `codebuild:deploy` source is a CLI command implementation, and the Console GitOps source is specific to GitOps configuration display.",
+              "suggestedFix": "Either remove the provider list from this overview or ground it with source for the custom CI/CD page/CLI authentication behavior. A cautious alternative is: \"Custom CI/CD uses Stacktape CLI commands in your pipeline; see the custom CI/CD guide for provider-specific setup.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "export const commandCodebuildDeploy = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Every automated deployment — whether triggered by GitOps, the `codebuild:deploy` CLI command, or a Console action — runs on a build runner. Stacktape supports CodeBuild-managed runners and EC2-based runners.\"",
+              "reason": "The provided `codebuild:deploy` source supports CodeBuild for that command. No provided source mentions EC2-based runners or proves that every GitOps and Console action runs on a build runner.",
+              "suggestedFix": "Distinguish only the sourced path here: `codebuild:deploy` starts an AWS CodeBuild deployment. Keep EC2 runner and all-automation runner claims for /ci-cd-and-gitops/build-runners with source files for runner configuration.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "build = await startCodebuildDeployment({\n      awsSdkManager,\n      awsAccountId,\n      codebuildPipeline,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Self-hosted GitHub Actions runners let you run GitHub Actions workflows on Stacktape-managed infrastructure in your AWS account instead of on GitHub's hosted runners.\"",
+              "reason": "No provided source file covers self-hosted GitHub Actions runners. The overview links to a runner page, but the mechanics, ownership, VPC access, hardware, and performance claims are not supported by the supplied sources.",
+              "suggestedFix": "Replace the detailed runner mechanics with a short cross-link, or provide the self-hosted runner implementation/configuration source files for this page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "import { CreateGitOpsConfigModal } from './CreateGitOpsConfigModal';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "import {\n  getCodebuildLogStreamNameFromBuildInfo,\n  preparePipelineResources,\n  startCodebuildDeployment\n} from '@shared/aws/codebuild';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stage names must be lowercase alphanumeric with dashes only (minimum 2 characters).\"",
+              "reason": "Neither provided source file includes stage-name validation rules. The `codebuild:deploy` source passes through `globalStateManager.targetStack.stage`, but does not define accepted characters or minimum length.",
+              "suggestedFix": "Remove the exact validation rule from this page unless the relevant stage validation source is added. If kept, cite the CLI argument/config validation source that enforces it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "finalArgs.stage = globalStateManager.targetStack.stage;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"AWS CodeBuild charges per build minute... The AWS free tier includes 100 build minutes per month on the smallest compute type. A typical Stacktape deployment takes a few minutes...\"",
+              "reason": "The source files contain no pricing data, free-tier terms, or duration estimates. Pricing rules say concrete pricing should be included only when present in the provided source files.",
+              "suggestedFix": "Remove the concrete free-tier and typical-duration claims, or replace with a generic sourced statement that `codebuild:deploy` uses AWS CodeBuild and therefore CodeBuild usage may affect AWS costs.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "await eventManager.startEvent({ eventType: 'DEPLOY', description: 'Deploying using codebuild' });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For GitOps deployments, pushing a revert commit to the branch triggers a new deployment... use the `rollback` CLI command, which restores a previous deployment version.\"",
+              "reason": "The provided GitOps source shows GitOps configurations in the Console, but not behavior after revert commits. The provided CLI source is `codebuild:deploy`, not rollback behavior.",
+              "suggestedFix": "Remove the rollback FAQ answer from this overview or ground it with the rollback command source and GitOps trigger handling source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\GitOps\\GitOps.tsx",
+                  "quote": "const gitDeploymentConfigsQuery = trpc.gitDeploymentConfigurationsForApp.useQuery("
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\codebuild-deploy\\index.ts",
+                  "quote": "export const commandCodebuildDeploy = async () => {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes the two GitOps trigger labels visible in the Console source: pull-request-opened and push-to-branch.",
+            "The `codebuild:deploy` section is broadly aligned with the command source on zipping the project with git, uploading it to S3, starting AWS CodeBuild, and streaming deployment logs.",
+            "The page uses one command per shell code block for the `deploy`, `delete`, and `codebuild:deploy` examples, which follows the shell copy-button rule.",
+            "No hand-authored Stacktape YAML configuration or plain-object `StacktapeConfig` examples appear in the draft."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"When NOT to use\" is nested as `### When NOT to use` (H3); should be `## When NOT to use` (H2).",
+              "reason": "\"When to use\" and \"When NOT to use\" are PEER H2 decisions on resource pages. Nesting \"When NOT to use\" as H3 under \"When to use\" breaks the TOC and hides the negative-case guidance.",
+              "suggestedFix": "Promote `### When NOT to use` to `## When NOT to use`."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\ci-cd-and-gitops\\overview.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 11, advisory high 2, verifier medium 12"
+}

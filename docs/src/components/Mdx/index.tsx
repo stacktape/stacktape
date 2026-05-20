@@ -187,7 +187,8 @@ export const MdxComponents = {
           fontSize: '13.5px',
           lineHeight: '1.5',
           overflowX: 'auto',
-          color: colors.fontColorPrimary
+          color: colors.fontColorPrimary,
+          whiteSpace: 'pre'
         }}
       >
         {content}

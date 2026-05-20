@@ -1,0 +1,300 @@
+{
+  "pageId": "cli__deployment-script__run",
+  "pageRoute": "cli/deployment-script-run",
+  "startedAt": "2026-05-17T20:58:31.358Z",
+  "updatedAt": "2026-05-17T21:03:04.781Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__deployment-script__run\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, precise opening paragraph that answers 'what is this and when would I use it' without fluff or marketing language.",
+            "The numbered 'What it does' breakdown is grounded in the source (buildAndUpdateFunctionCode, local directive resolution, invokeLambdaFunction) and helps a first-time reader understand the workflow before they run anything.",
+            "The <Warning> callout cleanly communicates the config-change limitation, which is the most common gotcha with this command.",
+            "Each bash block contains exactly one command with explanatory prose above it — no copy-buffer contamination.",
+            "Three distinct, realistic examples cover different axes (different regions, log level flag, custom configPath) rather than just repeating the same command with different stage names.",
+            "'When to use this vs deploy' section is concrete and opinionated — it names exactly which properties require a full deploy, giving the reader a decision rule rather than a vague hint.",
+            "Correct use of <CliCommandsApiReference> with the full sortedArgs payload rather than a hand-authored table.",
+            "Related commands section covers the logical neighbours (deploy, script:run, delete) with a one-sentence differentiation for each."
+          ],
+          "problems": [
+            "Section ordering deviates from the CLI section instructions, which prescribe: intro → usage example → auto-generated reference → examples → related commands. The draft places 'Arguments reference' after 'Examples' and 'When to use this vs deploy', burying the flags table behind two extra H2s.",
+            "The 'What it does' H2 duplicates significant content from the intro paragraph and the existing 'Usage' description. The four-step list is valuable, but the H2 is not needed — the numbered list can live in the intro area or under 'Usage'.",
+            "The 'Prerequisites' H2 also adds an extra section before the Usage example, pushing the first runnable command further down the page than the section instructions anticipate.",
+            "The templateId argument appears in the <CliCommandsApiReference sortedArgs> but is not obviously relevant to deployment-script:run — it appears to be pulled in via configDependentArgs. Its presence without any description of why a user would pass it may confuse readers.",
+            "The error type label 'NON_EXISTING_RESOURCE' is claimed for both 'not in config' (stpErrors.e5) and 'not deployed' (stpErrors.e6) scenarios. The source only shows the error codes, not their human-readable names, so this claim may be imprecise."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reorder H2s to match the section instructions: intro paragraph → Usage (with the basic invocation) → Arguments reference → Examples → Related commands. Inline the 'What it does' numbered steps under the intro or the Usage section instead of giving them their own H2.",
+            "Fold 'Prerequisites' content into the intro paragraph or a short note under Usage. Two extra H2s before the first runnable example increases time-to-copy for new readers.",
+            "Either remove templateId from the sortedArgs array or add a one-sentence note explaining that it is available but rarely used for this command, so readers are not left wondering what a template ID has to do with running a deployment script.",
+            "Qualify the 'NON_EXISTING_RESOURCE' error type claim with softer language ('returns an error indicating...') since the exact error message string is not confirmed by the provided source files.",
+            "Consider noting that the command returns a JSON payload visible in the terminal (success flag + returnedPayload), sourced from the commandDeploymentScriptRun return value, so readers know what to expect from the output.",
+            "The --agent flag (JSONL/NDJSON output, auto-confirms) is in the sortedArgs but not called out in prose. A one-sentence mention under Usage that CI/CD pipelines should use --agent or --outputFormat jsonl would help the secondary reader (engineering manager evaluating CI usage)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Accurate 4-step behavioral breakdown grounded in the command implementation source (buildAndUpdateFunctionCode → tag Lambda → resolve parameters locally → invoke)",
+            "Warning callout about config-only changes requiring a full deploy is correctly placed and precisely worded — the most important gotcha for this command",
+            "Distinction between 'not in config' vs 'not deployed' error states is useful and grounded in the two separate stpErrors calls (e5 vs e6) in the command source",
+            "Examples are realistic and copyable, each in a separate bash block (no copy-button trap), covering the common cases: staging, debug logging, and non-default config path",
+            "\"When to use this vs deploy\" section gives concrete decision guidance — explains what is skipped (CloudFormation) and what still requires a full deploy, which is exactly the question this audience asks"
+          ],
+          "problems": [
+            "Section ordering deviates from the CLI section instructions: the prescribed order is 'short paragraph → usage example → auto-generated reference → Examples → Related commands'. The draft places Examples and \"When to use this vs deploy\" before the Arguments reference (CliCommandsApiReference), burying the flags table after two additional H2 sections.",
+            "\"What it does\" is a redundant H2 for a CLI reference page — the intro paragraph already states what the command does; adding a step-list under a separate heading just delays the Usage section and duplicates the intro",
+            "The Prerequisites section partially restates the Warning callout directly above it, adding minor redundancy without adding grounded error-code specifics (the page claims NON_EXISTING_RESOURCE for both error paths but the source file only shows stpErrors.e5 / stpErrors.e6 without surfacing the error type string — this claim is plausible from CLAUDE.md context but not directly verifiable from the provided sources)"
+          ],
+          "mandatoryFixes": [
+            "Reorder the H2 sections to match CLI section instructions: (1) lead paragraph, (2) Usage / required flags prose, (3) Arguments reference (CliCommandsApiReference), (4) Examples, (5) When to use this vs deploy, (6) Related commands. The CliCommandsApiReference must appear before Examples per the section instructions.",
+            "Either remove the \"What it does\" H2 and fold the step-list into the lead paragraph or the Usage section, or rename it to a concise noun-form label (e.g., \"Behavior\") and ensure it does not duplicate the intro — as-is it adds an unnecessary heading layer that delays the reader from reaching the flags table"
+          ],
+          "optionalImprovements": [
+            "Consider adding a brief FAQ (4-5 entries) since this is a reference page — useful questions include: \"Can I run the script against a different parameter payload?\", \"Does this command update environment variables?\", \"What happens if the Lambda invocation times out?\", \"Can I use this in CI/CD pipelines?\"",
+            "The NON_EXISTING_RESOURCE error-type claims in Prerequisites would be stronger if linked to or confirmed against src/config/error-messages.ts as the section instructions suggest — worth verifying e5/e6 produce that error type string and noting the error code if useful",
+            "The templateId argument in the CliCommandsApiReference sortedArgs may confuse readers on a deployment-script:run page (it's inherited from universalArgs but downloading a template doesn't apply here) — a brief footnote or its omission from the sorted args table would reduce noise"
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is self-contained and clearly explains the command’s purpose and the common use case.",
+            "The page follows the CLI reference rhythm: short intro, usage example, generated argument reference, examples, and related commands.",
+            "Shell examples obey the one-command-per-block rule and include all required flags.",
+            "The generated <CliCommandsApiReference command=\"deployment-script:run\" /> component is present and uses the correct command name."
+          ],
+          "problems": [
+            "The page incorrectly says parameter changes require a full deploy. The command source resolves the deployment script’s `parameters` from local config immediately before invocation, so local parameter changes appear to be used by `deployment-script:run`.",
+            "The prerequisite error names are not grounded in the provided source. The command throws `stpErrors.e5` and `stpErrors.e6`, but the provided files do not show those errors as `NON_EXISTING_RESOURCE`.",
+            "The claim that turnaround is “seconds rather than minutes” is not grounded in the provided source and reads like an unsupported performance promise.",
+            "The draft says the command “re-packages” the script. The source clearly calls `buildAndUpdateFunctionCode(resourceName)`, but “re-packages” is narrower than the source proves unless packaging behavior is shown elsewhere.",
+            "The page has no FAQ. For a CLI reference this is less severe than for a resource page, but this reviewer’s extractability criteria still prefer a small FAQ for common questions like deploy vs run, parameters, existing deployment requirements, and logs/output."
+          ],
+          "mandatoryFixes": [
+            "Correct the deployment-vs-run guidance: do not say changes to `parameters` require a full deploy. Replace it with source-grounded wording that `deployment-script:run` resolves the script `parameters` from local config before invocation, while environment variables and other Lambda configuration changes require `deploy`.",
+            "Remove or qualify the unsupported `NON_EXISTING_RESOURCE` error-code claims unless `src/config/error-messages.ts` confirms those exact names. Ground the section in the visible behavior: the command fails if the resource is missing from config or not present in the deployed stack.",
+            "Remove the unsupported “seconds rather than minutes” performance claim, or replace it with a precise source-grounded statement such as “the command skips a full deploy and updates only the script function code.”"
+          ],
+          "optionalImprovements": [
+            "Add a compact FAQ with 4-6 entries covering whether the script must already be deployed, whether parameter changes are picked up, when to use `deploy`, how output is reported, and how it differs from `script:run`.",
+            "Change “re-packages and invokes” to “builds and updates the script function code, then invokes it” to align more closely with `buildAndUpdateFunctionCode` and `invokeLambdaFunction`.",
+            "In the warning callout, list only grounded examples of configuration changes requiring deploy, such as environment variables and other configurations from the command description; avoid over-enumerating unsupported settings unless their deployment-script type source is provided.",
+            "Consider moving the “When to use this vs deploy” guidance closer to the warning so readers see the most important decision immediately after the core behavior."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and runtime implementation, especially the required flags and the core hot-swap/invoke behavior. The main factual problem is that it tells readers a full deploy is required for deployment script parameter changes, while the runtime resolves `parameters` locally immediately before invocation.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Switch to a full deploy when you change anything besides the script's source code (environment variables, memory, timeout, packaging settings, parameters, or VPC configuration).”",
+              "reason": "The runtime resolves the deployment script's `parameters` from the current configuration locally and passes them as the Lambda invocation payload. That means the source supports saying environment variables and other Lambda configuration require deploy, but it does not support including `parameters` in the full-deploy-only list.",
+              "suggestedFix": "Remove `parameters` from the list of changes that require `deploy`. Add a precise replacement such as: “The command resolves the deployment script `parameters` from your local configuration before invoking the Lambda; Lambda configuration changes such as environment variables, memory, timeout, packaging settings, or VPC settings require `deploy`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "configManager.resolveDirectives<StpDeploymentScript['parameters']>({\n      itemToResolve: configManager.deploymentScripts.find(({ name }) => name === resourceName).parameters || {},\n      resolveRuntime: true,\n      useLocalResolve: true\n    })"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "const response = await awsSdkManager.invokeLambdaFunction({\n    lambdaResourceName: lambdaArn,\n    payload: scriptParametersResolvedLocally\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Hot-swap the Lambda code, invoke it, and see the result in seconds.” and “turnaround is seconds rather than minutes.”",
+              "reason": "The source supports a targeted source-code update and invocation, but it does not state or guarantee any runtime duration such as seconds. The timing claim is Stacktape-specific operational behavior and should be narrowed unless measured or sourced elsewhere.",
+              "suggestedFix": "Replace the timing promise with source-grounded wording such as: “Hot-swap the Lambda code and invoke it without running a full deploy.” In the body, say the command skips a full deploy rather than promising seconds-versus-minutes turnaround.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "This command only updates the script's source code. To update environment variables or other configurations, use the `deploy` command."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "const { lambdaArn } = await buildAndUpdateFunctionCode(resourceName);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape returns a `NON_EXISTING_RESOURCE` error” for both a script missing from config and a script missing from the deployed stack.",
+              "reason": "The provided runtime source shows two different internal error constructors, `stpErrors.e5` and `stpErrors.e6`, but the supplied sources do not expose their public error code or message text. The draft names a specific error code that is not grounded in the provided files.",
+              "suggestedFix": "Avoid the unsourced error-code name, or cite the actual error-message source if available. A grounded version would be: “Stacktape fails if the resource is not defined in the configuration, and also fails if the resource is not present as a deployed `deployment-script` in the target stack.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "if (!resource || resource.type !== 'deployment-script') {\n    throw stpErrors.e5({ resourceName, resourceType });\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "if (!deployedStpResource || deployedStpResource.resourceType !== resourceType) {\n    throw stpErrors.e6({ resourceName, resourceType, stackName: globalStateManager.targetStack.stackName });\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The required flags `stage`, `region`, and `resourceName` match `commandDefinitions['deployment-script:run'].requiredArgs`.",
+            "The draft correctly says the command only updates source code and that environment variables or other configuration changes require `deploy`.",
+            "The described invocation payload behavior is grounded: deployment script `parameters` are resolved locally and passed to the Lambda invocation.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and implementation. The main factual risks are unsupported performance wording and overly specific error-code naming/message claims that are not visible in the provided sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“see the result in seconds” and “turnaround is seconds rather than minutes.”",
+              "reason": "The provided command definition and implementation show that the command performs a hot-swap-style function code update and invokes the Lambda, but they do not support a concrete timing claim. This Stacktape-specific performance expectation should be removed or narrowed.",
+              "suggestedFix": "Replace with cautious wording such as “without waiting for a complete stack update” or “usually faster than a full deploy because it skips a full stack update.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "This command only updates the script's source code. To update environment variables or other configurations, use the `deploy` command."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "const { lambdaArn } = await buildAndUpdateFunctionCode(resourceName);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape returns a `NON_EXISTING_RESOURCE` error indicating the resource is not defined in your configuration file” and “Stacktape returns a `NON_EXISTING_RESOURCE` error indicating the resource has not been deployed to the stack.”",
+              "reason": "The implementation throws `stpErrors.e5` for a missing or wrong resource in config and `stpErrors.e6` for a missing deployed resource. The provided sources do not include `src/config/error-messages.ts` or any mapping showing that either error is named `NON_EXISTING_RESOURCE`, nor do they show the exact user-facing message. The distinction between e5 and e6 is grounded, but the specific error-code name is not.",
+              "suggestedFix": "Say that the command fails if the resource is not a `deployment-script` in the config, and fails separately if the deployed stack overview does not contain that deployment script. Avoid naming `NON_EXISTING_RESOURCE` unless the error-message source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "if (!resource || resource.type !== 'deployment-script') {\n    throw stpErrors.e5({ resourceName, resourceType });\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "if (!deployedStpResource || deployedStpResource.resourceType !== resourceType) {\n    throw stpErrors.e6({ resourceName, resourceType, stackName: globalStateManager.targetStack.stackName });\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Re-run a seed script with debug-level logging to inspect the full invocation flow.”",
+              "reason": "The flags table supports `--logLevel debug` as “Detailed information for debugging,” but the provided source does not establish that debug logging exposes the “full invocation flow.” This is likely harmless, but the wording is stronger than the source supports.",
+              "suggestedFix": "Use “with more detailed CLI logs” instead of “to inspect the full invocation flow.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required arguments shown in the draft match `requiredArgs: ['stage', 'region', 'resourceName']`.",
+            "The core behavior is well grounded: the implementation initializes hot-swap deployment services, validates the resource, builds and updates function code, resolves deployment script parameters locally, invokes the Lambda function, and reports success or failure.",
+            "The draft uses the correct `<CliCommandsApiReference command=\"deployment-script:run\" ... />` component and links only to routes present in the navigation index.",
+            "The draft avoids forbidden Stacktape config examples, hand-authored YAML, and plain-object `StacktapeConfig` style."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page is structurally strong for a CLI reference: it documents one command, shows required flags, uses the generated CLI reference component, and avoids forbidden Stacktape config examples. The main issue is a concrete contradiction around deployment script parameters.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Switch to a full deploy when you change anything besides the script's source code (environment variables, memory, timeout, packaging settings, parameters, or VPC configuration).\"",
+              "reason": "The source code resolves the deployment script's `parameters` from the current local configuration immediately before invoking the Lambda, using local directive resolution. Parameters are invocation payload, not Lambda configuration, so grouping `parameters` with environment, memory, timeout, packaging, and VPC configuration is incorrect.",
+              "suggestedFix": "Remove `parameters` from the list of changes that require `deploy`. Replace it with a precise caveat such as: \"The command resolves the script's `parameters` from your current local configuration and sends them as the invocation payload. Use `deploy` for Lambda configuration changes such as environment variables, memory, timeout, packaging settings, or VPC configuration.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "configManager.resolveDirectives<StpDeploymentScript['parameters']>({\n      itemToResolve: configManager.deploymentScripts.find(({ name }) => name === resourceName).parameters || {},\n      resolveRuntime: true,\n      useLocalResolve: true\n    })"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts",
+                  "quote": "await awsSdkManager.invokeLambdaFunction({\n    lambdaResourceName: lambdaArn,\n    payload: scriptParametersResolvedLocally\n  });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft includes the required `--stage`, `--region`, and `--resourceName` flags in the usage example, matching the command definition.",
+            "The draft uses `<CliCommandsApiReference command=\"deployment-script:run\" ... />` rather than hand-authoring the flags table.",
+            "The draft correctly states that the command updates only the script source code and points users to `deploy` for environment variable and other configuration changes.",
+            "The shell examples each contain one runnable command per fenced `bash` block, with no explanatory comments inside the copyable command blocks."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\deployment-script-run.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T21:03:04.781Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\deployment-script-run\\index.ts": "09c63671057eda3854f0d2020bc30db0b55fc731",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\deployment-script-run.md": "4e6ea7088e0e7434d33451cd95fdb18b6a9d26af"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

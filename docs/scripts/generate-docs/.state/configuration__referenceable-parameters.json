@@ -1,0 +1,959 @@
+{
+  "pageId": "configuration__referenceable-parameters",
+  "pageRoute": "configuration/referenceable-parameters",
+  "startedAt": "2026-05-16T17:47:20.068Z",
+  "updatedAt": "2026-05-17T10:02:11.596Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__referenceable-parameters\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clean reference-page structure: syntax explanation, organized resource sections, practical patterns, and a strong FAQ all in the right order for a reader moving from 'what is this' to 'how do I use it'.",
+            "The 'Using parameters in practice' section earns its place — the connectTo comparison is exactly the decision support a new user needs, and the environment-variable and stack-output examples are realistic and copyable.",
+            "CodeBlock usage is correct throughout: TypeScript tab only, no hand-authored YAML, focus markers balanced, no fenced `defineConfig` blocks.",
+            "FAQ covers 8 entries across all three required categories (Stacktape-specific, AWS-behavior, and choosing/comparison), and answers are appropriately concise.",
+            "The <Info> callout about conditional parameters (CDN, Aurora readers) is well-placed and preempts a common frustration."
+          ],
+          "problems": [
+            "Missing Worker service section: `WorkerServiceReferencableParams` is explicitly listed in the `StacktapeResourceReferenceableParam` union in `__helpers.d.ts`, but the page has no `<ReferenceableParams resource=\"worker-service\" />` entry anywhere.",
+            "Missing Kinesis stream section: `KinesisStreamReferencableParam` is also in the `StacktapeResourceReferenceableParam` union but has no entry on the page. Both gaps leave readers with an incomplete reference for resources they may actively use.",
+            "FAQ claim about pre-deployment validation ('deployment fails immediately with an error listing the valid parameters') is a Stacktape-specific behavior assertion with no grounding in the provided source files.",
+            "FAQ claim about a `$CfStackOutput` directive for cross-stack references is named and described with specifics (`export: true` in stack outputs) that cannot be verified from the provided source. The source does not name this directive.",
+            "FAQ question 7 ('Which database parameters require Aurora engines?') names specific parameter identifiers (`readerHost`, `readerConnectionString`, `readReplicaHosts`, etc.) that don't appear in the provided source file — only the type name `RelationalDatabaseReferencableParam` is visible. This is a speculative-specifics claim the source-grounding verifier will flag as high-severity.",
+            "Page includes SSR web resources (NextjsWeb, AstroWeb, NuxtWeb, SvelteKitWeb, SolidStartWeb, TanStackWeb, RemixWeb) and NetworkLoadBalancer with `<ReferenceableParams>` entries, but none of these appear in the `StacktapeResourceReferenceableParam` union in the provided source. Including them may be correct if the component pulls from other data, but the inclusion is unsupported by the provided source file."
+          ],
+          "mandatoryFixes": [
+            "Add a Worker service entry (`<ReferenceableParams resource=\"worker-service\" />`) to the Compute resources section. `WorkerServiceReferencableParams` is in the `StacktapeResourceReferenceableParam` union in `__helpers.d.ts` and the page omits it entirely.",
+            "Add a Kinesis stream entry (`<ReferenceableParams resource=\"kinesis-stream\" />`) to the Messaging and orchestration section. `KinesisStreamReferencableParam` is in the `StacktapeResourceReferenceableParam` union in `__helpers.d.ts` and the page omits it entirely.",
+            "Rewrite FAQ question 7 ('Which database parameters require Aurora engines?') without naming specific parameter identifiers (`readerHost`, `readerConnectionString`, `readReplicaHosts`, etc.) that are not present in the provided source. Instead, describe the split conceptually (standard RDS exposes host/port/connection string; Aurora additionally exposes reader and cluster endpoints) and link to the relational-database resource page for the exact parameter list.",
+            "Qualify or remove the FAQ claim that 'Stacktape validates `$ResourceParam` references before deployment ... with an error listing the valid parameters'. This Stacktape-specific behavior assertion has no grounding in the provided source. Either remove the sentence or soften it to 'Stacktape reports a configuration error at deploy time' without claiming the specific error format.",
+            "Remove or clearly hedge the FAQ claim that names `$CfStackOutput` as the cross-stack directive. The provided source does not name this directive. If cross-stack referencing is a documented feature, reference it by linking to its own page rather than asserting the directive name inline."
+          ],
+          "optionalImprovements": [
+            "Consider adding a Convex entry (`<ReferenceableParams resource=\"convex\" />`) — `ConvexReferencableParam` is in the union in `__helpers.d.ts`. It's a newer resource but omitting it leaves an undocumented gap.",
+            "The 'Stack outputs' example links to `/configuration/configuration-files` which is generic. If there is a dedicated stack outputs page, link there instead so readers can see the full output configuration options.",
+            "The 'Frontend resources' grouping includes SSR web resources and HostingBucket that don't appear in the `StacktapeResourceReferenceableParam` union. Add a brief prose note explaining that SSR frontend params derive from their underlying Lambda and CDN components, so readers understand why the parameter set may feel different from pure compute resources.",
+            "The intro paragraph mentions 'URLs, ARNs, hostnames, ports, and connection strings' — this list is slightly arbitrary. Consider replacing it with 'any value that is only known after AWS provisions the resource' to make the explanation more durable and avoid implying the list is exhaustive.",
+            "The second CodeBlock (environment variables example) uses `connectTo: ['mainDb']` alongside manual `$ResourceParam` env vars for `host`, `port`, and `dbName`. Add a one-sentence note explaining why both are used here — `connectTo` grants network access while `$ResourceParam` provides the specific individual values not injected by `connectTo`. Otherwise the pattern looks redundant to new readers."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clear opening paragraph that concisely explains what $ResourceParam is and when it matters.",
+            "The 'Difference from connectTo' section is well-targeted: it answers the most common confusion point head-on and gives three concrete reasons to reach for $ResourceParam over connectTo.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS/service-specific, comparison/choosing) and most answers are self-contained enough to be cited as snippets.",
+            "The <Info> callout flagging conditional availability (CDN parameters, Aurora reader parameters) is a practical production-safety note.",
+            "Section-level organization by resource category is clean and makes the page scannable as a quick lookup."
+          ],
+          "problems": [
+            "MISSING RESOURCES — The source's `StacktapeResourceReferenceableParam` union includes `WorkerServiceReferencableParams`, `ContainerWorkloadReferencableParam`, `KinesisStreamReferencableParam`, and `ConvexReferencableParam`, none of which have sections on the page. For a reference page meant to enumerate all available parameters, these are meaningful omissions.",
+            "UNSOURCED RESOURCE — The page includes a 'Network Load Balancer' section (`<ReferenceableParams resource='network-load-balancer' />`), but `NetworkLoadBalancerReferenceableParam` does not appear anywhere in the `StacktapeResourceReferenceableParam` union in the provided source. Including a section for a resource type without source grounding is a factual error on a reference page.",
+            "UNGROUNDED PARAMETER NAMES IN PROSE — The 'Difference from connectTo' section cites `logGroupArn` and `archiveArn` as examples of parameters `connectTo` doesn't auto-inject. Neither name appears anywhere in the provided source files. These read like plausible guesses but are not verified.",
+            "UNGROUNDED PARAMETER NAMES IN FAQ — The FAQ entry about database parameters names `readReplicaHosts` and `readReplicaConnectionStrings` as specific parameter identifiers. These do not appear in the provided source. The connectTo JSDoc confirms `READER_CONNECTION_STRING`, `READER_HOST`, and `READER_JDBC_CONNECTION_STRING`, but the read-replica parameter names are not grounded.",
+            "UNGROUNDED DIRECTIVE IN FAQ — The FAQ entry about cross-stack references asserts the existence of a `$CfStackOutput` directive and its behavior (requires `export: true`, reads CloudFormation outputs). This directive is not present in the provided source files. It may be correct, but it cannot be verified and should not appear as a confident factual claim.",
+            "CONTRADICTORY CODE EXAMPLE — The 'Environment variables' section opens with 'Use it when connectTo doesn't cover the specific parameter you need,' then the example manually injects `DB_HOST` and `DB_PORT` via `$ResourceParam` while also using `connectTo: ['mainDb']`. The connectTo JSDoc explicitly states RelationalDatabase injects `HOST` and `PORT` automatically. The example teaches the wrong pattern for HOST and PORT and undermines the guidance preceding it."
+          ],
+          "mandatoryFixes": [
+            "Add sections for the missing resource types present in the `StacktapeResourceReferenceableParam` union: worker service (`WorkerServiceReferencableParams`), multi-container workload (`ContainerWorkloadReferencableParam`), and kinesis stream (`KinesisStreamReferencableParam`). These belong in 'Compute resources' and a new or existing 'Messaging' section respectively.",
+            "Remove the 'Network Load Balancer' section entirely, or provide source-grounded evidence that `NetworkLoadBalancerReferenceableParam` exists. The type does not appear in the `StacktapeResourceReferenceableParam` union in the provided source.",
+            "Replace the invented parameter names `logGroupArn` and `archiveArn` in the 'Difference from connectTo' section with source-grounded examples, or remove the specific names and use a generic description instead (e.g., 'parameters not covered by the connectTo JSDoc table').",
+            "Remove the specific parameter names `readReplicaHosts` and `readReplicaConnectionStrings` from the FAQ. Replace with the source-grounded names (`readerConnectionString`, `readerHost`, `readerJdbcConnectionString`) or remove the read-replica clause entirely if those parameter names cannot be verified.",
+            "Remove or qualify the `$CfStackOutput` cross-stack references claim in the FAQ. It is stated as a confident fact but is not present in the provided source files. If the directive exists, it requires source grounding before being documented here.",
+            "Fix the 'Environment variables' code example so it demonstrates $ResourceParam only for a parameter that connectTo does NOT inject (e.g., `dbName` or another non-injected parameter). Remove the manual `DB_HOST` and `DB_PORT` lines — these are already injected as `STP_MAIN_DB_HOST` and `STP_MAIN_DB_PORT` by `connectTo` per the connectTo JSDoc, making the example actively misleading."
+          ],
+          "optionalImprovements": [
+            "Add a `ConvexReferencableParam` section once Convex resource documentation is ready; it is already in the source union and its absence will create confusion as Convex adoption grows.",
+            "Verify `instanceSize` vs `instanceClass` as the correct property name on `RelationalDatabase` in the code example. The MEMORY.md context uses `instanceClass: 'db.t4g.micro'`; if the example uses the wrong property name it will fail type-checking.",
+            "The Info callout mentions 'read replicas' as a condition for reader parameters — tighten this to say 'Aurora engines' specifically, since the connectTo JSDoc ties reader params to Aurora clusters, not to general read replica configuration.",
+            "Consider adding a brief note about the `SqsQueue` and `SnsTopic` resource types: they appear in the connectTo JSDoc (injecting ARN, NAME, URL and ARN, NAME respectively) but have no `SqsQueueReferencableParam` or `SnsTopicReferencableParam` in the source union. A one-line note clarifying that these resources expose values via connectTo but not via $ResourceParam would prevent reader confusion."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first paragraph is exactly right: 43 words, self-contained, names the directive and what it returns — suitable for AI Overview extraction.",
+            "Syntax example uses proper <CodeBlock intellisense tabs={[...]}> with TypeScript label, realistic resource names, and focused focus markers. No forbidden patterns found.",
+            "The <Info> callout flagging conditional parameters (CDN, Aurora reader params) is a high-value navigational hint that prevents users from hitting confusing deployment errors.",
+            "FAQ covers all three required categories: Stacktape-specific ('What is $ResourceParam'), AWS-mechanic ('When are values resolved'), and comparison ('How is it different from connectTo'). All answers are 2-4 sentence paragraphs suitable as Featured Snippets.",
+            "'Difference from connectTo' subsection is precisely the decision-support content the audience needs — it names the concrete scenarios rather than giving a circular 'use it when you need it' definition.",
+            "The environment variables example uses a realistic multi-property pattern (DB_HOST, DB_PORT, DB_NAME) alongside connectTo, which illustrates the complementary relationship well.",
+            "No forbidden YAML blocks, no StacktapeConfig type imports, no marketing language, no multi-command bash blocks — clean on all style-violation checks."
+          ],
+          "problems": [
+            "ContainerWorkloadReferencableParam is present in the StacktapeResourceReferenceableParam union type in __helpers.d.ts but no 'Multi-container workload' section exists under Compute resources. Users of ContainerWorkload/MultiContainerWorkload will find this page incomplete.",
+            "WorkerServiceReferencableParams is present in the StacktapeResourceReferenceableParam union type in __helpers.d.ts but no 'Worker service' section exists under Compute resources. This is a documented workload type with referenceable params that is entirely absent.",
+            "KinesisStreamReferencableParam is present in the StacktapeResourceReferenceableParam union type in __helpers.d.ts but no Kinesis Stream section exists under Messaging and orchestration.",
+            "ConvexReferencableParam is present in the StacktapeResourceReferenceableParam union type in __helpers.d.ts but no Convex section exists anywhere on the page.",
+            "A 'Hosting bucket (static sites)' section is included under Frontend resources, but HostingBucketReferencableParams does NOT appear in the StacktapeResourceReferenceableParam union in __helpers.d.ts. This may result in the component rendering empty or the section being unsupported. Sourcing mismatch warrants verification or removal.",
+            "The page omits an EdgeLambdaFunction row — EdgeLambdaFunction appears in StacktapeWorkloadDefinition, but there is no mention of whether it has or lacks referenceable params. A brief note either way would prevent user confusion."
+          ],
+          "mandatoryFixes": [
+            "Add a 'Multi-container workload' subsection under Compute resources with <ReferenceableParams resource=\"multi-container-workload\" />. ContainerWorkloadReferencableParam is part of the StacktapeResourceReferenceableParam union in __helpers.d.ts and must be documented on this reference page.",
+            "Add a 'Worker service' subsection under Compute resources with <ReferenceableParams resource=\"worker-service\" />. WorkerServiceReferencableParams is part of the StacktapeResourceReferenceableParam union in __helpers.d.ts and must be documented on this reference page.",
+            "Add a 'Kinesis stream' subsection under Messaging and orchestration with <ReferenceableParams resource=\"kinesis-stream\" />. KinesisStreamReferencableParam is part of the StacktapeResourceReferenceableParam union in __helpers.d.ts and is fully absent from the current page.",
+            "Verify the 'Hosting bucket (static sites)' section: HostingBucketReferencableParams does not appear in the StacktapeResourceReferenceableParam union type. Either confirm a source outside __helpers.d.ts supports it, or remove the section to avoid misleading users with an empty or unsupported component render."
+          ],
+          "optionalImprovements": [
+            "Add a <ReferenceableParams resource=\"convex\" /> section (ConvexReferencableParam is in the union). If Convex is experimental or not yet ready for general use, add a brief note to that effect rather than silently omitting it.",
+            "Add a one-sentence note under Compute resources acknowledging EdgeLambdaFunction, clarifying whether it exposes referenceable params or not, so users don't have to guess.",
+            "The 'Stack outputs' inline link points to /configuration/configuration-files — verify this is the correct target for the outputs documentation and not a more specific outputs reference page.",
+            "Consider adding an explicit note in the Messaging and orchestration section that SqsQueue and SnsTopic do NOT appear in the StacktapeResourceReferenceableParam union (even though they support connectTo), so users understand why those resource types are absent.",
+            "The <Info> callout mentions 'reader parameters on databases require Aurora engines or read replicas' — this detail is more specific than the callout suggests. Consider expanding it to a sentence that names the exact parameters (readerHost, readerConnectionString) so the callout is self-contained when extracted."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "This page lists every available parameter, grouped by resource type.",
+              "reason": "The StacktapeResourceReferenceableParam union type explicitly includes WorkerServiceReferencableParams, ContainerWorkloadReferencableParam (multi-container-workload), and KinesisStreamReferencableParam, but the page has no sections for worker service, multi-container workload, or kinesis stream. The opening paragraph's claim of completeness is false.",
+              "suggestedFix": "Add sections for Worker service (`<ReferenceableParams resource=\"worker-service\" />`), Multi-container workload (`<ReferenceableParams resource=\"multi-container-workload\" />`), and Kinesis stream (`<ReferenceableParams resource=\"kinesis-stream\" />`). Either soften the opening claim or ensure all union members are covered.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft includes a Network Load Balancer section with `<ReferenceableParams resource=\"network-load-balancer\" />`",
+              "reason": "The StacktapeResourceReferenceableParam union type does NOT include a NetworkLoadBalancerReferencableParam entry. All other resources on the page have a corresponding named type in the union. This section may render empty or the resource may not support $ResourceParam at all.",
+              "suggestedFix": "Verify whether network-load-balancer has referenceable params by checking the schema. If it doesn't, remove the section. If it does (perhaps covered under a different type), keep it but verify the component renders content.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft includes sections for hosting-bucket and all SSR frontend resource types (nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web) as having referenceable params",
+              "reason": "None of these resource types have a named ReferencableParam type in the StacktapeResourceReferenceableParam union. The union only includes types for: function, web-service, private-service, worker-service, batch-job, multi-container-workload, bucket, relational-database, dynamodb-table, redis-cluster, mongo-db-atlas, upstash-redis, opensearch, http-api-gateway, application-load-balancer, event-bus, state-machine, user-auth-pool, web-app-firewall, kinesis-stream, convex. While the ReferenceableParams component may still render content from the schema, there is no source-level confirmation these resources expose $ResourceParam values.",
+              "suggestedFix": "Verify these resource types have referenceable params in the generated schema. If the component renders content for them, they can stay. If any render empty, remove those sections to avoid confusing the reader.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "FAQ answer: 'The readerHost, readerConnectionString, and readerJdbcConnectionString parameters are only available on relational databases using Aurora PostgreSQL or Aurora MySQL engines.'",
+              "reason": "The connectTo JSDoc confirms Aurora gets READER_CONNECTION_STRING, READER_JDBC_CONNECTION_STRING, and READER_HOST as environment variables. However, the exact $ResourceParam parameter NAMES (camelCase 'readerHost' vs SCREAMING_SNAKE 'READER_HOST') are not confirmed in the provided source. The $ResourceParam naming convention may differ from the connectTo env var naming convention, and without seeing the RelationalDatabaseReferencableParam type definition, the exact param names are unverifiable.",
+              "suggestedFix": "Either verify the exact param names against the full RelationalDatabaseReferencableParam type definition, or phrase the FAQ answer more cautiously by saying 'reader-related parameters (reader host, reader connection string)' without asserting exact camelCase names.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The code example uses `$ResourceParam('mainDb', 'dbName')` as a valid parameter reference for a relational database",
+              "reason": "The connectTo JSDoc for RelationalDatabase lists CONNECTION_STRING, JDBC_CONNECTION_STRING, HOST, PORT (and Aurora additions) but does NOT mention dbName. While $ResourceParam may expose additional parameters beyond what connectTo injects, without seeing the full RelationalDatabaseReferencableParam type definition, 'dbName' as a valid param name is unconfirmed from the provided source.",
+              "suggestedFix": "This is likely correct based on the auto-generated ReferenceableParams component showing database params, but consider adding a brief note that the full list of available params per resource type is shown in the component-generated tables above. Alternatively, use only params confirmed in source (host, port, connectionString) in the example.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "* - **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All cross-links in the draft point to valid routes in the documentation navigation index.",
+            "The $ResourceParam syntax shown in examples is consistent with directive usage documented in the StackOutput type JSDoc ($CfStackOutput pattern).",
+            "The connectTo vs $ResourceParam distinction in the FAQ accurately reflects the source: connectTo grants IAM + network + env vars, while $ResourceParam is a value-only reference.",
+            "The $CfStackOutput cross-stack claim is supported by the StackOutput.export JSDoc: 'Exported outputs can be referenced from other stacks using $CfStackOutput()'.",
+            "Code examples use valid Stacktape class names (LambdaFunction, HttpApiGateway, RelationalDatabase, RdsEnginePostgresql, StacktapeLambdaBuildpackPackaging) that are in the confirmed whitelist.",
+            "The page correctly omits SQS Queue, SNS Topic, and EFS Filesystem sections — none of these have named types in the StacktapeResourceReferenceableParam union.",
+            "The ApiReference component is not misused on this page (it's a reference-style page using ReferenceableParams components instead, which is appropriate).",
+            "The FAQ section provides a good mix of Stacktape-specific, use-case, and comparison questions as required by the style guide."
+          ],
+          "summary": "The draft is well-structured and mostly accurate for a reference page, but has a significant completeness gap. Three resource types that definitively have referenceable params in the source (worker-service, multi-container-workload, kinesis-stream) are missing from the page despite the opening claim of listing 'every available parameter.' Additionally, the Network Load Balancer section lacks source backing — there is no NetworkLoadBalancerReferencableParam in the union type, suggesting the component may render empty. The SSR frontend and hosting-bucket sections are also not represented in the union type, though they may work via schema-based rendering. Code examples and FAQ answers are generally sound, with minor ambiguity around exact parameter names that can't be fully verified from the provided source alone."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft has several publication-blocking factual gaps for a reference page: it claims complete coverage while omitting some source-listed referenceable parameter groups, and it includes several resource groups not visible in the referenceable-parameter union provided in source. It also overstates `$ResourceParam`, `connectTo`, validation, dev mode, and lifecycle-hook behavior beyond what the provided source supports.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The page says it “lists every available parameter, grouped by resource type,” but it omits source-listed referenceable parameter groups such as worker services, Kinesis streams, and Convex.",
+              "reason": "The authoritative helper type includes `WorkerServiceReferencableParams`, `KinesisStreamReferencableParam`, and `ConvexReferencableParam` in the `StacktapeResourceReferenceableParam` union. A complete reference cannot omit those groups while claiming every available parameter is listed.",
+              "suggestedFix": "Add sections for worker service, Kinesis stream, and Convex if these are intended to be documented, or narrow the opening claim to say the page lists the supported groups shown below rather than every available parameter.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft includes `<ReferenceableParams>` sections for Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix, hosting bucket, DynamoDB table, bucket, and several other resource strings as if they are all valid referenceable-parameter resource groups.",
+              "reason": "The provided referenceable-parameter union does not list frontend-specific or hosting-bucket-specific parameter types. Some omitted resource strings may be aliases handled elsewhere, but the provided source does not support the draft’s broad set of component invocations. Because this page is a generated reference, unsupported `<ReferenceableParams resource=\"...\" />` values can render empty or wrong sections.",
+              "suggestedFix": "Limit `<ReferenceableParams>` sections to resource groups backed by `StacktapeResourceReferenceableParam`, or verify valid component resource keys from the component/schema source before listing them. If frontend resources inherit parameters through another documented type, say that explicitly and only use supported component keys.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“connectTo is the preferred way to wire resources together — it grants IAM permissions, opens network access, and injects environment variables automatically.”",
+              "reason": "The source supports these behaviors for workloads through `ResourceAccessProps`, but the draft uses a broad, general statement. The source distinguishes role-affecting resources and security-group-affecting resources, and `connectTo` environment-variable injection is documented only for specific resource types. The statement could mislead readers into thinking every `connectTo` target does all three things.",
+              "suggestedFix": "Scope the claim: for workload resources, `connectTo` grants IAM permissions for supported role-scoped targets, opens network access for supported database/Redis targets, and injects documented environment variables for the resource types listed in the `connectTo` docs.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpResourceScopableByConnectToAffectingRole =\n  | Subtype<StpResource, StpLambdaFunction>\n  | Subtype<StpResource, StpContainerWorkload>\n  | Subtype<StpResource, StpBatchJob>\n  | Subtype<StpResource, StpStateMachine>\n  | Subtype<StpResource, StpEventBus>\n  | Subtype<StpResource, StpBucket>\n  | Subtype<StpResource, StpDynamoTable>\n  | Subtype<StpResource, StpOpenSearchDomain>\n  | Subtype<StpResource, StpUserAuthPool>\n  | Subtype<StpResource, StpSqsQueue>\n  | Subtype<StpResource, StpSnsTopic>\n  | Subtype<StpResource, StpKinesisStream>;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpResourceScopableByConnectToAffectingSecurityGroup =\n  | Subtype<StpResource, StpRelationalDatabase>\n  | Subtype<StpResource, StpRedisCluster>;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "List the names of resources this workload needs to communicate with. Stacktape automatically:\n   * - **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n   * - **Opens network access** (security group rules for databases, Redis)\n   * - **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `$ResourceParam` when `connectTo` doesn't cover the specific parameter you need,” and the later bullet “A parameter that `connectTo` doesn't auto-inject (e.g., `dbName`, `logGroupArn`, `archiveArn`).”",
+              "reason": "The source lists which environment variables `connectTo` injects for supported resource types, but it does not support the specific negative examples for `dbName`, `logGroupArn`, or `archiveArn`. The provided source also does not show `logGroupArn` or `archiveArn` as referenceable parameters.",
+              "suggestedFix": "Avoid negative auto-injection claims and unverified parameter examples. Say `$ResourceParam` is useful when you need a documented resource parameter in a string-valued config property, especially outside workload environment variables.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### What each resource type provides:\n   *\n   * **`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n   *\n   * **`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n   *\n   * **`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No. `$ResourceParam` resolves parameters within the same stack only. To reference values from another stack, use the `$CfStackOutput` directive, which reads exported CloudFormation outputs from a different stack. The source stack must explicitly export the value with `export: true` in its stack outputs.”",
+              "reason": "The provided source supports exported stack outputs and says exported outputs can be referenced with `$CfStackOutput()`, but it does not explicitly state that `$ResourceParam` is same-stack only or describe `$CfStackOutput` as reading from a different stack. The answer may be correct, but it is broader than the provided source.",
+              "suggestedFix": "Narrow the FAQ answer to the sourced fact: stack outputs can be exported with `export: true` and referenced using `$CfStackOutput()`. Avoid the unsupported same-stack-only claim unless a directive implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Make this output available to other CloudFormation stacks.\n   *\n   * ---\n   *\n   * Exported outputs can be referenced from other stacks using `$CfStackOutput()`.\n   *\n   * @default false\n   */\n  export?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Values are resolved at deploy time when Stacktape compiles your configuration into a CloudFormation template. The directive produces a CloudFormation intrinsic function (like `Fn::GetAtt` or `Fn::Sub`) that AWS resolves during stack creation or update. During dev mode, values are resolved from the deployed stack's outputs.”",
+              "reason": "The provided source supports that outputs are saved after deploy and that stack output values are typically directives, but it does not support the implementation details about CloudFormation intrinsics or dev mode resolution from deployed stack outputs.",
+              "suggestedFix": "Keep the deploy-time wording cautious: `$ResourceParam` is used in string-valued config fields and stack outputs, and Stacktape stores custom outputs after deployment. Remove the specific `Fn::GetAtt`/`Fn::Sub` and dev-mode resolution claims unless directive implementation sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Use outputs to surface dynamic values like API URLs, database endpoints, or resource ARNs\n   * that are only known after deployment. Outputs are:\n   * - Printed in the terminal after deploy\n   * - Saved to the stack info JSON file\n   * - Optionally exported for cross-stack references (via `export: true`)"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "value: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape validates `$ResourceParam` references before deployment. If you reference a resource name that doesn't exist in your config, or a parameter name that isn't supported for that resource type, the deployment fails immediately with an error listing the valid parameters for that resource.”",
+              "reason": "The provided source defines the referenceable-parameter union but does not document validation timing, failure mode, or error message contents. “Fails immediately” and “listing the valid parameters” are unsupported operational claims.",
+              "suggestedFix": "Say unsupported parameter names are not valid configuration, and omit the timing and exact error-message behavior unless runtime validator source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Yes. Scripts defined in the `scripts` section and lifecycle hooks resolve `$ResourceParam` from the deployed stack's stored outputs. The referenced resource must already be deployed — if you reference a resource in an `afterDeploy` hook, it's available because deployment completed. For `beforeDeploy` hooks, only resources from a previous deployment are accessible.”",
+              "reason": "The source defines lifecycle hook names and script environment support, but it does not describe `$ResourceParam` resolution from stored outputs or the before/after deploy availability semantics claimed in the FAQ.",
+              "suggestedFix": "Limit the answer to what is sourced: scripts and lifecycle hooks can define environment variables, and environment variable values may reference another resource's parameter with `$ResourceParam`. Remove the beforeDeploy/afterDeploy availability rules unless hook execution source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface Hooks {\n  /**\n   * #### Scripts to run before deploying. Common use: build frontend, lint code.\n   */\n  beforeDeploy?: NamedScriptLifecycleHook[];\n  /**\n   * #### Scripts to run after deploying. Common use: run database migrations, seed data.\n   */\n  afterDeploy?: NamedScriptLifecycleHook[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Values can be:\n   * - A static string, number, or boolean.\n   * - The result of a [custom directive](https://docs.stacktape.com/configuration/directives/#custom-directives).\n   * - A reference to another resource's parameter using the [`$ResourceParam` directive](https://docs.stacktape.com/configuration/referencing-parameters/).\n   * - A value from a [secret](https://docs.stacktape.com/resources/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret)."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids forbidden hand-authored YAML Stacktape configuration and uses `<CodeBlock intellisense>` with `label: 'TypeScript'` for Stacktape config examples.",
+            "The stack outputs example is grounded by `StackConfig.outputs`, `StackOutput.name`, `StackOutput.value`, and the source note that outputs are printed, saved, and optionally exported.",
+            "The `connectTo` environment-variable discussion correctly uses the canonical `STP_[RESOURCE_NAME]_[PARAM]` pattern in prose rather than inventing a generic concrete variable name."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft has the right overall shape for a conceptual reference page and uses valid TypeScript CodeBlock examples, but it undercuts the page’s “complete reference” promise by omitting several resource types present in the referenceable-parameter union. It also makes a few broad claims about parameter availability and resolution behavior that are not supported by the provided source file.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“This page lists every available parameter, grouped by resource type.”",
+              "reason": "The draft claims complete coverage, but the source union includes referenceable-parameter types that are not represented on the page: container workload, worker service, Kinesis stream, and Convex. A complete reference page should either add these sections or narrow the claim.",
+              "suggestedFix": "Add sections for the missing resource types, for example `Multi-container workload`, `Worker service`, `Kinesis stream`, and `Convex`, using the corresponding `<ReferenceableParams />` resource identifiers if supported by the component. If the component does not support one of them, narrow the intro to say the page lists documented parameters exposed by the current docs component rather than every available parameter.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  ...\n  | WorkerServiceReferencableParams\n  ...\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Compute resources section lists Lambda function, Web service, Batch job, and Private service, but omits worker service and container workload / multi-container workload referenceable parameters.",
+              "reason": "The provided source explicitly includes `ContainerWorkloadReferencableParam` and `WorkerServiceReferencableParams` in the referenceable-parameter union. These are compute/workload resource families and are important enough to appear in the complete parameter reference.",
+              "suggestedFix": "Add compute entries for the missing workload types. If the public page name is `multi-container-workload`, use that heading and the matching component resource name. Add `Worker service` alongside `Web service` and `Private service`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpWorkloadDefinition =\n  | StpLambdaFunction\n  | StpContainerWorkload\n  | StpBatchJob\n  | StpWebService\n  | StpPrivateService\n  | StpWorkerService\n  | StpEdgeLambdaFunction;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  ...\n  | ContainerWorkloadReferencableParam\n  ...\n  | WorkerServiceReferencableParams"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Messaging and orchestration section lists Event bus and State machine, but omits Kinesis stream.",
+              "reason": "The source includes `KinesisStreamReferencableParam` in the referenceable-parameter union. Since Kinesis stream is also present in the site navigation as a messaging resource, omitting it from a complete parameter reference is a user-visible gap.",
+              "suggestedFix": "Add a `### Kinesis stream` subsection under Messaging and orchestration with `<ReferenceableParams resource=\"kinesis-stream\" />`, assuming that is the component’s supported resource key.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  ...\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Some parameters are only available when specific features are enabled. For example, CDN parameters require a `cdn` configuration, and reader parameters on databases require Aurora engines or read replicas.”",
+              "reason": "The provided source file establishes that referenceable parameters exist as a union, but it does not include the per-parameter conditional availability details claimed here. The claim may be true elsewhere, but it is not grounded in the supplied source for this audit.",
+              "suggestedFix": "Either cite/use the source file that defines per-parameter conditions, or narrow the wording to a cautious statement such as: “Some referenceable parameters may depend on the resource configuration. The generated parameter tables below note availability where the source exposes it.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  ..."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `$ResourceParam` when you need: A parameter that `connectTo` doesn't auto-inject (e.g., `dbName`, `logGroupArn`, `archiveArn`).”",
+              "reason": "The provided `connectTo` JSDoc lists variables that are injected for supported resource types, but the source does not support a negative claim that named referenceable parameters are not auto-injected. This is also a known verifier-sensitive pattern: document what `connectTo` injects, not what it does not inject.",
+              "suggestedFix": "Replace the bullet with a positive, source-grounded version: “Use `$ResourceParam` when you need to pass a specific resource parameter into a config property, stack output, or script environment explicitly.” If you want examples, use parameters only after confirming their existence and conditions from the parameter source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "List the names of resources this workload needs to communicate with. Stacktape automatically:\n   * - **Grants IAM permissions**\n   * - **Opens network access**\n   * - **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape validates `$ResourceParam` references before deployment. If you reference a resource name that doesn't exist in your config, or a parameter name that isn't supported for that resource type, the deployment fails immediately with an error listing the valid parameters for that resource.”",
+              "reason": "The provided source defines the referenceable parameter union but does not show validator behavior, timing, or the contents of the error message. This is CLI/runtime behavior and needs validator or command-source support.",
+              "suggestedFix": "Either ground this in the runtime validator source or soften it to: “Use only parameter names listed for the resource type below; unsupported names are not valid Stacktape configuration.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  ..."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“During dev mode, values are resolved from the deployed stack's outputs.”",
+              "reason": "The supplied source mentions dev mode configuration for some resources, but it does not describe `$ResourceParam` resolution in dev mode or resolution from deployed stack outputs.",
+              "suggestedFix": "Remove the dev mode sentence unless a dev-mode or directive-resolution source is included. A safe replacement is: “`$ResourceParam` is intended for deployed resource values that are not known until Stacktape/AWS has created the resource.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Controls whether this resource runs locally or connects to the deployed AWS version\n * during `stacktape dev`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "By default, databases, Redis, and DynamoDB run locally in Docker during dev mode.\n   * Set to `true` to connect to the real deployed resource instead (must be deployed first)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For `beforeDeploy` hooks, only resources from a previous deployment are accessible.”",
+              "reason": "The source lists lifecycle hook names and says scripts can define environment values, but it does not establish `$ResourceParam` availability semantics for `beforeDeploy` versus `afterDeploy`. This needs lifecycle hook implementation or directive-resolution source support.",
+              "suggestedFix": "Narrow the FAQ answer to what the source supports: scripts and hooks can define environment variables, and environment values can reference another resource’s parameter using `$ResourceParam`. Avoid stating hook timing semantics unless the implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface Hooks {\n  /**\n   * #### Scripts to run before deploying. Common use: build frontend, lint code.\n   */\n  beforeDeploy?: NamedScriptLifecycleHook[];\n  /**\n   * #### Scripts to run after deploying. Common use: run database migrations, seed data.\n   */\n  afterDeploy?: NamedScriptLifecycleHook[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Environment Variables\n   * ...\n   * - A reference to another resource's parameter using the [`$ResourceParam` directive]"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `label: 'TypeScript'` tab; the draft does not hand-author YAML or use the `StacktapeConfig` typed-object style.",
+            "The code examples are demonstrative for their sections: the syntax example uses `$ResourceParam` in an environment variable, the environment variables example references database parameters, and the stack outputs example uses `$ResourceParam` in `stackConfig.outputs`.",
+            "The draft correctly distinguishes `connectTo` from `$ResourceParam` at a high level: the provided source supports that `connectTo` grants IAM permissions, opens network access for databases/Redis, and injects `STP_[RESOURCE_NAME]_[PARAM]` environment variables."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): `new RdsEnginePostgresql(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgresql` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgresql` is meant to be a custom class, define it in the example or remove the example."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__referenceable-parameters\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clean structure with resource types grouped by category (Compute, Frontend, Databases, Storage, Networking, etc.) — a first-time reader can find their resource type in under 10 seconds.",
+            "The Syntax section with a working CodeBlock example near the top answers the most common question immediately.",
+            "The 'Difference from connectTo' prose section (both inline and FAQ) is genuinely useful decision support that prevents a common misuse pattern.",
+            "FAQ section is well-populated with 10 entries spanning Stacktape-specific, AWS-behavior, and choosing/comparison questions — strong AEO signal.",
+            "Code examples follow the correct <CodeBlock intellisense tabs={[...]}> pattern; no forbidden YAML or plain-object StacktapeConfig violations detected.",
+            "The <Info> callout about conditional parameters (CDN, Aurora reader, DynamoDB streams) correctly flags a footgun without being alarmist.",
+            "The 'Using parameters in practice' section has two realistic, copyable examples (env vars + stack outputs) that show the real workflow."
+          ],
+          "problems": [
+            "FACTUAL ACCURACY — SSR framework resources (NextjsWeb, AstroWeb, NuxtWeb, SvelteKitWeb, SolidStartWeb, TanStackWeb, RemixWeb) and HostingBucket do NOT appear in the `StacktapeResourceReferenceableParam` union type in the provided `__helpers.d.ts`. The page unconditionally includes `<ReferenceableParams>` components for all of them, and the frontend intro asserts 'All SSR framework resources expose a `url` parameter' — a claim unsupported by the source. If these resources do expose referenceable params, the union type is the wrong evidence source; if they don't, the sections are spurious.",
+            "FACTUAL ACCURACY — NetworkLoadBalancer does NOT appear in the `StacktapeResourceReferenceableParam` union. The page has `<ReferenceableParams resource=\"network-load-balancer\" />` but there is no `NetworkLoadBalancerReferencableParam` in the source union. This section may render empty or be inaccurate.",
+            "COMPLETENESS GAP — `ConvexReferencableParam` IS in the `StacktapeResourceReferenceableParam` union but has no corresponding section on the page. The page covers every other union member but silently omits Convex.",
+            "THIN SECTION — The '### Kinesis stream' section under Messaging uses prose+link instead of a `<ReferenceableParams resource=\"kinesis-stream\" />` component, inconsistent with every other resource section. This reads as a placeholder. The source confirms `KinesisStreamReferencableParam` is in the union, so the component should work.",
+            "UNGROUNDED CLAIM — The frontend section intro 'All SSR framework resources expose a `url` parameter pointing to the deployed site' is a positive factual assertion not grounded in the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Fix unsupported SSR/HostingBucket resource sections: Either (a) ground the claim that NextjsWeb, AstroWeb, NuxtWeb, SvelteKitWeb, SolidStartWeb, TanStackWeb, RemixWeb, and HostingBucket expose referenceable params in a higher-priority source (the union type or the schemas), remove the sections if they aren't in the union, or note explicitly that these resources surface a `url` via a different mechanism. The unsupported claim 'All SSR framework resources expose a url parameter' must be removed or replaced with a source-grounded statement.",
+            "Fix the Network Load Balancer section: NetworkLoadBalancer is absent from the `StacktapeResourceReferenceableParam` union in `__helpers.d.ts`. Either find the source grounding that proves NLBs have referenceable params, or remove the `<ReferenceableParams resource=\"network-load-balancer\" />` section.",
+            "Add a Convex section: `ConvexReferencableParam` is explicitly in the `StacktapeResourceReferenceableParam` union. Add a '### Convex' subsection (under an appropriate H2 category) with `<ReferenceableParams resource=\"convex\" />` so the page is complete against the union.",
+            "Fix the Kinesis stream section: Replace the thin prose-only body with `<ReferenceableParams resource=\"kinesis-stream\" />` to be consistent with every other section on the page. Move any contextual prose to a sentence before the component, not as a substitute for it."
+          ],
+          "optionalImprovements": [
+            "Consider adding a brief table near the top mapping resource categories to their most useful parameters (e.g., databases → connection strings, compute → ARNs/URLs, storage → names/ARNs). This would give a first-time reader an at-a-glance summary before they scroll to the detailed sections.",
+            "The 'Stack outputs' example uses `stackConfig.outputs` — a brief note that `stackConfig` is a sibling key to `resources` (not nested inside a resource) would help readers who haven't seen this pattern before.",
+            "The FAQ answer for 'When are $ResourceParam values resolved?' mentions dev mode resolving from deployed stack outputs — consider linking to the dev mode docs page here for readers who encounter this during local development.",
+            "The intro paragraph is 95 words, slightly above the 40-75 word AEO target. Trimming by one sentence would make it more extractable as a Featured Snippet.",
+            "The 'Messaging and orchestration' H2 contains a mix of EventBus, StateMachine, and Kinesis — consider whether SQS and SNS belong here too (they are in connectTo but not in the referenceable params union). A one-liner noting their absence from `$ResourceParam` (they are connectTo-only for env var injection) would prevent reader confusion."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Three realistic, copy-paste-ready code examples covering the most common use patterns (environment variables, stack outputs, combined connectTo + $ResourceParam).",
+            "Strong FAQ section (10 Q&A pairs) spanning Stacktape-specific, AWS-general, and comparison categories — the connectTo vs $ResourceParam pair is especially actionable.",
+            "Resource sections are organized into logical categories (Compute, Frontend, Databases, Storage, Networking, Messaging, Security), which lets engineers scan to the right group without reading the full page.",
+            "The Info callout about conditional parameters (CDN, Aurora reader, DynamoDB stream) proactively answers a common production gotcha before the reader has to debug a missing param.",
+            "The 'Difference from connectTo' subsection gives a concrete decision rule (start with connectTo, add $ResourceParam only for specific gaps) rather than just describing each feature."
+          ],
+          "problems": [
+            "Missing Convex section: `ConvexReferencableParam` is explicitly listed in the `StacktapeResourceReferenceableParam` union in `types/stacktape-config/__helpers.d.ts`, but the page has no Convex category or `<ReferenceableParams resource=\"convex\" />` call. Any team using the Convex resource type will find no guidance here.",
+            "Kinesis stream is handled inconsistently: every other resource type in the `StacktapeResourceReferenceableParam` union gets a `<ReferenceableParams resource=\"...\" />` component, but Kinesis gets only prose ('are supported in the $ResourceParam type system. See the Kinesis stream resource page for available parameters'). This is the only resource actively in the union that withholds its parameter table from this page, making the page unreliable for Kinesis users.",
+            "SQS Queue and SNS Topic are absent despite being among the most commonly referenced messaging resources and having confirmed `connectTo` env-var sets (ARN, NAME, URL for SQS; ARN, NAME for SNS). Their referenceable params (if any) are undocumented here, and the page gives no indication that they are intentionally omitted. A production engineer integrating an SQS-triggered Lambda will look here first and find nothing.",
+            "The 'Difference from connectTo' content is duplicated: once as an H3 subsection under 'Using parameters in practice' and again as a FAQ entry ('How is $ResourceParam different from connectTo?'). The two treatments cover essentially the same ground with nearly identical language, adding length without adding information."
+          ],
+          "mandatoryFixes": [
+            "Add a Convex section: `ConvexReferencableParam` is present in the `StacktapeResourceReferenceableParam` union in the source. Add a 'Convex' entry (under a suitable H2 category such as 'Compute resources' or a new 'Application platforms' grouping) with `<ReferenceableParams resource=\"convex\" />`.",
+            "Replace the Kinesis stream prose section with `<ReferenceableParams resource=\"kinesis-stream\" />` to match every other resource in the union. The current prose ('are supported in the $ResourceParam type system. See the Kinesis stream resource page') withholds the parameter table that exists in the schema, making the page inconsistent and incomplete for Kinesis users."
+          ],
+          "optionalImprovements": [
+            "Investigate whether SQS Queue and SNS Topic expose referenceable params (check the generated schema or resource type files). If they do, add sections with `<ReferenceableParams resource=\"sqs-queue\" />` and `<ReferenceableParams resource=\"sns-topic\" />` under 'Messaging and orchestration'. If they don't, add a one-line note in that section explicitly saying so, so engineers stop searching.",
+            "Collapse the 'Difference from connectTo' H3 subsection and the corresponding FAQ entry into one. Keep the longer, more nuanced version in the FAQ and replace the H3 with a single-sentence forward reference ('For a side-by-side comparison of $ResourceParam and connectTo, see the FAQ below.') to reduce redundancy.",
+            "Add a brief note in the Kinesis section (after adding the component) about the `streamArn` parameter being conditional on `streamType` being configured — similar to how the Info callout handles CDN and Aurora reader params. Kinesis stream ARN is a common cross-resource wiring target.",
+            "The 'Messaging and orchestration' H2 currently has only 'Event bus', 'State machine', and 'Kinesis stream'. Consider whether SQS Queue and SNS Topic belong here once their param availability is confirmed, since grouping all messaging resources together reduces scanning cost for engineers wiring event-driven architectures."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph — self-contained, under 75 words, directly answers 'what is $ResourceParam and why does it matter' without meta-framing.",
+            "Resource groupings are logical and easy to scan (Compute, Frontend, Databases, Storage, Networking, Messaging, Security). A busy developer can jump straight to their resource type.",
+            "The 'Using parameters in practice' section provides genuine decision support — not just configuration recipes. The 'Difference from connectTo' subsection explicitly tells the reader which tool to reach for and when.",
+            "All three Stacktape config examples use the correct <CodeBlock intellisense tabs={[...]} /> form with TypeScript label and focus markers. No forbidden YAML blocks, no fenced typescript blocks, no StacktapeConfig type imports.",
+            "<Info> callout cleanly sets expectations about conditional parameters (CDN params, Aurora reader endpoints, DynamoDB stream params) before the reader hits empty ReferenceableParams renders.",
+            "FAQ has 10 entries and spans practical use-case questions, cost questions, and Stacktape-specific behavior — well-rounded for a reference page.",
+            "Code examples are realistic and copy-paste runnable: the bucket+connectTo+$ResourceParam example is the kind of real-world combination teams actually need."
+          ],
+          "problems": [
+            "Convex is omitted from the page despite ConvexReferencableParam appearing explicitly in the StacktapeResourceReferenceableParam union type in the source. Every other union member has a dedicated section; Convex does not. This is a factual gap grounded in the source.",
+            "Kinesis stream is handled with a prose paragraph that links to the resource page, while every other resource type gets a <ReferenceableParams resource='...' /> component call. This inconsistency implies Kinesis stream has no parameters, which contradicts its presence (KinesisStreamReferencableParam) in the union type.",
+            "No <ApiReference> component anywhere on the page. The page metadata is a 'reference' kind and the style guide states exactly one <ApiReference> is expected on reference pages. Even if no single Props type covers all referenceable params, the absence is a structural gap versus the site's convention.",
+            "FAQ questions are predominantly Stacktape-specific. The three-category mix requirement (Stacktape-specific / AWS-service use-case / choosing/comparison) is only partially satisfied. There are no questions about the underlying CloudFormation Outputs mechanism, SSM parameter store, or comparisons like '$ResourceParam vs $CfStackOutput for cross-stack sharing'."
+          ],
+          "mandatoryFixes": [
+            "Add a Convex section — ConvexReferencableParam is explicitly listed in the StacktapeResourceReferenceableParam union type in the source (types/stacktape-config/__helpers.d.ts) but has no corresponding section on the page. Add it under an appropriate category (e.g., a new 'Platform resources' H2) with <ReferenceableParams resource='convex' />.",
+            "Fix the Kinesis stream section: replace the prose paragraph ('Kinesis streams are supported in the $ResourceParam type system. See the Kinesis stream resource page...') with <ReferenceableParams resource='kinesis-stream' /> to match the consistent treatment of every other resource on the page. KinesisStreamReferencableParam is in the union; it should be rendered like the rest."
+          ],
+          "optionalImprovements": [
+            "Add an <ApiReference> component if a suitable top-level type exists (e.g., for StackOutput or a directive-options type). If no single type applies, a brief note explaining why this page defers to per-resource <ReferenceableParams> components instead would help readers who expect the ApiReference widget.",
+            "Balance the FAQ with at least two AWS-service-level or comparison questions. Good candidates: 'How does $ResourceParam work under the hood — what AWS mechanism resolves these values?' (answer: CloudFormation Outputs) and 'When should I use $ResourceParam vs $CfStackOutput for sharing values across stacks?' (answer: $CfStackOutput is for cross-stack references; $ResourceParam is within the same config).",
+            "The 'Messaging and orchestration' H2 covers EventBus and StateMachine with <ReferenceableParams> components, but the intro sentence doesn't set context the way the 'Databases' section does ('Relational databases expose the richest set of parameters...'). Add a brief orienting sentence before the sub-sections.",
+            "Consider adding a one-line note to the Syntax section that the first argument is case-sensitive and must match the key in the resources map exactly — a common mistake that causes cryptic deployment errors."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The draft includes `<ReferenceableParams resource=\"multi-container-workload\" />` and `<ReferenceableParams resource=\"worker-service\" />` as full sections, implying these resources have referenceable parameters.",
+              "reason": "In `.resources.json`, both `multi-container-workload` and `worker-service` have `\"referenceableParams\": {}` (empty objects). The component will render wrapper text but zero actual parameter entries, producing effectively empty sections that confuse readers. The TypeScript types define `ContainerWorkloadReferencableParam = 'logGroupArn'` and `WorkerServiceReferencableParams = ContainerWorkloadReferencableParam`, but the `.resources.json` that drives the component doesn't list them.",
+              "suggestedFix": "Either update `.resources.json` to include `logGroupArn` for these resources (out of scope for the doc writer), or remove the `<ReferenceableParams>` components for multi-container-workload and worker-service from this page and instead note that these resources expose `logGroupArn` via a prose sentence linking to `$ResourceParam('myWorkload', 'logGroupArn')`. Alternatively, add a brief note that these resources currently expose only `logGroupArn` for log group integration.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\docs\\.resources.json",
+                  "quote": "\"resourceType\": \"multi-container-workload\",\n    \"category\": \"compute-resource\",\n    \"referenceableParams\": {}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "type ContainerWorkloadReferencableParam = 'logGroupArn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft includes a Kinesis stream section that says 'Kinesis streams are supported in the `$ResourceParam` type system. See the Kinesis stream resource page for available parameters and usage details.' but does not use the `<ReferenceableParams>` component.",
+              "reason": "Kinesis streams (`KinesisStreamReferencableParam = 'arn' | 'name'`) are defined in the TypeScript types and included in the `StacktapeResourceReferenceableParam` union, but `kinesis-stream` is NOT present in `.resources.json` at all. The component would error/return null. The draft's approach of deferring to another page is reasonable but the phrasing is misleading — it implies the resource page has a referenceable params section. Since this is a reference page whose purpose is to list all available parameters, the kinesis params (`arn`, `name`) should be stated directly here rather than deferring.",
+              "suggestedFix": "Replace the prose-only Kinesis section with a direct statement: 'Kinesis streams expose `arn` (the stream ARN) and `name` (the stream name) as referenceable parameters.' Since the `<ReferenceableParams>` component cannot render kinesis-stream data, list the params inline or in a small table.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\kinesis-streams.d.ts",
+                  "quote": "type KinesisStreamReferencableParam = 'arn' | 'name'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft omits SQS Queue and SNS Topic from the page entirely, with no mention that these resource types do NOT expose referenceable parameters.",
+              "reason": "SQS queues and SNS topics are common resources that readers will look for on this reference page. Both have `SqsQueueReferencableParam = 'arn' | 'name' | 'url'` and `SnsTopicReferencableParam = 'arn' | 'name'` in the TypeScript type system, but these types are NOT included in the `StacktapeResourceReferenceableParam` union AND `.resources.json` shows `referenceableParams: {}` for both. This discrepancy is confusing — the types exist but aren't wired up. The page should either list them (if they work) or explicitly note their absence so readers don't wonder.",
+              "suggestedFix": "Add a brief note under 'Messaging and orchestration' mentioning that SQS queues and SNS topics currently have their parameters accessible primarily through `connectTo` (which injects ARN, NAME, URL) rather than `$ResourceParam`. This prevents readers from searching the page fruitlessly.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\docs\\.resources.json",
+                  "quote": "\"resourceType\": \"sqs-queue\",\n    \"category\": \"other-resource\",\n    \"referenceableParams\": {}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "type SqsQueueReferencableParam = 'arn' | 'name' | 'url';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "FAQ answer states 'Exported outputs can be referenced from other stacks using the `$CfStackOutput()` directive, as documented on the `StackOutput` type's `export` property.'",
+              "reason": "The `$CfStackOutput()` directive name is not confirmed in the provided source files. The `StackOutput` interface's `export` property JSDoc says only 'Make this output available to other CloudFormation stacks' without naming a specific directive. The directive may exist (it's plausible given Stacktape's directive system) but the exact name is ungrounded in the inline source.",
+              "suggestedFix": "Either verify the directive name from another source file (e.g. the directives page source or the directive resolver code) and cite it, or soften the claim to: 'Exported outputs can be imported by other CloudFormation stacks' without naming the specific directive syntax.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface StackOutput {\n  name: string;\n  value: string;\n  description?: string;\n  export?: boolean;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The draft's 'Frontend resources' intro says 'All SSR framework resources expose a `url` parameter pointing to the deployed site. Hosting buckets expose bucket identifiers and CDN parameters when a CDN is configured.'",
+              "reason": "While this statement is confirmed by `.resources.json` (all SSR resources have `{\"url\": \"Website URL\"}`), it understates what hosting buckets provide. Hosting buckets expose `name` and `arn` unconditionally (not only CDN params), and the phrasing 'bucket identifiers and CDN parameters when a CDN is configured' could be read as implying all params require CDN. The `name` and `arn` are always available.",
+              "suggestedFix": "Adjust to: 'Hosting buckets expose `name` and `arn` always, plus CDN parameters (`cdnDomain`, `cdnUrl`, `cdnCustomDomains`, `cdnCustomDomainUrls`) when a CDN is configured.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\docs\\.resources.json",
+                  "quote": "\"resourceType\": \"hosting-bucket\",\n    \"category\": \"other-resource\",\n    \"referenceableParams\": {\n      \"name\": \"AWS (physical) name of the bucket\",\n      \"arn\": \"Arn of the bucket\",\n      \"cdnDomain\": \"Default domain of the [CDN distribution](#cdn)"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All `<ReferenceableParams resource=\"...\">` values for SSR frontends (nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web), hosting-bucket, and network-load-balancer are confirmed valid in `.resources.json` and will render correctly.",
+            "The FAQ claim about CDN parameters being available on 'web services, buckets, HTTP API Gateways, and Application Load Balancers' is fully confirmed by `.resources.json` — all four have cdnDomain/cdnUrl/cdnCustomDomains/cdnCustomDomainUrls entries.",
+            "The `$ResourceParam` syntax shown in code examples (`$ResourceParam('resourceName', 'paramName')`) is consistent with the component's rendering: `$ResourceParam('<<resource-name>>', '${paramName}')`.",
+            "The distinction between `connectTo` and `$ResourceParam` is accurately described — connectTo grants permissions and opens security groups per `StpResourceScopableByConnectToAffectingSecurityGroup` and `StpResourceScopableByConnectToAffectingRole` types, while `$ResourceParam` is a pure value reference.",
+            "The code examples correctly use `<CodeBlock intellisense>` with TypeScript tabs, proper imports, `defineConfig`, and focus markers — no forbidden YAML blocks or fenced TypeScript Stacktape config.",
+            "Cross-links to `/configuration/directives`, `/configuration/connecting-resources`, `/local-development/dev-mode-overview`, `/resources/databases/relational-database`, `/resources/messaging/kinesis-stream`, `/resources/compute/web-service`, `/resources/storage/s3-bucket`, `/resources/networking/http-api-gateway`, `/resources/networking/application-load-balancer`, `/configuration/configuration-files`, and `/configuration/hooks-and-scripts` are all valid routes in the navigation index.",
+            "Relational database referenceable params description correctly distinguishes between standard RDS (host, port, connectionString, jdbcConnectionString, dbName) and Aurora-specific params (readerHost, readerConnectionString, readerJdbcConnectionString) per `.resources.json`.",
+            "The page correctly excludes resource types that have empty referenceable params in `.resources.json` (edge-lambda-function, bastion, custom-resource-instance, custom-resource-definition, deployment-script, aws-cdk-construct)."
+          ],
+          "summary": "The draft is largely accurate and well-structured. The `<ReferenceableParams>` component usage is confirmed valid for SSR frontends, hosting-bucket, and network-load-balancer via `.resources.json`. The main issues are: (1) multi-container-workload and worker-service have empty params in `.resources.json` so their component sections will render with zero entries, (2) kinesis-stream is missing from `.resources.json` entirely but has TypeScript-defined params that should be listed inline, (3) SQS/SNS have TypeScript-defined referenceable param types that aren't wired into the runtime — readers will look for them on this reference page. The FAQ CDN claim and connectTo/ResourceParam distinction are both correctly grounded. No high-severity factual errors found."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally aligned with the provided helper types on high-level concepts like `$ResourceParam`, `connectTo`, and stack outputs, but it overstates several parameter lists and availability conditions that are not present in the supplied source. The main blockers are unsupported claims about exact resource parameter inventories and incorrect CDN-compatible resource coverage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `$ResourceParam` directive retrieves deployment-time outputs — URLs, ARNs, hostnames, ports, and connection strings — from any resource in your Stacktape config.”",
+              "reason": "The source shows only a finite union of resource types that have referenceable parameters. It does not support saying `$ResourceParam` works for any resource in a Stacktape config.",
+              "suggestedFix": "Narrow the claim to “from resources that expose referenceable parameters” or “from supported resource types listed on this page.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Some parameters are only available when specific features are enabled. For example, CDN parameters require a `cdn` configuration block, Aurora reader parameters require an Aurora database engine, and DynamoDB stream parameters require a configured `streamType`.”",
+              "reason": "The provided source does not define the concrete referenceable parameter names or availability conditions for CDN parameters, Aurora reader parameters, or DynamoDB stream parameters. The source only supports that `connectTo` may inject `STREAM_ARN` for DynamoDbTable and Aurora reader variables for relational databases; it does not establish `$ResourceParam` availability conditions.",
+              "suggestedFix": "Remove or narrow this note unless the actual referenceable parameter definitions are provided. You can say “Some parameter availability depends on resource configuration; check the generated table for each resource type” if the component supplies those conditions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n   * **`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“CDN parameters (`cdnDomain`, `cdnUrl`, `cdnCustomDomains`, `cdnCustomDomainUrls`) are only available on resources that have a `cdn` configuration block — such as web services, buckets, HTTP API Gateways, and Application Load Balancers.”",
+              "reason": "The source’s CDN-attachable/resource compatibility types include bucket, application-load-balancer, http-api-gateway, and function. They do not include web-service in the attachable type, and the helper comment explicitly leaves web-service and hosting-bucket outside the attachable union. The draft also omits Lambda function from the listed CDN-compatible attachable resource types.",
+              "suggestedFix": "Do not list web services as a generic CDN-attachable `$ResourceParam` path based on this source. Say CDN attachment is typed for bucket, application load balancer, HTTP API Gateway, and Lambda function, and avoid naming specific CDN parameter names unless their definitions are in source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpCdnCompatibleResource = StpBucket | StpApplicationLoadBalancer | StpHttpApiGateway | StpLambdaFunction;\n\ntype StpCdnAttachableResourceType = Subtype<\n  StpResourceType,\n  'bucket' | 'application-load-balancer' | 'http-api-gateway' | 'function' // | 'web-service' | 'hosting-bucket'\n>;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All SSR framework resources expose a `url` parameter pointing to the deployed site. Hosting buckets expose bucket identifiers and CDN parameters when a CDN is configured.”",
+              "reason": "The source confirms SSR framework resource types exist and are part of `StpResource`, but it does not provide their referenceable parameter definitions or state that all SSR framework resources expose `url`. HostingBucket is in `StacktapeResourceDefinition` and `StpResource`, but it is not included in the `StacktapeResourceReferenceableParam` union shown in the source, so the claim that hosting buckets expose parameters is not supported by the provided source.",
+              "suggestedFix": "Replace with cautious wording such as “The tables below show the generated parameters for each frontend resource type” unless the actual parameter definitions are available. Avoid claiming `url` or hosting bucket CDN parameters from this source alone.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Relational databases expose the richest set of parameters. Standard RDS engines provide host, port, and connection strings. Aurora engines additionally expose reader endpoints for read scaling. Read replica parameters are available when replicas are explicitly configured.”",
+              "reason": "The source supports `connectTo` injected variables for relational databases, including connection string, host, port, and Aurora reader variables. It does not show the `$ResourceParam` parameter definitions, does not mention JDBC in the ResourceAccessProps list, and does not support the claim about read replica parameters.",
+              "suggestedFix": "Ground the section in the displayed `<ReferenceableParams>` table rather than asserting exact parameter availability. If you keep a summary, limit it to what the source says about `connectTo`, or cite actual relational database referenceable parameter definitions if available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“During dev mode, scripts and hooks resolve `$ResourceParam` from the deployed stack's stored outputs.” and “Scripts and lifecycle hooks resolve `$ResourceParam` from the deployed stack's stored outputs.”",
+              "reason": "The source shows that scripts have environment values that may include `$ResourceParam`, and it documents lifecycle hook timing, but it does not state dev mode resolution behavior or that hooks resolve from deployed stack stored outputs.",
+              "suggestedFix": "Remove the dev-mode and stored-output resolution claims, or replace them with the narrower sourced claim that script environment values can reference another resource’s parameter using `$ResourceParam`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Environment Variables\n   *\n   * ---\n   *\n   * A list of environment variables to pass to the script or command.\n   *\n   * Values can be:\n   * - A static string, number, or boolean.\n   * - The result of a [custom directive](https://docs.stacktape.com/configuration/directives/#custom-directives).\n   * - A reference to another resource's parameter using the [`$ResourceParam` directive](https://docs.stacktape.com/configuration/referencing-parameters/)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“What happens if I reference a parameter that doesn't exist? If you reference a resource name not defined in your config, or a parameter name not supported by that resource type, the configuration is invalid and deployment does not proceed.”",
+              "reason": "The provided source defines types for resources and referenceable parameters, but it does not document runtime validation behavior or deployment failure behavior for invalid `$ResourceParam` references.",
+              "suggestedFix": "Use cautious wording: “Use the generated parameter tables to choose supported names; invalid references are not documented here.” If validator behavior is important, cite the runtime validator source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The page includes `<ReferenceableParams resource=\"hosting-bucket\" />`, but the provided `StacktapeResourceReferenceableParam` union does not include a HostingBucket referenceable parameter type.",
+              "reason": "HostingBucket appears in the resource definition and `StpResource` unions, but it is absent from the provided `StacktapeResourceReferenceableParam` union. Without the component registry or the missing parameter type definitions, it is unclear whether this component value will render anything valid.",
+              "suggestedFix": "Verify the component’s accepted `resource` values or remove the hosting-bucket reference if HostingBucket does not expose referenceable parameters. If static hosting uses the regular bucket parameter type, explain that instead.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and `defineConfig`; the draft avoids hand-authored YAML and the plain-object `StacktapeConfig` style.",
+            "The draft correctly links `connectTo` to `/configuration/connecting-resources` and uses existing routes from the provided navigation index.",
+            "The stack outputs section is broadly grounded in `StackConfig.outputs` and `StackOutput.export`, including terminal/stack-info output behavior and `$CfStackOutput()` for exported outputs."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well-structured for a conceptual reference page, and the examples use the required TypeScript CodeBlock format. The main completeness risk is that the page advertises referenceable-parameter tables for several resource families that are not present in the provided `StacktapeResourceReferenceableParam` union, while omitting Convex, which is present in that union.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft claims all SSR framework resources expose a `url` parameter and renders `<ReferenceableParams>` for Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix, and hosting buckets.",
+              "reason": "The provided source lists the resource types that participate in `StacktapeResourceReferenceableParam`. The union does not include SSR frontend resource referenceable-param types or a hosting-bucket referenceable-param type. The draft should not claim parameter availability for these resources from this source alone.",
+              "suggestedFix": "Remove the unsupported blanket SSR/hosting-bucket claim and the unsupported `<ReferenceableParams>` blocks, or replace the section with cautious wording only if another authoritative source file explicitly defines these referenceable params.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The page omits Convex from the resource groups.",
+              "reason": "`ConvexReferencableParam` is part of the source union for `$ResourceParam`, so a page described as grouping available parameters by resource type should either include Convex or explicitly explain why it is excluded from this reference page.",
+              "suggestedFix": "Add a section for Convex with `<ReferenceableParams resource=\"convex\" />` if that component supports the resource key, or add a cautious note that Convex referenceable parameters exist in the type system but are documented elsewhere if that is the intended docs structure.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "| OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"CDN parameters (`cdnDomain`, `cdnUrl`, `cdnCustomDomains`, `cdnCustomDomainUrls`) are only available on resources that have a `cdn` configuration block — such as web services, buckets, HTTP API Gateways, and Application Load Balancers.\"",
+              "reason": "The source defines CDN-attachable resources as `bucket`, `application-load-balancer`, `http-api-gateway`, and `function`, not `web-service`. The draft also generalizes the exact parameter names without the referenced source defining those names in the provided excerpt.",
+              "suggestedFix": "Scope the CDN availability statement to the source-backed attachable resource types, or remove the resource examples unless the page has authoritative per-resource param definitions. Avoid listing exact CDN parameter names unless their definitions are present in source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpCdnAttachableResourceType = Subtype<\n  StpResourceType,\n  'bucket' | 'application-load-balancer' | 'http-api-gateway' | 'function' // | 'web-service' | 'hosting-bucket'\n>;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Standard RDS engines (Postgres, MySQL, MariaDB) expose core parameters: host, port, connection string, JDBC connection string, and database name.\"",
+              "reason": "The provided source supports `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, and `PORT` as connectTo-injected variables for relational databases, but it does not support the draft's claim that `database name` is exposed as a parameter. This is a referenceable-parameter page, so unsupported exact parameter lists are risky.",
+              "suggestedFix": "Remove `database name` from the prose unless another source defines a relational-database referenceable parameter for it. Keep the source-backed wording to host, port, connection string, and JDBC connection string, with Aurora reader values where supported.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "\"If you reference a resource name not defined in your config, or a parameter name not supported by that resource type, the configuration is invalid and deployment does not proceed.\"",
+              "reason": "The provided source establishes the type-level union of referenceable parameters, but it does not show the runtime validation behavior or deployment failure mode for invalid `$ResourceParam` usage. This may be true, but it is not grounded in the supplied source excerpt.",
+              "suggestedFix": "Soften the claim to avoid naming a specific failure phase, for example: \"Use the parameter tables to avoid references that are not defined for that resource type.\" If runtime validator source is available, cite it before making the stronger statement.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"During dev mode, scripts and hooks resolve `$ResourceParam` from the deployed stack's stored outputs.\" and \"For `afterDeploy` hooks, all resources from the current deployment are available. For `beforeDeploy` hooks, only resources from a previous deployment are accessible.\"",
+              "reason": "The source includes hook names and script environment properties, but it does not describe `$ResourceParam` resolution timing in dev mode or before/after deploy hook availability rules. These are behavior claims that need CLI/runtime source grounding.",
+              "suggestedFix": "Remove these dev-mode and lifecycle timing specifics from this page, or replace them with narrower source-backed wording that scripts can have environment variables whose values include `$ResourceParam`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface Hooks {\n  /**\n   * #### Scripts to run before deploying. Common use: build frontend, lint code.\n   */\n  beforeDeploy?: NamedScriptLifecycleHook[];\n  /**\n   * #### Scripts to run after deploying. Common use: run database migrations, seed data.\n   */\n  afterDeploy?: NamedScriptLifecycleHook[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "* Environment Variables\n   *\n   * ---\n   *\n   * A list of environment variables to pass to the script or command.\n   *\n   * Values can be:\n   * - A static string, number, or boolean.\n   * - The result of a [custom directive](https://docs.stacktape.com/configuration/directives/#custom-directives).\n   * - A reference to another resource's parameter using the [`$ResourceParam` directive](https://docs.stacktape.com/configuration/referencing-parameters/)."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with `label: 'TypeScript'` and do not hand-author YAML.",
+            "The examples are demonstrative for their sections: the syntax example uses `$ResourceParam`, the environment-variable example sets an environment value, and the stack-outputs example places `$ResourceParam` inside `stackConfig.outputs`.",
+            "The draft correctly distinguishes `connectTo` from `$ResourceParam` at a high level: the provided source supports that `connectTo` grants access and injects `STP_[RESOURCE_NAME]_[PARAM]` variables, while `$ResourceParam` is described in source as a reference to another resource's parameter."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\referenceable-parameters.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.2, hard blockers 3, advisory high 1, verifier medium 12"
+}

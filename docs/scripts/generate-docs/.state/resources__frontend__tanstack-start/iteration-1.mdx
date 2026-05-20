@@ -1,0 +1,266 @@
+---
+title: 'TanStack Start'
+order: 43
+seoTitle: 'Deploy TanStack Start on AWS | Stacktape Docs'
+seoDescription: 'Deploy TanStack Start apps on AWS with Stacktape: SSR on Lambda via Nitro, S3 static assets, CloudFront CDN, custom domains, and WAF protection.'
+---
+
+# TanStack Start
+
+A Stacktape TanStack Start resource deploys a TanStack Start app with SSR on AWS Lambda, static assets on S3, and a CloudFront CDN. Use it when you want server-rendered TanStack Start on AWS while keeping Stacktape responsible for the build, CDN routing, custom domains, and SSR infrastructure backed by the Nitro aws-lambda preset.
+
+## When to use
+
+A Stacktape TanStack Start resource is the right choice when your frontend is a TanStack Start app that needs server rendering via Vinxi and Nitro. The resource is designed around the TanStack Start build output: point `appDirectory` at the directory containing `app.config.ts`, and Stacktape wires the SSR function, static asset bucket, and CDN.
+
+Common use cases:
+
+- **Server-rendered apps** — dashboards, portals, and content sites that need dynamic pages with TanStack Router's type-safe routing
+- **TanStack Start monorepos** — set `appDirectory` to the workspace containing `app.config.ts`, rather than the repository root
+- **Full-stack TanStack apps** — apps that combine TanStack Router, TanStack Query, and server functions in a single deployment unit
+- **Type-safe SSR** — teams that want end-to-end type safety from routes to data loading to rendering
+
+## When NOT to use
+
+- **Pure static websites** — use [static hosting](/resources/frontend/static-hosting) when your app is exported as static files and does not need SSR.
+- **Containerized custom servers** — use a [web-service](/resources/compute/web-service) when you want to run a custom Node server or another HTTP process in a container.
+- **General backend APIs** — use a [Lambda function](/resources/compute/lambda-function) or [web-service](/resources/compute/web-service) for standalone APIs that are not part of a TanStack Start app.
+- **Next.js, Nuxt, Astro, or other frameworks** — each framework has a [dedicated Stacktape resource](/resources/frontend/nextjs) tuned for its build output and runtime behavior. Use the matching resource for your framework.
+
+## Basic example
+
+The smallest useful TanStack Start config points Stacktape at the app directory containing `app.config.ts`. In a single-app repository that directory is usually the repository root (`"."`); in a monorepo it is the package or workspace directory for the TanStack Start app.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, TanStackWeb } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const web = new TanStackWeb({
+    appDirectory: './apps/web'
+  });
+
+  return {
+    resources: { web }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`appDirectory` must point to the directory containing `app.config.ts`. The default is `"."` (the repository root). Stacktape uses that directory for the Vinxi build and then deploys the SSR Lambda, static assets to S3, and CloudFront CDN routing for the app.
+
+## Build and dev
+
+A Stacktape TanStack Start resource runs `vinxi build` from `appDirectory` by default, and `buildCommand` lets teams replace that command when their repository has a custom script. Dev mode defaults to `vinxi dev`, but `dev.command` can be changed when a package manager script is the canonical way to run the app locally.
+
+Use `buildCommand` when your TanStack Start app needs a workspace-aware command such as `pnpm --filter web build` or when the app must run a prebuild step. Leave `buildCommand` unset when a normal Vinxi build works from `appDirectory`; fewer custom commands make CI and local behavior easier to reason about.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, TanStackWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new TanStackWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    buildCommand: 'pnpm --filter web build',
+    dev: {
+      command: 'pnpm --filter web dev'
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { web } };
+});`
+    }
+  ]}
+/>
+
+`dev.command` only affects [`stacktape dev`](/cli/dev); it does not change the deployed build command. `dev.workingDirectory` can set a custom working directory for the dev command relative to the project root. Use the local command override when your repository expects a package-manager script, a monorepo filter, or another wrapper around `vinxi dev`.
+
+## Server Lambda
+
+A Stacktape TanStack Start resource serves SSR through a Lambda function. `serverLambda` customizes that SSR function: memory, timeout, logging, and whether the function joins the stack's default VPC to reach VPC resources such as databases or Redis.
+
+The default `serverLambda.memory` is `1024` MB, and the allowed memory range is `128`–`10240` MB. Lambda CPU scales with memory, with `1769` MB corresponding to 1 vCPU. The default `serverLambda.timeout` is `30` seconds, and the maximum timeout for the SSR Lambda is `30` seconds.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, TanStackWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new TanStackWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    serverLambda: {
+      memory: 2048,
+      timeout: 30
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { web } };
+});`
+    }
+  ]}
+/>
+
+Increase `memory` when SSR is CPU-bound or the app initializes large dependencies. Keep the default when pages render quickly and memory pressure is low. Set `joinDefaultVpc: true` only when the SSR function must access VPC-protected resources; the function loses direct internet access when placed in a VPC, while S3 and DynamoDB remain accessible through auto-created VPC endpoints.
+
+Log retention defaults to `180` days. Use `serverLambda.logging.retentionDays` to change it, or set `serverLambda.logging.disabled` to turn off CloudWatch logging entirely.
+
+## Domains and firewall
+
+A Stacktape TanStack Start resource can attach custom domains to the app's CDN and can associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
+
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. The source requires an existing Route 53 hosted zone in the AWS account. Stacktape can create DNS records and provision free TLS certificates automatically; `customCertificateArn` is only needed for specific certificate requirements, and `disableDnsRecordCreation` is for teams managing DNS elsewhere.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, TanStackWeb, WebAppFirewall } from 'stacktape';
+
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'cdn'
+  });
+
+  const web = new TanStackWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    customDomains: [{ domainName: 'www.example.com' }],
+    useFirewall: 'firewall'
+    // [!code focus-end]
+  });
+
+  return { resources: { firewall, web } };
+});`
+    }
+  ]}
+/>
+
+Enable `useFirewall` when the public TanStack Start app needs CDN-level WAF protection. Skip it for internal prototypes or early development stages where WAF rules would add configuration work before there is a clear threat model. Keep the scope precise: this property protects the TanStack Start CDN path and requires a firewall with `scope: 'cdn'`.
+
+## Static files and CDN
+
+A Stacktape TanStack Start resource uploads static assets to S3 and serves the app through CloudFront. `fileOptions` lets teams set custom headers such as `Cache-Control` for uploaded files matching a glob pattern, and `cdn` configures cache behavior for SSR routes and specific path patterns.
+
+Use `fileOptions` when static files need explicit cache or metadata headers that differ from the generated defaults. Use `cdn` when SSR route caching needs deliberate tuning by path — for example, setting a longer `defaultTTL` on routes that rarely change. By default, all cached CDN content is invalidated on every deploy; set `cdn.disableInvalidationAfterDeploy` to `true` if you manage cache invalidation yourself.
+
+Leave both `fileOptions` and `cdn` unset first; TanStack Start and Stacktape already provide a standard split between static assets and SSR routes.
+
+## Connecting resources
+
+`connectTo` gives the TanStack Start SSR function access to other Stacktape resources and injects connection details as environment variables named `STP_[RESOURCE_NAME]_[PARAM]`. Use `connectTo` for resources such as relational databases, buckets, queues, and auth pools; use `iamRoleStatements` only for AWS permissions that are not covered by the resource connection model.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, TanStackWeb, RelationalDatabase } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: 'postgres-16',
+    instanceClass: 'db.t4g.micro'
+  });
+
+  const web = new TanStackWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    connectTo: ['mainDatabase'],
+    serverLambda: {
+      joinDefaultVpc: true
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { mainDatabase, web } };
+});`
+    }
+  ]}
+/>
+
+With the resource name `mainDatabase`, the TanStack Start app receives variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`. Set `joinDefaultVpc: true` on `serverLambda` when connecting to VPC-protected resources like databases or Redis. For the full connection model and injected variables by resource type, see [connecting resources](/configuration/connecting-resources).
+
+## Environment variables
+
+A Stacktape TanStack Start resource can set explicit `environment` variables for the SSR function. Use these for application configuration, feature flags, public service URLs needed by server code, and values produced by directives such as `$ResourceParam()` or `$Secret()`.
+
+Prefer `connectTo` for Stacktape-managed resources because it also handles permissions and, where needed, network access. Use explicit `environment` entries for values that are not resource connections. For sensitive values, reference secrets through the [secrets](/configuration/secrets) and [directives](/configuration/directives) flow instead of hard-coding credentials in config.
+
+## Logging
+
+The TanStack Start server Lambda sends logs to CloudWatch through `serverLambda.logging`. For Stacktape log viewing, use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview); the lower-level Lambda logging options are documented in the API reference.
+
+Most teams should keep logging enabled for deployed TanStack Start apps because SSR errors, initialization failures, and runtime exceptions need CloudWatch logs for diagnosis. Log retention defaults to `180` days. Tune logging only when retention, cost, or compliance requirements justify changing the default behavior.
+
+## FAQ
+
+### What does Stacktape create for a TanStack Start app?
+
+A Stacktape TanStack Start resource deploys SSR on Lambda (using the Nitro aws-lambda preset), static assets on S3, and a CloudFront CDN. These three pieces handle server rendering, asset delivery, and edge caching respectively. See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
+
+### Where should `appDirectory` point?
+
+`appDirectory` should point to the directory containing `app.config.ts`. The default is `"."` (the repository root). In a monorepo, point it to the TanStack Start workspace rather than the repository root. The basic example on this page uses `./apps/web` to make that monorepo shape explicit.
+
+### Can I use a custom domain with TanStack Start?
+
+Yes. Configure `customDomains` on the TanStack Start resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape can create the DNS record and manage the TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+
+### Can I protect a TanStack Start app with AWS WAF?
+
+Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` is `cdn`. This protects the CDN path for the TanStack Start app; it is separate from load-balancer firewall attachment paths used by compute resources.
+
+### How do I connect a database to a TanStack Start app?
+
+Use `connectTo` to reference the database resource by name, and set `serverLambda.joinDefaultVpc` to `true` so the SSR Lambda can reach VPC-protected resources. Stacktape injects connection strings as environment variables automatically. See the [connecting resources](/configuration/connecting-resources) page for the full list of injected variables per resource type.
+
+### What build system does TanStack Start use under the hood?
+
+TanStack Start uses Vinxi as its build and dev server tool, which itself uses Nitro for the server runtime. Stacktape runs `vinxi build` by default and deploys the output using the Nitro aws-lambda preset. You can override the build command with `buildCommand` if your project needs a custom build step.
+
+### How much does hosting TanStack Start on Lambda and CloudFront cost?
+
+AWS bills the underlying services separately: Lambda invocations and duration for SSR, S3 storage and requests for static assets, and CloudFront data transfer and requests for CDN traffic. The provided Stacktape source does not include concrete TanStack Start pricing, so this page avoids quoting list prices. Use [cost dashboards](/managing-costs/dashboards) after deployment to inspect real spend by stack.
+
+### When should I use static hosting instead of TanStack Start?
+
+Use [static hosting](/resources/frontend/static-hosting) when the site can be built into static files and does not need SSR or server functions. Use the TanStack Start resource when runtime server rendering or TanStack Start server functions are part of the product. Static hosting is simpler and usually has fewer moving parts.
+
+### When should I use a web service instead of the TanStack Start resource?
+
+Use a [web-service](/resources/compute/web-service) when you want to run a custom HTTP server in a container, control the server process directly, or deploy a framework that is not modeled by the frontend resources. Use the TanStack Start resource when the deployment unit is a standard TanStack Start app and you want Stacktape to manage SSR, static assets, and CDN routing.
+
+### How does the TanStack Start resource compare to the Next.js resource?
+
+Both deploy SSR on Lambda with S3 and CloudFront. The [Next.js resource](/resources/frontend/nextjs) additionally supports ISR (with a revalidation queue and table), edge Lambda, response streaming, and warm server instances. The TanStack Start resource is simpler — it covers SSR, static assets, CDN, custom domains, and WAF without the ISR or edge infrastructure. Choose based on which framework your app uses.
+
+## API Reference
+
+<ApiReference definitionName="TanStackWebProps" />
+
+## Referenceable parameters
+
+<ReferenceableParams resource="tanstack-web" />

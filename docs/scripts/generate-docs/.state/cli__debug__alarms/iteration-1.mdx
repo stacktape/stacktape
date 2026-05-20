@@ -1,0 +1,230 @@
+---
+title: 'debug:alarms'
+order: 152
+seoTitle: 'debug:alarms – View CloudWatch Alarm States | Stacktape CLI'
+seoDescription: 'Check CloudWatch alarm states for your deployed Stacktape stack. Filter by resource name or alarm state (OK, ALARM, INSUFFICIENT_DATA) to quickly identify issues.'
+---
+
+# debug:alarms
+
+The `debug:alarms` command displays the current state of all CloudWatch alarms associated with a deployed stack. Use it to quickly check which alarms are firing, which are healthy, and which lack sufficient data — without opening the AWS Console.
+
+## Usage
+
+```bash
+stacktape debug:alarms --stage production --region eu-west-1
+```
+
+## What it does
+
+Stacktape queries CloudWatch for all alarms prefixed with the stack name and displays their current state. Each alarm shows:
+
+- **State** — `OK`, `ALARM`, or `INSUFFICIENT_DATA`
+- **Resource** — the Stacktape resource the alarm belongs to (when identifiable)
+- **Metric** — the CloudWatch metric being monitored (e.g. `Errors`, `CPUUtilization`)
+- **Threshold** — the numeric threshold that triggers the alarm
+- **Comparison** — how the metric is compared to the threshold (e.g. `GreaterThanThreshold`)
+- **Last updated** — when the alarm state last changed
+- **Reason** — why the alarm is firing (shown only for alarms in `ALARM` state)
+
+The command is read-only and does not modify any resources.
+
+## Important flags
+
+**`--resourceName`** filters results to alarms belonging to a single Stacktape resource. Useful when your stack has many resources and you want to inspect one service at a time.
+
+```bash
+stacktape debug:alarms --stage production --region eu-west-1 --resourceName apiFunction
+```
+
+**`--state`** filters alarms by their current state. Accepted values are `OK`, `ALARM`, and `INSUFFICIENT_DATA`. Use this to find only the alarms that need attention.
+
+```bash
+stacktape debug:alarms --stage production --region eu-west-1 --state ALARM
+```
+
+**`--agent`** switches output to JSON format (NDJSON), which is useful for programmatic consumption by scripts or AI coding agents.
+
+```bash
+stacktape debug:alarms --stage production --region eu-west-1 --agent
+```
+
+## Examples
+
+List all alarms for a staging stack:
+
+```bash
+stacktape debug:alarms --stage staging --region us-east-1
+```
+
+Show only alarms that are currently firing:
+
+```bash
+stacktape debug:alarms --stage production --region eu-west-1 --state ALARM
+```
+
+Check alarms for a specific Lambda function:
+
+```bash
+stacktape debug:alarms --stage production --region eu-west-1 --resourceName paymentHandler
+```
+
+Combine both filters to check if a specific resource has any active alarms:
+
+```bash
+stacktape debug:alarms --stage production --region eu-west-1 --resourceName paymentHandler --state ALARM
+```
+
+## Flags reference
+
+<CliCommandsApiReference command="debug:alarms" sortedArgs={[
+  {
+    "name": "region",
+    "required": true,
+    "alias": "r",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "us-east-2",
+      "us-east-1",
+      "us-west-1",
+      "us-west-2",
+      "ap-east-1",
+      "ap-south-1",
+      "ap-northeast-3",
+      "ap-northeast-2",
+      "ap-southeast-1",
+      "ap-southeast-2",
+      "ap-northeast-1",
+      "ca-central-1",
+      "eu-central-1",
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "eu-north-1",
+      "me-south-1",
+      "sa-east-1",
+      "af-south-1",
+      "eu-south-1"
+    ],
+    "shortDescription": "<p> AWS Region</p>\n",
+    "longDescription": "<p>The AWS region for the operation. For a list of available regions, see the <a href=\"https://docs.aws.amazon.com/general/latest/gr/rande.html\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">AWS documentation</a>.</p>\n"
+  },
+  {
+    "name": "stage",
+    "required": true,
+    "alias": "s",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Stage</p>\n",
+    "longDescription": "<p>The stage for the operation (e.g., <code>production</code>, <code>staging</code>, <code>dev-john</code>). You can set a default stage using the <code>defaults:configure</code> command. The maximum length is 12 characters.</p>\n"
+  },
+  {
+    "name": "agent",
+    "required": false,
+    "alias": "ag",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Agent Mode</p>\n",
+    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
+  },
+  {
+    "name": "awsAccount",
+    "required": false,
+    "alias": "aa",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Account</p>\n",
+    "longDescription": "<p>The name of the AWS account to use for the operation. The account must first be connected in the <a href=\"https://console.stacktape.com/aws-accounts\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Stacktape console</a>.</p>\n"
+  },
+  {
+    "name": "help",
+    "required": false,
+    "alias": "h",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Show Help</p>\n",
+    "longDescription": "<p>If provided, the command will not execute and will instead print help information.</p>\n"
+  },
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  },
+  {
+    "name": "outputFormat",
+    "required": false,
+    "alias": "ofmt",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "jsonl",
+      "plain",
+      "tty"
+    ],
+    "shortDescription": "<p> Output Format</p>\n",
+    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
+  },
+  {
+    "name": "profile",
+    "required": false,
+    "alias": "p",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Profile</p>\n",
+    "longDescription": "<p>The AWS profile to use for the command. You can manage profiles using the <code>aws-profile:*</code> commands and set a default profile with <code>defaults:configure</code>.</p>\n"
+  },
+  {
+    "name": "projectName",
+    "required": false,
+    "alias": "prj",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Project Name</p>\n",
+    "longDescription": "<p>The name of the Stacktape project for this operation.</p>\n"
+  },
+  {
+    "name": "resourceName",
+    "required": false,
+    "alias": "rn",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Resource Name</p>\n",
+    "longDescription": "<p>The name of the resource as defined in your Stacktape configuration.</p>\n"
+  },
+  {
+    "name": "state",
+    "required": false,
+    "alias": "sta",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Alarm State Filter</p>\n",
+    "longDescription": "<p>Filter alarms by state: OK, ALARM, or INSUFFICIENT_DATA.</p>\n"
+  }
+]} />
+
+## Related commands
+
+- [`debug:logs`](/cli/debug-logs) — fetch and filter log events from a deployed resource
+- [`debug:metrics`](/cli/debug-metrics) — fetch CloudWatch metric data points for a resource
+- [`info:stack`](/cli/info-stack) — display stack outputs, endpoints, and resource inventory

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "docs",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd docs && bun x next dev"],
+      "port": 9001,
+      "autoPort": true
+    }
+  ]
+}

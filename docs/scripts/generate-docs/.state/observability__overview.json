@@ -1,0 +1,1092 @@
+{
+  "pageId": "observability__overview",
+  "pageRoute": "observability/overview",
+  "startedAt": "2026-05-17T15:47:01.779Z",
+  "updatedAt": "2026-05-17T16:03:06.450Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\observability__overview\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The CLI-vs-Console overview table at the top is immediately useful — it gives first-time users a mental model of the whole observability surface before reading anything else.",
+            "Every section clearly and consistently separates what you do in the CLI from what you do in the Console, which directly follows the section instructions.",
+            "Concrete CLI commands with realistic, non-trivial flags (e.g., --stat p99, --startTime 30m) give the page practical weight without requiring a full example stack.",
+            "The Issues section is tightly grounded in the Explanations.tsx source — the detection mechanics, CLI version requirement, two-step enablement, and safety limits all match the source accurately.",
+            "The FAQ covers all three required categories (Stacktape-specific, AWS use-case, comparison/choosing) and the answers are concise enough to be useful as snippets.",
+            "Linking every section to its dedicated sub-page at the end keeps the overview scannable without burying detail here.",
+            "The 'CLI vs Console' comparison section at the bottom provides actionable workflow guidance that helps the first-time reader understand when to use each path."
+          ],
+          "problems": [
+            "Section instruction violation: the page explicitly includes cost content in the body prose ('using AWS Kinesis Data Firehose (~$0.03/GB)') and in a full FAQ answer with specific CloudWatch pricing figures. The section instructions say: 'Cost is a separate section — do not include cost content here. Link to /managing-costs/* if cost context is needed.' Neither the ~$0.03/GB figure nor the per-GB/per-alarm CloudWatch prices appear in the provided source files.",
+            "The FAQ answer for 'How much does CloudWatch observability cost?' quotes specific AWS list prices (~$0.50/GB ingestion, ~$0.03/GB/month storage, $0.30/metric/month, ~$0.10/alarm/month) that are not present in any of the provided source files. The pricing rules say: 'Never invent or estimate AWS list prices that are not present in the provided source.'",
+            "'What Stacktape observability covers' is an H2 heading that reads like a sentence/question rather than a compact noun label. The style guide mandates 1-5 word noun-form H2s and flags headings that read like full sentences when a short label would work.",
+            "The log forwarding section states 'Kinesis Data Firehose retries delivery for a configurable duration (default: 300 seconds)' — this specific default is not grounded in any of the provided source files.",
+            "No recommended starting path for a first-time user. An overview page with this many surfaces should tell the reader 'if this is your first time, start with Logs — run debug:logs after your first deploy' or similar. Right now it presents all surfaces equally without guiding the beginner.",
+            "Some AWS jargon is used without explanation for a low-AWS-experience audience: 'CloudWatch Logs subscription filters', 'Kinesis Data Firehose'. These appear in body prose without a one-line explanation of what they are."
+          ],
+          "mandatoryFixes": [
+            "Remove cost content from the body prose and redirect to /managing-costs/overview. Specifically: (1) remove '~$0.03/GB' from the log forwarding section heading area; (2) either remove the 'How much does CloudWatch observability cost?' FAQ entry entirely or replace its body with a 1-2 sentence pointer to /managing-costs/overview, per the explicit section instruction: 'Cost is a separate section — do not include cost content here. Link to /managing-costs/* if cost context is needed.'",
+            "Rename 'What Stacktape observability covers' H2 to a compact noun-form label — e.g. 'Observability surfaces' or simply 'Coverage'. The current heading reads like a sentence, which violates the 1-5 word noun-label guideline. Per the style guide: 'Penalize scannability by at least 1. Mandatory fix: Shorten section headings to compact labels; keep most H2s to 1-5 words.'",
+            "Remove or qualify the ungrounded 'default: 300 seconds' Kinesis Firehose retry claim in the log forwarding section — this specific default does not appear in any provided source file. Either remove the parenthetical entirely or replace with 'see AWS Kinesis Data Firehose documentation for retry configuration'."
+          ],
+          "optionalImprovements": [
+            "Add a one-sentence 'where to start' recommendation near the top, e.g. 'If this is your first deploy, run stacktape debug:logs to see your function output — that's the fastest way to confirm everything is working.' This gives the low-AWS beginner an immediate action rather than a feature survey.",
+            "Shorten 'CLI vs Console — choosing your workflow' H2 to 'CLI vs Console'. The em-dash structure makes it read more like a sentence title than a label; the content is good but the heading could be tighter.",
+            "Briefly gloss AWS-specific terms on first mention for the low-AWS-experience audience: 'CloudWatch Logs subscription filters (AWS's log routing mechanism)' and 'Kinesis Data Firehose (AWS's managed streaming delivery service)'. One parenthetical each is enough.",
+            "The issues section mentions 'supported workloads' but the Explanations.tsx source lists specific exclusions (user-managed packaging, edge functions, unsupported languages). Consider adding a one-line exclusion list ('detection is skipped for edge functions, user-managed packaging, and workloads with log forwarding enabled') so readers don't have to click through to discover their workload isn't covered.",
+            "The 'CLI vs Console' bullet lists are slightly redundant with content already covered in each surface section. Consider trimming to a single summary line per bullet rather than re-explaining the feature."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The summary table at the top is the page's best feature — it instantly maps all seven observability surfaces to their CLI command, Console view, and config property, so an engineer can orient themselves in under 10 seconds without reading prose.",
+            "The dedicated 'CLI vs Console' section clearly separates the two workflows with concrete, non-circular use cases for each. This directly satisfies the section instruction 'make it clear what the user can do from the CLI vs the Console' without duplicating it per-surface.",
+            "Shell command examples each get their own fenced block with no explanatory `#` comments inside — the copy-buffer trap is avoided throughout.",
+            "The alarms section correctly covers both the config-time `alarms` array (per-resource, version-controlled) and Console-managed alarm rules (organization-wide, applied at deploy time), including the `disabledGlobalAlarms` escape hatch.",
+            "The issues section is well-grounded in the Explanations.tsx source: fingerprinting, high-volume protection, subscription-filter slot conflict with log forwarding, CLI status management, and the 3.8.0 CLI version requirement all appear.",
+            "FAQ spans all three required question categories (Stacktape-specific, underlying AWS service, and comparison/choosing questions) and has 10 entries — quality is high and none feel padded."
+          ],
+          "problems": [
+            "SECTION INSTRUCTION VIOLATION — Cost content appears inline despite the explicit section instruction: 'Cost is a separate section — do not include cost content here. Link to /managing-costs/* if cost context is needed.' Two violations: (1) the Log forwarding section states '~$0.03/GB' for Kinesis Firehose inline, and (2) the FAQ contains a full 'How much does CloudWatch observability cost?' entry with per-unit CloudWatch pricing ($0.50/GB ingestion, $0.03/GB storage, $0.30/metric, $0.10/alarm) that was almost certainly not grounded in the provided source files.",
+            "Issues section omits the false-positive risk documented explicitly in Explanations.tsx: 'it can also pick up application logs that merely look like errors.' This is a meaningful production caveat for teams who might over-trust the error inbox.",
+            "High-volume protection is described as 'built-in safety limits' (automatic), but Explanations.tsx reveals it is a user-configurable percentage setting in the Console: 'At 100%, every matching error event is processed. Lower percentages reduce detector work and Console reports during bursts, but occurrence counts become estimates and rare one-off errors are easier to miss.' Framing it as automatic limits rather than a tunable knob misleads operators.",
+            "Issues detection exclusions list is incomplete. The page states only 'log forwarding configured' triggers detection skip, but Explanations.tsx also lists user-managed packaging, edge functions, and unsupported languages as exclusions. An engineer with a custom-packaged Lambda reading this page would not know detection is skipped for their workload.",
+            "The subscription filter slot claim says 'each log group has a limited number of slots' — vague when the actual number matters. Explanations.tsx states specifically 'one of the two CloudWatch Logs subscription-filter slots on each monitored log group.' The concrete count of two is operationally significant."
+          ],
+          "mandatoryFixes": [
+            "Remove all inline cost figures from the log forwarding section and from the FAQ, per the explicit section instruction 'Cost is a separate section — do not include cost content here.' Specifically: (1) delete '(~$0.03/GB)' from the log forwarding section opening sentence and replace with a link to /managing-costs/overview; (2) remove the FAQ entry 'How much does CloudWatch observability cost?' entirely, or replace it with a one-sentence answer that links to /managing-costs/overview without quoting per-unit prices. The Firehose and CloudWatch pricing numbers quoted in the FAQ are also not grounded in the provided source files, compounding the violation."
+          ],
+          "optionalImprovements": [
+            "Add the false-positive caveat to the Issues section, directly from the source: 'Detection can also pick up application logs that merely look like errors. It is best for recurring runtime failures, not a complete observability or tracing system.'",
+            "Rewrite the high-volume protection paragraph to surface the user-configurable percentage knob: explain that the Console lets you set a sampling percentage, that at 100% every matching error is processed, and that lower values reduce detector invocations during bursts at the cost of estimated occurrence counts and potentially missed one-off errors.",
+            "Expand the detection exclusions list to the full set from Explanations.tsx: workloads with log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages.",
+            "Change 'each log group has a limited number of slots' to the specific count: 'each log group has two subscription filter slots.' The concrete number is what an engineer needs when deciding whether log forwarding and issue detection can coexist on a given workload."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 5,
+            "audienceFit": 5
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "The page is easy to scan: short H2s, a useful surface matrix, focused subsections, and a broad FAQ.",
+            "The draft correctly separates CLI-oriented workflows from Console-oriented workflows in several sections, especially Logs, Metrics, Alarms, Issues, and CLI vs Console.",
+            "The Issues section is comparatively well grounded in the provided Console source, including CLI version 3.8.0, subscription-filter wiring, supported languages, grouping, and limitations."
+          ],
+          "problems": [
+            "Many technical claims are not grounded in the provided source file, including CLI command behavior, supported metric names, Console dashboard coverage, alert channel types beyond examples, log forwarding targets, Firehose backup behavior, and most pricing numbers.",
+            "The page violates the human-maintained instruction that cost is a separate section: cost appears in Log forwarding and multiple FAQ answers instead of being limited to links toward managing-cost pages.",
+            "The opening table presents broad CLI, Console, and Config capabilities as authoritative, but the provided source mostly covers Console explanations and does not substantiate most CLI behavior.",
+            "The Alarms section overstates config-time and runtime details from sources that are not provided here, including supported resource types, per-resource alarm schema, notificationTargets, disabledGlobalAlarms, and merge behavior.",
+            "The Metrics section lists supported metrics and covered dashboard resources without grounding in the provided source.",
+            "The Alert channels section lists Slack, Teams, Email, Discord, and Webhook setup requirements, but the provided source only gives general examples of channels and does not ground those exact channel types or credential fields.",
+            "The Log forwarding section is largely unsupported by the provided source and includes cost content that belongs elsewhere.",
+            "Several FAQ answers introduce unsupported or drifting facts, including CloudWatch prices, “small-to-medium stacks stay under $10/month,” custom metrics alarm behavior, Firehose retry defaults, and no-log-loss claims.",
+            "Some claims are too absolute for the available source, such as “every deployed resource,” “No additional infrastructure is required,” and “No log data is lost.”"
+          ],
+          "mandatoryFixes": [
+            "Remove cost details from this overview page. Replace the pricing paragraphs with a short link to /managing-costs/overview or the relevant managing-costs page.",
+            "Ground or remove every unsupported technical claim. With the provided source, keep Console-backed claims about issues, channels, notifications, alarm rules/history, budgets, and alert history; avoid precise CLI, metric, log-forwarding, and provider details unless their source files are included.",
+            "Rewrite the Alarms section so it distinguishes source-backed Console alarm rules from config-time alarm definitions only if alarms.d.ts is provided. Do not claim supported resource types, merge behavior, notificationTargets, or disabledGlobalAlarms without those sources.",
+            "Rewrite the Metrics section to avoid enumerating metric names and Console dashboard resource coverage unless the CLI and Console metric sources are provided.",
+            "Rewrite the Alert channels section to state only that channels deliver alerts to destinations such as Slack, email, or webhook unless source files ground the full provider list and setup fields.",
+            "Rewrite or sharply narrow the Log forwarding section unless logForwarding config/source files are provided. Remove Firehose pricing, target list, retry defaults, S3 backup, and issue-detection interaction unless those facts are sourced.",
+            "Revise FAQ answers to avoid unsupported AWS prices, exact retry defaults, no-data-loss guarantees, and Stacktape-specific behaviors not present in the provided source."
+          ],
+          "optionalImprovements": [
+            "Keep the surface matrix, but add cautious wording or footnotes only where the source supports each surface.",
+            "Convert the CLI vs Console section into a tighter decision table; the current bullets are useful but repeat some earlier section content.",
+            "Add one sentence near the top explaining that this page is an overview and links to feature-specific pages for exact command flags and configuration details.",
+            "Where Console behavior is sourced, use the same nouns as Explanations.tsx: projects, stages, channels, notification rules, alarm rules, alarm history, and alert history."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific claims that are broader or more detailed than the provided source supports. The most important fixes are to narrow global observability claims, avoid unsupported CLI/Console feature details, and remove unsupported implementation details for alarms, channels, notifications, log forwarding, and issue-management behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Every resource Stacktape deploys emits CloudWatch logs and metrics automatically.”",
+              "reason": "The provided source does not support a blanket claim that every deployed resource emits both logs and metrics automatically. The source only describes specific observability areas and gives examples of metrics monitored by alarm rules.",
+              "suggestedFix": "Narrow the claim to what the source supports, for example: “Stacktape surfaces AWS metrics for resources such as Lambda functions, databases, and APIs, and the Console includes views for issues, alarms, alert channels, notifications, and alert history.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Matching log events are sent to the Stacktape service lambda in your stack, parsed, fingerprinted, and reported back to the Console."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Issues” can be managed from the CLI with `stacktape issues:list`, `issues:resolve`, `issues:ignore`, and `issues:reopen`.",
+              "reason": "The provided Console source explicitly says issues are managed from the Console. The navigation index confirms CLI pages exist, but no CLI source behavior is provided here, so the draft should not describe terminal management behavior as fact from these sources.",
+              "suggestedFix": "Say that Issues are managed from the Stacktape Console, and only link to CLI issue command pages if separate CLI source files are available for this page. Otherwise omit the CLI-management claims from the overview table and Issues section.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console. You can enable all projects, selected projects, and optionally only specific stage names. Choose <b>All stages</b> when every stage should report issues."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Console alarm rules merge with per-resource alarms defined in config. Use `disabledGlobalAlarms` on a resource to opt out of specific Console-managed rules.”",
+              "reason": "The provided source supports Console alarm rules being saved and applied on the next deployment, but it does not support merge semantics, the `disabledGlobalAlarms` property, or opt-out behavior. Those are configuration-affecting claims and need type/source backing that is not present.",
+              "suggestedFix": "Replace with the grounded behavior: “Creating or changing a Console alarm rule saves it in the Console; Stacktape creates, updates, or removes the underlying CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape supports five channel types: Slack, Microsoft Teams, Email, Discord, Webhook,” with setup details for bot tokens, incoming webhooks, sender/recipient addresses, HMAC signing, and PagerDuty/Opsgenie use cases.",
+              "reason": "The source only gives examples of channels such as Slack, email, or webhook, and says channels can be used in notification rules, alarm rules, and budget alerts. It does not support the complete five-channel list or authentication/setup details.",
+              "suggestedFix": "Narrow the section to: “Channels are alert destinations such as Slack, email, or a webhook. Create channels in the Console, then use them in notification rules, alarm rules, and budget alerts.” Link to the alert channels page for exact provider setup.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a webhook."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The supported integration types for deployment notifications are Slack, Microsoft Teams, and Email.”",
+              "reason": "The source confirms notification rules alert on deployment events and deliver to a channel, but it does not enumerate supported integration types for deployment notifications.",
+              "suggestedFix": "Remove the integration-type list from the overview, or phrase it through alert channels generally: “Each notification rule delivers to a configured channel.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Notification rules let you get alerted when specific events happen — like a deployment succeeding, failing, or being canceled."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Each rule specifies which events to watch and which channel to deliver the alert to."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape supports three forwarding targets: Datadog, Highlight.io, Any HTTP endpoint” and “failed deliveries are backed up to an S3 bucket automatically.”",
+              "reason": "The provided source discusses log forwarding only indirectly as a reason issue detection may be skipped. It does not define forwarding targets, Firehose behavior, backup behavior, or provider-specific configuration types.",
+              "suggestedFix": "Keep only the grounded interaction with Issues: “On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured.” Move provider targets and delivery behavior to the dedicated log forwarding page only if its source files support them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“No additional infrastructure is required — these services are provisioned automatically with your stack.”",
+              "reason": "For Issues, the source says Stacktape adds CloudWatch Logs subscription filters and uses a Stacktape service lambda in the stack. Saying no additional infrastructure is required is misleading because issue detection does require deployment wiring and a service Lambda/subscription filters.",
+              "suggestedFix": "Replace with: “For Issues, Stacktape adds CloudWatch Logs subscription filters for supported workloads on deployment and sends matching events to the Stacktape service Lambda in your stack.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Older CLI versions will not add the CloudWatch Logs subscriptions needed for new stacks to report Issues."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Matching log events are sent to the Stacktape service lambda in your stack, parsed, fingerprinted, and reported back to the Console."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Resolved issues reopen automatically if the error recurs. Ignored issues stay suppressed permanently.”",
+              "reason": "The source describes issue grouping, enabling, detection, safety limits, and that existing issues stay visible after monitoring is disabled. It does not describe reopen behavior or permanent suppression semantics for ignored issues.",
+              "suggestedFix": "Remove the reopen/permanent suppression statements unless CLI or Console issue-status source files are added. Keep only grounded statements about grouping repeated runtime errors and managing Issues from the Console.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues is an error inbox for your deployed workloads. Instead of searching logs by hand, Stacktape groups repeated runtime errors into one item with the error message, stack trace, resource, project, stage, and occurrence count."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Existing issues stay visible after monitoring is disabled."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `stacktape debug:logs` rather than inventing `stacktape logs`.",
+            "The Issues section accurately includes the CLI version requirement of 3.8.0 or newer for deploy-time issue detection wiring.",
+            "The draft correctly states that issue detection is log-pattern based and lists the supported language families named in the source.",
+            "All markdown links checked against the provided navigation index point to existing routes."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the intended observability surfaces, but it repeatedly expands beyond the only provided source file. The highest-risk problems are broad “every resource” claims, unsupported CLI behavior details, unsupported Console UI capabilities, and several Stacktape-specific configuration claims not grounded in the provided source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Every resource Stacktape deploys emits CloudWatch logs and metrics automatically.”",
+              "reason": "The provided source supports observability for deployed workloads and specific monitored surfaces, but it does not support the universal claim that every deployed resource emits both CloudWatch logs and metrics automatically. The Issues explanation narrows deployment wiring to supported Stacktape-managed Lambda functions and buildpack containers, which contradicts the breadth of “every resource.”",
+              "suggestedFix": "Narrow the claim to supported workloads and AWS resources that expose CloudWatch logs or metrics through Stacktape. For example: “Stacktape surfaces CloudWatch logs and metrics for supported workloads and AWS resources in your stack.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Stacktape adds or removes CloudWatch Logs subscription filters for supported Stacktape-managed Lambda functions and buildpack containers."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft claims the Console has “Per-stage log viewer with live tail,” “Per-stage metric dashboards,” “Alarm state overview + alarm rules editor,” and “Error inbox with grouping, stack traces, occurrence counts.”",
+              "reason": "The provided Console source supports Issues, alarm rules, alarm state, alert history, channels, notifications, and costs explanations, but it does not mention a Console log viewer, live tail, metric dashboards, or stage-scoped log/metric pages. These Console UI capability claims are not grounded in the provided console-app source.",
+              "suggestedFix": "Remove or soften the unsupported Console log and metric UI claims unless console-app page source is added. Keep only Console capabilities present in the provided source, such as issues management, alarm rules, alarm state, alert history, channels, and notifications.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console. You can enable all projects, selected projects, and optionally only specific stage names."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Shows the current state of all CloudWatch alarms across your connected AWS accounts."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“You define alarm rules either per-resource in your Stacktape configuration or globally in the Stacktape Console. Both approaches produce CloudWatch Alarms in your AWS account.”",
+              "reason": "The source supports Console alarm rules creating, updating, or removing CloudWatch alarms on the next deployment. It does not include the Stacktape config alarm type source for per-resource `alarms`, `notificationTargets`, supported resource types, or `disabledGlobalAlarms`. The draft’s config-time alarm claims are therefore ungrounded in the provided source list.",
+              "suggestedFix": "Either add the relevant `types/stacktape-config/alarms.d.ts` source to verify config-time alarm behavior, or narrow this page to Console alarm rules and link to the alarms page for config details.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Issue statuses are OPEN, RESOLVED, and IGNORED. Resolved issues reopen automatically if the error recurs. Ignored issues stay suppressed permanently.”",
+              "reason": "The source supports grouping, Console management, disabling monitoring, and that existing issues stay visible after monitoring is disabled, but it does not support the exact statuses or the lifecycle behavior for resolved and ignored issues. “Permanently” is especially strong and unsupported by the provided source.",
+              "suggestedFix": "Remove the exact lifecycle claims unless CLI or Console issue-status source is provided. A safer version is: “Use the CLI issue commands or Console to manage reported issues; the source provided here does not define the full issue status lifecycle.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console. You can enable all projects, selected projects, and optionally only specific stage names."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Existing issues stay visible after monitoring is disabled."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape supports five channel types: Slack, Microsoft Teams, Email, Discord, Webhook,” including setup details such as “Bot OAuth Token + channel ID,” “Sender + recipient addresses,” and “optional HMAC signing secret.”",
+              "reason": "The source gives examples of channels such as Slack, email, or webhook, and says channels can be used in notification rules, alarm rules, and budget alerts. It does not enumerate exactly five supported channel types or specify the setup fields for each provider.",
+              "suggestedFix": "Limit the overview to the grounded examples, or add the alert-channel source before listing exact provider support and authentication fields. For this source set, write: “Channels deliver alerts to destinations such as Slack, email, or a webhook.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a webhook."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The supported integration types for deployment notifications are Slack, Microsoft Teams, and Email.”",
+              "reason": "The provided source explains notification rules and channels, but does not enumerate supported integration types for deployment notifications. Listing exactly three integrations is unsupported by the provided source.",
+              "suggestedFix": "Avoid the exact provider list on this overview unless notification/channel implementation source is provided. Say that notification rules deliver to a selected alert channel.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Notification rules let you get alerted when specific events happen — like a deployment succeeding, failing, or being canceled."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Each rule specifies which events to watch and which channel to deliver the alert to."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Log forwarding streams logs from your workloads to an external observability platform using AWS Kinesis Data Firehose (~$0.03/GB). Failed deliveries are backed up to an S3 bucket automatically,” and the draft lists Datadog, Highlight.io, and any HTTP endpoint as supported targets.",
+              "reason": "The provided source only says issue detection is skipped for workloads with Stacktape log forwarding configured. It does not define the `logForwarding` property, Firehose usage, pricing, failure backup behavior, or supported forwarding targets. The pricing claim is also placed in the observability section even though the instructions say cost is separate.",
+              "suggestedFix": "Remove these implementation, target, and price details from the overview unless log-forwarding source and pricing source are added. Keep a narrow link: “Workloads with Stacktape log forwarding configured are skipped by issue detection because both features use CloudWatch Logs subscription filters.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "This also uses one of the two CloudWatch Logs subscription-filter slots on each monitored log group."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft gives detailed CLI syntax and flags for `debug:logs`, `debug:metrics`, `debug:alarms`, and `issues:*`, such as `--resourceName`, `--startTime`, `--filter`, `--metric`, `--stat`, `--state`, `--projectName`, and `--issueStatus`.",
+              "reason": "The provided source list does not include `src/commands/**` or CLI command definitions, so these Stacktape-specific flags and behaviors cannot be verified from the available source. Some CLI command names are present in the navigation index, but the flags and behavior descriptions are not sourced.",
+              "suggestedFix": "Either add the relevant CLI source files or reduce the overview to command names and links only. Keep detailed flags on the individual CLI reference pages where they can be verified.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly separates CLI debug commands from Console-oriented workflows at a high level, which matches the page instruction.",
+            "The Issues section is largely aligned with the provided Console explanation for grouping, supported language patterns, CLI v3.8.0 deployment wiring, subscription filters, and high-volume protection.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is not ready for publication. Because the page has no primary config type, API completeness and union-variant checks are mostly not applicable, but the observability overview contains several broad Stacktape-specific claims that are not grounded in the provided Console source and it violates the page instruction to keep cost content out of this route.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Every resource Stacktape deploys emits CloudWatch logs and metrics automatically.",
+              "reason": "The provided source only explains Console concepts for issues, alarm rules, channels, notifications, histories, and related pages. It does not support the broad claim that every deployed resource emits both CloudWatch logs and metrics automatically.",
+              "suggestedFix": "Narrow the claim to sourced surfaces, for example: \"Stacktape surfaces logs, metrics, alarms, issues, alert channels, notifications, and alert history through the Console and CLI where those features are supported.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues is an error inbox for your deployed workloads."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Per-stage metric dashboards cover Lambda, ECS, RDS, API Gateway, DynamoDB, S3 buckets, Redis, CloudFront, and Cognito.",
+              "reason": "The provided Console source does not list metric dashboard resource coverage. It only gives examples of metrics used by alarm rules: Lambda error rates, database CPU usage, and API latency.",
+              "suggestedFix": "Replace the exhaustive dashboard list with a cautious sourced statement, such as: \"The Console surfaces metric-based alarm rules for resource metrics such as Lambda errors, database CPU usage, and API latency.\" Link to /observability/metrics for details.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Stacktape supports five alert channel types: Slack, Microsoft Teams, Email, Discord, and Webhook.",
+              "reason": "The provided source describes channels only as destinations such as Slack, email, or webhook. It does not support Microsoft Teams or Discord, nor does it establish a complete five-item supported-type list.",
+              "suggestedFix": "Use only sourced examples on this overview page: \"Channels are destinations such as a Slack channel, an email address, or a webhook.\" Defer the complete list to /observability/alert-channels if that page has the supporting source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a webhook."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Console-managed alarm rules merge with per-resource alarms defined in config. Use disabledGlobalAlarms on a resource to opt out of specific Console-managed rules.",
+              "reason": "The source supports Console alarm rules being saved and applied on next deployment, but it does not mention merge behavior with config-defined alarms or a disabledGlobalAlarms property. The page instruction asks alarms to reference both config-time definitions and runtime view, but the provided source here does not include alarms.d.ts.",
+              "suggestedFix": "Keep the sourced Console behavior and remove or relocate the merge/disabledGlobalAlarms claims unless the alarms type source is included. For this overview, say: \"Creating or changing a Console alarm rule saves it in the Console; Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing on the next deployment.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Issue statuses are OPEN, RESOLVED, and IGNORED. Resolved issues reopen automatically if the error recurs. Ignored issues stay suppressed permanently.",
+              "reason": "The source says issues are grouped and managed from the Console, but it does not define issue status values or reopen/suppression behavior.",
+              "suggestedFix": "Remove the status lifecycle details from the overview unless issue command or Console source is provided. Keep a supported statement such as: \"Issues are managed from the Console, where repeated runtime errors are grouped by fingerprint, project, and stage.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are grouped by fingerprint, project, and stage."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Log forwarding supports Datadog, Highlight.io, and any HTTP endpoint, uses Kinesis Data Firehose, backs up failed deliveries to S3, and costs approximately $0.03/GB.",
+              "reason": "No provided source covers log forwarding targets, Firehose delivery mechanics, S3 backup behavior, or pricing. The page instructions also say cost is a separate section and should not be included here.",
+              "suggestedFix": "Replace the detailed target/pricing section with a short navigation paragraph: \"Log forwarding is covered on /observability/log-forwarding. Use it when you want workload logs delivered to an external observability platform.\" Move any cost discussion to a managing-costs page with pricing source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "This also uses one of the two CloudWatch Logs subscription-filter slots on each monitored log group."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Notification rules support Slack, Microsoft Teams, and Email for deployment notifications.",
+              "reason": "The source supports notification rules for deployment events and delivery to a channel, but it does not enumerate supported integration types for notifications.",
+              "suggestedFix": "Say: \"Notification rules alert you when deployment events happen and deliver the alert to the channel you specify.\" Link to /observability/notifications for integration details if supported there.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Notification rules let you get alerted when specific events happen — like a deployment succeeding, failing, or being canceled."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Each rule specifies which events to watch and which channel to deliver the alert to."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Logs, Metrics, Alarms, and Issues sections blur CLI and Console support by presenting detailed CLI behavior without the corresponding CLI source files.",
+              "reason": "The section instructions require distinguishing CLI debug commands from Console views. The draft does separate them structurally, but many CLI details are unsupported by the provided Console-only source, such as relative time syntax, Insights queries, metric statistics, and issue CLI lifecycle behavior.",
+              "suggestedFix": "Keep CLI mentions high-level on this overview page unless CLI source is included: name the commands and link to their CLI reference pages, then describe Console behavior only where Explanations.tsx supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Shows the current state of all CloudWatch alarms across your connected AWS accounts."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses the documented CLI command name stacktape debug:logs and links it to /cli/debug-logs instead of inventing stacktape logs.",
+            "The draft clearly distinguishes several observability surfaces in a table, which is a good structure for this overview route.",
+            "The Issues section aligns with several sourced facts: CLI v3.8.0 requirement, log-pattern-based detection, supported language list, fingerprint grouping, high-volume protection, and subscription-filter slot tradeoff."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\observability__overview\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The summary table at the top (Surface / CLI / Console / Config) is excellent — a first-time user can immediately see what exists and where to find it, without reading every section.",
+            "CLI vs Console distinction is maintained throughout every section and synthesized in a dedicated summary section, directly satisfying the section instructions.",
+            "CLI command examples are concrete and copyable with realistic flags (`--startTime 30m`, `--stat p99`, `--filter \"ERROR\"`). Each is isolated in its own fenced block — no multi-command copy-trap.",
+            "FAQ spans all three required categories: Stacktape-specific, underlying AWS service behavior, and choosing/comparison questions. The 10 entries are genuinely useful and not padded.",
+            "Issues section is well-grounded in the Explanations.tsx source, including the CLI v3.8.0 version gate, two-step activation model, fingerprint grouping, and subscription-filter slot limitation.",
+            "Log forwarding target table (Datadog / Highlight.io / HTTP endpoint) is clean and practical — readers can instantly see whether their preferred platform is supported.",
+            "Alert channels integration-type table with required config fields gives actionable detail without over-explaining.",
+            "The first paragraph is 51 words and self-contained — works as an AI Overview snippet."
+          ],
+          "problems": [
+            "No 'where to start' guidance for a developer who just deployed their first stack. The page maps the entire observability landscape but never says 'after your first deploy, run this to see your logs'. The target persona explicitly wants a clear path from 'what is this' to 'I have it running' — this page stops at 'what is this'.",
+            "The Issues section is significantly more detailed than every other section on the page, creating an imbalance. Technical details about high-volume protection percentages, sample rates, bounded invocation counts, and subscription-filter slot mechanics belong on the dedicated Issues page, not the overview. This depth will overwhelm first-time users scanning the overview.",
+            "The FAQ entry 'How much does observability cost on AWS?' contains zero useful content — it just redirects to /managing-costs/overview. Even a single sentence ('CloudWatch charges per GB ingested and per metric alarm; most small stacks stay within the free tier') would make the answer actionable. A pure redirect is a low-value FAQ entry.",
+            "The Metrics table lists specific CloudWatch metric names (Invocations, Errors, Duration, Throttles, ConcurrentExecutions, CPUUtilization, etc.) as Stacktape resource capabilities, but the provided source file (Explanations.tsx) does not enumerate these metrics. These claims should be grounded in a CLI source or types file — the source-grounding verifier may flag this.",
+            "The 'Alarms' section asserts 'Resource types that support config-time alarms: Lambda functions, relational databases, HTTP API Gateways, application load balancers, and SQS queues' without a grounding source in the provided files. This list should be verifiable from types/stacktape-config/alarms.d.ts, which is not in the provided source set."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short 'Quick start' note or Info callout near the top (after the table or as its own paragraph) pointing the first-time user to the single most useful first action: running `stacktape debug:logs` after deploying. One sentence is enough: 'If you just deployed your first stack, start with `stacktape debug:logs` — it shows everything your workload has written to CloudWatch since deployment.'",
+            "Trim the Issues section to a summary paragraph + a few key facts (what it detects, how to enable it, the CLI commands, the v3.8.0 requirement) and move the high-volume protection, sample-rate, and subscription-filter-slot details to the dedicated Issues page. The current depth is out of proportion with the other sections on an overview page.",
+            "Improve the cost FAQ answer with at least one concrete sentence about the free tier or pricing model (e.g., CloudWatch Logs free tier, alarm cost per month) so readers get useful context before being redirected. Per the section instruction, cost content belongs at /managing-costs/*, but the FAQ answer should still contain something readers can act on.",
+            "Consider renaming 'Observability surfaces' to 'What's available' or 'Overview' — the word 'surfaces' is slightly abstract for a first-time reader unfamiliar with the term.",
+            "Add a one-line note in the Metrics section acknowledging that custom application metrics (published via CloudWatch PutMetricData) can also be monitored — the current table implies only AWS-provided metrics are available, which may mislead readers building custom instrumentation.",
+            "The Alert history section mentions 'separate focused histories' (alarm history, notification history, budget history) but these are listed as sub-bullets of the unified view rather than getting brief description sentences. A one-sentence description per type would improve this section's standalone extractability for AI engines."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The observability surfaces summary table is excellent — engineers can find the CLI command or Console path for any surface in under 10 seconds, before reading a single paragraph of prose.",
+            "The Issues section accurately mirrors the source's nuanced coverage: enabling mechanics, two-step apply behavior, fingerprinting, supported languages, and limitations. No facts appear to be invented.",
+            "Strict CLI vs Console separation is maintained throughout every section — the section instruction's core requirement is fully met.",
+            "All bash blocks contain a single command with no inline explanatory comments, making every block copy-button safe.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-service behavior, choosing/comparison) with concrete, actionable answers. The FAQ is one of the stronger parts of the page.",
+            "The log forwarding ↔ issue detection subscription-filter slot conflict is called out in both the Issues and Log Forwarding sections — a real production gotcha that engineers must know before enabling both features."
+          ],
+          "problems": [
+            "Metrics section Console description says 'the Console surfaces metric-based alarm rules for resource metrics such as Lambda errors, database CPU usage, and API latency' — this describes alarm rules, not a metrics view. Placing it under the Metrics H2 conflates two distinct observability surfaces and implies the Console metrics view is just an alarm rules editor. An engineer looking for a standalone metrics dashboard will be confused or misled.",
+            "Alarms section enumerates 'Lambda functions, relational databases, HTTP API Gateways, application load balancers, and SQS queues' as resource types supporting config-time alarms. The provided source file (alarms.d.ts) was not available for grounding — this list may be incomplete or wrong. An engineer relying on it to decide which resources to alarm may miss supported types or configure an alarm on an unsupported type.",
+            "Issues section lists only log forwarding as a reason Stacktape skips issue detection for a workload. The Explanations.tsx source explicitly names additional exclusions: user-managed packaging, edge functions, and unsupported languages. An engineer using a custom Dockerfile or edge functions would not know their workload is excluded — a production-relevant omission.",
+            "Issues section omits the configurable percentage-based high-volume sampling knob. Explanations.tsx explicitly describes it: 'At 100%, every matching error event is processed. Lower percentages reduce detector work and Console reports during bursts, but occurrence counts become estimates and rare one-off errors are easier to miss.' This is a meaningful operational control that affects observability accuracy during error bursts.",
+            "Metrics table listing available metrics per resource type (Invocations, Errors, Duration, Throttles, etc.) is not grounded in any provided source file. These are accurate CloudWatch-native facts, but presenting them as a Stacktape documentation table without caveat implies Stacktape enforces or restricts them, which it does not."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Revise the Metrics section's Console paragraph to accurately separate metrics from alarms. If the Console does not have a standalone metrics view distinct from alarm rules, say so explicitly: 'The Console does not have a standalone metrics dashboard — metric visualization in the Console is surfaced through alarm rule configuration.' If it does have a separate metrics view, describe it accurately.",
+            "Expand the Issues section limitations list to include all source-documented exclusions: user-managed packaging, edge functions, and unsupported languages — not only log forwarding. A one-sentence bullet per exclusion is sufficient; engineers using custom Dockerfiles or edge Lambdas must know detection is skipped.",
+            "Add a sentence in the Issues section covering the percentage-based high-volume sampling control, e.g.: 'The Console also exposes a percentage-based sampling knob — at 100% every matching event is processed; lower values reduce load during error bursts at the cost of estimated occurrence counts and potential missed one-off errors.'",
+            "Remove the specific metric name enumeration from the Metrics table or move it to the dedicated /observability/metrics page. Replace with a one-liner like 'CloudWatch provides infrastructure metrics per resource type — see Metrics for the full list per resource.' This avoids presenting unsourced AWS facts as Stacktape-defined configuration.",
+            "Consider caveating the config-time alarms resource type list as 'including' rather than an exhaustive enumeration, or remove it entirely and link to the /observability/alarms page, until the alarms.d.ts source can confirm the complete list. As written, an engineer may conclude unsupported types do not work when in fact they might."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 4,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The page is easy to scan: short H2s, a useful surface-comparison table, and a broad FAQ with Stacktape, AWS-service, and choosing/comparison questions.",
+            "The draft correctly separates many CLI commands from Console surfaces in the overview table and uses the documented `stacktape debug:*` command names.",
+            "The Issues section is relatively well grounded in the provided Console explanation, including CLI v3.8.0 wiring, log-pattern detection, grouping, safety limits, and the subscription-filter tradeoff."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source file. The source only covers Console explanations for issues, channels, notifications, alarm rules/history/state, budgets, and related concepts; it does not substantiate most logs, metrics, CLI flag, supported metric, log forwarding, or external provider details.",
+            "The opening paragraph overgeneralizes that all observability surfaces read from the same CloudWatch data and require no extra infrastructure setup. The provided source supports CloudWatch for alarms/issues-related wiring, but not every listed surface, and issues/log forwarding require explicit enablement or configuration.",
+            "The Logs and Metrics sections contain detailed CLI behavior, flags, metric names, query behavior, and resource support that are not present in the provided source file.",
+            "The Alarms section lists config-time alarm resource support and per-resource `alarms` details without the required `types/stacktape-config/alarms.d.ts` source. The human instruction explicitly requires referencing both config-time definitions and Console alarm pages; the draft only has Console explanation source available.",
+            "The Alert channels section claims specific integration types and required configuration fields for Slack, Microsoft Teams, Email, Discord, and Webhook, but the provided source only says channels deliver to Slack, email, or webhook-like destinations at a high level.",
+            "The Log forwarding section is mostly unsupported by the provided source. Kinesis Data Firehose, S3 backup, supported targets, `logForwarding`, and provider-specific setup are not grounded in the supplied source file.",
+            "The FAQ includes unsupported or too-strong claims, especially “No additional infrastructure setup is required,” “No log data is lost,” custom metrics alarm behavior, Datadog/Highlight.io targets, and Firehose retry/S3 backup details.",
+            "The page has good breadth but thin source-backed decision support. Several sections describe what exists but do not give grounded tradeoffs or clear CLI-vs-Console boundaries from the supplied source."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify every technical claim not grounded in the provided source file, or add the missing authoritative sources. In particular, either supply `src/commands/debug-*`, observability page sources, `types/stacktape-config/alarms.d.ts`, and log-forwarding config sources, or narrow the page to what `console-app/src/Explanations.tsx` actually supports.",
+            "Correct the opening paragraph so it does not claim all observability surfaces use the same CloudWatch data or require no extra setup. Replace it with a narrower source-backed statement that Stacktape Console exposes issues, channels, notification rules, alarm rules, alarm state/history, and alert history, with issues using CloudWatch Logs subscriptions after deployment.",
+            "Revise the Alarms section to explicitly distinguish Console-managed alarm rules from config-time alarms using the actual config-time alarm source. If the config source is unavailable, remove the config-time resource-support list and per-resource `alarms` claims.",
+            "Remove unsupported CLI option details, metric lists, and Logs Insights behavior unless the corresponding CLI source files are provided. Keep only command names if they are sourced elsewhere, or mark the section as linking out rather than documenting behavior.",
+            "Rewrite the Log forwarding and Alert channels sections to match available sources, or add source files proving `logForwarding`, Kinesis Data Firehose, S3 backup behavior, supported targets, and integration field names.",
+            "Fix unsupported FAQ answers by replacing absolute claims with source-grounded wording. Do not state “No log data is lost” or “No additional infrastructure setup is required” unless source files prove those guarantees."
+          ],
+          "optionalImprovements": [
+            "Add a short “Best first step” paragraph near the top: use CLI debug commands for immediate investigation, use Console surfaces for team monitoring and alert routing. Keep the wording grounded in CLI and Console sources.",
+            "Turn the CLI vs Console section into a compact table so readers can compare logs, metrics, alarms, and issues faster.",
+            "Where source files are added, include one copyable example per CLI surface and keep each command in its own fenced block, as the draft already does.",
+            "Consider adding a short “Limitations” section for source-backed constraints: issues are log-pattern based, issue wiring changes on next deployment, and issue detection is skipped for workloads with Stacktape log forwarding configured."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is well structured, but it makes several Stacktape-specific claims that are broader than the provided source supports. The highest-impact problems are overstatements around “no setup,” issue-detection scope, Console alert-channel destinations, and log-forwarding behavior.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No extra infrastructure setup is required; observability tools are available as soon as you deploy.”",
+              "reason": "The provided Console source says Issues must be enabled in the Console and that AWS wiring changes on the next deployment. The blanket statement is too broad for the page’s listed observability surfaces.",
+              "suggestedFix": "Narrow the claim: CloudWatch-backed views are available for deployed stacks, while features such as Issues, alert channels, notifications, alarms, and log forwarding require their own configuration.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console. You can enable all projects, selected projects, and optionally only specific stage names."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "The AWS wiring changes on the next deployment of each matching stage: Stacktape adds or removes CloudWatch Logs subscription filters for supported Stacktape-managed Lambda functions and buildpack containers."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Issues is an error inbox for your deployed workloads” and “Stacktape adds CloudWatch Logs subscription filters to monitored workloads on deployment.”",
+              "reason": "The source narrows issue-detection wiring to supported Stacktape-managed Lambda functions and buildpack containers. The draft’s wording implies all deployed workloads or all monitored workloads can be wired.",
+              "suggestedFix": "Say Issues monitors supported Stacktape-managed Lambda functions and buildpack containers after Issues is enabled and the matching stage is redeployed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Stacktape adds or removes CloudWatch Logs subscription filters for supported Stacktape-managed Lambda functions and buildpack containers."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Channels deliver alerts to destinations such as Slack, email, or a webhook” followed by a config table for Slack, Microsoft Teams, Email, Discord, and Webhook required fields.",
+              "reason": "The provided source only identifies example channel destinations as Slack, email, or webhook. It does not support Microsoft Teams, Discord, or the required inline configuration fields listed in the draft.",
+              "suggestedFix": "Limit the overview page to the sourced examples, or verify Teams, Discord, and per-integration config fields against the alert-channel/config source before keeping the table.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a webhook."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape supports three forwarding targets: Datadog, Highlight.io, Any HTTP endpoint” and “Failed deliveries are backed up to an S3 bucket automatically.”",
+              "reason": "The provided source mentions Stacktape log forwarding only as a reason issue detection may be skipped. It does not identify forwarding targets, Firehose, S3 backup behavior, or delivery guarantees.",
+              "suggestedFix": "Remove provider and delivery-backup specifics from this overview unless the log-forwarding source is included. Keep only the grounded interaction: Stacktape skips issue detection for workloads with Stacktape log forwarding configured.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Console-managed alarm rules can be created across projects/stages and “monitor AWS metrics for your resources,” but does not mention that the underlying CloudWatch alarms and EventBridge routing are applied on the next deployment of each matching project and stage until later in the section.",
+              "reason": "The source explicitly ties Console alarm-rule changes to the next deployment. Because the draft presents Console alarm rules as an immediate monitoring feature in the table and opening paragraph, readers may miss the deployment requirement.",
+              "suggestedFix": "Move the “next deployment” caveat into the first Console-managed alarm-rule paragraph or the observability-surface table.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Specific CLI flag and capability claims for `debug:logs`, `debug:metrics`, `debug:alarms`, and `issues:*`, including `--startTime`, `--filter`, `--query`, `--stat p99`, `--state ALARM`, and `--issueStatus OPEN`.",
+              "reason": "The source list for this verification does not include CLI command source files. These details may be correct, but they are not verifiable from the provided source.",
+              "suggestedFix": "Verify against the relevant `src/commands/debug-*` and issues command sources before publication, or keep the overview at the command-name level and link to the CLI reference pages.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Lambda functions, container workloads, and API Gateways in your stack write to CloudWatch Logs” and the table of exact metrics per resource type.",
+              "reason": "The provided source does not include resource types, CloudWatch metric mappings, or log-group behavior for these resources. These may be AWS/Stacktape facts, but they are not grounded in the supplied source file.",
+              "suggestedFix": "Verify exact supported log and metric surfaces against CLI/resource sources, or phrase the overview more cautiously and defer exact metric lists to `/observability/metrics`.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes Console-managed Issues from raw log viewing and includes the key source-backed caveat that issue detection is log-pattern based.",
+            "The draft correctly states that Issues requires Stacktape CLI v3.8.0 or newer for deploy-time wiring.",
+            "All internal cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The draft uses the required `stacktape debug:logs` command name rather than inventing `stacktape logs`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is too broad for the provided source set. The Console explanations support issues, channels, notifications, alarm rules/history, budget history, alert history, domains, and some alarm state wording, but they do not support most CLI behavior, logs, metrics, log forwarding provider details, or several Stacktape-specific implementation claims. I found 8 issues that should be fixed or narrowed before publication.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“No extra infrastructure setup is required; observability tools are available as soon as you deploy.”",
+              "reason": "This blanket claim is contradicted for Issues: the source says Issues must be enabled in the Console, requires CLI 3.8.0+ for deploy-time wiring, and AWS subscription-filter wiring changes only on the next deployment. The claim also overextends across alert channels, notifications, and log forwarding without source support.",
+              "suggestedFix": "Narrow the opening: say Stacktape exposes observability from deployed AWS resources, while some features require Console setup or configuration. Explicitly mention that Issues requires Console enablement and deploy-time wiring.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console. You can enable all projects, selected projects, and optionally only specific stage names."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Deploy-time issue detection wiring is supported by Stacktape CLI version <b>3.8.0</b> and newer."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "The AWS wiring changes on the next deployment of each matching stage: Stacktape adds or removes CloudWatch Logs subscription filters for supported Stacktape-managed Lambda functions and buildpack containers."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Logs section claims Lambda functions, container workloads, and API Gateways write to CloudWatch Logs; `stacktape debug:logs` supports relative/absolute time ranges, filter patterns, limits, Logs Insights queries, and Console log viewing per stage.",
+              "reason": "No provided source file describes Logs UI behavior or the `debug:logs` command options. The only CloudWatch Logs-related source material is about Issues detection using subscription filters, not general log viewing or CLI query capabilities.",
+              "suggestedFix": "Remove or sharply reduce the Logs section unless CLI source and Console page source are provided. Keep only a cautious cross-link such as “Stacktape has a logs surface; see Logs for command and Console details” if that is acceptable for an overview.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Matching log events are sent to the Stacktape service lambda in your stack, parsed, fingerprinted, and reported back to the Console."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "This also uses one of the two CloudWatch Logs subscription-filter slots on each monitored log group."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Metrics section claims `stacktape debug:metrics` renders sparkline charts, accepts metric/stat/time-range arguments, and lists supported metrics for Lambda, ECS, RDS, and HTTP API Gateway.",
+              "reason": "The provided source does not include the metrics command implementation or a metric catalog. The only metric-related source says Console alarm rules monitor AWS metrics such as Lambda error rates, database CPU usage, or API latency; it does not support the CLI behavior or the full metric table.",
+              "suggestedFix": "Remove the CLI options and metric table unless `src/commands/debug-metrics` and the relevant metric definitions are provided. A source-grounded overview can say Console alarm rules monitor AWS metrics such as Lambda error rates, database CPU usage, or API latency.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Resource types that support config-time alarms: Lambda functions, relational databases, HTTP API Gateways, application load balancers, and SQS queues.”",
+              "reason": "The configured source list does not include `types/stacktape-config/alarms.d.ts`, and the provided Console explanations do not enumerate config-time alarm support by resource type. This is a Stacktape-specific support matrix that needs type-source grounding.",
+              "suggestedFix": "Either provide and verify against `types/stacktape-config/alarms.d.ts`, or remove the resource-type list from this overview and link to the Alarms page for the authoritative list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The Issues section says issue detection wiring changes for “monitored workloads” and later says Stacktape skips issue detection for “workloads with log forwarding configured.”",
+              "reason": "The source scopes deploy-time wiring more narrowly: subscription filters are added or removed for supported Stacktape-managed Lambda functions and buildpack containers. It also says Stacktape skips issue detection for more cases than log forwarding alone: user-managed packaging, edge functions, unsupported languages, and disabled projects or stages.",
+              "suggestedFix": "Use the source’s exact scope: supported Stacktape-managed Lambda functions and buildpack containers. In limitations, list all skip cases from the source instead of only log forwarding.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Stacktape adds or removes CloudWatch Logs subscription filters for supported Stacktape-managed Lambda functions and buildpack containers."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Alert channels section lists exact config integration requirements: Slack `conversationId` + `accessToken`, Teams `webhookUrl`, Email `sender` + `recipient`, Discord `webhookUrl`, Webhook `url` + optional `secret` for HMAC-SHA256 signing.",
+              "reason": "The provided source supports the high-level idea that channels can be Slack, email, or webhook destinations, but it does not define configuration shape, required fields, Discord, Microsoft Teams, or HMAC-SHA256 signing.",
+              "suggestedFix": "Remove the required-configuration table unless the relevant alarm/notification target type source is provided. Keep the source-grounded statement that channels deliver alerts to Slack, email, or a webhook, and link to Alert channels for details.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a webhook."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Log forwarding section claims forwarding uses AWS Kinesis Data Firehose, failed deliveries are backed up to S3 automatically, and Stacktape supports Datadog, Highlight.io, and any HTTP endpoint with specific config types.",
+              "reason": "No provided source file describes log forwarding implementation, provider support, fallback storage, or config shape. The only source-grounded log-forwarding statement is that issue detection is skipped for workloads with Stacktape log forwarding configured because it uses a subscription-filter slot.",
+              "suggestedFix": "Replace the implementation/provider table with a cautious overview or remove the section until log-forwarding source files are available. Keep the subscription-filter conflict only if tied to Issues limitations.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "This also uses one of the two CloudWatch Logs subscription-filter slots on each monitored log group."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The FAQ answer “Do I need to instrument my code to get logs and metrics?” claims infrastructure metrics require no code changes and custom metrics published to CloudWatch can be alarmed on using custom trigger types.",
+              "reason": "The source file does not document custom application metrics, custom trigger types, or alarm support for user-published CloudWatch metrics. This is Stacktape-specific alarm capability, not just general AWS background.",
+              "suggestedFix": "Remove the custom-metric/custom-trigger sentence unless the alarm type source is provided. Keep the general AWS statement separate from Stacktape-specific alarm claims.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes several Console-managed concepts that are directly present in `Explanations.tsx`: Issues, channels, notifications, alarm rules, alarm history, budget history, and unified alert history.",
+            "The Issues description is mostly aligned with the source on grouping by fingerprint/project/stage, supported language patterns, CLI v3.8.0 deploy-time wiring, delayed AWS wiring changes, high-volume protection, and log-pattern limitations.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft has useful structure, but the provided source set only includes Console explanatory text. Because the page makes many CLI, config, metrics, log forwarding, and AWS implementation claims without the corresponding source files, the main risk is unsupported technical detail rather than API completeness. Primary typeName is unknown, so there is no resource API surface to audit for missing properties.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Observability surfaces table claims specific CLI, Console, and Config support for logs, metrics, alarms, issues, alert channels, notifications, alert history, and log forwarding.",
+              "reason": "The only provided source is Console explanatory copy. It supports some Console concepts, but it does not ground the CLI command capabilities, `logForwarding` config property, per-resource `alarms` config property, or the detailed routing matrix. This overview should not present a complete surface matrix unless the relevant CLI, config, and Console source files are included and checked.",
+              "suggestedFix": "Narrow the table to source-backed Console capabilities, or add/check the relevant CLI sources (`src/commands/debug-*`, `src/commands/issues-*`) and config types (`types/stacktape-config/alarms.d.ts`, workload types with `logForwarding`) before keeping the full matrix.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console. You can enable all projects, selected projects, and optionally only specific stage names."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a webhook."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“No extra infrastructure setup is required; observability tools are available as soon as you deploy.”",
+              "reason": "The source explicitly says Issues must be enabled in the Console and that AWS wiring changes on the next deployment. It also says older CLI versions will not add the required CloudWatch Logs subscriptions. The blanket statement makes all observability sound automatic immediately after deploy.",
+              "suggestedFix": "Replace with a narrower statement such as: “Console observability features are available around deployed stages, while features such as Issues require Console enablement and deployment-time wiring. Issue detection wiring requires Stacktape CLI 3.8.0 or newer.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Issues are managed from the Console. You can enable all projects, selected projects, and optionally only specific stage names."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Deploy-time issue detection wiring is supported by Stacktape CLI version 3.8.0 and newer."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "The AWS wiring changes on the next deployment of each matching stage: Stacktape adds or removes CloudWatch Logs subscription filters"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Logs section documents `stacktape debug:logs` options including relative and absolute time ranges, CloudWatch filter patterns, limits, and CloudWatch Logs Insights queries.",
+              "reason": "No CLI source for `debug:logs` is included. The provided Console source does not mention the logs CLI, supported flags, time formats, filter behavior, or Insights query support.",
+              "suggestedFix": "Either remove the option-level CLI detail from this overview or verify it against `src/commands/debug-logs/index.ts`. Keep only the first linked mention of [`stacktape debug:logs`](/cli/debug-logs) if the overview source set cannot ground the flags.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Shows the current state of all CloudWatch alarms across your connected AWS accounts."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Metrics section lists exact supported metrics for Lambda functions, ECS container workloads, RDS, and HTTP API Gateway.",
+              "reason": "The provided source only says Console alarm rules can monitor example metrics such as Lambda error rates, database CPU usage, or API latency. It does not ground the exact metric inventory or the CLI `debug:metrics` options and statistic values.",
+              "suggestedFix": "Replace the metric table with the source-backed examples, or verify exact metric names and supported statistics from the `debug:metrics` command source and any metric registry source before publishing the table.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API latency."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Resource types that support config-time alarms: Lambda functions, relational databases, HTTP API Gateways, application load balancers, and SQS queues.”",
+              "reason": "The provided source does not include `types/stacktape-config/alarms.d.ts`, even though the section instructions require config-time alarm claims to reference it. The Console source supports Console alarm rules and CloudWatch alarm state views, but not which resource types expose a config-time `alarms` property.",
+              "suggestedFix": "Verify the exact resource support list against `types/stacktape-config/alarms.d.ts` and the relevant resource prop types, then state the list with that source backing. If those sources are unavailable, remove the resource-type list from this draft.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Channels deliver alerts to destinations such as Slack, email, or a webhook. The notification integration types supported in your Stacktape configuration are: Slack, Microsoft Teams, Email, Discord, Webhook.”",
+              "reason": "The source only names Slack, email, and webhook as examples of Console channels. It does not support Microsoft Teams, Discord, inline configuration requirements, or the phrase “supported in your Stacktape configuration.”",
+              "suggestedFix": "Limit the overview to source-backed channel examples: Slack, email, and webhook. Move Teams, Discord, and per-integration required fields to the alert-channel page only if supported by configuration or Console source files.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a webhook."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Log forwarding section claims Stacktape supports `datadog`, `highlight`, and `http-endpoint` targets, uses Kinesis Data Firehose, and backs failed deliveries up to S3 automatically.",
+              "reason": "The provided source mentions log forwarding only as a reason issue detection can be skipped for workloads. It does not include the log forwarding config type, provider variants, Kinesis Data Firehose implementation, or S3 backup behavior.",
+              "suggestedFix": "Keep only the source-backed interaction with Issues in this overview, or verify provider variants and delivery behavior from the workload config types and log-forwarding implementation before documenting them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "This also uses one of the two CloudWatch Logs subscription-filter slots on each monitored log group."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Issues section says log forwarding disables issue detection for a workload, but omits other skip conditions listed in the source.",
+              "reason": "The source says Stacktape skips issue detection not only for workloads with Stacktape log forwarding configured, but also for user-managed packaging, edge functions, unsupported languages, and disabled projects or stages. Omitting those caveats makes the Issues limitations incomplete.",
+              "suggestedFix": "Add the full source-backed skip list: Stacktape skips issue detection on the next deployment for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly separates CLI debug commands from Console-managed workflows in several sections instead of treating them as the same interface.",
+            "The Issues section is substantially grounded in the provided Console source, including CLI version 3.8.0, deployment-time subscription wiring, pattern-based detection, grouping by fingerprint/project/stage, and high-volume safety limits.",
+            "The Alarms section correctly captures the Console rule lifecycle: rules are saved in the Console, while CloudWatch Alarms and EventBridge notification routing are created, updated, or removed on the next matching deployment.",
+            "The page follows the required command-copy rule: each shell code block contains a single command with no explanatory comments inside the block."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\overview.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 6.9, hard blockers 5, advisory high 3, verifier medium 13"
+}

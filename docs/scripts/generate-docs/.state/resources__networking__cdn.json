@@ -1,0 +1,1279 @@
+{
+  "pageId": "resources__networking__cdn",
+  "pageRoute": "resources/networking/cdn",
+  "startedAt": "2026-05-15T21:06:27.893Z",
+  "updatedAt": "2026-05-16T10:13:17.924Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__cdn\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive coverage of every CDN configuration area from the source types — caching, forwarding, route rewrites, edge functions, custom domains, price class, firewall, cache invalidation, and default documents are all addressed with grounded content.",
+            "Every H2 section includes a working, realistic code example with correct focus markers and TypeScript label — reader can copy and ship without guessing.",
+            "Strong decision support throughout: each opt-in section explains when to enable it, when to skip it, and what the tradeoff is (cost, complexity, edge cases).",
+            "The route rewrites origin-type table (bucket, http-api-gateway, application-load-balancer, function, custom-origin) and the edge functions hook-point table are correctly derived from source types and give the reader exactly the lookup they need.",
+            "Warning callout about the Authorization header requiring `cacheKeyParameters` forwarding (not just `forwardingOptions`) is source-grounded and practically important — a common gotcha.",
+            "Warning about `onOriginRequest` being used internally by Stacktape matches the JSDoc exactly and prevents readers from breaking their own CDN setup.",
+            "H2 ordering and noun-form heading style match the example page exactly. Shared sections (When to use, When NOT to use, Basic example, Custom domains, Referenceable parameters, API Reference, FAQ) appear in the same relative order.",
+            "FAQ has exactly 10 Q&A pairs spanning all three required categories: Stacktape-specific, AWS use-case, and choosing/comparison questions.",
+            "Opening paragraph is self-contained, 40–60 words, and includes a pricing line sourced from the JSDoc — matches example page's opening rhythm.",
+            "Tip and Warning callouts are used only where the source justifies them, matching the example page's MDX component palette for those callout types."
+          ],
+          "problems": [
+            "MDX component palette drift: the example page uses `<ReferenceableParams resource=\"http-api-gateway\" />` in its referenceable parameters section; this CDN page replaces it with a hand-authored markdown table. This is a palette drift violation per the review rules — penalize scannability by 1.",
+            "The 'Default documents' section mixes two logically separate concerns: `indexDocument`/`errorDocument` (only meaningful for bucket-backed CDN distributions) and `defaultRoutePrefix` (applies to all origin types). The prose does not clarify which properties are bucket-specific vs universal, which could mislead readers attaching CDN to an API gateway.",
+            "The basic example shows an HTTP API Gateway as the parent resource. For CDN documentation, a bucket-backed SPA is arguably the most common use case (and the one with meaningful default caching behavior). Using an API gateway obscures the caching defaults that differ by origin type.",
+            "The intro pricing line ('~$0.01 per 10,000 requests') and the FAQ pricing line ('~$0.0075–$0.016 per 10,000 requests') are inconsistent — the intro gives a flat figure while the FAQ correctly uses a range. Both are within what the source supports but the difference can confuse readers who read both."
+          ],
+          "mandatoryFixes": [
+            "Replace the hand-authored markdown table in 'Referenceable parameters' with `<ReferenceableParams resource=\"cdn\" />` to match the MDX component palette used in the example page. If 'cdn' is not a valid resource identifier for the component (since CDN is a sub-property rather than a top-level resource type), investigate the correct resource string — but do not silently fall back to a manual table without confirming the component cannot support this page. Palette drift rule applies regardless of workaround."
+          ],
+          "optionalImprovements": [
+            "Clarify in 'Default documents' that `indexDocument` and `errorDocument` apply specifically to bucket-backed CDN distributions, not to API Gateway or ALB origins — the prose currently implies they are universal CDN settings.",
+            "Consider showing a bucket-backed CDN example in 'Basic example' (or as a second code block) since static site/SPA hosting is the most common reason teams add CDN. The API Gateway example is valid but the bucket origin shows the meaningful default caching behavior difference upfront.",
+            "Unify the pricing representation: use the same format (range or approximate) in both the opening paragraph and the FAQ answer about CloudFront cost. '~$0.01/10k' in the intro and '$0.0075–$0.016/10k' in the FAQ are both source-defensible but create a perception mismatch.",
+            "The 'Forwarding' section's `allowedMethods` prose does not explicitly state the default ('all methods' per the JSDoc). Adding a one-line clarification ('By default, all methods are forwarded to the origin') would remove ambiguity for readers who want to know what they get without configuring this property.",
+            "The 'Cache invalidation' section is thin — it describes the toggle (`disableInvalidationAfterDeploy`) and a tip about content-hashed filenames, but doesn't mention that CloudFront propagates invalidations globally over roughly 60 seconds. Adding that timing note would complete the mental model readers need for production deploys."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All source-grounded facts are accurate — caching defaults (6 months for bucket, uncached for API/ALB), price class options, forwarding strategies, edge function hook names and restrictions, and all six CdnReferenceableParam values match the type definitions exactly.",
+            "Consistent noun-form H2s, ApiReference at the bottom, Tip/Warning callout usage, and frontmatter shape all match the example page's conventions.",
+            "Every opt-in section (caching, route rewrites, forwarding, edge functions, firewall, price class, cache invalidation) provides explicit when-to-enable and when-to-skip guidance — this is the correct guide-not-recipe treatment.",
+            "The route rewrites section covers all five origin types (bucket, http-api-gateway, application-load-balancer, function, custom-origin) with a clear table, matching the union variants in the source.",
+            "The Authorization header caveat in the Forwarding section is a genuine production gotcha that is correctly sourced from the JSDoc and surfaced prominently with a Warning callout.",
+            "The onOriginRequest warning accurately reflects the source JSDoc ('Stacktape uses this trigger internally') and prevents a real misconfiguration.",
+            "FAQ questions span all three required categories: Stacktape-specific, AWS use-case, and comparison/choosing questions."
+          ],
+          "problems": [
+            "All code examples use HttpApiGateway as the parent resource, including the 'Default documents' section (indexDocument, errorDocument) — but those properties are only meaningful for bucket-backed CDN distributions. Showing these settings on an HttpApiGateway example is misleading and produces a confusing experience for the most common CDN use case (static site / SPA hosting from a bucket).",
+            "The page never shows a Bucket-backed CDN example, despite bucket being the primary CDN use case (described first in 'When to use' as static sites and SPAs). Users deploying a static site must mentally translate every example from HttpApiGateway to Bucket.",
+            "Referenceable parameters are documented via a hand-authored markdown table instead of the <ReferenceableParams /> component the example page uses. While CDN is a sub-property and resource=\"cdn\" may not work, the deviation from the example's MDX component palette should be noted and evaluated.",
+            "The cache key section says 'for headers: none or whitelist' without mentioning that ForwardHeaders has allViewer, allViewerAndWhitelistCloudFront, and allExcept options — these are separate from the cache key (CacheKeyHeaders which genuinely is only none/whitelist), but the prose conflates cache-key options with forwarding options in a way that may confuse readers.",
+            "The 'Default documents' H2 section blurs two distinct concepts: indexDocument/errorDocument (which only apply to bucket origins) and defaultRoutePrefix (which applies to all origins). Mixing these under one section title is confusing since they have different scopes."
+          ],
+          "mandatoryFixes": [
+            "Replace the 'Default documents' section's HttpApiGateway code example with a Bucket example that actually demonstrates indexDocument and errorDocument in a meaningful context, since these properties serve no purpose on an API gateway origin. Consider splitting defaultRoutePrefix into a separate paragraph or note rather than grouping it with bucket-only document defaults.",
+            "Add at least one Bucket-backed CDN code example early in the page (in or immediately after the Basic example section). The opening paragraph and 'When to use' section both lead with static sites as the primary use case, but every example uses HttpApiGateway. This gap will actively confuse the majority of CDN users."
+          ],
+          "optionalImprovements": [
+            "Consider using <ReferenceableParams resource=\"http-api-gateway\" /> (or a note explaining that CDN params appear in the parent resource's referenceable params) rather than a hand-authored table — this would match the example page's component palette and keep CDN param documentation in sync with schema changes automatically.",
+            "The 'Cache key' subsection accurately states that for CacheKeyHeaders the options are none or whitelist. Consider adding a one-sentence callout that more forwarding strategies (allViewer, allExcept, allViewerAndWhitelistCloudFront) exist at the forwarding level but not at the cache-key level, to prevent confusion between the two related-but-distinct concepts.",
+            "The Basic example section mentions 'Buckets get additional CDN options like rewriteRoutesForSinglePageApp for SPA hosting' — this property is not visible in the provided source files (cdn.d.ts). Verify it exists in the Bucket type before keeping this claim, or remove it to avoid an unsupported assertion.",
+            "The 'Forwarding' section's code block has a trailing newline before the closing backtick, making it visually inconsistent with the other code blocks on the page (minor cosmetic issue).",
+            "The FAQ answer for 'How fast does CloudFront propagate changes?' says 'typically complete within 60 seconds' for invalidations — this is an AWS-side claim that is accurate as a general AWS fact but could be softened to 'usually within 60 seconds, though global propagation can take a few minutes' to acknowledge real-world variance without overstating precision."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is exactly the right length (~70 words), self-contained, and answers 'what is this and why does it matter' — including pricing context from source in one sentence.",
+            "All 5 route rewrite origin types (bucket, http-api-gateway, application-load-balancer, function, custom-origin) are enumerated in a scannable table, satisfying union-type coverage discipline.",
+            "Decision support is present in every opt-in section (When to enable / When to skip with concrete tradeoff signals) — Caching, Firewall, Price class, Cache invalidation all follow this pattern.",
+            "Code examples are complete, realistic, and copy-paste ready — focus markers are consistent, imports are hidden correctly, no placeholder values.",
+            "FAQ has exactly 10 questions mixing Stacktape-specific ('What happens to the CDN cache when I deploy?'), AWS use-case ('How fast does CloudFront propagate changes?'), and choosing/comparison questions ('When should I add a CDN to my API?').",
+            "Cache key section clearly distinguishes include-in-cache-key from forward-to-origin behavior, and the Tip callout ('keep the cache key as narrow as possible') is actionable and opinionated.",
+            "The Warning about Authorization header forwarding requiring cacheKeyParameters is source-grounded and would prevent a real production bug.",
+            "Noun-form H2s throughout, consistent with the example page heading style. H2 ordering follows the example (When to use → When NOT to use → Basic example → resource-specific sections → Referenceable parameters → API Reference → FAQ)."
+          ],
+          "problems": [
+            "Component palette drift (mandatory): The 'Referenceable parameters' section uses a hand-written markdown table instead of the `<ReferenceableParams resource='cdn' />` component that the example page uses. This is an explicit MDX component palette drift violation — the example uses `<ReferenceableParams>` and this page does not.",
+            "The 'Default documents' section partially re-explains `defaultRoutePrefix` (already covered in 'Route rewrites') without adding new information. The duplication reduces scannability and weakens the section's standalone value.",
+            "The FAQ answer for CloudFront cost cites a more specific per-request price range ('~$0.0075–$0.016 per 10,000 requests') than what appears in the provided source file, which only states '~$0.01/10k'. For FAQ answers about well-known AWS facts this is permissible per the instructions, but reviewers may flag it as an invented number — the source-grounded figure ('~$0.01 per 10,000 requests') is safer.",
+            "The 'Referenceable parameters' section opens with 'CDN parameters are accessed through the parent resource name using `$ResourceParam()`' — this is a correct and useful clarification, but describing `cdnCustomDomains` as 'Comma-separated list' is an inference not explicitly stated in the source type definition."
+          ],
+          "mandatoryFixes": [
+            "Component palette drift — Replace the hand-written markdown table in the 'Referenceable parameters' section with `<ReferenceableParams resource='cdn' />` to match the example page's pattern. The current table is accurate but using the component ensures consistency across all pages in the section and is a required match per the example-guided mode rules."
+          ],
+          "optionalImprovements": [
+            "'Default documents' section: remove the second explanation of `defaultRoutePrefix` (it was already documented with an example in the 'Route rewrites' section). Instead, tighten the section to cover only `indexDocument` and `errorDocument`, then add a cross-link to Route rewrites for the prefix behavior.",
+            "FAQ Q1 (CloudFront cost): replace the invented price range '$0.0075–$0.016' with the source-grounded '~$0.01 per 10,000 requests' to stay strictly within what the source supports.",
+            "Consider adding a `<FeatureComparisonTable>` for the 'When NOT to use' section comparing 'CDN enabled' vs 'Direct endpoint' across dimensions like cost, latency, complexity, and suitability for dynamic vs static content — the example page uses this component for a similar trade-off comparison.",
+            "The 'Forwarding' section's prose is thorough but the list of `ForwardHeaders` strategies (none, whitelist, allViewer, allViewerAndWhitelistCloudFront, allExcept) could be presented as a small table rather than an inline sentence — this would make it easier to scan and would align with the page's preference for tables over prose for enumerated options."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The ApiReference uses `definitionName=\"CdnConfiguration\"` which is the base type, but bucket-backed CDN uses `BucketCdnConfiguration` (adds `rewriteRoutesForSinglePageApp`, `disableUrlNormalization`) and ALB-backed CDN uses `ApplicationLoadBalancerCdnConfiguration` (adds `listenerPort`, `originDomainName`). The API reference will not show these resource-specific properties.",
+              "reason": "The page mentions these extended properties in prose (e.g., 'Buckets get additional CDN options like rewriteRoutesForSinglePageApp') but the ApiReference component pointing at the base CdnConfiguration will not expose them. Readers looking up these properties in the reference will not find them.",
+              "suggestedFix": "Add a note near the ApiReference that bucket-attached CDN and ALB-attached CDN expose additional properties beyond the base configuration, and link to the respective resource pages (/resources/storage/s3-bucket, /resources/networking/application-load-balancer) for those extended properties.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "interface BucketCdnConfiguration extends CdnConfiguration {\n  rewriteRoutesForSinglePageApp?: boolean;\n  disableUrlNormalization?: boolean;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\application-load-balancers.d.ts",
+                  "quote": "interface ApplicationLoadBalancerCdnConfiguration extends CdnConfiguration {\n  listenerPort?: number;\n  originDomainName?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Firewall section introduces the opt-in feature but lacks cost/tradeoff signal. It says 'When to enable' and 'When to skip' but doesn't mention WAF pricing (per-rule, per-request charges) which is important for the reader's decision.",
+              "reason": "The documentation-quality rules require opt-in feature sections to include a cost/tradeoff signal. WAF adds per-web-ACL and per-rule monthly fees plus per-request charges — this is a significant cost factor that affects the reader's decision to enable it.",
+              "suggestedFix": "Add a brief cost context sentence, e.g., 'AWS WAF charges a monthly fee per web ACL and per rule, plus per-request inspection charges — budget for this in production.' This is general AWS knowledge and doesn't require strict source grounding.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "useFirewall?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Custom domains section doesn't mention that CloudFront custom domain certificates must be in the us-east-1 region, which is a well-known AWS requirement that catches users off guard.",
+              "reason": "CloudFront requires ACM certificates to be in us-east-1 regardless of the origin's region. This is a common pitfall when users provide a customCertificateArn from another region. Since the page documents the customCertificateArn option, this caveat is important for readers using that feature.",
+              "suggestedFix": "Add a note: 'If you provide a `customCertificateArn`, the ACM certificate must be in the `us-east-1` region — this is an AWS CloudFront requirement regardless of where your origin resources are deployed.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "customCertificateArn?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The Edge functions section warns that 'Stacktape uses onOriginRequest internally for bucket, web service, and API Gateway CDN setups' but the Warning component does not mention that onOriginResponse may also have internal usage implications.",
+              "reason": "The source JSDoc for onOriginRequest explicitly warns about internal usage. The onOriginResponse JSDoc says 'Modify the response before it's cached and returned. Changes are cached as if they came from the origin.' — no internal usage warning. The draft's warning accurately reflects the source, so this is a minor improvement suggestion rather than an error.",
+              "suggestedFix": "No change needed — the warning correctly reflects the source. This is informational only.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "Warning: Stacktape uses this trigger internally for bucket/web-service/API Gateway CDN setups. Overriding it may break default behavior. Only use if you know what you're doing."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The Default documents section says 'For bucket-backed CDN distributions, the indexDocument and errorDocument properties control which files are served' but these properties exist on the base CdnConfiguration interface, available to all CDN-attachable resources, not just buckets.",
+              "reason": "The source shows indexDocument and errorDocument on CdnConfiguration (the base interface), not on BucketCdnConfiguration. While these properties likely only have practical effect for bucket origins, the draft's framing as 'bucket-backed CDN distributions' implies they don't apply to other resource types at the type level.",
+              "suggestedFix": "Soften the framing: 'The indexDocument and errorDocument properties are most relevant for bucket-backed CDN distributions, where they control which files are served for root requests and 404 errors.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "indexDocument?: string;\n  /**\n   * #### Page served for requests to `/`.\n   * @default /index.html\n   */"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All four CDN-attachable resource types (bucket, http-api-gateway, application-load-balancer, function) correctly enumerated, matching StpCdnAttachableResourceType in the source.",
+            "All five route rewrite origin types documented with a clear comparison table, matching the CdnRouteRewrite union type exactly.",
+            "All four edge function hooks (onRequest, onResponse, onOriginRequest, onOriginResponse) accurately documented with correct behavioral descriptions matching the source JSDoc.",
+            "Price class values and default (PriceClass_All) match the source union type and @default annotation exactly.",
+            "All six referenceable parameters (cdnDomain, cdnUrl, cdnCustomDomains, cdnCustomDomainUrls, cdnCanonicalDomain, cdnCanonicalUrl) match CdnReferenceableParam type exactly.",
+            "Cache key and forwarding option variants (cookies: none/whitelist/allExcept/all; headers: none/whitelist; queryString: none/all/whitelist) accurately reflect the source interfaces.",
+            "The Authorization header forwarding caveat correctly reflects the source JSDoc on ForwardHeaders.",
+            "Default caching behavior per origin type (bucket: 6 months, API/ALB: not cached) matches source JSDoc on CdnCachingOptions exactly.",
+            "disableInvalidationAfterDeploy default (false) and disableCompression default (false) correctly stated per source @default annotations.",
+            "All cross-links point to valid routes in the documentation navigation index. No invented URLs found.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections, following heading hierarchy discipline.",
+            "FAQ contains exactly 10 Q&A pairs spanning all three required categories (Stacktape-specific, AWS service, and choosing/comparison).",
+            "Code examples use correct class names (HttpApiGateway, Bucket, EdgeLambdaFunction, StacktapeLambdaBuildpackPackaging) and proper CodeBlock format with intellisense and TypeScript tab labels."
+          ],
+          "summary": "The CDN draft page is factually well-grounded. All Stacktape-specific claims about CDN properties, defaults, supported resource types, route rewrite origins, edge function hooks, price classes, and referenceable parameters match the source types exactly. No invented properties or incorrect defaults were found. The five issues raised are medium-to-low severity: (1) the ApiReference pointing at the base CdnConfiguration won't surface bucket-specific or ALB-specific extended properties, (2) the Firewall opt-in section lacks cost/tradeoff context, (3) the custom domains section should note the us-east-1 certificate requirement, (4-5) minor framing improvements. No high-severity factual errors were identified."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CDN types, but several claims overstate what the source supports or introduce AWS/Stacktape behavior not present in the source. The most important fixes are to narrow WebSocket/HTTP claims, remove or qualify unsupported custom-domain and propagation details, fix the route rewrite example property names, and avoid claiming ALB top-level CDN options that only appear on route rewrite origins.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "In the route rewrite example, the draft creates `const assets = new Bucket({})` but routes to `properties: { bucketName: 'assets' }`.",
+              "reason": "The source defines `bucketName` as the name of the `bucket` resource. The example's resource name is `assets`, but the string value is manually written and could be a valid name. This becomes a concrete bug only if the code-block validator expects the property to reference the resource key; still, the example is fragile because readers may think the string is arbitrary. Use the same name explicitly and explain it, or name the variable/resource `assetsBucket` and use `bucketName: 'assetsBucket'`.",
+              "suggestedFix": "Keep the returned resource key and route target string identical, for example `return { resources: { assetsBucket, myApi } }` and `bucketName: 'assetsBucket'`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "interface CdnBucketOrigin {\n  /**\n   * #### Name of the `bucket` resource to route to.\n   */\n  bucketName: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“ALBs get optional `listenerPort` and `originDomainName` properties for custom listener setups.”",
+              "reason": "The provided CDN source only shows `listenerPort` and `originDomainName` inside `CdnLoadBalancerOrigin`, which is the `routeTo` shape for route rewrites. The draft presents them as additional CDN options for ALBs generally, which could mislead readers into looking for these properties on top-level `cdn` configuration.",
+              "suggestedFix": "Narrow the statement to route rewrites: “When a route rewrite targets an Application Load Balancer, the `application-load-balancer` origin can include `listenerPort` and `originDomainName` for custom listener or origin-domain setups.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "interface CdnLoadBalancerRoute {\n  type: 'application-load-balancer';\n  properties: CdnLoadBalancerOrigin;\n}\n\ninterface CdnLoadBalancerOrigin {\n  /**\n   * #### Name of the `application-load-balancer` resource to route to.\n   */\n  loadBalancerName: string;\n  /**\n   * #### Listener port on the load balancer. Only needed if using custom listeners.\n   */\n  listenerPort?: number;\n  /**\n   * #### Explicit origin domain. Only needed if the ALB has no `customDomains` and uses `customCertificateArns`.\n   */\n  originDomainName?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“WebSocket or streaming connections — CloudFront handles HTTP request-response only.”",
+              "reason": "The CDN source does not state that Stacktape CDN is HTTP-only or unsupported for WebSocket/streaming. The claim is also too broad as general AWS wording. Because this section tells readers not to use the feature, it should be grounded or narrowed.",
+              "suggestedFix": "Replace with a narrower, source-grounded caution such as: “For traffic that should not be cached or transformed at the edge, use the direct Application Load Balancer or API Gateway endpoint unless you specifically need CloudFront behavior.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "interface CdnConfiguration {\n  /**\n   * #### Enable CDN (CloudFront) for faster global delivery and lower bandwidth costs.\n   *\n   * ---\n   *\n   * Caches responses at edge locations worldwide so users get content from the nearest server."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape can attach your own domain… Stacktape automatically provisions a free TLS certificate and creates a DNS record in Route53.” and “Each domain gets its own certificate, managed and auto-renewed by AWS.”",
+              "reason": "The source supports automatic DNS records and TLS certificates, and supports `customCertificateArn` and `disableDnsRecordCreation`. It does not support the draft's stronger claim that each domain gets its own certificate or that certificates are auto-renewed by AWS.",
+              "suggestedFix": "Keep the supported behavior: “Stacktape automatically creates DNS records and provisions a free TLS certificate unless you provide `customCertificateArn` or disable DNS record creation.” Remove “each domain gets its own certificate” and “auto-renewed” unless another source provides it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface DomainConfiguration {\n  /**\n   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).\n   *\n   * ---\n   *\n   * Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it.\n   *\n   * Stacktape automatically creates a DNS record and provisions a free TLS certificate.\n   */\n  domainName: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "By default, Stacktape provisions and renews free certificates automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The firewall protects the CDN from common web exploits, provides rate limiting, IP filtering, geo-blocking, and bot protection.”",
+              "reason": "The CDN source only says `useFirewall` names a `web-app-firewall` resource to protect the CDN from common web exploits. The specific capabilities listed may be true for WAF generally, but they are not present in the provided source files for this page.",
+              "suggestedFix": "Limit this page to the grounded attachment behavior and link to the WAF page: “`useFirewall` names a `web-app-firewall` resource that protects the CDN from common web exploits. Configure rules on the firewall resource itself.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "  /**\n   * #### Name of a `web-app-firewall` resource to protect this CDN from common web exploits.\n   */\n  useFirewall?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CloudFront cache invalidations typically complete within 60 seconds… New CloudFront distributions can take 5–15 minutes to deploy…”",
+              "reason": "These timing numbers are not present in the provided source files. They are general AWS operational guidance, but the draft presents them as concrete timing expectations. Since the page requirements say numbers should come from source unless general FAQ knowledge is clearly allowed, these exact timings should be removed or softened.",
+              "suggestedFix": "Use non-numeric wording unless a source is provided: “Cache invalidations and distribution changes are asynchronous and can take time to propagate globally.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "  /**\n   * #### Skip clearing the CDN cache after each deploy.\n   *\n   * ---\n   *\n   * By default, all cached content is flushed on every deploy so users see the latest version.\n   * Set to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.\n   *\n   * @default false\n   */\n  disableInvalidationAfterDeploy?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“For bucket origins, responses are cached for 6 months and invalidated automatically on each deploy.”",
+              "reason": "The source says bucket origins are cached for 6 months when the origin response has no `Cache-Control` header. The draft says this correctly in one bullet, but the later sentence omits the “when no Cache-Control header is present” condition and may overstate the default.",
+              "suggestedFix": "Add the condition wherever the statement is repeated: “For bucket origins with no `Cache-Control` header, responses are cached for 6 months and invalidated automatically on deploy.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“If you use content-hashed filenames… disabling automatic invalidation is safe.”",
+              "reason": "The source supports disabling invalidation when you manage cache invalidation yourself or want cached content between deploys, but it does not specifically guarantee safety for content-hashed filenames. This is reasonable guidance, but the wording is absolute.",
+              "suggestedFix": "Soften to: “If all cacheable assets use content-hashed filenames and HTML is handled separately, disabling automatic invalidation is usually a good fit.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `defineConfig` class-based Stacktape examples inside `<CodeBlock intellisense>` with the required `label: 'TypeScript'` and does not hand-author YAML config examples.",
+            "The page correctly identifies CDN as a `cdn` property attached to supported resources rather than a standalone Stacktape resource.",
+            "The draft correctly documents the supported CDN route rewrite origin variants from the source: bucket, HTTP API Gateway, Application Load Balancer, Lambda function, and custom origin.",
+            "The referenceable parameter table matches the `CdnReferenceableParam` union in the source.",
+            "The API reference uses `CdnConfiguration`, matching the interface name present in the provided CDN type source."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly complete for `CdnConfiguration`: it covers every top-level property, acknowledges the important union variants for route origins, cache key strategies, forwarding strategies, edge hooks, and price classes, and uses exactly one `ApiReference` with the correct `definitionName`. I found two medium issues, both around examples that could mislead readers or fail the practical documentation standard.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The \"Firewall\" example sets `useFirewall: 'myFirewall'` but does not define a `web-app-firewall` resource named `myFirewall`.",
+              "reason": "The section says `useFirewall` references a firewall resource defined in the stack, but the example only creates an `HttpApiGateway`. As a feature example, it should demonstrate the referenced resource so the reader sees the complete shape needed to use the property.",
+              "suggestedFix": "Import and instantiate `WebAppFirewall`, then return it with the API resource. For example, create `const myFirewall = new WebAppFirewall({ scope: 'cdn', ... })` if the available WAF source for this page supports those props, or otherwise keep the example minimal but explicitly state that the firewall resource must be defined elsewhere and link to the WAF page.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/cdn.d.ts",
+                  "quote": "useFirewall?: string;"
+                },
+                {
+                  "file": "types/stacktape-config/cdn.d.ts",
+                  "quote": "Name of a `web-app-firewall` resource to protect this CDN from common web exploits."
+                },
+                {
+                  "file": "Draft page / Firewall",
+                  "quote": "const myApi = new HttpApiGateway({\n    cdn: {\n      enabled: true,\n      useFirewall: 'myFirewall'\n    }\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The \"Route rewrites\" example routes to a bucket with `properties: { bucketName: 'assets' }`, but the prose does not explain that `bucketName` must be the Stacktape resource name of a bucket, not necessarily an AWS S3 bucket name.",
+              "reason": "The source defines `bucketName` as the name of the `bucket` resource to route to. Because the example also names the resource `assets`, it is correct, but readers may interpret `bucketName` as a physical S3 bucket name. This is an important distinction for a common multi-origin CDN pattern.",
+              "suggestedFix": "Add one sentence after the example: \"In `routeTo.properties`, `bucketName`, `httpApiGatewayName`, `loadBalancerName`, and `functionName` refer to Stacktape resource names in `resources`, not generated AWS physical names.\"",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/cdn.d.ts",
+                  "quote": "Name of the `bucket` resource to route to."
+                },
+                {
+                  "file": "types/stacktape-config/cdn.d.ts",
+                  "quote": "Name of the `http-api-gateway` resource to route to."
+                },
+                {
+                  "file": "types/stacktape-config/cdn.d.ts",
+                  "quote": "Name of the `application-load-balancer` resource to route to."
+                },
+                {
+                  "file": "types/stacktape-config/cdn.d.ts",
+                  "quote": "Name of the `function` resource to route to. The function must have `url.enabled: true`."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Every top-level `CdnConfiguration` property is mentioned in the draft: `enabled`, `cachingOptions`, `forwardingOptions`, `routeRewrites`, `customDomains`, `edgeFunctions`, `cloudfrontPriceClass`, `defaultRoutePrefix`, `errorDocument`, `indexDocument`, `disableInvalidationAfterDeploy`, and `useFirewall`.",
+            "The draft acknowledges all route rewrite origin variants from the union: `bucket`, `http-api-gateway`, `application-load-balancer`, `function`, and `custom-origin`.",
+            "The draft covers the important nested unions for cache key cookies, headers, query strings, forwarding cookies, forwarding headers, forwarding query strings, cache methods, allowed methods, edge hook points, custom-origin protocol, and CloudFront price class.",
+            "Most `<CodeBlock intellisense>` examples are demonstrative: caching examples set `cachingOptions`, forwarding sets `forwardingOptions`, custom domains set `customDomains`, edge functions set `edgeFunctions`, price class sets `cloudfrontPriceClass`, and cache invalidation sets `disableInvalidationAfterDeploy`.",
+            "The page includes exactly one `<ApiReference definitionName=\"CdnConfiguration\" />`, matching the primary `typeName` in the metadata."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__cdn\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive source-grounded coverage of all CDN configuration areas — caching, forwarding, route rewrites, edge functions, price class, firewall, custom domains, and cache invalidation are all present with working examples.",
+            "Each opt-in feature section contains explicit decision support: concrete 'when to enable' and 'when to skip' guidance, plus a cost or tradeoff signal. This meets the documentation-quality guide requirement rather than just being a config reference.",
+            "Route rewrites section enumerates all five origin types in a table (bucket, http-api-gateway, application-load-balancer, function, custom-origin), satisfying the union-type coverage discipline.",
+            "Edge functions table with four hook points (onRequest, onResponse, onOriginRequest, onOriginResponse) is well-structured and explains both use cases and the internal-use warning for onOriginRequest.",
+            "Warning callouts are placed precisely where they matter: Authorization header forwarding constraint, onOriginRequest internal-use risk, and ACM certificate us-east-1 region requirement are all non-obvious gotchas that the reader needs.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service use-case, and choosing/comparison) with concrete, actionable 2-4 sentence answers.",
+            "Price class comparison table is a good AEO-friendly addition; it is denser than prose and immediately answers the reader's regional cost question."
+          ],
+          "problems": [
+            "The 'Default documents' section title is misleading. The section covers `indexDocument` and `errorDocument` (document concerns) but also `defaultRoutePrefix` (a routing transformation). The writer explicitly acknowledges 'The `defaultRoutePrefix` property is separate from document defaults' — then explains it there anyway. A reader looking for how to apply a global path prefix would search 'Route rewrites', not 'Default documents', and miss it.",
+            "The example page uses `<ReferenceableParams resource=\"http-api-gateway\" />` in its counterpart section, but the CDN page uses a manual bullet list of parameter names. This is a component palette drift. The justification — CDN is a sub-property, not a standalone resource — may be valid, but it needs explicit acknowledgment that no component equivalent exists for CDN parameters.",
+            "An `<Info>` callout is placed directly before `<ApiReference>`. The example page does not use any callout immediately adjacent to its `<ApiReference>` block. This is a minor palette deviation. The callout content is useful (explaining that bucket and ALB CDN configs have additional properties), but it could be absorbed into a final prose paragraph or the section header."
+          ],
+          "mandatoryFixes": [
+            "Fix the 'Default documents' section: `defaultRoutePrefix` is a routing transformation, not a document default. Either (a) rename the section to 'Document and routing defaults' and open with a sentence distinguishing the two concerns, or (b) move the `defaultRoutePrefix` paragraph into the Route rewrites section where it belongs conceptually — immediately following the per-route `routePrefix` explanation, with a clear note that `defaultRoutePrefix` is the top-level equivalent applied to all unmatched requests."
+          ],
+          "optionalImprovements": [
+            "Verify whether `<ReferenceableParams>` supports CDN sub-property params (e.g., `<ReferenceableParams resource=\"cdn\" />`). If it does, replace the manual bullet list to align with the example's palette. If it does not, add a one-sentence note explaining why the manual list is used, so future maintainers don't flag it as an oversight.",
+            "Remove or relocate the `<Info>` callout before `<ApiReference>`. Its content — 'bucket-attached CDN adds rewriteRoutesForSinglePageApp and ALB-attached CDN adds listenerPort' — could be a final sentence in the opening paragraph of the API Reference section, keeping the section visually consistent with the example page.",
+            "The basic example section opens with two H3 sub-examples (API-backed CDN and Bucket-backed CDN). Consider adding one or two sentences above the first H3 that orient the reader ('CDN works the same way regardless of the parent resource — the difference is the parent class you attach it to'), so the section head paragraph is self-contained as required by AEO discipline.",
+            "Add a `<FeatureComparisonTable>` early in the page (after 'When NOT to use') comparing CDN-on vs CDN-off for the two most common parent resources (bucket and HTTP API Gateway) — columns like 'Request path', 'Default caching', 'Cost model', 'Latency profile'. This would match the example's palette and improve AEO citation potential."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Thorough coverage of all five origin types in the route rewrites table — accurately sourced from the union type in cdn.d.ts",
+            "Every opt-in section (CDN, firewall, edge functions, cache invalidation, price class) includes a concrete when-to-enable / when-to-skip recommendation — directly useful for production decision-making",
+            "Cache key vs forwarding distinction is explained clearly with the critical Authorization header gotcha called out at the right moment",
+            "The Warning about onOriginRequest being used internally by Stacktape is accurate, source-grounded, and prevents a real footgun",
+            "FAQ covers all three required categories (Stacktape-specific, AWS use-case questions, and comparison/choosing questions) with 10 well-written pairs",
+            "Code examples throughout are realistic and copyable; each tunable property value is explained in surrounding prose",
+            "Noun-form H2 headings match the example page's heading style consistently",
+            "ApiReference placement (before FAQ) matches the example page",
+            "No forbidden YAML config blocks, no StacktapeConfig type imports, no defineConfig in fenced code blocks"
+          ],
+          "problems": [
+            "MDX component palette drift: the page introduces `<Info>` (before the ApiReference section) and `<Warning>` (three instances) — neither appears in the example page's component palette. The `<Warning>` callouts are source-driven and defensible, but `<Info>` before ApiReference is a documentation note with no source-driven justification. Per the drift rule, scannability is penalized.",
+            "Missing `<ReferenceableParams>` component: the example page uses `<ReferenceableParams resource='http-api-gateway' />` for its referenceable parameters section. This page replaces the component with a manual prose list. The rules penalize failing to use a pattern the example uses, regardless of whether the component might not support sub-property resources.",
+            "Unsupported factual claim in the Firewall section: 'Stacktape applies `AWSManagedRulesCommonRuleSet` and `AWSManagedRulesKnownBadInputsRuleSet` by default if no rules are specified' — this describes WebAppFirewall resource behavior, not anything in the CDN source types. The cdn.d.ts only says `useFirewall?: string`. This claim could be wrong or outdated and misleads readers about default firewall behavior."
+          ],
+          "mandatoryFixes": [
+            "Remove the `<Info>` callout before `<ApiReference>` — it introduces a component type not in the example's MDX palette without source-driven justification. Absorb its content (note about extended bucket/ALB CDN properties) into a short prose sentence before the ApiReference component, or omit it entirely if ApiReference's drill-down covers it.",
+            "Replace the `<ReferenceableParams>` manual prose listing with `<ReferenceableParams resource='cdn' />` to match the example's pattern. If the component does not support sub-property resources, add a clear comment in the draft explaining why manual listing was chosen — the current draft offers no explanation for the deviation.",
+            "Remove the unsupported claim in the Firewall section: 'Stacktape applies `AWSManagedRulesCommonRuleSet` and `AWSManagedRulesKnownBadInputsRuleSet` by default if no rules are specified' — this is not grounded in the CDN source files. Replace with: 'Configure protection rules on the [web application firewall](/resources/security/web-application-firewall) resource itself — see that page for the default managed rule sets.'"
+          ],
+          "optionalImprovements": [
+            "The `<Warning>` about the ACM certificate us-east-1 requirement is accurate AWS knowledge but not present in the CDN source types — the `DomainConfiguration` interface in __helpers.d.ts only shows `customCertificateArn` without the region constraint. Either link to AWS CloudFront docs for this constraint or soften to 'check AWS CloudFront certificate requirements for your region'.",
+            "The 'Default documents' section is short and the content blurs two unrelated things (indexDocument/errorDocument for SPA routing vs defaultRoutePrefix for versioned APIs). Consider splitting into two focused paragraphs or noting more explicitly that indexDocument/errorDocument are primarily useful for bucket-backed distributions, not API origins.",
+            "The three `<Warning>` callouts are source-justified but create style drift from the example page that only uses `<Tip>`. If the editorial standard prefers consistency, the `onOriginRequest` warning and the Authorization header warning could be formatted as `<Tip>` callouts with appropriate wording changes.",
+            "The basic example section has two sub-examples (API-backed and bucket-backed). Consider adding a one-line orientation sentence before the first sub-heading explaining why both are shown, to avoid readers wondering if they need both."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Self-contained opening paragraph nails the answer-first requirement: what CDN is, what it attaches to, and pricing context in under 50 words.",
+            "Every major CDN property has a working, copy-paste code example with surrounding prose that explains what the property controls and names the alternatives — meets the 'property-value anchors' requirement throughout.",
+            "Strong decision-support for every opt-in feature (when-to-enable, when-to-skip, cost/tradeoff, opinionated recommendation) — CDN, price class, firewall, and cache invalidation sections all satisfy this criterion.",
+            "Route rewrites section is particularly thorough: table of all five origin types, concrete multi-origin example, explanation of `routePrefix` and `defaultRoutePrefix`, per-route override capability.",
+            "Edge functions table (four hook points × three columns) is a model citation target — well-suited for AI answer extraction.",
+            "FAQ covers all three required categories well: Stacktape-specific (custom domains, cache invalidation, route rewrites), AWS use-case (CloudFront cost, propagation speed, dynamic content caching), and comparison (CDN vs no-CDN, price class differences).",
+            "Correct `<Warning>` callouts placed at real gotcha moments: ACM certificate must be in us-east-1, Authorization header requires cacheKeyParameters, onOriginRequest internal use.",
+            "Price class comparison table with relative cost column makes decision-making fast without requiring the reader to read prose.",
+            "All code examples use `<CodeBlock intellisense tabs>` with correct `label: 'TypeScript'` — no forbidden YAML blocks or fenced TypeScript blocks containing defineConfig.",
+            "Pricing from source JSDoc (~$0.01/10k requests, no monthly base fee) is accurately cited and prominently placed."
+          ],
+          "problems": [
+            "MDX component palette drift — `<Info>` callout: The example page's palette contains `<Tip>` and `<Warning>` callout types only. This page introduces an `<Info>` callout (before `<ApiReference>`) that the example does not use. Per example-guided rules, introducing a callout type absent from the example requires a mandatory fix and a scannability penalty.",
+            "MDX component palette drift — missing `<ReferenceableParams>`: The example uses `<ReferenceableParams resource='http-api-gateway' />` in the Referenceable parameters section. This page manually lists params as bullet points instead of using the component. If `resource='cdn'` is a valid key for the component (CDN is a sub-property so this needs verification), the component should be used. If the component doesn't support CDN as a standalone resource type, this deviation is legitimate, but it still appears as a palette drift to automated checkers.",
+            "Unsourced property claim: The prose in the bucket-backed CDN example and the `<Info>` callout before `<ApiReference>` states that 'Bucket-attached CDN adds `rewriteRoutesForSinglePageApp`'. This property does not appear anywhere in the provided source files (`cdn.d.ts`, `__helpers.d.ts`). While it may exist on the `Bucket` resource's CDN config, claiming it on this page without source grounding risks a factual-accuracy flag.",
+            "Unsourced default behavior claim in Firewall section: 'Stacktape applies `AWSManagedRulesCommonRuleSet` and `AWSManagedRulesKnownBadInputsRuleSet` by default if no rules are specified' — this describes the `web-app-firewall` resource's default behavior, which is not in the provided CDN source files. This claim may be correct but cannot be verified from the provided source."
+          ],
+          "mandatoryFixes": [
+            "Replace the `<Info>` callout before `<ApiReference>` with a `<Tip>` callout or inline prose — the example page's MDX component palette contains `<Tip>` and `<Warning>` callout types only, not `<Info>`. Converting the callout or folding its content into preceding prose eliminates the palette drift. Scannability is penalized by 1 for this drift.",
+            "Resolve the `<ReferenceableParams>` component absence: verify whether `<ReferenceableParams resource='cdn' />` is a valid invocation. If it is, replace the manual bullet-list in the Referenceable parameters section with the component, matching the example's pattern. If CDN is not a valid resource key for the component (because CDN is a sub-property, not a top-level resource), add a one-sentence explanation of why manual listing is used, to make the deviation intentional rather than an oversight. Scannability is penalized by 1 for this drift.",
+            "Remove or rephrase the `rewriteRoutesForSinglePageApp` claim: this property is not visible in any provided source file. Either (a) confirm the property exists in the `Bucket` resource's CDN config type and note it's documented on the S3 bucket page without claiming it here, or (b) remove the mention entirely and replace with 'The S3 bucket page documents additional properties available when CDN is attached to a bucket resource.'"
+          ],
+          "optionalImprovements": [
+            "The Firewall section's default WAF rule claim ('Stacktape applies AWSManagedRulesCommonRuleSet and AWSManagedRulesKnownBadInputsRuleSet by default') should be verified against the web-app-firewall source type and either sourced precisely or softened to 'Configure rules on the firewall resource — see [web application firewall](/resources/security/web-application-firewall) for available managed rule sets.'",
+            "The 'Basic example' H2 uses two H3 sub-sections ('API-backed CDN' and 'Bucket-backed CDN'). The example page's basic example is a flat section with no H3s. Consider whether one of the two variants could serve as the primary basic example, with the second moved into the Caching section where bucket-specific behavior is already discussed.",
+            "The FAQ question 'How fast does CloudFront propagate changes?' is somewhat vague ('can take time'). Citing a concrete AWS ballpark (distribution updates typically take 15–30 minutes to propagate globally; cache invalidations typically complete within a few minutes) would make the FAQ answer a stronger citation target for AI engines.",
+            "The Forwarding section mentions forwarding strategies `allViewer`, `allViewerAndWhitelistCloudFront`, and `allExcept` in prose only. A compact table (strategy name | what it does | when to use) would make this section as scannable as the route-rewrites and edge-functions tables, and improve citation density.",
+            "The 'Default documents' H2 is comparatively thin — one prose paragraph covering `indexDocument`, `errorDocument`, and `defaultRoutePrefix`. The `defaultRoutePrefix` concept is more related to routing than document defaults; consider moving it up to the Route rewrites section where `routePrefix` is already discussed, and tightening 'Default documents' to cover only `indexDocument`/`errorDocument`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The onResponse function does not run if the origin returned a 400+ error or if onRequest already generated a response.",
+              "reason": "The source JSDoc says 'Does not run if the origin returned a 400+ error or if `onRequest` already generated a response.' This matches. However, the table description for onResponse says 'Security headers, cookies, response header modification' which may mislead readers into thinking it always runs. The caveat is properly stated in prose below the example, so this is a very minor clarity concern, not a factual error.",
+              "suggestedFix": "No change needed — the prose already handles this correctly. Optionally add a footnote to the table row.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "Does not run if the origin returned a 400+ error or if `onRequest` already generated a response."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "CDN-attachable resource types (bucket, http-api-gateway, application-load-balancer, function) correctly match StpCdnAttachableResourceType union in __helpers.d.ts.",
+            "Price class values (PriceClass_100, PriceClass_200, PriceClass_All) and the default (PriceClass_All) exactly match the source type and JSDoc.",
+            "All six referenceable parameters (cdnDomain, cdnUrl, cdnCustomDomains, cdnCustomDomainUrls, cdnCanonicalDomain, cdnCanonicalUrl) match the CdnReferenceableParam union type.",
+            "Caching defaults correctly stated: bucket origins cached 6 months, API/ALB origins not cached by default — matches JSDoc on CdnCachingOptions.",
+            "Cache key parameter options (cookies: none/whitelist/allExcept/all; headers: none/whitelist; queryString: all/none/whitelist) all match source interfaces exactly.",
+            "Route rewrite origin types (bucket, http-api-gateway, application-load-balancer, function, custom-origin) correctly match the CdnRouteRewrite.routeTo union — and correctly omit the commented-out web-service type.",
+            "Forwarding defaults ('all headers/cookies/query params forwarded') match JSDoc on ForwardCookies, ForwardHeaders, and ForwardQueryString.",
+            "ForwardHeaders strategies (none, whitelist, allViewer, allViewerAndWhitelistCloudFront, allExcept) all present in source interface.",
+            "Edge function hooks (onRequest, onResponse, onOriginRequest, onOriginResponse) match EdgeFunctionsConfig exactly.",
+            "The rewriteRoutesForSinglePageApp claim was verified — it exists on BucketCdnConfiguration which extends CdnConfiguration in types/stacktape-config/buckets.d.ts.",
+            "WAF default rules claim verified — AWSManagedRulesCommonRuleSet and AWSManagedRulesKnownBadInputsRuleSet are applied as DEFAULT_RULES in helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/web-app-firewall.ts.",
+            "WebAppFirewall scope: 'cdn' verified in types/stacktape-config/web-app-firewall.d.ts (scope: 'regional' | 'cdn').",
+            "disableInvalidationAfterDeploy default (false) and behavior correctly matches source JSDoc.",
+            "indexDocument (@default /index.html) and errorDocument (@default /404.html) defaults match source.",
+            "Authorization header forwarding caveat matches source JSDoc on ForwardHeaders.",
+            "'When NOT to use' correctly placed as H2 peer section, not nested under 'When to use'.",
+            "All cross-page links verified against the documentation pages index.",
+            "Code examples use correct defineConfig pattern with proper TypeScript tab labels.",
+            "ApiReference uses definitionName='CdnConfiguration' which matches the actual interface name in the source type definition."
+          ],
+          "summary": "This is a very well-grounded draft. Every major Stacktape-specific claim was verified against the source files. CDN-attachable resource types, price class values, caching defaults, forwarding behavior, edge function hooks, referenceable parameters, cache key options, and route rewrite origin types all match the TypeScript type definitions exactly. The rewriteRoutesForSinglePageApp property was confirmed in BucketCdnConfiguration (extends CdnConfiguration) in buckets.d.ts. The WAF default rules (AWSManagedRulesCommonRuleSet + AWSManagedRulesKnownBadInputsRuleSet) were confirmed in the helper-lambda resolver. The scope: 'cdn' requirement was confirmed in web-app-firewall.d.ts. Page structure is correct with 'When NOT to use' as a peer H2. No high or medium severity issues found."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the CDN type surface and avoids the major forbidden config-example patterns, but it contains several Stacktape-specific overclaims around resource-specific CDN properties, WAF defaults, and caching/pricing details that are not grounded in the provided sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says bucket-backed CDN supports `rewriteRoutesForSinglePageApp` and `disableUrlNormalization`, and the API Reference note says bucket-attached CDN adds `rewriteRoutesForSinglePageApp` / `disableUrlNormalization` while ALB-attached CDN adds `listenerPort` / `originDomainName`.",
+              "reason": "The provided CDN source only shows `disableUrlNormalization` on `CdnBucketOrigin`, and `listenerPort` / `originDomainName` on `CdnLoadBalancerOrigin`, both under route-rewrite origins. The provided sources do not show `rewriteRoutesForSinglePageApp` at all, and they do not support presenting these as general top-level bucket-attached or ALB-attached CDN properties.",
+              "suggestedFix": "Narrow the wording to route rewrites: bucket route targets can set `disableUrlNormalization`; ALB route targets can set `listenerPort` and `originDomainName`. Remove `rewriteRoutesForSinglePageApp` unless a provided bucket-specific source file explicitly supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "interface CdnBucketOrigin {\n  /**\n   * #### Name of the `bucket` resource to route to.\n   */\n  bucketName: string;\n  /**\n   * #### Disable clean URL normalization (e.g., `/about` → `/about.html`).\n   * @default false\n   */\n  disableUrlNormalization?: boolean;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "interface CdnLoadBalancerOrigin {\n  /**\n   * #### Name of the `application-load-balancer` resource to route to.\n   */\n  loadBalancerName: string;\n  /**\n   * #### Listener port on the load balancer. Only needed if using custom listeners.\n   */\n  listenerPort?: number;\n  /**\n   * #### Explicit origin domain. Only needed if the ALB has no `customDomains` and uses `customCertificateArns`.\n   */\n  originDomainName?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Firewall section says Stacktape applies `AWSManagedRulesCommonRuleSet` and `AWSManagedRulesKnownBadInputsRuleSet` by default if no rules are specified.",
+              "reason": "The provided CDN source only says `useFirewall` names a `web-app-firewall` resource. No provided source describes default WAF rules for that firewall resource, so the draft makes an unsupported Stacktape-specific security claim.",
+              "suggestedFix": "Remove the default-rule claim from this CDN page, or replace it with the grounded statement that `cdn.useFirewall` names a `web-app-firewall` resource that protects the CDN. Link to the firewall page for rule configuration.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "  /**\n   * #### Name of a `web-app-firewall` resource to protect this CDN from common web exploits.\n   */\n  useFirewall?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The FAQ says: “CloudFront only caches responses that include caching headers (`Cache-Control`, `Expires`).”",
+              "reason": "The provided source says `defaultTTL` is used when the origin has no `Cache-Control` or `Expires` header, and it also says bucket origins are cached for 6 months when no `Cache-Control` header is present. The FAQ sentence is therefore too broad and contradicts the Stacktape CDN configuration behavior described by the type source.",
+              "suggestedFix": "Change the FAQ to say API Gateway and load balancer origins are not cached by default when no caching header is present, but caching can be enabled with origin headers or `cachingOptions.defaultTTL`; bucket origins have a 6-month default when no `Cache-Control` header is present.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "   * When the origin response has no `Cache-Control` header, defaults apply:\n   * - **Bucket origins**: cached for 6 months (or until invalidated on deploy).\n   * - **API Gateway / Load Balancer origins**: not cached."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "  /**\n   * #### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.\n   */\n  defaultTTL?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The FAQ gives CloudFront pricing as “~$0.0075–$0.016 per 10,000 requests” and says AWS offers “1 TB data transfer and 10 million requests per month for the first 12 months.”",
+              "reason": "The provided source only includes the approximate CDN request price of `~$0.01/10k` plus per-GB transfer. The more specific pricing range and free-tier claim are not present in the supplied sources, and the page requirements say not to invent concrete pricing that is not present in source files.",
+              "suggestedFix": "Use the source-backed pricing context: “The CDN itself has no monthly fee; you pay per request, approximately ~$0.01 per 10,000 requests, and per GB transferred.” Avoid unsupported free-tier or regional range details unless supplied in source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "   * The CDN itself has no monthly fee — you pay per request (~$0.01/10k) and per GB transferred."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The When to use section says static sites and SPAs are cached “everything at edge” and that the origin sees “near-zero traffic after the first request.”",
+              "reason": "The source supports edge caching, but it scopes default bucket caching to cases where the origin response has no `Cache-Control` header and still allows invalidation. The draft overstates the guarantee by implying every object is always cached and the origin effectively stops receiving traffic after one request.",
+              "suggestedFix": "Rephrase to a narrower, source-grounded claim: bucket-backed static content can be cached at the edge, and bucket origins default to a 6-month cache time when no `Cache-Control` header is present, reducing origin traffic for cacheable assets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "   * Caches responses at edge locations worldwide so users get content from the nearest server."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "   * When the origin response has no `Cache-Control` header, defaults apply:\n   * - **Bucket origins**: cached for 6 months (or until invalidated on deploy).\n   * - **API Gateway / Load Balancer origins**: not cached."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and class-based `defineConfig` examples; no hand-authored Stacktape YAML or `StacktapeConfig` typed examples were found.",
+            "The supported CDN route-rewrite origin types, price-class values, cache-key variants, forwarding variants, edge-function hook names, invalidation flag, custom-domain shape, and CDN referenceable parameters mostly match `types/stacktape-config/cdn.d.ts`.",
+            "The draft correctly keeps top-level `cdn.useFirewall` scoped to the CDN/CloudFront attachment path rather than flattening it into broader resource-level firewall behavior."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly complete for `CdnConfiguration`: it covers every primary property, acknowledges the main route target and price class variants, and most examples demonstrate the feature described by their section. I found one medium issue around forwarding strategy coverage where the prose documents forwarding behavior but does not name all supported cookie and query-string forwarding modes.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Forwarding section documents `forwardingOptions` but only enumerates header forwarding strategies; it does not name the supported cookie forwarding modes (`none`, `whitelist`, `all`) or query-string forwarding modes (`all`, `none`, `whitelist`) for origin forwarding.",
+              "reason": "Because the section explains forwarding options in prose and gives a forwarding example, readers may reasonably expect the section to summarize the available forwarding modes for cookies and query strings, not only headers. The API reference can remain exhaustive, but the documented union-like variants for the feature being discussed should at least be named.",
+              "suggestedFix": "Add one short paragraph after the forwarding example: \"For origin forwarding, cookies support `none`, `whitelist`, and `all`; query strings support `all`, `none`, and `whitelist`. Keep forwarded values narrow when caching is enabled, because unnecessary cookies or query parameters can reduce cache hit rates.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "interface ForwardCookies {\n  /**\n   * #### No cookies are forwarded to the origin.\n   */\n  none?: boolean;\n  /**\n   * #### Only the listed cookies are forwarded to the origin.\n   */\n  whitelist?: string[];\n  /**\n   * #### All cookies are forwarded to the origin.\n   */\n  all?: boolean;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "interface ForwardQueryString {\n  /**\n   * #### All query parameters are forwarded to the origin.\n   */\n  all?: boolean;\n  /**\n   * #### No query parameters are forwarded to the origin.\n   */\n  none?: boolean;\n  /**\n   * #### Only the listed query parameters are forwarded to the origin.\n   */\n  whitelist?: string[];\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Every top-level `CdnConfiguration` property is mentioned in the draft or demonstrated in a code example.",
+            "The route rewrite section names all supported `routeTo` target types from the source: bucket, HTTP API Gateway, Application Load Balancer, Lambda function, and custom origin.",
+            "The examples are demonstrative: caching examples set `cachingOptions`, route rewrites set `routeRewrites`, forwarding sets `forwardingOptions`, custom domains set `customDomains`, firewall sets `useFirewall`, and invalidation sets `disableInvalidationAfterDeploy`.",
+            "The page uses exactly one `<ApiReference definitionName=\"CdnConfiguration\" />`, matching the metadata type name."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__cdn\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive source grounding — every major config option (caching, forwarding, routing, edge functions, firewall, price class, cache invalidation) is backed by the source types with no invented properties.",
+            "Practical 'When to use' and 'When NOT to use' sections give concrete scenarios rather than circular definitions. The 'development and staging stages' point is especially actionable.",
+            "All 10 CodeBlock examples use the correct <CodeBlock intellisense tabs=[{label:'TypeScript',...}]/> form with proper class names and imports — no YAML or fenced typescript violations found.",
+            "Edge functions table clearly maps all four hook points (onRequest, onResponse, onOriginRequest, onOriginResponse) to their trigger conditions and common use cases.",
+            "FAQ has exactly 10 Q&A pairs spanning all three required categories: Stacktape-specific, AWS service use-case, and choosing/comparison questions.",
+            "Route rewrites section covers all five origin types (bucket, http-api-gateway, application-load-balancer, function, custom-origin) with a table and a realistic SPA-pattern example.",
+            "Warning callouts are placed precisely where the gotchas live: Authorization header forwarding, onOriginRequest internal use, ACM certificate region requirement.",
+            "Referenceable parameters table lists all six CdnReferenceableParam values correctly from the source type definition.",
+            "Pricing context appears in the first paragraph, sourced from the JSDoc comment (~$0.01/10k), not invented.",
+            "ApiReference uses definitionName='CdnConfiguration' which matches the interface name in the source exactly."
+          ],
+          "problems": [
+            "The 'API Reference' section prose before <ApiReference> introduces internal interface names (CdnBucketOrigin, CdnLoadBalancerOrigin) that have no meaning to end-users and partially duplicate content already covered in the 'Route rewrites' section. This reads like implementation notes, not user guidance.",
+            "The 'Document defaults' section is only two sentences covering indexDocument and errorDocument defaults — it is too thin to stand alone as an H2. The content would be better absorbed into the 'Caching' section with a brief callout that these only apply meaningfully to bucket-backed static sites.",
+            "The page references 'stacktape param:get' with a link to /cli/param-get — this command name does not appear in the known CLI command list (git status shows no param-get.mdx) and may be an invented command. The correct way to surface CDN URLs post-deploy is via stackConfig.outputs or stacktape info:stack.",
+            "The cache key subsection's tip callout ('Keep the cache key as narrow as possible') is useful but the preceding prose explanation of cookies/headers/query string options is slightly repetitive of the property descriptions already in the source — one concise paragraph with examples of each mode would suffice rather than restating all mode names inline."
+          ],
+          "mandatoryFixes": [
+            "Remove or drastically simplify the prose block in the 'API Reference' section that introduces internal type names (CdnBucketOrigin, CdnLoadBalancerOrigin). The ApiReference component's drill-down already exposes these — the prose block adds no user value and uses names a first-time reader cannot look up. Replace with one sentence: 'The full configuration reference for CdnConfiguration and all nested types is below.' then the component.",
+            "Verify and correct the 'stacktape param:get' command reference. If this command does not exist (no param-get.mdx CLI doc is present in the repo), replace with the documented approach: add the CDN URL to stackConfig.outputs and link to the outputs documentation, or reference stacktape info:stack. Shipping a link to /cli/param-get that 404s is a hard usability failure for a first-time reader."
+          ],
+          "optionalImprovements": [
+            "Merge 'Document defaults' (two sentences) into the 'Caching' section under a brief note like 'For bucket-backed static sites, indexDocument (default: /index.html) and errorDocument (default: /404.html) control what CloudFront serves for root requests and missing paths.' This avoids an H2 with no substance.",
+            "The basic example section has two H3 sub-examples (API-backed and bucket-backed). Consider adding a single note that this is the recommended starting point and that all other sections build on top of this minimal config — helps the first-time reader understand the page's narrative arc before diving into advanced options.",
+            "The forwarding section mentions 'allViewerAndWhitelistCloudFront' as a header forwarding strategy with CloudFront-Viewer-Country as an example — briefly name the other available CloudFront headers (CloudFront-Viewer-City, CloudFront-Is-Mobile-Viewer, etc.) or link to the AWS docs for the full list, since geo-routing is a common use case readers will pursue.",
+            "The edge functions section warns that Stacktape uses onOriginRequest internally 'for bucket, web service, and API Gateway CDN setups' — the source only mentions 'bucket/web-service/API Gateway'. The warning is correct but 'web service' as a CDN-attachable type is commented out in the source (StpCdnAttachableResourceType). Consider tightening the warning to match the actually supported resource types.",
+            "In the cache key subsection, the tip about keeping cache keys narrow would benefit from a one-line concrete example of what 'bad' looks like — e.g., 'Including all cookies on a login-gated API means every authenticated user gets a unique cache entry, effectively zeroing your cache hit rate.' This makes the tip actionable rather than advisory."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript label and defineConfig + class-based resources — zero forbidden patterns.",
+            "All defaults and behaviors are tightly grounded in the source JSDoc (6-month bucket cache, PriceClass_All default, disableInvalidationAfterDeploy:false, onResponse does not fire on 400+ errors from origin).",
+            "The onOriginRequest internal-use warning is a high-value production gotcha that readers would otherwise discover the hard way.",
+            "The Authorization header warning in the Forwarding section surfaces a non-obvious constraint that causes real bugs.",
+            "FAQ has exactly 10 questions across all three required categories: Stacktape-specific, AWS use-case/mechanics, and choosing/comparison.",
+            "Route rewrites origin type table is complete and correctly grounded (5 types matching the source union: bucket, http-api-gateway, application-load-balancer, function, custom-origin).",
+            "Decision-support language is concrete throughout: the Firewall section explicitly names when to enable and when to skip, with cost context.",
+            "Referenceable parameters table is complete and matches CdnReferenceableParam type exactly."
+          ],
+          "problems": [
+            "The 'Document defaults' section (indexDocument / errorDocument) is a single thin paragraph with no code example and an unclear H2 label. For a production reader managing SPA routing — where overriding errorDocument to '/index.html' is the common real-world pattern — this section provides almost no actionable guidance.",
+            "The 'Document defaults' H2 label does not communicate the section's purpose. A reader scanning the TOC has no idea what 'Document defaults' means in the context of a CDN page. A label like 'Index and error pages' or 'SPA routing' would be immediately clear.",
+            "Minor scannability gap: the 'Forwarding' section's prose lists all five ForwardHeaders modes in a dense run-on sentence but does not use a table, making it harder to scan than the analogous caching-key or route-rewrite sections that do use tables."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rename 'Document defaults' to 'Index and error pages' (or 'SPA routing') and add a one-paragraph decision note: the most common production use is setting errorDocument to '/index.html' so a React/Vue/Angular SPA handles 404s client-side instead of returning the CDN's error page. Add a minimal code example showing this override.",
+            "Convert the ForwardHeaders mode list in the 'Forwarding' section from a run-on sentence into a compact inline table matching the style used for the route-rewrite origin types and the price-class table. The five modes (none, whitelist, allViewer, allViewerAndWhitelistCloudFront, allExcept) with a one-phrase description each would scan much faster.",
+            "The 'Referenceable parameters' section manually lists parameters instead of using the <ReferenceableParams> component. If the component supports sub-property resources, switch to it for consistency. If it does not, the hand-authored table is fine — just document that CDN parameters are accessed via the parent resource name."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first paragraph is self-contained, fact-dense, and exactly the right length (57 words): names the resource, supported parent types, the behavior, and the pricing model.",
+            "All 5 route rewrite origin types (bucket, http-api-gateway, application-load-balancer, function, custom-origin) are enumerated in a table with accurate `type` values sourced from the TypeScript union.",
+            "All four edge function hook points (onRequest, onResponse, onOriginRequest, onOriginResponse) are covered in a table with concrete use cases and the internal-usage warning for onOriginRequest is prominent and source-grounded.",
+            "Full coverage of cache key parameter modes (cookies: none/whitelist/allExcept/all; headers: none/whitelist; queryString: none/all/whitelist) and forwarding header modes (none/whitelist/allViewer/allViewerAndWhitelistCloudFront/allExcept) — all variants from the source are named.",
+            "Realistic, copy-paste-ready code examples for every major feature section with no placeholder values.",
+            "Firewall section has explicit decision support: When to enable (production APIs, sensitive data) and When to skip (internal tools, dev stages, low-risk workloads) with a cost signal.",
+            "Price class table clearly shows the three options with covered regions and relative cost, and a concrete recommendation to start with PriceClass_100.",
+            "Authorization header forwarding gotcha is prominently warned with a `<Warning>` callout — a common non-obvious production issue.",
+            "Referenceable parameters table is complete and matches all 6 values in the `CdnReferenceableParam` type from source.",
+            "FAQ covers all three required categories: Stacktape-specific (custom domains, cache invalidation, route rewrites), AWS service use-case (CloudFront cost, caching mechanics, propagation speed), and comparison/choosing (when to add CDN to an API, price class tradeoffs)."
+          ],
+          "problems": [
+            "The 'Document defaults' section covers `indexDocument` and `errorDocument` in two sentences with no code example and no decision guidance — it states the defaults but doesn't explain when or why a user would change them, leaving it as reference filler rather than a guide. This is the only opt-in section that lacks decision support.",
+            "The prose block immediately before `<ApiReference>` ('When CDN routes target specific resource types in route rewrites, additional properties become available beyond the base configuration...') repeats content already explained in the Route rewrites section. The `<ApiReference>` drill-down handles sub-type discovery automatically — this prose adds noise, not signal."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short code example and a 2-3 sentence 'when to customize' explanation to the 'Document defaults' section. For example: use `indexDocument: '/app.html'` when your SPA entry point differs from the default, or `errorDocument: '/index.html'` for SPAs that handle their own 404 routing client-side. Without this, the section reads as an API reference excerpt, not a guide.",
+            "Remove or substantially trim the prose paragraph before `<ApiReference>`. The sentence about `CdnBucketOrigin` supporting `disableUrlNormalization` and `CdnLoadBalancerOrigin` supporting `listenerPort`/`originDomainName` is already covered inline in the Route rewrites section. Let the drill-down handle it.",
+            "Consider converting the pricing sentence in the intro paragraph into an `<Info>` callout to match any site-wide convention for pricing context (if applicable). As prose it works, but a callout ensures it's visually distinct and not skipped by readers scanning for configuration sections.",
+            "The 'Cache key' subsection tip ('Keep the cache key as narrow as possible...') is useful but could be elevated by adding a concrete example of a poorly-scoped cache key (e.g., including a session cookie) and what it costs in cache hit rate terms — this would make the guidance more actionable.",
+            "The 'Forwarding' section mentions `originRequestPolicyId` as an escape hatch in the final sentence, which is fine, but could add a symmetric sentence for `cachePolicyId` in the Caching section to make the two escape hatches equally discoverable. Both are currently mentioned, but `cachePolicyId` appears buried mid-section while `originRequestPolicyId` appears as the last sentence — making them structurally parallel would improve scannability."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The top-level `defaultRoutePrefix` applies the same transformation to all requests that don't match any rewrite.",
+              "reason": "The source JSDoc for `defaultRoutePrefix` says 'Prepend a path prefix to all requests forwarded to the origin' without the qualification 'that don't match any rewrite.' The draft adds a scoping restriction not present in the source. While this is a reasonable interpretation (since individual rewrites have their own `routePrefix`), the source text is more general.",
+              "suggestedFix": "Rephrase to: 'The top-level `defaultRoutePrefix` prepends a path prefix to all requests forwarded to the default origin.' This matches the source phrasing without adding unsupported scope restrictions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "Prepend a path prefix to all requests forwarded to the origin."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All four CDN-attachable resource types (bucket, http-api-gateway, application-load-balancer, function) are correctly identified from StpCdnAttachableResourceType.",
+            "All six CdnReferenceableParam values are accurately listed in the Referenceable Parameters table.",
+            "All five route rewrite origin types match the CdnRouteRewrite.routeTo union exactly, including the commented-out CdnWebServiceRoute being correctly omitted.",
+            "Cache key options (cookies: none/whitelist/allExcept/all; headers: none/whitelist; queryString: all/none/whitelist) and forwarding options (cookies: none/whitelist/all; headers: none/whitelist/allViewer/allViewerAndWhitelistCloudFront/allExcept) are correctly differentiated between the two contexts.",
+            "Default values are accurately documented: enabled=false, cloudfrontPriceClass=PriceClass_All, disableInvalidationAfterDeploy=false, disableCompression=false, indexDocument=/index.html, errorDocument=/404.html.",
+            "Edge function hook descriptions match source JSDoc precisely, including the onResponse caveat about 400+ errors and onOriginRequest internal usage warning.",
+            "Pricing claim (~$0.01 per 10,000 requests, no monthly base cost) is directly sourced from the CdnConfiguration.enabled JSDoc.",
+            "The Authorization header forwarding caveat is correctly attributed to cachingOptions.cacheKeyParameters.headers, matching the source warning.",
+            "All cross-links point to valid routes in the documentation navigation index.",
+            "Code examples use correct class names (HttpApiGateway, Bucket, EdgeLambdaFunction, WebAppFirewall, StacktapeLambdaBuildpackPackaging) that are all in the valid class names whitelist."
+          ],
+          "summary": "This is an exceptionally well-grounded draft. Every major technical claim—property names, default values, supported options, type unions, referenceable parameters, and behavioral descriptions—aligns precisely with the CdnConfiguration source types. The only issue found is a minor scoping qualification on `defaultRoutePrefix` that adds an interpretation not explicitly present in the source JSDoc. The draft comprehensively covers all CdnConfiguration properties with accurate examples, correctly differentiates cache key vs. forwarding option sets, and provides appropriate decision support for opt-in features like firewall and price class selection."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well grounded in the provided CDN type definitions. The main publication risks are a route rewrite example that appears to use the wrong resource name shape, several unsupported Stacktape-specific custom-domain/certificate details, and one statement about surfacing outputs that overstates the source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "In the route rewrite example, `routeTo.properties.bucketName` is set to `'assetsBucket'`, followed by: “The name must match the key used when returning the resource from `defineConfig`.”",
+              "reason": "The prose correctly says route target names are Stacktape resource names, but the example returns the bucket with the key `assetsBucket` while the variable is returned by shorthand. In the TypeScript source object shorthand, the key is `assetsBucket`, so this example is probably valid. However, the statement “not generated AWS physical names” is supported; no issue here after inspection.",
+              "suggestedFix": "No change required for this specific statement.",
+              "evidence": []
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically creates DNS records and provisions a free TLS certificate unless you provide `customCertificateArn` or disable DNS record creation.”",
+              "reason": "The source supports automatic DNS record creation and free TLS certificate provisioning in the DomainConfiguration docs, but it does not state that disabling DNS record creation changes certificate provisioning behavior for CDN domains. The draft later says Stacktape will still provision the TLS certificate when `disableDnsRecordCreation: true`; that specific behavior is not supported by the provided source.",
+              "suggestedFix": "Narrow the wording to the source: “Stacktape can automatically create DNS records and provision a free TLS certificate. Set `disableDnsRecordCreation: true` if you manage DNS records yourself, or provide `customCertificateArn` to use your own ACM certificate.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you provide a `customCertificateArn`, the ACM certificate must be in the `us-east-1` region — this is an AWS CloudFront requirement regardless of where your origin resources are deployed.”",
+              "reason": "This is a true AWS CloudFront requirement, but it is not present in the provided Stacktape source files. Because the page frames it as a configuration requirement for the Stacktape CDN property, the provided sources do not ground it.",
+              "suggestedFix": "Either remove the sentence or phrase it as AWS background with an external AWS docs link if the docs system allows external grounding: “CloudFront requires viewer certificates to be in ACM us-east-1.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Provide the ARN of an ACM certificate from your AWS account."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After deployment, reference the CDN URL with `$ResourceParam('myApi', 'cdnUrl')` or `$ResourceParam('staticAssets', 'cdnUrl')` in your config, or retrieve it via `stacktape param:get`. To surface the URL in terminal output after every deploy, add it to `stackConfig.outputs`.”",
+              "reason": "The source supports `cdnUrl` as a CDN referenceable parameter and supports stack outputs, but it does not state that outputs are printed in terminal output after every deploy. It says outputs are printed in the terminal after deploy and saved to stack info; “after every deploy” is stronger than the source.",
+              "suggestedFix": "Use the source wording: “To print the URL after deploy and save it to stack info, add it to `stackConfig.outputs`. You can also retrieve parameters with `stacktape param:get`. ”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "type CdnReferenceableParam =\n  | 'cdnDomain'\n  | 'cdnCustomDomains'\n  | 'cdnUrl'\n  | 'cdnCustomDomainUrls'\n  | 'cdnCanonicalDomain'\n  | 'cdnCanonicalUrl';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Outputs are:\n   * - Printed in the terminal after deploy\n   * - Saved to the stack info JSON file\n   * - Optionally exported for cross-stack references (via `export: true`)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `onResponse` function runs before the response reaches the client — use it to inject `Strict-Transport-Security`, `Content-Security-Policy`, or other security headers.”",
+              "reason": "The source says `onResponse` can modify response headers and add security headers, but it does not name specific headers. The examples are plausible, but the provided source only grounds the general capability.",
+              "suggestedFix": "Use the source wording: “use it to modify response headers, add security headers, or set cookies.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "Use to modify response headers, add security headers, or set cookies."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Requests blocked by the firewall never reach your origin, saving compute costs and reducing attack surface.”",
+              "reason": "The source only states that `useFirewall` names a web-app-firewall resource to protect the CDN from common web exploits. It does not describe request flow, blocking behavior, or cost impact for blocked requests.",
+              "suggestedFix": "Narrow to the source: “The `useFirewall` property names a `web-app-firewall` resource that protects the CDN from common web exploits. Configure inspection and blocking behavior on the firewall resource.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "Name of a `web-app-firewall` resource to protect this CDN from common web exploits."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you use content-hashed filenames for static assets (common with Vite, webpack, and Next.js), disabling automatic invalidation is safe. Old URLs naturally expire from the cache, and new hashed URLs always fetch fresh content from the origin.”",
+              "reason": "The source supports `disableInvalidationAfterDeploy` for users who manage invalidation themselves or want to keep cached content between deploys, but it does not state that content-hashed filenames make disabling invalidation safe or that new hashed URLs always fetch fresh content. This is reasonable general CDN guidance, but it is not grounded in the provided Stacktape source.",
+              "suggestedFix": "Make it cautious: “Disabling automatic invalidation is usually a good fit when your deployment process uses content-hashed filenames and you intentionally keep old cached assets between deploys.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "Set to `true` if you manage cache invalidation yourself or want to keep cached content between deploys."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“CDN is not a standalone resource — it is a `cdn` property you add to a supported parent resource.”",
+              "reason": "The provided helper types support CDN-compatible resources and there is no `Cdn` resource in the visible `StacktapeResourceDefinition` union, so the claim is likely correct. However, because the page route is a resource page and the API reference uses `CdnConfiguration` rather than a `*Props` resource type, this could be clearer to avoid confusing readers about why there is no separate `ReferenceableParams resource=\"cdn\"` component.",
+              "suggestedFix": "Keep the claim but add one clarifying sentence near the API reference: “Because CDN is configured as a nested property, the API reference below documents `CdnConfiguration`, not a standalone resource props type.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses TypeScript `defineConfig` examples inside `<CodeBlock intellisense>` and does not hand-author YAML Stacktape config examples.",
+            "The supported CDN attachment targets match the source: bucket, application-load-balancer, http-api-gateway, and function.",
+            "Caching defaults, cache key modes, forwarding modes, price class values, route rewrite origin variants, edge function hook names, document defaults, and CDN referenceable parameters are largely aligned with `types/stacktape-config/cdn.d.ts`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is strong on API completeness for `CdnConfiguration`: it covers every top-level property, names the important nested variants, uses demonstrative examples for the major feature sections, and includes the required single API reference. I found no publication-blocking API completeness issues.",
+          "issues": [],
+          "positiveFindings": [
+            "All top-level `CdnConfiguration` properties are mentioned: `enabled`, `cachingOptions`, `forwardingOptions`, `routeRewrites`, `customDomains`, `edgeFunctions`, `cloudfrontPriceClass`, `defaultRoutePrefix`, `errorDocument`, `indexDocument`, `disableInvalidationAfterDeploy`, and `useFirewall`.",
+            "The route rewrite union is covered: `bucket`, `http-api-gateway`, `application-load-balancer`, `function`, and `custom-origin` are all named in the route rewrites table.",
+            "The forwarding and cache key option variants are covered, including cookie, header, and query string modes plus AWS policy ID escape hatches.",
+            "The examples are demonstrative: caching sets `cachingOptions`, route rewrites set `routeRewrites`, forwarding sets `forwardingOptions`, custom domains set `customDomains`, edge functions set `edgeFunctions`, price class sets `cloudfrontPriceClass`, firewall sets `useFirewall`, and invalidation sets `disableInvalidationAfterDeploy`.",
+            "The draft includes exactly one `<ApiReference definitionName=\"CdnConfiguration\" />`, matching the page metadata type name."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__cdn\\iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no fenced YAML or raw TypeScript blocks. Zero mandatory style violations.",
+            "Decision support is strong throughout: every opt-in feature (price class, firewall, cache invalidation, forwarding) includes concrete 'when to enable / when to skip' guidance and a tradeoff signal.",
+            "Covers every property in CdnConfiguration (enabled, cachingOptions, forwardingOptions, routeRewrites, customDomains, edgeFunctions, cloudfrontPriceClass, defaultRoutePrefix, errorDocument, indexDocument, disableInvalidationAfterDeploy, useFirewall) and all five route rewrite origin types, grounded in source types.",
+            "Tables are used effectively for comparisons: price classes, route origin types, edge function hook points, and referenceable params — all high-signal and scannable.",
+            "FAQ has exactly 10 questions with good category spread: Stacktape-specific (#2, #3, #4, #5, #9), AWS-general (#1, #7, #8, #10), and choosing/comparison (#6).",
+            "The Warning about onOriginRequest internal use is important safety information, correctly cites the source JSDoc warning, and is well-placed.",
+            "Exactly one <ApiReference definitionName=\"CdnConfiguration\" /> — placed conventionally at the bottom before FAQ.",
+            "Both the API-backed CDN and bucket-backed CDN basic examples are realistic and copyable, with a concrete property-value anchor explanation for cloudfrontPriceClass in the bucket example."
+          ],
+          "problems": [
+            "'Comma-separated list' format description for cdnCustomDomains and cdnCustomDomainUrls referenceable params is not grounded in source — CdnReferenceableParam is just a union of string literal identifiers; the actual format of these values at runtime is not documented in the provided source files.",
+            "The prose reference to 'stacktape param:get' (/cli/param-get) in the Basic example section is unverified — the provided source files don't include this CLI command, and the style guide only explicitly names 'stacktape debug:logs'. If the command does not exist, this is a broken link.",
+            "The Warning about the Authorization header says to add it to 'cachingOptions.cacheKeyParameters.headers', but the source JSDoc says only 'cachingOptions.cacheKeyParameters' — the page adds specificity about the .headers sub-property that is a reasonable inference but not verbatim in the source.",
+            "The 'Document defaults' section is extremely thin (~3 sentences) and reads more like an appendix item than a standalone H2. It adds no decision support or tradeoff — just restates what the source says about indexDocument and errorDocument defaults. For a first-time user this section offers little value and could be collapsed into the Basic example / bucket section or omitted."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove 'Comma-separated list' from the referenceable params table descriptions for cdnCustomDomains and cdnCustomDomainUrls — use 'list' or 'one or more' without specifying a format not present in the source.",
+            "Verify that 'stacktape param:get' (/cli/param-get) is a real CLI command. If it does not exist, remove the reference or replace with the correct command name.",
+            "Fold the 'Document defaults' section into the bucket-backed CDN example in 'Basic example' (where indexDocument and errorDocument are most relevant) and remove the standalone H2 — it is too thin to justify its own section and breaks page rhythm.",
+            "Add one or two sentences to the Basic example section showing how a first-time user actually consumes the CDN URL after deploy — e.g., surfacing it via stackConfig.outputs so it prints in the terminal. Many first-time users will deploy, wonder where the URL is, and not immediately know to use $ResourceParam in outputs.",
+            "The Authorization header Warning in the Forwarding section could cite the exact path more carefully: the source says 'cachingOptions.cacheKeyParameters', and the specific sub-property is .headers.whitelist. Consider being precise ('add it to cachingOptions.cacheKeyParameters.headers.whitelist') or staying at the source level of specificity ('add it to cachingOptions.cacheKeyParameters')."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive, source-grounded coverage of all CDN configuration options — caching, forwarding, route rewrites, edge functions, price class, firewall, and custom domains all get working examples and decision guidance.",
+            "Strong use of tables for structured comparisons: price classes, route origin types, edge function hook timings, and referenceable parameters make the right option easy to find.",
+            "Well-placed warnings on operationally important gotchas: the Authorization header forwarding requirement, the onOriginRequest internal-use caveat, and the ACM us-east-1 constraint are exactly what a reader needs before hitting production.",
+            "Decision support throughout — each opt-in feature section covers when to enable it, when the default is fine, and a cost or tradeoff signal. The Firewall and Price class sections are particularly well-structured.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service use-case, and comparison), and answers are appropriately concise and citation-friendly.",
+            "Code examples are realistic and copyable with property-value anchors: every non-obvious value in examples (PriceClass_100, defaultTTL, cacheMethods) gets a prose explanation."
+          ],
+          "problems": [
+            "The 'Document defaults' section is three sentences with no code example and no guidance on when a reader would change these values from the defaults. It reads as a thin config reference fragment rather than actionable guidance. The API reference already documents the same defaults.",
+            "Missing operational gotcha: new CloudFront distributions and major config changes (price class, custom domains) propagate asynchronously and can take time before fully effective. This is directly relevant to dev workflow and deployment expectations, but the page only mentions it in the context of cache invalidation in FAQ answer 8, not proactively where readers need it (e.g., basic example section or When NOT to use).",
+            "Lambda function CDN attachment: the basic example section and intro claim CDN can attach to a Lambda function, but the route rewrite `CdnLambdaFunctionOrigin` source specifically notes the function must have `url.enabled: true`. It is not clear from the page whether this constraint also applies when CDN is the top-level attachment to a Lambda function rather than a rewrite target — this ambiguity could cause a runtime failure for readers."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand or absorb the 'Document defaults' section: either add a short code example showing how to customize `indexDocument` and `errorDocument` and explain when you would (e.g., 404.html override for React SPAs, custom error pages), or merge the content into the bucket CDN basic example where it is directly relevant and remove the standalone section.",
+            "Add a propagation-time note in the basic example or the When NOT to use section: new CloudFront distributions and major config changes can take time to propagate globally. Readers iterating on CDN configuration during development will hit this and may be confused about why changes are not taking effect.",
+            "Clarify the Lambda function `url.enabled: true` constraint: the route rewrite docs are explicit about the requirement, but the top-level CDN-on-Lambda scenario is not addressed. Either confirm the same constraint applies and add a note in the basic example, or clarify it does not apply at the top level. Ambiguity here causes a hard-to-debug deployment failure.",
+            "Consider moving `<ApiReference definitionName=\"CdnConfiguration\" />` to just above the FAQ: because CDN is a sub-property rather than a standalone resource, some readers arrive to look up a specific property name. Positioning the API reference near the end of prose content (before FAQ) gives those readers a clear 'look it up here' anchor without interrupting the tutorial flow.",
+            "The Forwarding section's list of header forwarding strategies (none, whitelist, allViewer, allViewerAndWhitelistCloudFront, allExcept) appears in dense prose. A small table — mode, effect, when to use — would make this easier to scan, matching the treatment given to price classes and route types."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive union-type coverage: all five `routeTo` origin types documented in a table; all cookie/header/query-string forwarding variants (none, whitelist, allViewer, allViewerAndWhitelistCloudFront, allExcept, allExcept) named explicitly in prose.",
+            "Tables used where they matter most: price class tradeoffs, route origin types, edge function hook timing, referenceable parameters — all tabularized, making citation easy.",
+            "Decision support is explicit for every opt-in feature: Firewall has 'When to enable / When to skip' bullets; price class has an opinionated Tip; cache invalidation explains the default and the tradeoff for disabling.",
+            "All six CDN referenceable parameters from the source (`cdnDomain`, `cdnUrl`, `cdnCustomDomains`, `cdnCustomDomainUrls`, `cdnCanonicalDomain`, `cdnCanonicalUrl`) are tabularized and match the source type exactly.",
+            "Warning callouts correctly flag the two important gotchas sourced directly from the type JSDoc: `Authorization` header must go through cache-key parameters, and `onOriginRequest` is used internally by Stacktape.",
+            "10-question FAQ spans all three required categories (Stacktape-specific, AWS use-case, and choosing/comparison), including pricing, propagation behavior, and WAF tradeoffs.",
+            "Examples are realistic and copy-paste ready: consistent resource names, no `<fill-in-here>` placeholders, imports visible in source but hidden behind focus markers.",
+            "No marketing language, no hollow claims — language is concrete, pragmatic, and opinionated throughout.",
+            "Answer-first paragraph is well within the 40-75 word target and self-contained, suitable for AI extraction.",
+            "Route rewrites section clearly differentiates `routeTo` property names (`bucketName`, `httpApiGatewayName`, etc.) as Stacktape resource keys, not AWS physical names — a real gotcha explained correctly."
+          ],
+          "problems": [
+            "The 'Document defaults' section (indexDocument / errorDocument) is effectively two sentences with no code example and no decision-support context. It reads like a thin reference entry rather than a guide section. For an audience trying to decide whether to configure these, there is no signal about when the defaults are wrong and no example showing how to set them.",
+            "The Basic example section mentions `$ResourceParam('myApi', 'cdnUrl')` and `stackConfig.outputs` in a subordinate aside, but does not show the wiring. A reader seeing this for the first time has no path to complete the task — this should either be shown inline or deferred explicitly to a cross-link.",
+            "The 'When to use' section's bullet list is pattern-based but has no concrete latency or cost signal. 'Lower latency' without an order-of-magnitude reference is vague for a reader deciding whether CDN is worth the complexity for their use case.",
+            "The cache key section's cookie mode `allExcept` is mentioned in the source type (`CacheKeyCookies.allExcept`) but not named in the prose listing of cookie options ('The options are `none`, `all`, `whitelist`, or `allExcept`'). The prose does mention it but only as part of the cache key description — the forwarding section's cookie options ('the supported modes are `none`, `whitelist`, and `all`') is incomplete because `ForwardCookies` does not include `allExcept`, which is correct, but the asymmetry between caching cookie options and forwarding cookie options is never explained."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand the 'Document defaults' section: add a one-paragraph explanation of when the defaults are insufficient (multi-page apps vs SPAs, custom 404 pages), and add a short code example showing both `indexDocument` and `errorDocument` set together. Currently the section is too thin to justify its H2 status.",
+            "In the Referenceable parameters section, show a concrete `stackConfig.outputs` snippet using `$ResourceParam('myApi', 'cdnUrl')` so readers see the end-to-end wiring rather than an inline reference with no example.",
+            "Add one concrete latency signal to the 'When to use' section — for example, 'users in Asia or South America hitting a US-East origin typically see 100–300 ms round-trip savings from the nearest CloudFront edge' — to give readers a quantitative anchor for the CDN decision.",
+            "In the 'When to use' bullets, the 'edge authentication' bullet mentions edge functions but does not link to the edge function docs. Add a parenthetical link to `/resources/compute/edge-function` at first mention.",
+            "The forwarding section's `Authorization` header Warning is important but positioned mid-section. Consider elevating it to an `<Info>` callout near the top of the Forwarding section, since it catches a large class of auth bugs early.",
+            "The 'Cache key' H3 explains the options via prose enumeration. Adding a small table (cookie modes: none/whitelist/allExcept/all; header modes: none/whitelist; query-string modes: all/none/whitelist) would make it more scannable and consistent with the style used in other sections.",
+            "The 'Route rewrites' code example uses `routeTo.properties.bucketName: 'assetsBucket'` where `assetsBucket` is the Stacktape resource key. The prose explains this correctly, but placing this clarification before the code block rather than after would reduce confusion on first read."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The draft page is exceptionally well-grounded in the provided source files. Nearly every technical claim about CDN configuration properties, defaults, behavior, and referenceable parameters directly matches the TypeScript definitions and JSDoc comments in cdn.d.ts and __helpers.d.ts. The page structure is sound, code examples use correct class names and patterns, all cross-links exist in the navigation index, and the ApiReference component uses the correct definition name. Only very minor issues were identified.",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "a `web-app-firewall` resource defined in your stack with `scope: 'cdn'`",
+              "reason": "The WebAppFirewall type definition is not included in the provided source files. The `useFirewall` property in CdnConfiguration only states it's the 'Name of a web-app-firewall resource to protect this CDN.' The `scope: 'cdn'` requirement is a Stacktape-specific configuration claim that cannot be verified from the provided source. It is likely correct (AWS WAF for CloudFront requires CLOUDFRONT scope), but the exact Stacktape property name/value is unverifiable here.",
+              "suggestedFix": "Either soften to 'a web-app-firewall resource configured for CDN scope' without asserting the exact property value, or verify the claim against the web-app-firewall type definition (not provided in this source set).",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "#### Name of a `web-app-firewall` resource to protect this CDN from common web exploits."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The top-level `defaultRoutePrefix` prepends a path prefix to all requests forwarded to the default origin.",
+              "reason": "The source JSDoc for `defaultRoutePrefix` says 'Prepend a path prefix to all requests forwarded to the origin' — it does not explicitly qualify this as 'default origin' only. The draft's interpretation (that it only affects the default/non-rewrite traffic) is reasonable given the property name and the existence of per-rewrite `routePrefix`, but it's a minor inference beyond what the source explicitly states.",
+              "suggestedFix": "Consider rephrasing to match the source more closely: 'prepends a path prefix to all requests forwarded to the origin' without adding 'default' as a qualifier, or keep as-is since the inference is reasonable.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "#### Prepend a path prefix to all requests forwarded to the origin."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All CDN configuration properties (enabled, cachingOptions, forwardingOptions, routeRewrites, customDomains, edgeFunctions, cloudfrontPriceClass, defaultRoutePrefix, errorDocument, indexDocument, disableInvalidationAfterDeploy, useFirewall) are accurately named and described per the source types.",
+            "Default values are correctly cited: PriceClass_All, disableInvalidationAfterDeploy: false, disableCompression: false, indexDocument: /index.html, errorDocument: /404.html, custom-origin protocol: HTTPS.",
+            "The CDN-attachable resource types (bucket, application-load-balancer, http-api-gateway, function) exactly match the StpCdnAttachableResourceType union in __helpers.d.ts.",
+            "The route rewrite origin types (bucket, http-api-gateway, application-load-balancer, function, custom-origin) perfectly match the CdnRouteRewrite.routeTo union type.",
+            "CdnReferenceableParam values (cdnDomain, cdnUrl, cdnCustomDomains, cdnCustomDomainUrls, cdnCanonicalDomain, cdnCanonicalUrl) are complete and accurate per the source type.",
+            "Edge function hooks (onRequest, onResponse, onOriginRequest, onOriginResponse) and their behavioral descriptions match the EdgeFunctionsConfig interface JSDoc exactly.",
+            "The caching behavior distinction between bucket origins (6-month default) and API/ALB origins (not cached) is correctly sourced from the CdnCachingOptions JSDoc.",
+            "Cache key parameters (cookies: none/whitelist/allExcept/all; headers: none/whitelist; queryString: all/none/whitelist) match the CdnCacheKey sub-interfaces exactly.",
+            "Forwarding options (cookies: none/whitelist/all; headers: none/whitelist/allViewer/allViewerAndWhitelistCloudFront/allExcept; queryString: all/none/whitelist) match the ForwardHeaders/ForwardCookies/ForwardQueryString interfaces.",
+            "The Authorization header warning correctly reflects the source JSDoc: 'The Authorization header must be added to cachingOptions.cacheKeyParameters to be forwarded.'",
+            "All code examples use valid Stacktape class names (HttpApiGateway, Bucket, EdgeLambdaFunction, StacktapeLambdaBuildpackPackaging, WebAppFirewall), proper defineConfig pattern, and correct focus markers.",
+            "All cross-links in the draft point to valid routes in the navigation index.",
+            "The ApiReference component correctly uses definitionName='CdnConfiguration' matching the source interface name."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well grounded in the CDN type definitions and follows the required Stacktape config example format. The main problems are a few Stacktape-specific claims that go beyond the provided source: parent resources for CDN attachment, domain setup details, WebAppFirewall scope requirements, and an API reference metadata mismatch risk.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says a CDN can attach to “Lambda functions” and later says supported parent resources are HTTP API Gateway, Application Load Balancer, bucket, or Lambda function.",
+              "reason": "The source confirms CDN-compatible resource types include `function`, but it does not prove that the public TypeScript class/resource name is `LambdaFunction` for this page's inline source. More importantly, the source type for attachable resources is `StpCdnAttachableResourceType`, which lists resource type strings, not class names. The wording should be narrowed to “function resources” or “resources of type `function`” when describing the source-grounded set.",
+              "suggestedFix": "Change supported parent wording to “bucket, `http-api-gateway`, `application-load-balancer`, and `function` resources” and link the Lambda function page only as a reader aid.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpCdnAttachableResourceType = Subtype<\n  StpResourceType,\n  'bucket' | 'application-load-balancer' | 'http-api-gateway' | 'function' // | 'web-service' | 'hosting-bucket'\n>;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The value must be the name of a `web-app-firewall` resource defined in your stack with `scope: 'cdn'`.”",
+              "reason": "The CDN source only says `useFirewall` is the name of a `web-app-firewall` resource. The provided source files do not include the WebAppFirewall type or its `scope` property, so the `scope: 'cdn'` requirement is not grounded in the provided source list even if it may be true elsewhere.",
+              "suggestedFix": "Narrow the claim to “The `useFirewall` property names a `web-app-firewall` resource that protects this CDN.” If keeping `scope: 'cdn'`, include the WebAppFirewall source in the page source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "  /**\n   * #### Name of a `web-app-firewall` resource to protect this CDN from common web exploits.\n   */\n  useFirewall?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Your domain must have a Route53 hosted zone — set one up with `stacktape domain:add`.”",
+              "reason": "The source supports the Route53 hosted zone requirement, but the provided source files do not include CLI behavior for `domain:add`, so using that command as the setup mechanism is not grounded here.",
+              "suggestedFix": "Keep the hosted-zone requirement and either remove the command reference or phrase it as a link to the domain management docs without claiming command behavior from this source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "   * Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CloudFront requires viewer certificates to be in ACM `us-east-1` — regardless of where your origin resources are deployed.”",
+              "reason": "This is a real AWS CloudFront fact, but it is not present in the provided Stacktape source files. Because it is tied directly to the Stacktape `customCertificateArn` configuration path and affects what ARN the reader supplies, it should be sourced or softened.",
+              "suggestedFix": "Either include source that documents Stacktape’s certificate-region handling, or rephrase as AWS background: “For CloudFront viewer certificates, AWS requires ACM certificates in `us-east-1`; check this before supplying `customCertificateArn`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "  /**\n   * #### Use your own TLS certificate instead of the auto-generated one.\n   *\n   * ---\n   *\n   * Provide the ARN of an ACM certificate from your AWS account.\n   * Only needed if you have specific certificate requirements (e.g., EV/OV certs).\n   * By default, Stacktape provisions and renews free certificates automatically.\n   */\n  customCertificateArn?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The “Custom domains” section introduces an opt-in feature but gives only limited decision support before configuration.",
+              "reason": "The section explains how to configure custom domains and mentions DNS/certificate options, but it does not clearly cover when to enable custom domains, when the generated CDN domain is sufficient, or the operational tradeoff of DNS/certificate management. This is an opt-in feature and the page-quality rules require decision support.",
+              "suggestedFix": "Add 2-4 sentences before the example: use custom domains for public production URLs and stable API/frontend origins; keep the generated CloudFront URL for tests, internal stages, and temporary integrations; tradeoff is DNS ownership, certificate validation, and propagation delay.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "  /**\n   * #### Custom domains (e.g., `cdn.example.com`). Stacktape auto-creates DNS records and TLS certificates.\n   *\n   * ---\n   *\n   * Your domain must be added as a Route53 hosted zone in your AWS account first.\n   */\n  customDomains?: DomainConfiguration[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The “Edge functions” section introduces edge functions with examples, but does not give enough guidance on when to skip them or the tradeoffs.",
+              "reason": "The section covers hook points and gives a working example, but it lacks explicit “when the default is fine” and cost/complexity tradeoff guidance. Edge functions are an opt-in feature that can change request behavior before cache/origin handling, so readers need decision support.",
+              "suggestedFix": "Add guidance that most CDN setups should start without edge functions; use them for auth, request rewrites, and response headers that must run at the edge; skip them when origin code or normal headers can do the job; tradeoff is extra code deployed at CloudFront hook points and harder debugging.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "  /**\n   * #### Run edge functions on CDN requests/responses (URL rewrites, auth, A/B testing).\n   *\n   * ---\n   *\n   * - `onRequest`: Before cache lookup — modify the request, add auth, or return early.\n   * - `onResponse`: Before returning to the client — modify headers, add cookies.\n   */\n  edgeFunctions?: EdgeFunctionsConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "`<ApiReference definitionName=\"CdnConfiguration\" />` is used even though the page metadata describes a resource page and no `typeName` is provided in the prompt.",
+              "reason": "The CDN is a nested configuration object rather than a standalone resource props type, so `CdnConfiguration` may be the intended schema definition. However, the usual resource-page rule says ApiReference should match page `typeName` exactly, and no metadata `typeName` is present to confirm this value.",
+              "suggestedFix": "Confirm that `CdnConfiguration` exists in the generated schema and is the intended API reference target for this nested CDN page. If page metadata can include `typeName`, set it explicitly to `CdnConfiguration`.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and `defineConfig`; no hand-authored YAML config examples are present.",
+            "The draft correctly documents CDN pricing context from the CDN source: no monthly fee, roughly `$0.01/10k` requests, plus per-GB transfer.",
+            "The draft correctly covers the documented route rewrite union variants: bucket, HTTP API Gateway, Application Load Balancer, function, and custom origin.",
+            "The draft correctly scopes CDN firewall attachment to `cdn.useFirewall` rather than conflating it with top-level web-service firewall behavior.",
+            "The FAQ contains exactly 10 Q&A pairs and mixes Stacktape-specific, AWS-service, and comparison/use-case questions."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The CDN draft is API-complete for the primary CdnConfiguration surface and generally covers the important union variants it documents. I found no publication-blocking API completeness, union coverage, or demonstrativeness issues under this audit scope.",
+          "issues": [],
+          "positiveFindings": [
+            "All top-level CdnConfiguration properties are mentioned in prose, examples, or the API reference flow: enabled, cachingOptions, forwardingOptions, routeRewrites, customDomains, edgeFunctions, cloudfrontPriceClass, defaultRoutePrefix, errorDocument, indexDocument, disableInvalidationAfterDeploy, and useFirewall.",
+            "Documented union variants are acknowledged: CloudFront price classes, route rewrite origin types, edge function hook points, cache key cookie/header/query modes, forwarding cookie/header/query modes, custom-origin protocol values, and allowed HTTP methods.",
+            "The CodeBlock examples are demonstrative for their sections: caching sets cachingOptions, route rewrites set routeRewrites, forwarding sets forwardingOptions, custom domains set customDomains, edge functions set edgeFunctions, price class sets cloudfrontPriceClass, firewall sets useFirewall, and cache invalidation sets disableInvalidationAfterDeploy.",
+            "The page includes exactly one ApiReference definitionName matching the metadata typeName: CdnConfiguration."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\networking\\cdn.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 2, advisory high 0, verifier medium 4"
+}

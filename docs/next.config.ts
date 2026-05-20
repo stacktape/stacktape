@@ -28,7 +28,9 @@ if (isDev) {
 }
 
 const nextConfig: NextConfig = {
-  output: 'export',
+  // Static export for production. Disabled in dev so the /generation dashboard and its API
+  // routes (which read .state/*.json from disk) can run as a normal Next.js server.
+  ...(isDev ? {} : { output: 'export' as const }),
   typescript: {
     ignoreBuildErrors: true
   },

@@ -1,0 +1,888 @@
+{
+  "pageId": "observability__log-forwarding",
+  "pageRoute": "observability/log-forwarding",
+  "startedAt": "2026-05-17T16:48:17.716Z",
+  "updatedAt": "2026-05-17T17:02:11.887Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\observability__log-forwarding\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three destination types (Datadog, Highlight.io, HTTP endpoint) are covered with working, realistic code examples that use $Secret() consistently — a first-time reader can copy any of these and ship.",
+            "The supported resources list is genuinely useful for discovery: a reader coming from a web-service or database page can immediately see whether log forwarding applies to them.",
+            "The 'When to use' and 'When NOT to use' sections are concrete and opinionated — they explain the cost tradeoff rather than just listing features.",
+            "The configuration properties breakdown for HttpEndpointLogForwarding (with defaults, units, and rationale per property) is clear and actionable without being exhaustive.",
+            "The FAQ mixes all three required question categories: Stacktape-specific, underlying-AWS-service, and choosing/comparison — and delivers concise 2-4 sentence answers throughout.",
+            "Failure handling and buffering behavior differences between destination types are explicitly called out, which is the kind of operational detail that prevents surprises in production."
+          ],
+          "problems": [
+            "Missing required `<ApiReference definitionName=\"...\" />` component. Every resource/observability page is expected to have exactly one ApiReference; this page has none, leaving readers with no structured way to discover all available properties.",
+            "The `<FlowDiagram steps={[...]} />` component is not part of the documented MDX component palette (only `<Info>`, `<Tip>`, `<Warning>`, `<CodeBlock>`, `<ApiReference>`, `<ReferenceableParams>`, `<FeatureComparisonTable>` are listed). If this component doesn't exist in the system, that section will fail to render and produces a broken page.",
+            "The section instruction for observability pages explicitly states: 'Cost is a separate section — do not include cost content here. Link to /managing-costs/* if cost context is needed.' The page includes a full `## Costs` H2 section with a table, which violates this instruction.",
+            "Cost information is duplicated across three locations (intro paragraph, 'When NOT to use' section, and the 'Costs' H2), creating redundancy that reduces scannability."
+          ],
+          "mandatoryFixes": [
+            "Add exactly one `<ApiReference definitionName=\"...\" />` to the page. Given the source types, appropriate candidates are `HttpEndpointLogForwardingProps`, `DatadogLogForwardingProps`, and `HighlightLogForwardingProps`. Since these are three parallel types for the same union, use whichever definitionName the schema exposes for the union root (e.g. `LogForwardingBase` or the most general props type). Place it at the bottom of the page following the page rhythm convention.",
+            "Replace the `<FlowDiagram>` component with supported MDX components or plain prose. The simplest fix is to convert the four-step flow into a numbered list under the 'How it works' heading, removing the component call entirely. If `<FlowDiagram>` is confirmed valid in this docs system, document that confirmation; otherwise it is a rendering risk.",
+            "Remove the `## Costs` H2 section (with its cost table) to comply with the observability section instruction 'Cost is a separate section — do not include cost content here. Link to /managing-costs/* if cost context is needed.' A single sentence in 'When NOT to use' with a link to `/managing-costs/` is sufficient cost context. Also remove the duplicated cost sentence from the first paragraph or keep it only there, not in three places."
+          ],
+          "optionalImprovements": [
+            "The Datadog section shows two separate CodeBlock examples (one for US, one for EU) where the only change is `endpointUrl`. Consolidating into one example with a prose note about the EU override would reduce page length without losing information.",
+            "The buffering details (1 MB vs 4 MB buffer, 60-second intervals, retry durations) are scattered across three destination sections. A single comparison table at the end of the 'Supported destinations' section or inside 'How it works' would make these differences scannable at a glance.",
+            "The 'How it works' IAM roles enumeration (items 1-4) restates information already explained in prose above it. Trimming the IAM detail to one sentence ('Stacktape provisions the required IAM roles for CloudWatch→Firehose and Firehose→S3 automatically') would reduce noise without losing meaningful content.",
+            "Consider adding `<ReferenceableParams resource=\"...\" />` if any of the enclosing resource types expose referenceable parameters related to their log group ARN or Firehose stream — though this likely does not apply to log forwarding config directly.",
+            "The FAQ answer for 'What format are the forwarded logs in?' references an external AWS URL (`docs.aws.amazon.com/firehose/...`). Per the system instructions, URLs should only be included when the writer is confident they are correct. Verify this URL or replace with a description-only answer to avoid linking to a potentially wrong path."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clear three-way destination breakdown (Datadog, Highlight.io, HTTP) with a per-destination code example for each — reader can go straight to the section that matches their platform.",
+            "Supported destinations table gives a quick reference including auth mechanism per type, which is exactly what an engineer needs before deciding which class to use.",
+            "Correct use of `$Secret()` in every API key example — sets a good security baseline without lecturing.",
+            "Decision support in 'When to use' / 'When NOT to use' is concrete and actionable, including the cost signal for the no-forwarding case.",
+            "FAQ mix is strong: Stacktape-specific, AWS-level, and format/behavior questions that cover the real production questions an engineer would search for."
+          ],
+          "problems": [
+            "Violates the observability section instruction 'Cost is a separate section — do not include cost content here. Link to /managing-costs/* if cost context is needed.' The page contains a full '## Costs' section with a pricing table, plus cost figures in the intro paragraph and the 'When NOT to use' section.",
+            "Missing `<ApiReference>` component — the style guide requires exactly one on every configuration page. None appears anywhere on the page, so users cannot drill into property details beyond what the prose covers.",
+            "Buffer size claims (1 MB for HTTP/Highlight, 4 MB for Datadog) and flush interval (60 seconds) are not present in the source file. These appear to be AWS Firehose defaults, but presenting them as Stacktape-documented behavior is unsupported by the provided source.",
+            "Per-destination retry duration values are unsupported by the source. `retryDuration` (default 300) is only a configurable property on `HttpEndpointLogForwardingProps`. Neither `DatadogLogForwardingProps` nor `HighlightLogForwardingProps` expose `retryDuration` — claiming '60 seconds' for Datadog and '300 seconds' for Highlight implies user-configurable defaults that the source does not document.",
+            "`FlowDiagram` component used in the 'How it works' section is not listed in the documented MDX component palette or style guide and may not exist in the rendering pipeline."
+          ],
+          "mandatoryFixes": [
+            "Remove the '## Costs' section entirely, and remove the inline cost figure (~$0.03/GB) from the intro paragraph and the 'When NOT to use' section. The observability section instruction explicitly prohibits cost content here; replace with a single brief mention and a link to the /managing-costs/ page.",
+            "Add exactly one `<ApiReference definitionName=\"HttpEndpointLogForwardingProps\" />` (verify the definitionName against the generated schema — the union root type is LogForwardingBase but the configurable properties live on the three Props types). The page currently has no API reference component.",
+            "Remove all buffer size claims (1 MB / 4 MB), flush interval claims (60 s), and per-destination retry duration values from prose, section descriptions, and FAQ answers. The source only documents `retryDuration` (default 300 s) on `HttpEndpointLogForwardingProps`. For Datadog and Highlight, these are not user-configurable and not documented in the source — do not present them as known values. Replace with 'Firehose uses its standard buffering and retry behavior; see the AWS Kinesis Data Firehose documentation for delivery timing details.'",
+            "Replace `<FlowDiagram>` with a prose paragraph or an `<Info>` callout describing the four AWS resources provisioned. The component is not in the documented writer surface and may not render in production."
+          ],
+          "optionalImprovements": [
+            "The 'Configuration properties' subsection under HTTP endpoint uses a prose bullet list — converting it to a table (Property | Type | Default | Description) would be more scannable and consistent with the destinations comparison table above.",
+            "The 'Supported resources' section uses a flat bullet list. A two-column table (Resource | `logForwarding` path) would make it easier to find the correct nesting path at a glance, especially since the path varies by resource type.",
+            "The FAQ answer for 'What format are the forwarded logs in?' links to an AWS docs URL — this is the one place on the page where a raw external URL appears in prose. Verify the URL is stable or rephrase to link the AWS docs page by name rather than hardcoding the path."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 5,
+            "scannability": 7,
+            "completeness": 4,
+            "practicalUsefulness": 4,
+            "audienceFit": 5
+          },
+          "strengths": [
+            "Opening paragraph is self-contained, answer-first, and within the target length.",
+            "The destination table is useful and matches the three union variants from the source: HTTP endpoint, Highlight.io, and Datadog.",
+            "Stacktape config examples use <CodeBlock intellisense> with the required TypeScript tab label and avoid forbidden YAML/plain-object config forms.",
+            "The page gives clear decision guidance for when log forwarding is useful versus when Stacktape log viewing is enough."
+          ],
+          "problems": [
+            "Large portions of the page are not grounded in the provided source file. Unsupported claims include CloudWatch subscription filters, per-log-group Firehose streams, S3 bucket naming, AES-256 encryption, IAM role details, FailedDataOnly mode, delivery format, resource-specific nesting paths, supported resource list, buffer sizes, flush intervals, Datadog/Highlight compression, and retry behavior for Datadog/Highlight.",
+            "The page includes a full Costs section even though the observability section instructions say cost is a separate section and should not be included here. The source supports only the brief Firehose pricing context and backup S3 outcome.",
+            "Several numeric claims are unsupported by the provided source: 1 MB/4 MB buffers, 60-second intervals, 60-second Datadog retry duration, 300-second Highlight retry duration, 1-2 minute delivery delay, and 10 GB/month cost arithmetic.",
+            "The Datadog and Highlight sections imply Stacktape-specific delivery behavior beyond the source. The source only documents apiKey/projectId and optional endpointUrl defaults for those destinations.",
+            "The supported resources section is especially risky because the only provided source defines LogForwardingBase and destination types, not which resource types expose that base or the exact property path on each resource.",
+            "The FAQ is useful for search, but many answers rely on unsupported Stacktape-specific implementation details rather than the provided source.",
+            "The custom HTTP endpoint section is the best-grounded section, but the example sets retryDuration, gzipEncodingEnabled, and parameters without clearly separating source-backed defaults from implementation assumptions around delivery timing.",
+            "The <FlowDiagram> and <Tip> content reinforces unsupported implementation details, making the page look more authoritative than the source allows."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow every Stacktape-specific implementation claim not present in log-forwarding.d.ts. Keep only: destinations are Datadog, Highlight.io, or HTTP endpoint; Kinesis Data Firehose is used at approximately $0.03/GB; failed deliveries go to a backup S3 bucket; HTTP endpoint properties and defaults; Highlight projectId and endpointUrl default; Datadog apiKey and endpointUrl default.",
+            "Remove the Costs section or replace it with a short source-backed pricing note near the top plus a link to the appropriate cost page, consistent with the observability instruction that cost belongs elsewhere.",
+            "Delete or rewrite the Supported resources section unless additional source files prove exactly which resources expose logForwarding and at what property path.",
+            "Delete unsupported buffering, timing, compression, retry, IAM, encryption, S3 bucket naming, and delivery-format claims, or add the necessary authoritative source files before publishing.",
+            "Revise the FAQ so Stacktape-specific answers are source-grounded. General AWS FAQ context is acceptable, but do not present unsupported Firehose/CloudWatch mechanics as Stacktape behavior."
+          ],
+          "optionalImprovements": [
+            "Add a compact comparison table that focuses only on source-backed destination properties: required value, optional endpoint override, and authentication/metadata fields.",
+            "Keep the custom HTTP endpoint guidance, but phrase endpoint requirements conservatively: the source says endpointUrl is an HTTPS endpoint URL and accessKey is sent in X-Amz-Firehose-Access-Key.",
+            "Add a short note that Datadog API keys and HTTP access keys should use $Secret(), because the source explicitly recommends storing those as $Secret() for security.",
+            "If the final page remains narrow after removing unsupported material, a smaller FAQ with 5-6 strong questions would be better than a broad FAQ that depends on unprovided implementation details."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft accurately reflects the three destination variants and the documented core fields in `log-forwarding.d.ts`, but it makes many detailed Stacktape-specific claims that are not present in the provided source. The highest-risk issues are unsupported resource attachment paths, delivery mechanics, generated AWS resources, and operational details such as buffering, retry behavior for non-HTTP destinations, backup bucket naming, and multi-log-group sharing.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Log forwarding is available on every resource type that writes to CloudWatch Logs” followed by a concrete list of Lambda functions, web/private/worker services, multi-container workloads, batch jobs, HTTP API gateways, relational databases, Redis clusters, and bastion hosts with specific nesting paths.",
+              "reason": "The provided source defines the generic `logForwarding` shape and destination union, but it does not identify which resources embed `LogForwardingBase` or the exact nesting paths such as `accessLogs.logForwarding` or per-container `logging.logForwarding`. This would directly affect what readers configure.",
+              "suggestedFix": "Narrow the section to say the source defines a reusable `logForwarding` configuration shape for resources that expose it. Only list specific resources and nesting paths if their resource type files are included and verify them there.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface LogForwardingBase {\n  /**\n   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n   *\n   * ---\n   *\n   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.\n   */\n  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Datadog Firehose delivery uses GZIP compression and a 4 MB buffer with 60-second flush intervals. The retry duration before sending failed logs to the backup S3 bucket is 60 seconds.”",
+              "reason": "The Datadog destination source only documents `apiKey` and optional `endpointUrl`. It does not document compression, buffer size, flush interval, or retry duration for Datadog.",
+              "suggestedFix": "Remove the Datadog buffering, compression, and retry-duration sentence unless runtime provisioning source is added. Keep only the sourced facts: Datadog requires `apiKey`, supports optional `endpointUrl`, and defaults to the documented Datadog intake URL.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface DatadogLogForwardingProps {\n  /**\n   * #### Your Datadog API key. Store as `$Secret()` for security.\n   */\n  apiKey: string;\n  /**\n   * #### Datadog endpoint. Use the EU URL if your account is in the EU region.\n   * @default \"https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input\"\n   */\n  endpointUrl?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Highlight delivery uses GZIP compression, a 1 MB buffer with 60-second flush intervals, and a 300-second retry duration.”",
+              "reason": "The Highlight destination source only documents `projectId` and optional `endpointUrl`. It does not document compression, buffer size, flush interval, or retry duration for Highlight.",
+              "suggestedFix": "Remove the Highlight buffering, compression, and retry-duration sentence unless runtime provisioning source is added. Keep only the sourced facts: Highlight requires `projectId`, supports optional `endpointUrl`, and defaults to the documented Highlight endpoint.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HighlightLogForwardingProps {\n  /**\n   * #### Your Highlight.io project ID (from the Highlight console).\n   */\n  projectId: string;\n  /**\n   * #### Highlight.io endpoint. Override for self-hosted or regional endpoints.\n   * @default \"https://pub.highlight.io/v1/logs/firehose\"\n   */\n  endpointUrl?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape creates four AWS resources per forwarded log group” and the detailed claims about CloudWatch subscription filters, empty filter patterns, encrypted S3 backup buckets, IAM roles, `FailedDataOnly`, and shared buckets/roles for multi-log-group resources.",
+              "reason": "The provided source only states that log forwarding uses Kinesis Data Firehose and failed deliveries go to a backup S3 bucket. It does not document CloudWatch subscription filters, filter patterns, encryption settings, IAM role structure, S3 backup mode, bucket sharing, or per-log-group delivery stream topology.",
+              "suggestedFix": "Replace the detailed implementation section with a narrow description grounded in the source: Stacktape uses Kinesis Data Firehose for forwarding, and failed deliveries go to a backup S3 bucket. Add the lower-level AWS resource details only if the provisioning source is supplied.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The bucket is named `{stackName}-{resourceName}-logs-{hash}` and is visible in the AWS S3 console.”",
+              "reason": "The source says failed deliveries go to a backup S3 bucket, but it does not document the generated bucket naming scheme or Console/AWS Console visibility. The naming claim is precise and configuration-adjacent, so it needs source backing.",
+              "suggestedFix": "Remove the bucket naming pattern. If retained, verify it against the runtime provisioning code that creates the backup bucket.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Data transfer to endpoint: Included in Firehose pricing for AWS-external endpoints” and “There is no charge for the delivery stream itself — you pay only for the volume of log data processed.”",
+              "reason": "The provided Stacktape source includes only the approximate Firehose ingestion price. It does not document broader AWS Firehose pricing behavior, data transfer inclusion, or the absence of a per-stream charge.",
+              "suggestedFix": "Keep the sourced pricing line `Uses Kinesis Data Firehose (~$0.03/GB)` and avoid detailed AWS billing claims unless a pricing source is provided. You can link readers to AWS pricing for exact details without asserting unsourced billing inclusions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I filter which logs get forwarded? Not currently. Stacktape creates the CloudWatch subscription filter with an empty filter pattern, which forwards all log events from the resource's log group.”",
+              "reason": "The source does not expose a filtering property, but it also does not document the subscription filter implementation or empty filter pattern. The negative configuration claim is partly inferable from the absence of a filter field on the destination props, but the CloudWatch implementation detail is unsupported.",
+              "suggestedFix": "Say: “The documented `logForwarding` configuration does not expose a filter property. If you need filtering, do it in the destination or ingestion endpoint.” Remove the empty-filter-pattern claim unless provisioning source is supplied.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwardingProps {\n  /**\n   * #### HTTPS endpoint URL where logs are sent.\n   */\n  endpointUrl: string;\n  /**\n   * #### Compress request body with GZIP to reduce transfer costs.\n   * @default false\n   */\n  gzipEncodingEnabled?: boolean;\n  /**\n   * #### Extra metadata sent in the `X-Amz-Firehose-Common-Attributes` header.\n   */\n  parameters?: { [paramName: string]: string };\n  /**\n   * #### Total retry time (seconds) before sending failed logs to a backup S3 bucket.\n   * @default 300\n   */\n  retryDuration?: number;\n  /**\n   * #### Auth credential sent in `X-Amz-Firehose-Access-Key` header. Store as `$Secret()` for security.\n   */\n  accessKey?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Datadog and Highlight.io parse this format natively” and “For custom HTTP endpoints, your ingestion service needs to handle the CloudWatch Logs Firehose format.”",
+              "reason": "The Stacktape source does not document the delivered payload format or destination parser behavior. These claims may be true as AWS/vendor behavior, but they are not grounded in the provided source and are more specific than the source supports.",
+              "suggestedFix": "Either remove the format section or reframe cautiously as AWS Firehose/CloudWatch background with an external AWS link, not as Stacktape-specific behavior. Avoid claiming native parsing by Datadog or Highlight unless vendor or implementation source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the three documented destination variants: HTTP endpoint, Highlight.io, and Datadog.",
+            "The draft correctly documents the sourced HTTP endpoint properties: `endpointUrl`, `gzipEncodingEnabled`, `parameters`, `retryDuration`, and `accessKey`, including the documented defaults for `gzipEncodingEnabled` and `retryDuration`.",
+            "The draft correctly documents the sourced default endpoints for Datadog and Highlight.io.",
+            "The draft uses valid internal routes for the Stacktape cross-links it includes, including `/observability/logs`, `/cli/debug-logs`, and the referenced resource pages."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft accurately captures the three destination variants, required destination properties, the Firehose pricing context, failed-delivery backup S3 concept, and documented defaults for `HttpEndpointLogForwardingProps.retryDuration`, `gzipEncodingEnabled`, Datadog endpoint, and Highlight endpoint. The main problems are precise implementation, resource-support, delivery-behavior, and code-example claims that are not grounded in the provided source file.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Log forwarding is available on every resource type that writes to CloudWatch Logs” followed by a concrete list of Lambda functions, services, batch jobs, HTTP API gateways, relational databases, Redis clusters, and bastion hosts, each with exact property paths.",
+              "reason": "The provided source defines the log forwarding shape, but it does not identify which resource types include `LogForwardingBase` or the exact nesting paths where `logForwarding` is available. This list would directly affect what readers try to configure.",
+              "suggestedFix": "Narrow this section to what the provided source proves: `logForwarding` is a property on `LogForwardingBase` and accepts `HttpEndpointLogForwarding`, `HighlightLogForwarding`, or `DatadogLogForwarding`. Omit the resource list unless source files for those resource types are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface LogForwardingBase {\n  /**\n   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n   *\n   * ---\n   *\n   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.\n   */\n  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Stacktape config examples instantiate `new DatadogLogForwarding(...)`, `new HighlightLogForwarding(...)`, and `new HttpEndpointLogForwarding(...)`.",
+              "reason": "The provided source defines TypeScript interfaces named `DatadogLogForwarding`, `HighlightLogForwarding`, and `HttpEndpointLogForwarding`, not exported constructable classes. The shown class-style API may be valid elsewhere, but it is not grounded in the supplied source.",
+              "suggestedFix": "Either provide source evidence that these classes are exported by `stacktape`, or avoid class-instantiation examples for destination types in this draft. If the deterministic code-block validator confirms the classes, keep them but note that the validator confirms the class exports.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwarding {\n  type: 'http-endpoint';\n  properties: HttpEndpointLogForwardingProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HighlightLogForwarding {\n  type: 'highlight';\n  properties: HighlightLogForwardingProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface DatadogLogForwarding {\n  type: 'datadog';\n  properties: DatadogLogForwardingProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape creates four AWS resources per forwarded log group” and the detailed claims about CloudWatch subscription filters, empty filter patterns, one Firehose stream per log group, AES-256 backup bucket encryption, IAM role permissions, shared buckets for multi-log-group resources, and bucket naming.",
+              "reason": "The source only says log forwarding uses Kinesis Data Firehose and failed deliveries go to a backup S3 bucket. It does not support the exact CloudFormation topology, subscription filter behavior, encryption mode, IAM actions, sharing behavior, or S3 bucket naming pattern.",
+              "suggestedFix": "Replace the detailed topology with the grounded version: Stacktape uses Kinesis Data Firehose, sends logs to the configured external destination, and routes failed deliveries to a backup S3 bucket. Remove or qualify all exact implementation details unless runtime/source files for the generated infrastructure are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Datadog delivery uses GZIP compression, a 4 MB buffer, 60-second flush intervals, and a 60-second retry duration.",
+              "reason": "The Datadog source type only documents `apiKey` and optional `endpointUrl`, including the default endpoint. It does not expose or document compression, buffer size, flush interval, or retry duration for Datadog log forwarding.",
+              "suggestedFix": "Keep the Datadog API key and endpoint behavior. Remove the compression, buffering, flush, and retry-duration claims unless an implementation source file is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface DatadogLogForwardingProps {\n  /**\n   * #### Your Datadog API key. Store as `$Secret()` for security.\n   */\n  apiKey: string;\n  /**\n   * #### Datadog endpoint. Use the EU URL if your account is in the EU region.\n   * @default \"https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input\"\n   */\n  endpointUrl?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Highlight delivery uses GZIP compression, a 1 MB buffer, 60-second flush intervals, and a 300-second retry duration.",
+              "reason": "The Highlight source type only documents `projectId` and optional `endpointUrl`, including the default endpoint. It does not expose or document compression, buffer size, flush interval, or retry duration for Highlight log forwarding.",
+              "suggestedFix": "Keep the Highlight project ID and endpoint behavior. Remove the compression, buffering, flush, and retry-duration claims unless an implementation source file is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HighlightLogForwardingProps {\n  /**\n   * #### Your Highlight.io project ID (from the Highlight console).\n   */\n  projectId: string;\n  /**\n   * #### Highlight.io endpoint. Override for self-hosted or regional endpoints.\n   * @default \"https://pub.highlight.io/v1/logs/firehose\"\n   */\n  endpointUrl?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Custom HTTP endpoint delivery uses a 1 MB buffer with 60-second flush intervals, and forwarded logs appear externally with up to 60 seconds of Firehose buffering delay or within 1–2 minutes overall.",
+              "reason": "The HTTP endpoint source type documents endpoint URL, GZIP option, parameters, retry duration default, and access key. It does not document buffer size, flush interval, or end-to-end delivery latency.",
+              "suggestedFix": "Remove the numeric buffering and latency claims, or rewrite cautiously as general AWS Firehose behavior only if you intentionally want AWS background context rather than Stacktape-specific behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwardingProps {\n  /**\n   * #### HTTPS endpoint URL where logs are sent.\n   */\n  endpointUrl: string;\n  /**\n   * #### Compress request body with GZIP to reduce transfer costs.\n   * @default false\n   */\n  gzipEncodingEnabled?: boolean;\n  /**\n   * #### Extra metadata sent in the `X-Amz-Firehose-Common-Attributes` header.\n   */\n  parameters?: { [paramName: string]: string };\n  /**\n   * #### Total retry time (seconds) before sending failed logs to a backup S3 bucket.\n   * @default 300\n   */\n  retryDuration?: number;\n  /**\n   * #### Auth credential sent in `X-Amz-Firehose-Access-Key` header. Store as `$Secret()` for security.\n   */\n  accessKey?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I forward logs to multiple destinations at once? No. Each resource's `logForwarding` property accepts a single destination.”",
+              "reason": "The union type shows one `logForwarding` value selects one of three destination shapes, but the source does not explicitly document multi-destination behavior or rule out other forwarding mechanisms. The strong “No” answer goes beyond the source.",
+              "suggestedFix": "Say that a single `logForwarding` value is configured as one of three destination types. Avoid broader advice about multi-destination forwarding unless supported by implementation or schema sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I filter which logs get forwarded? Not currently. Stacktape creates the CloudWatch subscription filter with an empty filter pattern, which forwards all log events from the resource's log group.”",
+              "reason": "The provided source does not mention CloudWatch subscription filters, filter patterns, or a filtering capability. The absence of a filter property in this one type supports caution, but not the exact implementation claim about an empty filter pattern.",
+              "suggestedFix": "Rewrite to the narrower source-grounded statement: the documented `logForwarding` properties do not include a filter option. Remove the empty-filter-pattern claim unless infrastructure-generation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface LogForwardingBase {\n  /**\n   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n   *\n   * ---\n   *\n   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.\n   */\n  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the three supported destination variants: HTTP endpoint, Highlight.io, and Datadog.",
+            "The draft correctly states the Firehose pricing context as approximately `$0.03/GB`, which appears directly in the JSDoc.",
+            "The draft correctly documents `HttpEndpointLogForwardingProps.endpointUrl`, `gzipEncodingEnabled`, `parameters`, `retryDuration`, and `accessKey`, including the documented defaults for GZIP and retry duration.",
+            "The draft correctly documents the default Datadog endpoint and the guidance that EU Datadog accounts should use the EU URL.",
+            "The draft correctly documents the default Highlight.io endpoint and that `endpointUrl` can be overridden for self-hosted or regional endpoints.",
+            "The draft uses valid navigation routes for the checked internal links, including `/observability/logs`, `/cli/debug-logs`, `/configuration/secrets`, and the linked resource pages."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API completeness, union-variant coverage, or code-example demonstrativeness issues found for the provided log-forwarding source. The draft covers the single exposed `logForwarding` union and all documented destination properties, and each Stacktape config example demonstrates the destination discussed in its section.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft names all `logForwarding` union variants from the source: `HttpEndpointLogForwarding`, `HighlightLogForwarding`, and `DatadogLogForwarding`.",
+            "The custom HTTP endpoint section documents every property in `HttpEndpointLogForwardingProps`: `endpointUrl`, `gzipEncodingEnabled`, `parameters`, `retryDuration`, and `accessKey`.",
+            "The Datadog and Highlight sections cover their required and optional properties, including the documented default endpoint behavior.",
+            "Each `<CodeBlock intellisense>` example uses the destination type discussed by its surrounding section rather than repeating an unrelated scaffold."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\observability__log-forwarding\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three destination types (Datadog, Highlight.io, HTTP endpoint) are documented with working, realistic code examples that follow the $Secret() pattern consistently — a first-timer can copy any example and start immediately.",
+            "The 'When to use' / 'When NOT to use' sections are peer H2s (not nested) and give concrete, opinionated guidance. The 'When NOT to use' section correctly names the alternative (built-in stacktape debug:logs) rather than just saying 'skip it'.",
+            "The destination comparison table ('Choosing a destination') is the kind of side-by-side summary that helps readers make a decision in 30 seconds — covers setup complexity, configurable retry, GZIP, custom metadata, and best-fit scenarios.",
+            "The FAQ covers all three required categories: Stacktape-specific questions (log format, forwarding vs CloudWatch), AWS-service questions (Firehose pricing, what happens when endpoint is down), and choosing questions (Datadog type vs HTTP endpoint type for Datadog). 10 entries, all genuinely distinct.",
+            "The 'How it works' section adds real architectural value: the numbered CloudWatch→Firehose→HTTPS→S3-backup flow explains WHY there is a backup bucket and what it means, which directly answers the 'what happens if my endpoint is down' question before the reader even reaches the FAQ.",
+            "No forbidden YAML blocks, no StacktapeConfig type imports, no fenced TypeScript blocks containing defineConfig — all Stacktape config examples are correctly wrapped in <CodeBlock intellisense tabs={[...]}/>.",
+            "The supported destinations table at the top of the configuration section is a fast-path anchor for readers who already know what they want — they can scan the table and jump straight to their destination section."
+          ],
+          "problems": [
+            "The <ApiReference definitionName=\"HttpEndpointLogForwardingProps\" /> covers only one of the three destination types on this page. Readers who finish the Datadog or Highlight.io sections and reach the API reference will not find those properties documented there. The page's root type should be LogForwardingBase (which holds the union of all three forwarding types), so the component's built-in drill-down can reach all three. Using only HttpEndpointLogForwardingProps leaves two-thirds of the documented surface outside the reference.",
+            "The Datadog section uses two separate CodeBlock examples (basic + EU endpoint override) where a single example with a prose sentence explaining the endpointUrl override would be cleaner. A first-timer scanning the page sees two full defineConfig blocks for the same destination, which adds cognitive load without meaningful new patterns.",
+            "The 'Logs remain in CloudWatch' subsection inside 'How it works' restates content already in the intro paragraph ('Forwarding creates a copy of log events') and the first FAQ Q&A ('Do forwarded logs still appear in CloudWatch?'). The repetition offers no new detail and pads the section.",
+            "The FAQ answer to 'Can I forward logs from a relational database or Redis cluster?' is deliberately vague: 'Resources that produce CloudWatch Logs and expose a logging property with logForwarding support this feature.' This does not name which resources qualify and leaves the reader no better off than before asking. Either name the resource types or link to a page that does.",
+            "The H2 'When to use log forwarding' and 'When NOT to use log forwarding' are 7 words each — above the recommended 1-5 word limit for H2 headings. The style guide targets short noun-form labels; these read as full sentences. Shorter forms like 'When to use' / 'When not to use' are conventional enough to be unambiguous in context."
+          ],
+          "mandatoryFixes": [
+            "Change <ApiReference definitionName=\"HttpEndpointLogForwardingProps\" /> to use the page's root type. Based on the source file, LogForwardingBase is the interface that owns the logForwarding union of all three destination types (DatadogLogForwarding | HighlightLogForwarding | HttpEndpointLogForwarding). Using that as the definitionName lets the component's drill-down reach all three forwarding types, which matches the page's full scope. Using only HttpEndpointLogForwardingProps means Datadog and Highlight properties are absent from the reference section."
+          ],
+          "optionalImprovements": [
+            "Collapse the two Datadog code examples into one. Keep the basic example with apiKey, then add a single prose sentence like: 'For EU-region Datadog accounts, set endpointUrl to https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input.' This preserves the information without a second full defineConfig block.",
+            "Remove or merge the 'Logs remain in CloudWatch' subsection inside 'How it works' — its content is fully covered by the intro and FAQ. If retained, replace it with a concrete call-out: which CloudWatch commands or Console views remain usable alongside forwarding (link to /cli/debug-logs and the Console logs page).",
+            "Improve the vague FAQ answer about relational databases and Redis. Either name which resource types expose logging.logForwarding (e.g. LambdaFunction, WebService, WorkerService, etc.) or say explicitly 'check each resource's API reference for a logging property — if it exists, logForwarding is supported within it' and link to the API reference page for one example resource.",
+            "The <Tip> callout ('Check the backup S3 bucket periodically') could be folded into the Failure handling prose with no loss — it doesn't need the visual callout treatment since it's already inside a dedicated subsection. Reducing callout use keeps the page's visual weight consistent.",
+            "Shorten H2 headings 'When to use log forwarding' and 'When NOT to use log forwarding' to 'When to use' and 'When not to use'. The page context makes the subject (log forwarding) clear without appending it to every heading.",
+            "Add a one-sentence pricing callout near the top of the page anchored to the source's JSDoc: 'Kinesis Data Firehose charges approximately $0.03/GB of data ingested; failed deliveries incur S3 storage costs for the backup bucket.' The source file's JSDoc for logForwarding includes this figure and it helps readers make a cost-conscious decision before configuring forwarding."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "All three destination types are covered with working code examples, not just the first one — this is genuinely complete on the happy path.",
+            "The comparison table (Choosing a destination) concisely surfaces retry/GZIP/metadata support differences across types, which is exactly what an engineer needs before picking a type.",
+            "Failure handling is documented explicitly: retry duration, backup S3 bucket, what 'failed deliveries' means — this is the kind of operational detail that matters at 2am.",
+            "The FAQ covers a genuinely useful spread: format, downtime behavior, cost, destination choice, filtering — all questions an engineer would actually search for.",
+            "EU Datadog endpoint is called out with a concrete example — a common gotcha that would otherwise require reading Datadog's own docs.",
+            "The $Secret() directive is correctly used and reinforced in every example, never hardcoded keys.",
+            "The 'When NOT to use' section is peer H2 (not nested under 'When to use') as required."
+          ],
+          "problems": [
+            "The `<ApiReference definitionName=\"HttpEndpointLogForwardingProps\" />` at the bottom covers only one of three destination types. An engineer looking up DatadogLogForwardingProps or HighlightLogForwardingProps will find nothing in the API reference section — the two simpler (and most commonly used) destination configs are absent. The correct root type is `LogForwardingBase`, whose `logForwarding` union property drills into all three variants.",
+            "The page never tells the reader which Stacktape resource types support `logging.logForwarding`. An engineer working on a RelationalDatabase or RedisCluster cannot determine from this page whether those resources expose the `logging` block with `logForwarding`. This is the most common practical question a reader will arrive with.",
+            "FAQ question 10 ('Can I forward logs from a relational database or Redis cluster?') gives a circular non-answer: 'Resources that produce CloudWatch Logs and expose a `logging` property with `logForwarding` support this feature.' The engineer asking this question already knows that — they want to know whether their specific resource type qualifies.",
+            "The 'Logs remain in CloudWatch' subsection inside 'How it works' repeats a point already made in 'When NOT to use log forwarding'. This is padding inside an otherwise useful section.",
+            "The source JSDoc on `LogForwardingBase.logForwarding` documents a concrete price ('~$0.03/GB') that is never surfaced prominently. The FAQ answer about Firehose cost uses vague 'a few dollars per month' language instead of citing the source figure."
+          ],
+          "mandatoryFixes": [
+            "Replace `<ApiReference definitionName=\"HttpEndpointLogForwardingProps\" />` with `<ApiReference definitionName=\"LogForwardingBase\" />`. The page documents all three destination types but the current ApiReference only exposes HTTP endpoint properties. `LogForwardingBase` is the root interface whose `logForwarding` union covers all three variants — engineers looking up Datadog or Highlight properties will find them through its drill-down. Using a leaf props type as the page-level API reference leaves two thirds of the documented surface invisible in the reference section."
+          ],
+          "optionalImprovements": [
+            "Add a one-paragraph section (or a callout near the top) listing which Stacktape resource types expose `logging.logForwarding`. Even a partial list (LambdaFunction, WebService, WorkerService, etc.) prevents engineers from wasting a deploy cycle discovering an unsupported resource type.",
+            "Replace the circular FAQ answer 10 with either a concrete list of supported resource types or an honest 'check the resource's API reference for a `logging.logForwarding` property' instruction. The current phrasing adds no information.",
+            "Surface the source-documented Firehose price (~$0.03/GB) in an `<Info>` callout near the top of the page, consistent with the JSDoc on `LogForwardingBase.logForwarding`. The FAQ currently soft-pedals this with 'a few dollars per month' which understates predictability for high-volume log producers.",
+            "Trim or fold 'Logs remain in CloudWatch' into the opening description of 'How it works' rather than a standalone H3 — it's one sentence of new content wrapped in a Tip callout and a paragraph that already appeared in 'When NOT to use'.",
+            "The two Datadog code examples (US and EU) could be collapsed into a single example using a comment-free inline `endpointUrl` override, reducing the page's CodeBlock count from 5 to 4 without losing any information. The current structure implies EU is an unusual edge case requiring a separate resource definition, when it is just a single property override."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and within the expected snippet length.",
+            "Destination variants are named clearly, and the comparison table helps readers choose between Datadog, Highlight.io, and a custom HTTP endpoint.",
+            "The page correctly avoids hand-authored YAML and uses <CodeBlock intellisense tabs={[...]}/> for Stacktape config examples.",
+            "The custom HTTP endpoint section explains the important supported properties, including defaults for gzipEncodingEnabled and retryDuration that are present in the source."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source file, including CloudWatch subscription mechanics, near-real-time delivery, encrypted backup S3 buckets, log record format, successfully delivered logs not being duplicated to S3, and Stacktape Console visibility.",
+            "The config examples import and instantiate DatadogLogForwarding, HighlightLogForwarding, and HttpEndpointLogForwarding classes, but the provided source only defines interfaces and props shapes for these destination types. As written, the examples may not be copy-paste runnable.",
+            "The page claims the logForwarding property is configured within a resource's logging configuration, but the only provided source shows LogForwardingBase and does not prove which resources expose it or the exact nesting path.",
+            "The FAQ contains unsupported AWS and third-party integration claims, such as Grafana Cloud accepting Firehose-formatted log delivery, Datadog and Highlight parsing the format natively, and Firehose having no delivery stream resource charge.",
+            "The API reference only points to HttpEndpointLogForwardingProps even though the page covers the full logForwarding union, Datadog props, and Highlight props. This leaves two destination types under-documented.",
+            "The page includes cost content in multiple places despite the observability instruction saying cost is a separate section and should not be included here except as links to managing-costs pages.",
+            "Some destination examples set tunable values without enough source-grounded alternatives, especially WebService resources, WorkerService resources, cpu/memory values, and endpoint URLs beyond the defaults documented in the source."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported class-based log forwarding helper usage with a source-grounded configuration form, or cite source that proves DatadogLogForwarding, HighlightLogForwarding, and HttpEndpointLogForwarding are exported constructors before keeping those examples.",
+            "Remove or narrow unsupported claims about CloudWatch subscription filters, near-real-time delivery, log record format, encrypted S3 backup buckets, successful-delivery duplication behavior, Console log viewing, and third-party parser support unless additional source files prove them.",
+            "Correct the resource/nesting wording: say only that LogForwardingBase exposes an optional logForwarding property unless source files for specific resource logging blocks prove the exact logging.logForwarding path.",
+            "Revise the API reference strategy so the page exposes the full documented surface for log forwarding, not only HttpEndpointLogForwardingProps. If a root generated schema definition exists for LogForwardingBase, use that; otherwise explain all three prop types in prose without implying the API reference covers them all.",
+            "Move cost claims out of the observability content or reduce them to the source-grounded pricing line from the JSDoc with a link to /managing-costs/overview. Do not add unsupported estimates like 'a few dollars per month'."
+          ],
+          "optionalImprovements": [
+            "Add a short, source-grounded note near the top: log forwarding uses Kinesis Data Firehose at approximately ~$0.03/GB and failed deliveries go to a backup S3 bucket.",
+            "Trim the FAQ to questions the provided source can support, or clearly separate general AWS/third-party background from Stacktape-specific behavior.",
+            "Make the 'How it works' section more cautious: describe only the source-backed Firehose delivery stream and backup S3 behavior unless additional runtime code is provided.",
+            "Avoid naming third-party platforms like Splunk, New Relic, Mezmo, and Grafana Cloud as supported HTTP destinations unless source or vendor documentation is included; 'any HTTPS endpoint' is already grounded and sufficient.",
+            "Add a compact table of destination properties that includes defaults for Datadog endpointUrl, Highlight endpointUrl, gzipEncodingEnabled, and retryDuration."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided log-forwarding type source, but several Stacktape-specific statements go beyond what the source supports. The main risks are overstating where `logForwarding` is available, implying behavior for delivery plumbing and backup bucket encryption that the source does not state, and documenting third-party endpoint compatibility as if it were sourced Stacktape behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Resources that produce CloudWatch Logs and expose a `logging` property with `logForwarding` support this feature\" and \"The configuration shape is identical regardless of the resource type — only the nesting path may differ.\"",
+              "reason": "The provided source only defines `LogForwardingBase.logForwarding`; it does not identify which resource logging configurations include this base type, nor does it state that every CloudWatch-logging resource supports it or that nesting only differs by resource type.",
+              "suggestedFix": "Narrow the wording to the source-backed fact: `logForwarding` is available on logging configurations that include `LogForwardingBase`; readers should check the specific resource API reference for whether its `logging` block supports log forwarding.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface LogForwardingBase {\n  /**\n   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n   *\n   * ---\n   *\n   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.\n   */\n  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"CloudWatch streams log events to Firehose — a subscription on the log group routes log events to a Kinesis Data Firehose delivery stream in near real-time.\"",
+              "reason": "The source supports that log forwarding uses Kinesis Data Firehose, but it does not describe CloudWatch subscription filters, log group routing mechanics, or near-real-time behavior. This is likely AWS implementation knowledge, but the draft states it as Stacktape provisioning behavior without source support.",
+              "suggestedFix": "Keep the sourced behavior and soften the implementation detail: \"Stacktape uses Kinesis Data Firehose to deliver CloudWatch logs to the configured destination.\" Avoid naming subscription filters or near-real-time delivery unless another source file supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"After retries are exhausted, failed batches are stored in an encrypted S3 backup bucket in your AWS account.\"",
+              "reason": "The source states that failed deliveries go to a backup S3 bucket, but it does not state that the bucket is encrypted. Encryption is a Stacktape/AWS configuration claim that would affect a reader's security assumptions.",
+              "suggestedFix": "Remove \"encrypted\" unless a source file for the generated S3 bucket configuration supports it. Use: \"failed batches are stored in a backup S3 bucket.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Successfully delivered logs are not duplicated to S3 — only failed deliveries are stored there.\"",
+              "reason": "The source says failed deliveries go to a backup S3 bucket, but it does not explicitly state that successful deliveries are never duplicated to S3 or that only failed deliveries are stored. This negative/only claim is narrower than the source supports.",
+              "suggestedFix": "Write only the supported behavior: \"Failed deliveries go to a backup S3 bucket after retry exhaustion.\" Avoid claiming successful deliveries are never stored there unless implementation source confirms the Firehose backup mode.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Grafana Cloud Logs accepts Firehose-formatted log delivery over HTTPS\" and the custom HTTP destination examples naming Grafana Cloud, Splunk, New Relic, and Mezmo as working targets.",
+              "reason": "The source supports forwarding to any HTTP endpoint, but it does not validate compatibility with specific third-party log platforms beyond Datadog and Highlight.io. Naming unsupported platforms as accepted destinations may lead readers to configure integrations that require platform-specific endpoint formats or auth behavior not documented here.",
+              "suggestedFix": "Keep the source-backed wording \"any HTTPS endpoint\" and phrase third-party services as examples only if they expose a compatible HTTPS ingestion endpoint. Do not claim Grafana Cloud specifically accepts Firehose-formatted delivery unless another source supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwarding {\n  type: 'http-endpoint';\n  properties: HttpEndpointLogForwardingProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Datadog and Highlight.io parse this format natively\" and \"Firehose delivers logs in the CloudWatch Logs subscription filter format.\"",
+              "reason": "The source defines destination types and properties, but it does not describe the payload format delivered to external services or how Datadog and Highlight parse it. This is specific operational behavior beyond the provided type source.",
+              "suggestedFix": "Replace with a narrower statement: \"The provided source does not document the payload format. For custom HTTP endpoints, confirm that your ingestion API accepts the format delivered by AWS Kinesis Data Firehose.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwardingProps {\n  /**\n   * #### HTTPS endpoint URL where logs are sent.\n   */\n  endpointUrl: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Most managed log platforms (Grafana Cloud, Splunk HEC, New Relic) accept GZIP.\"",
+              "reason": "The source only says `gzipEncodingEnabled` compresses the request body with GZIP and defaults to false. It does not support compatibility claims for specific managed log platforms.",
+              "suggestedFix": "Use source-grounded decision guidance without naming unsupported platforms: \"Enable `gzipEncodingEnabled` only when the destination endpoint accepts GZIP-compressed request bodies.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* #### Compress request body with GZIP to reduce transfer costs.\n   * @default false\n   */\n  gzipEncodingEnabled?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft repeatedly calls `DatadogLogForwarding`, `HighlightLogForwarding`, and `HttpEndpointLogForwarding` classes and instantiates them with `new`.",
+              "reason": "The provided source file declares these names as interfaces with nested `type` and `properties` fields, not classes. The project’s class-based documentation style may have generated wrapper classes elsewhere, but that export surface is not present in the supplied source list.",
+              "suggestedFix": "If class constructors are validated elsewhere, keep the examples but avoid prose claims that these are classes unless a source file confirms the exports. Otherwise, document the union members as destination types rather than classes.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the three supported destination variants: `http-endpoint`, `datadog`, and `highlight`.",
+            "The draft correctly documents the required properties for each destination: `endpointUrl`, `apiKey`, and `projectId`.",
+            "The draft correctly states the documented defaults for `gzipEncodingEnabled`, `retryDuration`, the Datadog endpoint URL, and the Highlight endpoint URL.",
+            "The draft uses the required `stacktape debug:logs` CLI link and does not invent a `stacktape logs` command.",
+            "The draft does not contain forbidden hand-authored YAML Stacktape configuration or plain-object `StacktapeConfig` examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is directionally aligned with the provided log-forwarding type source on supported destination variants, defaults for Datadog/Highlight/HTTP retry and gzip, and the Firehose/S3 cost note. The main problems are unsupported implementation details and several Stacktape-specific claims that go beyond the single provided source file.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The examples and prose use `new DatadogLogForwarding(...)`, `new HighlightLogForwarding(...)`, and `new HttpEndpointLogForwarding(...)` as class constructors.",
+              "reason": "The provided source defines `DatadogLogForwarding`, `HighlightLogForwarding`, and `HttpEndpointLogForwarding` as interfaces with `type` and `properties` fields, not as exported classes or constructor APIs. The draft may be correct if generated runtime classes exist elsewhere, but that is not grounded in the provided source file.",
+              "suggestedFix": "Either ground the constructor API with source that exports those classes, or rewrite examples/prose to match the documented interface shape if that is the intended source of truth.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwarding {\n  type: 'http-endpoint';\n  properties: HttpEndpointLogForwardingProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface HighlightLogForwarding {\n  type: 'highlight';\n  properties: HighlightLogForwardingProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface DatadogLogForwarding {\n  type: 'datadog';\n  properties: DatadogLogForwardingProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Each is configured via the `logForwarding` property within a resource's logging configuration” and all examples place `logForwarding` under `logging`.",
+              "reason": "The provided source only defines `logForwarding` on `LogForwardingBase`. It does not show a `logging` property, which resources include it, or that the nesting path is `logging.logForwarding`. This is a configuration-shape claim that would affect what readers write.",
+              "suggestedFix": "Add source for the resource logging types that embed `LogForwardingBase`, or narrow the claim to the sourced fact: `LogForwardingBase` exposes an optional `logForwarding` property accepting the three destination variants.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface LogForwardingBase {\n  /**\n   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n   *\n   * ---\n   *\n   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.\n   */\n  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CloudWatch streams log events to Firehose — a subscription on the log group routes log events to a Kinesis Data Firehose delivery stream in near real-time.”",
+              "reason": "The source supports that log forwarding uses Kinesis Data Firehose and failed deliveries go to S3, but it does not describe CloudWatch subscription filters, log-group subscriptions, or near-real-time routing. This is Stacktape implementation detail not present in the provided source.",
+              "suggestedFix": "Remove the subscription-filter and near-real-time claims, or add implementation source that shows how Stacktape wires CloudWatch Logs to Firehose.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After retries are exhausted, failed batches are stored in an encrypted S3 backup bucket in your AWS account.”",
+              "reason": "The provided source says failed deliveries go to a backup S3 bucket, but it does not state that the bucket is encrypted or that it is specifically in the user's AWS account.",
+              "suggestedFix": "Say only that failed deliveries go to a backup S3 bucket, unless bucket encryption and ownership are grounded by deployment/runtime source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `endpointUrl` property accepts any valid Datadog intake endpoint.”",
+              "reason": "The source only describes `endpointUrl` as the Datadog endpoint and says to use the EU URL for EU accounts. It does not define validation rules or say any Datadog intake endpoint is accepted.",
+              "suggestedFix": "Narrow to: `endpointUrl` overrides the Datadog endpoint; the documented default is the US intake endpoint, and the source notes using the EU URL for EU-region accounts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface DatadogLogForwardingProps {\n  /**\n   * #### Your Datadog API key. Store as `$Secret()` for security.\n   */\n  apiKey: string;\n  /**\n   * #### Datadog endpoint. Use the EU URL if your account is in the EU region.\n   * @default \"https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input\"\n   */\n  endpointUrl?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Most managed log platforms (Grafana Cloud, Splunk HEC, New Relic) accept GZIP” and “Grafana Cloud Logs accepts Firehose-formatted log delivery over HTTPS.”",
+              "reason": "The source only says the HTTP endpoint destination forwards to any HTTP endpoint and that GZIP compresses the request body. It does not name Grafana Cloud, Splunk, New Relic, Mezmo, Firehose-format compatibility, or platform-specific behavior.",
+              "suggestedFix": "Avoid naming specific third-party platform capabilities unless additional source is provided. Keep the sourced claim to “any HTTP endpoint” and “enable GZIP when your endpoint accepts GZIP-encoded payloads.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "* #### Compress request body with GZIP to reduce transfer costs.\n   * @default false"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Firehose delivers logs in the CloudWatch Logs subscription filter format — each record contains the log group name, log stream name, and the raw log event message. Datadog and Highlight.io parse this format natively.”",
+              "reason": "The provided source does not describe the delivered payload format, record fields, or native parsing behavior in Datadog and Highlight.io.",
+              "suggestedFix": "Remove this FAQ answer or replace it with a cautious statement that the provided Stacktape config source does not document the forwarded payload format.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Resources that produce CloudWatch Logs and expose a `logging` property with `logForwarding` support this feature.”",
+              "reason": "The source defines `LogForwardingBase` but does not list which resources implement it or prove that all resources with CloudWatch Logs and a `logging` property support log forwarding. This can mislead readers about support for databases, Redis, or other resource types.",
+              "suggestedFix": "Do not generalize resource support from this source. Either cite the resource-specific logging types or say the provided source defines the destination configuration shape, while supported resource nesting is documented by each resource's logging configuration.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\log-forwarding.d.ts",
+                  "quote": "interface LogForwardingBase {\n  /**\n   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n   *\n   * ---\n   *\n   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.\n   */\n  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the three supported destination variants: `http-endpoint`, `datadog`, and `highlight`.",
+            "The draft correctly states the sourced defaults for HTTP endpoint `gzipEncodingEnabled` (`false`), HTTP endpoint `retryDuration` (`300`), Highlight endpoint URL, and Datadog endpoint URL.",
+            "The draft includes the sourced pricing context that log forwarding uses Kinesis Data Firehose at approximately `$0.03/GB`.",
+            "The draft uses the documented `stacktape debug:logs` command and links it to `/cli/debug-logs`, which is present in the navigation index.",
+            "The draft does not contain hand-authored Stacktape YAML or fenced TypeScript Stacktape config examples; Stacktape config examples use `<CodeBlock intellisense>` with a `TypeScript` tab."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the available log-forwarding union variants and the important properties in the provided `log-forwarding.d.ts` source. I found no API-completeness, union-variant, or demonstrativeness issues that meet the reporting threshold.",
+          "issues": [],
+          "positiveFindings": [
+            "All three `logForwarding` union variants are named and explained: `http-endpoint`, `highlight`, and `datadog`.",
+            "The draft documents every property from `HttpEndpointLogForwardingProps`: `endpointUrl`, `gzipEncodingEnabled`, `parameters`, `retryDuration`, and `accessKey`.",
+            "The draft documents the required and optional properties for `HighlightLogForwardingProps` and `DatadogLogForwardingProps`, including default endpoints where present in the source.",
+            "Each `<CodeBlock intellisense>` example demonstrates the section topic: Datadog examples use `DatadogLogForwarding`, Highlight examples use `HighlightLogForwarding`, and the custom HTTP example uses `HttpEndpointLogForwarding` with the custom-only properties."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\log-forwarding.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 6.8, hard blockers 3, advisory high 0, verifier medium 17"
+}

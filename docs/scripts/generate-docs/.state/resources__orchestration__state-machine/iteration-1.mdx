@@ -1,0 +1,400 @@
+---
+title: 'State Machine'
+order: 62
+seoTitle: 'State Machine (Step Functions) | Stacktape Docs'
+seoDescription: 'Define multi-step workflows with branching, retries, and parallel execution using AWS Step Functions in Stacktape. Orchestrate Lambda functions without writing orchestration code.'
+---
+
+# State Machine
+
+A Stacktape state machine uses AWS Step Functions to orchestrate multi-step workflows with branching, retries, parallel execution, and error handling — without writing orchestration code. Define your workflow in [Amazon States Language (ASL)](https://states-language.net/spec.html), and Stacktape provisions the state machine with its execution role and permissions automatically. Pay ~$0.025 per 1,000 state transitions.
+
+## When to use
+
+Stacktape state machines are the right choice when your workload involves coordinating multiple steps with dependencies between them. Concrete scenarios:
+
+- **Multi-step processing pipelines** — order processing, ETL pipelines, or data ingestion flows where each step depends on the previous one's output.
+- **Workflows with conditional branching** — approval flows, content moderation pipelines, or any process that takes different paths based on intermediate results.
+- **Tasks requiring automatic retries** — payment processing, third-party API calls, or anything that may fail transiently and needs exponential backoff without custom retry logic.
+- **Long-running orchestration** — processes that span minutes, hours, or days (Standard workflows can run up to one year), such as batch processing or multi-stage deployments.
+- **Parallel fan-out / fan-in** — splitting work across multiple [Lambda functions](/resources/compute/lambda-function) in parallel and aggregating results.
+
+## When NOT to use
+
+Not every coordination problem needs a state machine. Simpler alternatives often fit better:
+
+| Scenario | Better alternative |
+|---|---|
+| Simple request-response API | [HTTP API Gateway](/resources/networking/http-api-gateway) with a single Lambda function |
+| One function calling another | Direct invocation via AWS SDK — no orchestration needed |
+| Decoupled async processing | [SQS queue](/resources/messaging/sqs-queue) trigger on a Lambda function |
+| Fan-out to multiple consumers | [SNS topic](/resources/messaging/sns-topic) or [EventBridge event bus](/resources/messaging/event-bus) |
+| High-throughput stream processing | [Kinesis stream](/resources/messaging/kinesis-stream) with a Lambda consumer |
+| Simple scheduled task | A Lambda function with a [schedule trigger](/configuration/triggers/schedule-triggers) |
+
+State machine transitions cost ~$0.025 per 1,000. For very high-throughput workloads (millions of transitions per day), this cost can add up. Consider whether simpler event-driven patterns would serve equally well at lower cost.
+
+## Basic example
+
+This example defines two [Lambda functions](/resources/compute/lambda-function) — one to validate an order and one to process it — orchestrated by a state machine. The workflow validates first, branches on the result, and either processes the order or fails.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StateMachine,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const validateOrder = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/validate-order.ts' })
+  });
+
+  const processOrder = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' }),
+    timeout: 60
+  });
+
+  const orderWorkflow = new StateMachine({
+    definition: {
+      Comment: 'Order processing workflow',
+      StartAt: 'ValidateOrder',
+      States: {
+        ValidateOrder: {
+          Type: 'Task',
+          Resource: { 'Fn::GetAtt': ['ValidateOrderFunction', 'Arn'] },
+          Next: 'CheckValidity',
+          Catch: [{ ErrorEquals: ['States.ALL'], Next: 'OrderFailed' }]
+        },
+        CheckValidity: {
+          Type: 'Choice',
+          Choices: [{ Variable: '$.valid', BooleanEquals: true, Next: 'ProcessOrder' }],
+          Default: 'OrderFailed'
+        },
+        ProcessOrder: {
+          Type: 'Task',
+          Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },
+          Retry: [
+            {
+              ErrorEquals: ['States.TaskFailed'],
+              IntervalSeconds: 3,
+              MaxAttempts: 2,
+              BackoffRate: 2
+            }
+          ],
+          End: true
+        },
+        OrderFailed: {
+          Type: 'Fail',
+          Error: 'OrderProcessingFailed',
+          Cause: 'Validation or processing failed'
+        }
+      }
+    }
+  });
+
+  return {
+    resources: { validateOrder, processOrder, orderWorkflow }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+The `definition` property contains the workflow in [Amazon States Language](https://states-language.net/spec.html). `StartAt` names the first state, and `States` maps state names to their configuration. Each state declares `Next` to name the following state, or `End: true` to stop the workflow.
+
+<Info>
+Stacktape automatically creates an execution role for your state machines with permissions to invoke Lambda functions in the same stack, plus access to DynamoDB, SQS, SNS, ECS, Batch, and EventBridge. You do not need to configure these permissions manually.
+</Info>
+
+## Workflow definition
+
+The state machine `definition` uses [Amazon States Language (ASL)](https://states-language.net/spec.html) — a JSON-based spec for defining Step Functions workflows. The definition has three required fields: `StartAt` (the first state to execute), `States` (a map of state names to state objects), and a `Type` field on each state.
+
+### State types
+
+Stacktape state machines support all eight ASL state types:
+
+| State type | Purpose | Key properties |
+|---|---|---|
+| **Task** | Invokes a Lambda function or AWS service | `Resource`, `Retry`, `Catch`, `TimeoutSeconds`, `HeartbeatSeconds` |
+| **Choice** | Branches based on input conditions | `Choices` (condition rules), `Default` (fallback state) |
+| **Parallel** | Runs multiple branches concurrently, waits for all | `Branches`, `Retry`, `Catch` |
+| **Map** | Iterates over array items, running a sub-workflow per item | `Iterator`, `ItemsPath`, `MaxConcurrency` |
+| **Wait** | Pauses execution for a duration or until a timestamp | `Seconds`, `Timestamp`, `SecondsPath`, `TimestampPath` |
+| **Pass** | Passes input to output, optionally injecting or transforming data | `Result`, `Parameters`, `ResultPath` |
+| **Succeed** | Marks successful completion of the workflow | — |
+| **Fail** | Terminates execution with an error | `Error`, `Cause` |
+
+**Task** is the most common state type — it's how the state machine invokes your Lambda functions. **Choice** is the branching mechanism (equivalent to if/else). **Parallel** and **Map** handle fan-out patterns. See the [ASL specification](https://states-language.net/spec.html) for full syntax details.
+
+### Referencing Lambda functions
+
+Task states invoke Lambda functions via the `Resource` property. Since the state machine definition is embedded directly in the CloudFormation template, use CloudFormation intrinsic functions to reference Lambda ARNs:
+
+```json
+{
+  "Type": "Task",
+  "Resource": { "Fn::GetAtt": ["ProcessOrderFunction", "Arn"] }
+}
+```
+
+The CloudFormation logical name for a Stacktape [Lambda function](/resources/compute/lambda-function) follows the pattern **PascalCase(resourceName) + "Function"**. A resource named `processOrder` in your config becomes `ProcessOrderFunction` in CloudFormation.
+
+<Tip>
+Run [`stacktape compile-template`](/cli/compile-template) to inspect the generated CloudFormation template and verify logical names for your resources.
+</Tip>
+
+You can also set `TimeoutSeconds` on a Task state to limit how long the state machine waits for the Lambda function to respond, and `HeartbeatSeconds` to require periodic heartbeat signals from long-running tasks.
+
+### Workflow timeout
+
+Set `TimeoutSeconds` at the top level of your definition to limit the maximum execution time for the entire workflow. This is a safeguard against runaway executions. Standard Step Functions workflows can run for up to one year if no timeout is set.
+
+## Error handling
+
+Step Functions provides built-in error handling through `Retry` and `Catch` blocks on Task, Parallel, and Map states. This replaces the need for custom retry logic in your Lambda code.
+
+**Retry** re-executes a failed state with configurable backoff. Each retry rule specifies which errors to match (`ErrorEquals`), the initial delay (`IntervalSeconds`), maximum attempts (`MaxAttempts`), and backoff multiplier (`BackoffRate`). Multiple retry rules are evaluated in order.
+
+**Catch** routes to a fallback state when all retries are exhausted or for errors not covered by retry rules. Each catch rule matches error types (`ErrorEquals`) and redirects to a named state (`Next`).
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StateMachine,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const chargePayment = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/charge.ts' }),
+    timeout: 60
+  });
+
+  const notifySupport = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/notify-support.ts' })
+  });
+
+  // [!code focus-start]
+  const paymentWorkflow = new StateMachine({
+    definition: {
+      StartAt: 'ChargePayment',
+      States: {
+        ChargePayment: {
+          Type: 'Task',
+          Resource: { 'Fn::GetAtt': ['ChargePaymentFunction', 'Arn'] },
+          Retry: [
+            {
+              ErrorEquals: ['States.TaskFailed'],
+              IntervalSeconds: 5,
+              MaxAttempts: 3,
+              BackoffRate: 2
+            }
+          ],
+          Catch: [
+            {
+              ErrorEquals: ['States.ALL'],
+              Next: 'NotifySupport'
+            }
+          ],
+          Next: 'PaymentComplete'
+        },
+        NotifySupport: {
+          Type: 'Task',
+          Resource: { 'Fn::GetAtt': ['NotifySupportFunction', 'Arn'] },
+          Next: 'PaymentFailed'
+        },
+        PaymentFailed: {
+          Type: 'Fail',
+          Error: 'PaymentError',
+          Cause: 'Payment failed after 3 retries'
+        },
+        PaymentComplete: {
+          Type: 'Succeed'
+        }
+      }
+    }
+  });
+  // [!code focus-end]
+
+  return {
+    resources: { chargePayment, notifySupport, paymentWorkflow }
+  };
+});
+`
+    }
+  ]}
+/>
+
+In this example, `ChargePayment` retries up to 3 times on failure with exponential backoff (5s → 10s → 20s). If all retries fail, `Catch` redirects to `NotifySupport`, which alerts the support team before the workflow terminates with a `Fail` state.
+
+Common error codes you can match: `States.ALL` (any error), `States.TaskFailed` (Lambda errors), `States.Timeout` (task exceeded `TimeoutSeconds`), and `States.HeartbeatTimeout` (missed heartbeat).
+
+## Starting executions
+
+A Stacktape state machine does not start automatically — you start executions programmatically using the AWS SDK from another resource. Use [`connectTo`](/configuration/connecting-resources) to grant a Lambda function the permissions it needs and inject the state machine ARN as an environment variable.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StateMachine,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiGateway,
+  HttpApiIntegration
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const processOrder = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' })
+  });
+
+  const orderWorkflow = new StateMachine({
+    definition: {
+      StartAt: 'ProcessOrder',
+      States: {
+        ProcessOrder: {
+          Type: 'Task',
+          Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },
+          End: true
+        }
+      }
+    }
+  });
+
+  const apiGateway = new HttpApiGateway({});
+
+  // [!code focus-start]
+  const startOrder = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/start-order.ts' }),
+    connectTo: [orderWorkflow],
+    events: [
+      new HttpApiIntegration({
+        httpApiGatewayName: 'apiGateway',
+        path: '/orders',
+        method: 'POST'
+      })
+    ]
+  });
+  // [!code focus-end]
+
+  return {
+    resources: { processOrder, orderWorkflow, apiGateway, startOrder }
+  };
+});
+`
+    }
+  ]}
+/>
+
+When `startOrder` connects to `orderWorkflow`, Stacktape automatically:
+
+- Grants IAM permissions: `states:StartExecution`, `states:StopExecution`, `states:ListExecutions`, `states:DescribeExecution`
+- Injects environment variables: `STP_ORDER_WORKFLOW_ARN` and `STP_ORDER_WORKFLOW_NAME`
+
+Use the ARN in your handler to start executions:
+
+```typescript
+import { Hono } from 'hono';
+import { handle } from 'hono/aws-lambda';
+import { SFNClient, StartExecutionCommand, DescribeExecutionCommand } from '@aws-sdk/client-sfn';
+
+const sfn = new SFNClient({});
+const stateMachineArn = process.env.STP_ORDER_WORKFLOW_ARN!;
+
+const app = new Hono();
+
+app.post('/orders', async (c) => {
+  const input = await c.req.text() || '{}';
+  const result = await sfn.send(
+    new StartExecutionCommand({ stateMachineArn, input })
+  );
+  return c.json({ executionArn: result.executionArn }, 202);
+});
+
+app.get('/orders/status/:executionArn{.+}', async (c) => {
+  const executionArn = decodeURIComponent(c.req.param('executionArn'));
+  const result = await sfn.send(new DescribeExecutionCommand({ executionArn }));
+  return c.json({
+    status: result.status,
+    output: result.output ? JSON.parse(result.output) : null
+  });
+});
+
+export default handle(app);
+```
+
+This pattern exposes an HTTP endpoint that starts a workflow execution and returns the execution ARN. A second endpoint lets clients poll for the execution status.
+
+## Referenceable parameters
+
+State machines expose `arn` and `name` as referenceable parameters. Use these with the [`$ResourceParam` directive](/configuration/directives) anywhere in your config, or access them as environment variables via [`connectTo`](/configuration/connecting-resources).
+
+<ReferenceableParams resource="state-machine" />
+
+## API Reference
+
+<ApiReference definitionName="StateMachineProps" />
+
+## FAQ
+
+### How do I reference Lambda functions in a state machine definition?
+
+Use CloudFormation intrinsic functions in the Task state's `Resource` field: `{ 'Fn::GetAtt': ['MyFunctionFunction', 'Arn'] }`. The logical name follows the pattern PascalCase(resourceName) + "Function". Run [`stacktape compile-template`](/cli/compile-template) to inspect the exact logical names in your generated template.
+
+### What environment variables does connectTo inject for a state machine?
+
+When another resource uses `connectTo` to connect to a state machine, Stacktape injects `STP_[RESOURCE_NAME]_ARN` (the state machine ARN) and `STP_[RESOURCE_NAME]_NAME` (the state machine name). For a state machine resource named `orderWorkflow`, the variables are `STP_ORDER_WORKFLOW_ARN` and `STP_ORDER_WORKFLOW_NAME`. See [connecting resources](/configuration/connecting-resources) for the full pattern.
+
+### Can I customize the underlying CloudFormation resources?
+
+Yes. The `StateMachine` resource supports `overrides` for modifying the generated CloudFormation resources. Use [`stacktape compile-template`](/cli/compile-template) to inspect logical names, then apply dot-notation overrides. See [overrides](/configuration/overrides-and-escape-hatches) for details.
+
+### What permissions does the state machine execution role include?
+
+Stacktape automatically creates a shared execution role for all state machines in your stack. The role includes permissions to invoke Lambda functions in the same stack, plus access to DynamoDB (CRUD), SQS (send), SNS (publish), ECS (run tasks), AWS Batch (submit jobs), EventBridge (put rules/targets), and AWS Glue (start jobs). You do not need to configure these permissions.
+
+### How much do AWS Step Functions cost?
+
+Standard workflows cost ~$0.025 per 1,000 state transitions. The AWS Free Tier includes 4,000 transitions per month. Each state in your workflow counts as one transition, so a 5-state workflow costs 5 transitions per execution. For high-volume scenarios, evaluate whether a simpler event-driven pattern (SQS, SNS) would reduce cost.
+
+### What is Amazon States Language?
+
+Amazon States Language (ASL) is the JSON-based specification used to define Step Functions workflows. It describes states, transitions, error handling, input/output processing, and parallel execution. Stacktape embeds your ASL definition directly in the CloudFormation template. The [full specification](https://states-language.net/spec.html) documents all state types and features.
+
+### How long can a Step Functions execution run?
+
+Standard Step Functions workflows can run for up to one year. Set the `TimeoutSeconds` property in your state machine definition to impose a shorter limit. Individual Task states also support `TimeoutSeconds` to limit how long a single step can take. Express workflows (not currently exposed as a Stacktape configuration option) are limited to 5 minutes.
+
+### Can Step Functions run tasks in parallel?
+
+Yes. Use the **Parallel** state to run multiple branches concurrently — all branches must complete before the workflow continues. Use the **Map** state to iterate over an array and run a sub-workflow for each item, with `MaxConcurrency` controlling how many items process simultaneously. Both state types support `Retry` and `Catch` for error handling.
+
+### When should I use a state machine vs an SQS queue?
+
+Use a state machine when you need branching logic, ordered multi-step processing, built-in retries with backoff, or workflow visibility (execution history, status tracking). Use an [SQS queue](/resources/messaging/sqs-queue) for simple decoupled message processing where a single Lambda consumer handles each message independently. SQS is cheaper at high throughput and simpler to set up for one-step async processing.
+
+### When should I use a state machine vs direct Lambda-to-Lambda invocation?
+
+Direct invocation (calling one Lambda from another via the AWS SDK) works for simple two-function chains. Use a state machine when you need error handling with retries and fallbacks, conditional branching, parallel execution, or execution history. State machines also avoid the cascading timeout problem — if function A calls B calls C, A's timeout must account for the entire chain. A state machine manages each step's timeout independently.

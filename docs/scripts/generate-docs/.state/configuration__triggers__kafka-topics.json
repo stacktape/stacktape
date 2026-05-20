@@ -1,0 +1,837 @@
+{
+  "pageId": "configuration__triggers__kafka-topics",
+  "pageRoute": "configuration/triggers/kafka-topics",
+  "startedAt": "2026-05-17T11:53:29.559Z",
+  "updatedAt": "2026-05-17T12:06:18.193Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__kafka-topics\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded coverage of both SASL and MTLS authentication variants with separate, fully-working code examples — each variant gets equal depth including a realistic ARN, prose explanation, and tradeoff context.",
+            "Batching table accurately reflects source defaults (100 records, 0.5 seconds) and maximums (10,000 records, 300 seconds) from the type definitions, with concrete per-scenario tuning guidance (high-throughput vs. low-latency).",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]}/>` with class-based `KafkaTopicIntegration` instantiation — no forbidden YAML blocks, no `StacktapeConfig` type pattern.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-service questions, and comparison/choosing questions) and provides 2–4 sentence answers dense enough to serve as Featured Snippets.",
+            "Clear 'When to use' / 'When NOT to use' sections with concrete named alternatives (MSK, SQS, SNS/EventBridge) and decision rationale — not circular reasoning.",
+            "Handler code example correctly decodes base64 values and iterates over `event.records` by `topic-partition` key, which is the non-obvious part of the AWS Kafka event shape."
+          ],
+          "problems": [
+            "Missing `<ApiReference definitionName=\"KafkaTopicIntegrationProps\" />` — the page rhythm requires exactly one ApiReference on every resource/event source page. Its absence leaves the reader with no quick lookup path for configuration properties.",
+            "FAQ answer for 'What happens if my function fails?' incorrectly compares Kafka to SQS triggers: 'Unlike SQS triggers or Kinesis triggers, the Kafka topic trigger does not expose `maximumRetryAttempts` or `onFailure` destination properties.' The source (`SqsIntegrationProps`) shows SQS also lacks both `maximumRetryAttempts` and `onFailure` — the SQS comparison is factually wrong based on the provided source. Only Kinesis and DynamoDB stream triggers have those properties in the source file."
+          ],
+          "mandatoryFixes": [
+            "Add `<ApiReference definitionName=\"KafkaTopicIntegrationProps\" />` to the page. Conventional placement for a tutorial-style page is after the last prose section and before or after the FAQ. Without it, the page fails the page-rhythm structural requirement that all resource/event source pages include exactly one ApiReference.",
+            "Fix the FAQ answer for 'What happens if my function fails?' — remove the incorrect SQS comparison. Source inspection confirms `SqsIntegrationProps` also lacks `maximumRetryAttempts` and `onFailure`, so stating Kafka is unlike 'SQS triggers' on this point is wrong. Correct wording: 'Unlike Kinesis stream or DynamoDB stream triggers, which expose `maximumRetryAttempts` and `onFailure` destination properties...'"
+          ],
+          "optionalImprovements": [
+            "The 'Can I filter messages before they reach my function?' FAQ states SQS triggers support filter policies. The provided source's `SqsIntegrationProps` has no `filterPolicy` property — verify this claim is grounded, or tighten the wording to only reference SNS (which does have `filterPolicy` in the source).",
+            "The automatic IAM permission grant for Secrets Manager (`secretsmanager:GetSecretValue`) is asserted in the intro but is not explicitly stated in any property of the provided source type definitions. Phrase it as Stacktape's standard behavior or add a qualifier ('Stacktape automatically...') rather than stating it as a bare fact to reduce source-grounding risk.",
+            "`customKafkaConfiguration` is typed as optional (`?`) in the source, but the page always uses it and never explains the optionality. A one-sentence note that this property carries all broker and auth configuration (and is effectively required for self-managed clusters) would remove any reader confusion about why a seemingly optional field appears in every example.",
+            "The network connectivity section advises `joinDefaultVpc: true` but doesn't mention the security group requirement (outbound TCP on the broker port). A single concrete sentence ('Ensure the Lambda's security group allows outbound TCP to your broker endpoints') would make the section actionable for the reader setting up a private cluster."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Authentication section is thoroughly grounded in the source types — all four variants (BASIC_AUTH, SASL_SCRAM_256_AUTH, SASL_SCRAM_512_AUTH, MTLS) are enumerated, each with its own working example and a comparison table that explains when to choose each.",
+            "Batching table correctly reflects source-stated defaults (batchSize: 100, maxBatchWindowSeconds: 0.5) and maximums (10,000 and 300 respectively), and gives concrete tuning guidance for high-throughput vs low-latency scenarios.",
+            "FAQ spans all three required categories: Stacktape-specific (multiple topics, MSK caveat), AWS-service questions (scaling via partitions, failure behavior, cost breakdown), and comparison questions (SASL vs MTLS, Kafka vs SQS).",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]}/> with TypeScript; no forbidden YAML blocks, no StacktapeConfig type imports, no fenced typescript Stacktape-config blocks.",
+            "Handler code example is realistic and practical — shows base64 decoding of both key and value, uses console.info (correct per CLAUDE.md), and is presented as application code in a plain fenced block (correct pattern).",
+            "No marketing language. 'When NOT to use' is a peer H2 (not nested under 'When to use') — heading hierarchy is correct.",
+            "The FAQ answer on failure behavior correctly notes that maximumRetryAttempts and onFailure are absent from KafkaTopicIntegrationProps, which is verifiable from the source and is a critical production caveat."
+          ],
+          "problems": [
+            "IAM auto-grant claim ('automatically grants your Lambda function's IAM role secretsmanager:GetSecretValue permission') is asserted as a Stacktape behavior but has no grounding in the provided source (events.d.ts has no IAM references). If wrong, this misleads engineers who skip manual permission wiring. Should be hedged or removed until sourced.",
+            "customKafkaConfiguration is marked optional in the source (customKafkaConfiguration?: CustomKafkaEventSource) but the page never explains this — every example provides it and no variant without it is shown or described. A reader inspecting the type will be confused about when it's omitted.",
+            "Basic example code sets batchSize: 100 and maxBatchWindowSeconds: 5 without prose anchoring in the surrounding 'Basic example' section. The values appear again in the Batching section, but per documentation-quality rules the code example section itself should briefly name what each tunable property controls.",
+            "Event payload shape description (event.records keyed by 'topic-partition', individual record fields: topic, partition, offset, timestamp, key, value, headers) is not grounded in any provided source file. It is standard AWS Lambda Kafka event format, but presenting it as authoritative without noting it's the AWS-native payload format risks being flagged by the source-grounding verifier. Frame it explicitly as the AWS Lambda event payload format.",
+            "No <ApiReference definitionName=\"KafkaTopicIntegrationProps\" /> anywhere on the page. The page rhythm calls for exactly one on resource and configuration pages, and the type is directly available in the source. Even for conceptual trigger pages, the API reference anchors the property documentation and lets readers verify what they see in prose."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add <ApiReference definitionName=\"KafkaTopicIntegrationProps\" /> at the bottom of the page or after the Batching section. The type is clear from the source and gives readers a cross-check against the prose.",
+            "Hedge or rephrase the IAM auto-grant claim. If Stacktape does wire the secretsmanager:GetSecretValue permission, source it from internal implementation notes or rephrase as 'AWS requires the Lambda execution role to have secretsmanager:GetSecretValue on the referenced ARNs; Stacktape provisions this automatically' — with a note to verify if unsure.",
+            "Add one sentence in the 'Basic example' section anchoring the batchSize and maxBatchWindowSeconds values shown in the example (e.g. 'batchSize: 100 is the default; maxBatchWindowSeconds: 5 buffers up to 5 seconds before invoking — adjust these in the Batching section'). This prevents the values from reading as required or magic.",
+            "Explain that customKafkaConfiguration is technically optional in the type (the property carries ? in the source) and note that for self-managed Kafka it is effectively required — the trigger has no other way to discover the cluster.",
+            "Frame the event payload section with an explicit attribution: 'AWS Lambda delivers Kafka records in the following format...' rather than presenting it as Stacktape-defined behavior. This survives source-grounding review because well-known AWS facts are allowed when framed as AWS-side mechanics.",
+            "The network connectivity section makes a blanket claim that public Kafka clusters require no additional networking configuration. This is an AWS-side behavior assertion not grounded in the source. Either hedge ('typically no additional configuration is needed for publicly reachable brokers') or omit the section if it cannot be sourced.",
+            "The CLI link /cli/secret-create in the Authentication section should be verified to exist in the docs before publication — the git status shows many /cli/*.mdx pages but secret:create is not visibly listed. If the page does not exist, remove the link and keep only the prose command reference."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concise, and mostly self-contained.",
+            "The page uses the required TypeScript <CodeBlock intellisense tabs={[...]}/> pattern for Stacktape configuration and avoids hand-authored YAML Stacktape config.",
+            "Authentication variants are presented clearly, with a useful table for SASL options and practical SASL vs MTLS guidance.",
+            "Batching defaults and limits are grounded in the provided type source and explained in terms of latency and invocation volume.",
+            "FAQ covers Stacktape-specific, AWS/Kafka operational, and comparison-style questions instead of staying narrowly reference-only."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are unsupported by the provided source, especially automatic IAM permission grants, AWS Lambda event-source mapping creation details, polling behavior, broker topology discovery, and Stacktape Console metric viewing.",
+            "The page makes unsupported or over-specific AWS behavior claims about Kafka scaling, partition concurrency, failed records blocking partitions, event-source mapping charges, Secrets Manager prices, and CloudWatch metrics that are not present in the source file.",
+            "The event payload section documents a detailed payload shape, base64 encoding, topic-partition keys, headers, and timestamp fields that are not present in the provided Stacktape source.",
+            "The Network connectivity section gives VPC configuration guidance using `joinDefaultVpc` and custom VPC references, but the provided Kafka trigger source does not include Lambda networking fields or connectivity behavior.",
+            "The Basic example sets `memory: 512` and `timeout: 60` without explaining those tunable Lambda values; they are also not grounded in the Kafka trigger source for this page.",
+            "The FAQ says the Kafka trigger does not support server-side filtering and lacks `maximumRetryAttempts` or `onFailure`; the source supports the absence of those properties on `KafkaTopicIntegrationProps`, but the wording should avoid broad negative claims beyond the shown trigger type.",
+            "The page includes multiple examples for authentication variants even though the page instructions ask for a single short example per concept; this is useful, but somewhat heavier than the requested conceptual trigger-page shape.",
+            "The MTLS section says `serverRootCaCertificate` is for self-signed or private CAs and can be omitted for publicly trusted CAs; the optionality is sourced, but the CA decision guidance is AWS/TLS background rather than Stacktape source-grounded."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported Stacktape-specific claims about automatic IAM permissions. The source only says the trigger references Secrets Manager secret ARNs; it does not state Stacktape grants `secretsmanager:GetSecretValue`.",
+            "Remove or source-ground the detailed event payload shape. The provided source does not define Kafka Lambda event records, base64 encoding, `event.records`, topic-partition keys, headers, or timestamp fields.",
+            "Revise the networking guidance so it does not introduce unsupported Stacktape Lambda VPC properties such as `joinDefaultVpc` unless the Lambda source for this page is provided and supports those claims.",
+            "Delete unsupported concrete pricing claims for Secrets Manager and event-source mappings, or replace them with non-priced cost context. The provided source contains no pricing data.",
+            "Narrow retry and failure behavior to what the source supports: `KafkaTopicIntegrationProps` exposes only `customKafkaConfiguration`, `batchSize`, and `maxBatchWindowSeconds`; avoid asserting partition-blocking, retry mechanics, or unavailable destinations as broad AWS/Stacktape behavior unless sourced.",
+            "Explain non-obvious tunable values used in examples, especially `memory: 512`, `timeout: 60`, `batchSize: 100`, and `maxBatchWindowSeconds: 5`, or remove the Lambda memory/timeout values from the trigger-focused example."
+          ],
+          "optionalImprovements": [
+            "Make the first sentence after each H2 explicitly name “Kafka topic trigger” or “Stacktape Kafka topic trigger” instead of relying on local context.",
+            "Consider consolidating SASL and MTLS into one Authentication section with one canonical example, then keep the second method as prose if the page should stay conceptual.",
+            "Add an API reference only if trigger pages conventionally include one; if included, ensure the `definitionName` matches the generated schema type exactly.",
+            "Replace “scales automatically” with narrower wording unless a provided Lambda or integration source states scaling behavior for this trigger.",
+            "Where the page mentions Amazon MSK, make the recommendation source-grounded: the provided trigger type is `kafka-topic` with `customKafkaConfiguration`; do not imply a Stacktape MSK integration may exist unless a source file confirms it."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the KafkaTopicIntegration type shape, authentication variants, batch properties, and documented limits. The main risks are unsupported Stacktape-specific claims around IAM permission automation, MSK exclusion, networking configuration, retry/partition behavior, event payload details, and monitoring metrics that are not present in the provided source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape creates an AWS Lambda event-source mapping that polls your Kafka brokers, batches records, and delivers them to your function — with automatic IAM permissions for the authentication secrets you provide.”",
+              "reason": "The source supports that a Kafka topic integration triggers a function and exposes Kafka cluster, authentication, batchSize, and maxBatchWindowSeconds properties. It does not state that Stacktape grants Secrets Manager IAM permissions automatically. That is a Stacktape-specific behavior claim that affects what readers expect to configure.",
+              "suggestedFix": "Keep the event-source-mapping/polling language if you want to rely on AWS background knowledge, but remove or narrow the IAM sentence unless a source explicitly documents the permission grant. For example: “The authentication properties reference Secrets Manager secret ARNs used by the Lambda event source mapping.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The details of your Kafka cluster.\n   *\n   * ---\n   *\n   * Specifies the bootstrap servers and topic name.\n   */\n  customKafkaConfiguration?: CustomKafkaEventSource;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaSASLAuthProps {\n  /**\n   * #### The ARN of a secret containing the Kafka credentials.\n   *\n   * ---\n   *\n   * The secret must be a JSON object with `username` and `password` keys.\n   * You can create secrets using the `stacktape secret:create` command.\n   */\n  authenticationSecretArn: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Amazon MSK (managed Kafka) — if your cluster is MSK, AWS provides a dedicated MSK event-source mapping. The `kafka-topic` trigger in Stacktape is for self-managed Kafka clusters specifically.” Also: “If you run MSK, check whether a dedicated MSK integration is available in your Stacktape version.”",
+              "reason": "The provided source does not mention Amazon MSK, a separate MSK integration, or a restriction that KafkaTopicIntegration cannot be used with MSK. The source only documents a custom Kafka configuration with bootstrap servers, topic name, and authentication. The draft’s MSK guidance could change a reader’s implementation choice.",
+              "suggestedFix": "Avoid claiming Stacktape has a dedicated MSK path or that this trigger excludes MSK unless another source proves it. Say only what is sourced: this trigger is configured by bootstrap servers, topic name, and SASL or MTLS authentication for a Kafka cluster reachable by the Lambda function.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface CustomKafkaEventSource {\n  /**\n   * #### A list of `host:port` addresses for your Kafka brokers.\n   */\n  bootstrapServers: string[];\n  /**\n   * #### The name of the Kafka topic to consume messages from.\n   */\n  topicName: string;\n  /**\n   * #### The authentication method for connecting to the Kafka cluster.\n   *\n   * ---\n   *\n   * - `SASL`: Authenticate using a username and password (PLAIN or SCRAM).\n   * - `MTLS`: Authenticate using a client-side TLS certificate.\n   */\n  authentication: KafkaSASLAuth | KafkaMTLSAuth;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“For private Kafka clusters ... configure your Lambda function with VPC access using `joinDefaultVpc: true` or by referencing a custom VPC.”",
+              "reason": "The Kafka trigger source does not include Lambda networking properties, `joinDefaultVpc`, or custom VPC configuration. This may be true on the Lambda function page, but it is not grounded in the provided source for this page.",
+              "suggestedFix": "Narrow the section to the sourced requirement that the trigger uses bootstrap broker endpoints, and say private networking must be configured on the consuming Lambda function with a link to the Lambda function resource page. Do not name `joinDefaultVpc` or custom VPC properties unless they are present in this page’s sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface CustomKafkaEventSource {\n  /**\n   * #### A list of `host:port` addresses for your Kafka brokers.\n   */\n  bootstrapServers: string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The event.records object is keyed by `topic-partition` ... Each record contains `topic`, `partition`, `offset`, `timestamp`, `timestampType`, `key`, `value`, and `headers`.”",
+              "reason": "The provided Stacktape source does not document the Lambda event payload shape for Kafka records. The page instructions say to document payload shape only when it is present in source or non-obvious; here the exact field list is not grounded in the provided source.",
+              "suggestedFix": "Either remove the exact payload section or frame it explicitly as the AWS Lambda self-managed Kafka event format and link to AWS documentation if external citations are allowed. From Stacktape source, only document the trigger configuration properties.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when new messages are available in a Kafka topic.\n */\ninterface KafkaTopicIntegration {\n  type: 'kafka-topic';\n  properties: KafkaTopicIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If your function fails (throws an error or times out), the entire batch is retried.” and FAQ claims failed records block the partition until they succeed or are skipped.",
+              "reason": "Retry behavior and partition blocking are not documented on KafkaTopicIntegrationProps. Similar retry warnings are present for Kinesis and DynamoDB integrations in the same source, but not for Kafka. Applying those semantics to Kafka is unsupported by this source.",
+              "suggestedFix": "Remove the specific retry and partition-blocking claims, or narrow to a general handler-design recommendation: “Kafka batches can contain multiple records, so handlers should be idempotent.” Only describe explicit retry controls by noting that KafkaTopicIntegrationProps exposes `batchSize` and `maxBatchWindowSeconds`, not `maximumRetryAttempts` or `onFailure`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The details of your Kafka cluster.\n   *\n   * ---\n   *\n   * Specifies the bootstrap servers and topic name.\n   */\n  customKafkaConfiguration?: CustomKafkaEventSource;\n  /**\n   * #### The maximum number of records to process in a single batch.\n   *\n   * ---\n   *\n   * The function will be invoked with up to this many records. Maximum is 10,000.\n   *\n   * @default 100\n   */\n  batchSize?: number;\n  /**\n   * #### The maximum time (in seconds) to wait before invoking the function with a batch of records.\n   *\n   * ---\n   *\n   * The function will be triggered when either the `batchSize` is reached or this time window expires.\n   * Maximum is 300 seconds.\n   *\n   * @default 0.5\n   */\n  maxBatchWindowSeconds?: number;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For high-throughput topics (thousands of messages per second), increase `batchSize` toward 1,000–5,000 and set `maxBatchWindowSeconds` to 5–10 seconds. For low-latency requirements, keep the defaults — 0.5 seconds ensures messages are processed quickly even on quiet topics.”",
+              "reason": "The source documents defaults and maximums for `batchSize` and `maxBatchWindowSeconds`, but it does not provide throughput tuning ranges, latency guarantees, or recommendations for thousands of messages per second. These concrete values may be useful guidance, but they are not grounded in the provided source.",
+              "suggestedFix": "Keep the tradeoff explanation but remove unsourced numeric tuning ranges and guarantees. For example: “Increase `batchSize` and `maxBatchWindowSeconds` when you prefer fewer, larger invocations; keep them lower when latency matters more than invocation count.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The function will be invoked with up to this many records. Maximum is 10,000.\n   *\n   * @default 100"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The function will be triggered when either the `batchSize` is reached or this time window expires.\n   * Maximum is 300 seconds.\n   *\n   * @default 0.5"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I consume from multiple Kafka topics with one Lambda function? Yes. Add multiple `KafkaTopicIntegration` entries to your function's `events` array... Stacktape creates a separate event-source mapping for each entry.”",
+              "reason": "The provided source defines the KafkaTopicIntegration type but does not include the LambdaFunction events property shape or state that multiple Kafka integrations can be attached to one function. It also does not state that Stacktape creates one event-source mapping per entry.",
+              "suggestedFix": "Remove this FAQ unless the LambdaFunction source for `events` is included. If kept, narrow it to what the visible examples show only after confirming the LambdaFunction events array source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegration {\n  type: 'kafka-topic';\n  properties: KafkaTopicIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS also publishes metrics for the event-source mapping including `IteratorAge` ... view these in the Stacktape Console or with `stacktape debug:metrics`.”",
+              "reason": "The source file does not document Kafka event-source mapping metrics, Stacktape Console metric views, or CLI debug:metrics behavior for this trigger. Console UI claims require console-app source, which is not provided.",
+              "suggestedFix": "Keep the sourced logging command if desired, but remove the specific metric names and Console/CLI metric viewing claim unless supported by observability or CLI sources. A safer version is: “Use function logs to verify handler behavior; use the Lambda function observability page for runtime metrics.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when new messages are available in a Kafka topic.\n */\ninterface KafkaTopicIntegration {\n  type: 'kafka-topic';\n  properties: KafkaTopicIntegrationProps;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The documented Kafka authentication variants match the source: `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`.",
+            "The batch defaults and maximums shown in the table match the source: `batchSize` default 100 and maximum 10,000; `maxBatchWindowSeconds` default 0.5 and maximum 300.",
+            "The draft correctly states that SASL credentials must be a JSON object with `username` and `password`, and that MTLS client certificate secrets should contain the X.509 certificate chain, PKCS#8 private key, and optional private key password."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the KafkaTopicIntegration type for core properties, authentication variants, and batching defaults. The main factual risks are Stacktape-specific operational claims that are not present in the provided source, plus one unsupported payload-shape section.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape creates an AWS Lambda event-source mapping that polls your Kafka brokers, batches records, and delivers them to your function — with automatic IAM permissions for the authentication secrets you provide.” Also: “Stacktape supports two authentication methods, and automatically grants your Lambda function's IAM role `secretsmanager:GetSecretValue` permission on the referenced secret ARNs.”",
+              "reason": "The source supports that Kafka topic triggers have SASL/MTLS authentication properties and secret ARN fields, but it does not state that Stacktape automatically adds IAM permissions for those secrets. This is a Stacktape-specific behavior claim that would affect how readers configure permissions.",
+              "suggestedFix": "Remove the automatic-IAM-permissions claim unless another provided source confirms it. Safer wording: “The trigger references Secrets Manager secret ARNs for SASL or MTLS authentication.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaSASLAuthProps {\n  /**\n   * #### The ARN of a secret containing the Kafka credentials.\n   *\n   * ---\n   *\n   * The secret must be a JSON object with `username` and `password` keys.\n   * You can create secrets using the `stacktape secret:create` command.\n   */\n  authenticationSecretArn: string;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaMTLSAuthProps {\n  /**\n   * #### The ARN of a secret containing the client certificate.\n   *\n   * ---\n   *\n   * This secret should contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password.\n   * You can create secrets using the `stacktape secret:create` command.\n   */\n  clientCertificate: string;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The command returns an ARN — use that ARN as the `authenticationSecretArn` value in your trigger configuration.”",
+              "reason": "The provided source says secrets can be created with `stacktape secret:create`, but it does not document the command output or that it returns an ARN. CLI behavior must be verified from CLI source, which is not provided here.",
+              "suggestedFix": "Avoid describing the command output. Say: “Set `authenticationSecretArn` to the ARN of the Secrets Manager secret that contains the Kafka credentials.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The secret must be a JSON object with `username` and `password` keys.\n   * You can create secrets using the `stacktape secret:create` command."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `event.records` object is keyed by `topic-partition` (e.g., `order-events-0`, `order-events-1`). Each record contains `topic`, `partition`, `offset`, `timestamp`, `timestampType`, `key`, `value`, and `headers`.”",
+              "reason": "The source does not describe the Lambda event payload shape for Kafka records. The page instructions allow payload documentation only when grounded; this shape may be true for AWS Lambda, but it is not present in the provided Stacktape source.",
+              "suggestedFix": "Either remove the exact payload field list or frame it as AWS Lambda’s Kafka event shape with a link if an allowed source is provided. With only this source, keep the handler example minimal and say Stacktape does not redefine the AWS Lambda Kafka event payload.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when new messages are available in a Kafka topic.\n */\ninterface KafkaTopicIntegration {\n  type: 'kafka-topic';\n  properties: KafkaTopicIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For private Kafka clusters (running inside a VPC, on-premises, or behind a VPN), configure your Lambda function with VPC access using `joinDefaultVpc: true` or by referencing a custom VPC.”",
+              "reason": "The Kafka trigger source does not mention Lambda networking, `joinDefaultVpc`, custom VPC configuration, on-premises connectivity, or VPN behavior. The advice may be reasonable, but it is not grounded in the provided source file.",
+              "suggestedFix": "Narrow the section to the supported requirement: Kafka bootstrap servers must be reachable by the Lambda runtime. Link to the Lambda function page for VPC configuration only if that route is intended, without naming unsupported property details here.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface CustomKafkaEventSource {\n  /**\n   * #### A list of `host:port` addresses for your Kafka brokers.\n   */\n  bootstrapServers: string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Add multiple `KafkaTopicIntegration` entries to your function's `events` array, each pointing to a different topic (or even different clusters). Stacktape creates a separate event-source mapping for each entry.”",
+              "reason": "The provided source defines a Kafka integration type, but it does not show the Lambda `events` array cardinality or state that each entry creates a separate event-source mapping. This is a Stacktape-specific provisioning claim not present in the source.",
+              "suggestedFix": "If another LambdaFunctionProps source confirms multiple events, keep the first sentence. Otherwise, say only that a Kafka topic trigger points to one `topicName`; avoid the separate event-source mapping claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The details of your Kafka cluster.\n   *\n   * ---\n   *\n   * Specifies the bootstrap servers and topic name.\n   */\n  customKafkaConfiguration?: CustomKafkaEventSource;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If your function returns an error or times out, the same batch of records is retried… Failed records block the partition until they succeed or are skipped.”",
+              "reason": "The Kafka integration source documents batch size and batch window, but it does not document retry behavior, partition blocking, skipping, or failure semantics for Kafka triggers. General AWS behavior is allowed, but the draft states this as trigger behavior without source support.",
+              "suggestedFix": "Keep the idempotency recommendation as general consumer guidance, but remove the specific retry/partition-blocking claims unless an AWS Lambda Kafka source is added to the allowed sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The details of your Kafka cluster.\n   *\n   * ---\n   *\n   * Specifies the bootstrap servers and topic name.\n   */\n  customKafkaConfiguration?: CustomKafkaEventSource;\n  /**\n   * #### The maximum number of records to process in a single batch."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Kafka topic trigger does not support server-side message filtering… All messages on the subscribed topic are delivered to your function.”",
+              "reason": "The source does not expose a filter property on KafkaTopicIntegrationProps, so the absence of a Stacktape filter knob is supported. However, the broader claim that all messages are delivered and there is no server-side filtering describes runtime behavior not explicitly documented in the source.",
+              "suggestedFix": "Narrow to the source-backed configuration fact: “`KafkaTopicIntegrationProps` does not expose a filter property; put filtering logic in the handler if you need to ignore records.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The details of your Kafka cluster.\n   *\n   * ---\n   *\n   * Specifies the bootstrap servers and topic name.\n   */\n  customKafkaConfiguration?: CustomKafkaEventSource;\n  /**\n   * #### The maximum number of records to process in a single batch."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS also publishes metrics for the event-source mapping including `IteratorAge` (how far behind the consumer is) and `Invocations` — view these in the Stacktape Console or with [`stacktape debug:metrics`](/cli/debug-metrics).”",
+              "reason": "The provided source does not document metrics emitted for Kafka event-source mappings, Stacktape Console metric visibility, or the `debug:metrics` command behavior. Console behavior in particular must be grounded in console-app source, which is not provided.",
+              "suggestedFix": "Keep the grounded logging command only if appropriate, and replace metric details with a cautious pointer such as “Use Lambda and event-source mapping metrics in AWS/Stacktape observability tooling to monitor lag and invocations.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when new messages are available in a Kafka topic.\n */\ninterface KafkaTopicIntegration {\n  type: 'kafka-topic';\n  properties: KafkaTopicIntegrationProps;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The authentication variants match the source: `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`.",
+            "The batching defaults and maxima match the source: `batchSize` defaults to 100 with maximum 10,000, and `maxBatchWindowSeconds` defaults to 0.5 with maximum 300.",
+            "The SASL secret shape and MTLS certificate-secret description are grounded in the source comments."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API completeness, union-variant coverage, or code-example demonstrativeness blockers found for the Kafka topic trigger page. The draft covers the important KafkaTopicIntegrationProps surface, names the documented authentication variants, and uses feature-specific CodeBlock examples for the trigger and authentication paths.",
+          "issues": [],
+          "positiveFindings": [
+            "The page documents the important KafkaTopicIntegrationProps properties: customKafkaConfiguration, batchSize, and maxBatchWindowSeconds.",
+            "The page acknowledges all authentication union variants from the source: BASIC_AUTH, SASL_SCRAM_256_AUTH, SASL_SCRAM_512_AUTH, and MTLS.",
+            "The Basic example demonstrates the trigger binding by placing KafkaTopicIntegration in the LambdaFunction events array and configuring bootstrapServers, topicName, authentication, batchSize, and maxBatchWindowSeconds.",
+            "The SASL and MTLS examples are demonstrative for their sections and show the relevant authentication properties rather than repeating an unrelated scaffold."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__kafka-topics\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Opening paragraph is tight, self-contained, and correctly names AWS Lambda event-source mappings — exactly what a first-time reader needs to orient themselves.",
+            "The 'When NOT to use' section is unusually strong: it names concrete alternatives (SQS, Kinesis, DynamoDB streams) and explains what specific properties the Kafka trigger is missing (maximumRetryAttempts, onFailure, bisectBatchOnFunctionError), grounded directly in the source.",
+            "Authentication comparison table (BASIC_AUTH / SASL_SCRAM_256_AUTH / SASL_SCRAM_512_AUTH) with a clear recommendation ('most teams should use SASL_SCRAM_512_AUTH') is a good decision-support pattern.",
+            "Batching table with concrete defaults (batchSize 100, maxBatchWindowSeconds 0.5 s) and maximum values (10,000 and 300 s respectively) is source-grounded and directly actionable.",
+            "Handler example correctly uses a plain fenced TypeScript block (application code, not Stacktape config) and includes the non-obvious base64 decode step that trips up new users.",
+            "Network connectivity section explicitly calls out the VPC gotcha for private brokers — a practical, non-obvious operational note for the audience.",
+            "FAQ spans all three required categories: Stacktape-specific, AWS-service behavior, and choosing/comparison questions. Nine entries, all high-signal.",
+            "All Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript' — no forbidden YAML blocks, no StacktapeConfig type, no fenced typescript/yaml Stacktape configs."
+          ],
+          "problems": [
+            "The SASL code block inside the 'Authentication' section is nearly a subset of the basic example at the top of the page — same auth type (SASL_SCRAM_512_AUTH), same structure, just without the batchSize and maxBatchWindowSeconds props. A first-time reader flipping through the page sees two nearly identical examples without understanding what changed. This reduces information density and makes the auth section feel padded.",
+            "The source types show `customKafkaConfiguration` is marked optional (`customKafkaConfiguration?: CustomKafkaEventSource`). The page never acknowledges this; it treats the property as always required. A careful reader may wonder why their IDE shows it as optional. A one-sentence explanation ('in practice, always provide this — without it the trigger has no Kafka source to poll') would close the gap.",
+            "The MTLS section prose says the `clientCertificate` secret 'must contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password' — this is grounded in the source JSDoc. However, the section does not explain what format the Secrets Manager secret must be stored in (e.g. a JSON object similar to SASL, or raw PEM content). The source is silent on the exact JSON structure for MTLS secrets, so a cautionary hedge or pointer to AWS docs would be appropriate rather than implying the format is fully specified."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or consolidate the redundant SASL code block in the Authentication section. The basic example already demonstrates SASL_SCRAM_512_AUTH. In the Authentication section, replace the duplicate CodeBlock with a prose reference back to the basic example, and reserve the dedicated example slot for MTLS only — so the two sub-sections have clearly differentiated examples.",
+            "Add a single explanatory sentence acknowledging that `customKafkaConfiguration` is technically optional in the type but is required in practice for the trigger to have a source to poll. This closes the IDE tooltip vs docs discrepancy that attentive readers will notice.",
+            "Add a note of caution under MTLS about the exact secret format expected by AWS (pointing to AWS Lambda docs for self-managed Kafka MTLS), since the Stacktape source only states what the secret ARN fields are called, not how the secret value must be structured for MTLS (unlike SASL where 'username/password JSON keys' is clearly documented in the JSDoc).",
+            "The 'Network connectivity' section is useful but placed after 'Handler example', which breaks the logical setup → configure → code → run flow. Consider moving 'Network connectivity' before 'Handler example' so the page reads: what it is → when to use → configure → networking prerequisites → handler code → API reference.",
+            "FAQ entry 'How do I create the Secrets Manager secret for authentication?' contains a shell command with a JSON value containing single quotes inside a single-quoted shell string: `--value '{\"username\":\"my-user\",\"password\":\"my-password\"}'`. On Windows shells this will break. Consider using the `--value` with a file reference or escaping note so the command is copy-paste safe across platforms."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Authentication comparison table is well-structured and directly actionable — protocol, type value, and when-to-use in a single glance",
+            "Batching table with defaults, maxima, and tuning guidance for high-throughput vs low-latency is grounded in the source and decision-ready",
+            "The 'When NOT to use' section references specific missing properties (`maximumRetryAttempts`, `onFailure`, `bisectBatchOnFunctionError`) sourced from the KinesisIntegrationProps and DynamoDbIntegrationProps types — concrete and accurate",
+            "All three CodeBlock examples correctly use the `<CodeBlock intellisense tabs={[...]}/>` pattern with `label: 'TypeScript'` — no forbidden YAML or fenced TypeScript violations",
+            "FAQ spans all three required categories: Stacktape-specific, AWS-mechanics, and choosing/comparison questions; answers are concise and self-contained",
+            "The idempotency warning in the batching section is correct and practically important given the Kafka batch-delivery semantics",
+            "Network connectivity section covers the public vs private endpoint split without inventing networking properties that don't exist in the source"
+          ],
+          "problems": [
+            "The basic example explicitly sets `batchSize: 100`, which is the documented default. Showing a default value as an explicit property in the introductory example implies it is non-default or required — users will wonder whether omitting it changes behavior. This is a property-value anchor failure: either remove the explicit default or change the example to a non-default value and anchor the decision in prose.",
+            "The SASL authentication section contains a full `<CodeBlock>` example that is nearly identical to the basic example (same auth type `SASL_SCRAM_512_AUTH`, same structure, only broker URL and topic name differ). The human-maintained section instruction says 'Use a single short example per concept, not multiple variants.' This redundant example adds length without adding information. The MTLS example is distinct and justified; the SASL one is not.",
+            "No mention of consumer group management. Kafka engineers will immediately ask: does Lambda create a consumer group, and can I name or manage it? The source is silent on this, so the answer is 'AWS manages it automatically' — a well-known AWS fact worth noting explicitly, since omitting it suggests Stacktape requires consumer group configuration that it does not.",
+            "No mention that `startingPosition` is not configurable for this trigger type. The KinesisIntegrationProps and DynamoDbIntegrationProps both expose `startingPosition: 'LATEST' | 'TRIM_HORIZON'`. The KafkaTopicIntegrationProps does not. Users migrating from those triggers will look for this property and not find it; a one-sentence acknowledgment prevents confusion.",
+            "`customKafkaConfiguration` is typed as optional (`?`) in the source (`customKafkaConfiguration?: CustomKafkaEventSource`). The page treats it as always required. While this is practically correct, the optional typing suggests there may be an alternative (e.g., AWS MSK) not shown in the provided source files. The page should either note the field is required in practice for self-managed Kafka, or note that MSK configuration is not covered by this source."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove `batchSize: 100` from the basic example (it is the default) or replace with a non-default value like 500 and anchor it in prose: 'Setting batchSize to 500 reduces invocations on high-throughput topics; the default is 100.'",
+            "Remove the redundant SASL `<CodeBlock>` from the Authentication section. The basic example already demonstrates SASL_SCRAM_512_AUTH. Keep the prose table and the MTLS example, which is genuinely distinct from the basic example.",
+            "Add a one-sentence note in the Batching or Network section: 'Lambda automatically creates and manages the Kafka consumer group — no consumer group configuration is required in Stacktape.' This resolves a predictable Kafka-practitioner question without needing source grounding beyond well-known AWS behavior.",
+            "Add a sentence in 'When NOT to use' or in a brief note at the end of the batching section: 'Unlike Kinesis and DynamoDB stream triggers, the Kafka topic trigger does not expose a `startingPosition` property — consumption begins from the latest offset by default.' This is grounded in what the source omits and prevents a known gotcha.",
+            "Clarify `customKafkaConfiguration` optionality: 'Set `customKafkaConfiguration` to point to your self-managed Kafka cluster. This is the only supported cluster configuration for external Kafka brokers.' This closes the TypeScript-optional ambiguity without overreaching.",
+            "The FAQ answer 'Can I filter messages before they reach my function?' correctly notes no filter property exists. Consider adding a concrete one-liner workaround ('early return inside the handler') so the answer doesn't just close a door — it reopens one.",
+            "Link `stacktape secret:create` in the SASL section prose to its CLI reference page for consistency with the doc style guide's first-mention linking rule."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page opens with a clear answer-first paragraph that explains the trigger, Lambda event-source mapping, polling, batching, and authentication in self-contained prose.",
+            "Stacktape config examples use the required `defineConfig` + class-based resource style inside `<CodeBlock intellisense>` with a visible `TypeScript` tab.",
+            "The page covers the core reader tasks: when to use Kafka topic triggers, when to avoid them, authentication variants, batching controls, handler shape, network reachability, API reference, and FAQ.",
+            "Batching defaults and limits are concrete and match the source: `batchSize` default 100, maximum 10,000; `maxBatchWindowSeconds` default 0.5, maximum 300.",
+            "Authentication variants are presented in a useful table and all source-declared variants are named: `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`.",
+            "The FAQ has a good mix of Stacktape-specific, AWS Lambda/Kafka behavior, and comparison questions."
+          ],
+          "problems": [
+            "Several Stacktape-specific or provider-specific claims are not grounded in the provided source file, including references to EC2, EKS, Confluent Cloud, Aiven, consumer group infrastructure, and managed-provider support.",
+            "The page repeatedly claims AWS Lambda scaling behavior for Kafka partitions and event-source mappings, but the provided Stacktape source only defines Stacktape config shape, batching properties, and authentication fields.",
+            "The page states cost details for Lambda event-source mappings and Secrets Manager, but the provided source file contains no pricing data for Kafka triggers, Lambda event-source mappings, or Secrets Manager.",
+            "The page claims `KafkaTopicIntegrationProps` does not expose filtering and compares it to SQS/SNS filter support. The negative claim is inferable from the interface but should be worded more cautiously because the source only defines the exposed properties for this integration.",
+            "The handler section claims the event follows the standard AWS Lambda Kafka event format and that record values and keys are base64-encoded. The page links AWS docs, but the provided source does not document payload shape; this should be clearly framed as AWS Lambda behavior or omitted if the docs page must rely only on supplied source.",
+            "The Authentication section overstates recommendations such as `SASL_SCRAM_512_AUTH` being the strongest and broadly supported by managed providers. The source names the protocol variants but does not rank strength or provider support.",
+            "The Basic example sets `memory: 512` and `timeout: 60`, but the surrounding prose does not explain that these are Lambda function settings rather than Kafka trigger settings. For a trigger page, this can distract from the focused event-binding example.",
+            "The Network connectivity section says public Kafka endpoints need no additional networking configuration and private clusters need VPC access. That is plausible AWS background, but it is not grounded in the provided trigger source and should be framed cautiously or linked to the Lambda resource page without overclaiming."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify unsupported provider and platform examples such as EC2, EKS, Confluent Cloud, and Aiven unless those are present in the supplied source set.",
+            "Replace unsupported Stacktape-specific scaling claims with cautious AWS-background wording, or omit the partition-concurrency details unless an AWS Lambda source is included.",
+            "Remove concrete pricing claims for Lambda event-source mappings and Secrets Manager because no pricing source is provided for this page.",
+            "Reword authentication recommendations so the source-grounded fact is explicit: Stacktape exposes `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`; avoid claiming provider support or relative strength unless sourced.",
+            "Frame the event payload discussion as AWS Lambda Kafka behavior and keep it narrow, or remove payload-shape details if strict source grounding is required beyond the linked AWS documentation."
+          ],
+          "optionalImprovements": [
+            "Tighten the first paragraph of each H2 to name the concept explicitly. Most sections already do this, but `Basic example` could start with “A Stacktape Kafka topic trigger is attached through the Lambda function `events` array…” for better snippet extraction.",
+            "In the Basic example prose, explicitly say `batchSize: 100` is the documented default and is shown for clarity, while `maxBatchWindowSeconds: 5` is an intentional latency-throughput tradeoff.",
+            "Consider reducing repeated full examples under SASL and MTLS. A single canonical example plus compact focused snippets would make the page easier to scan while still satisfying the trigger-page example requirement.",
+            "Add a short note that `customKafkaConfiguration` contains `bootstrapServers`, `topicName`, and `authentication`, because the source marks the property optional but the nested event source shape is the practical configuration readers need.",
+            "Keep the FAQ, but make unsupported answers more cautious: for example, “The Stacktape type does not expose filtering properties for Kafka topic triggers” instead of “all messages are delivered.”"
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided Kafka trigger type source, especially around authentication variants, batching defaults/maximums, and the absence of retry/failure-destination properties on KafkaTopicIntegrationProps. I found several unsupported or overstated Stacktape-specific claims that should be narrowed to what the source actually documents.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape configures an AWS Lambda event-source mapping that polls your Kafka brokers, batches records, and delivers them to your function.”",
+              "reason": "The provided source states that a Kafka topic integration triggers a function and exposes batch settings, but it does not document that Stacktape creates an AWS Lambda event-source mapping or that the mapping polls brokers. This is likely true AWS implementation detail, but it is not grounded in the supplied Stacktape source and is presented as Stacktape behavior.",
+              "suggestedFix": "Narrow to source-backed wording: “A Kafka topic trigger invokes a function when new messages are available in a Kafka topic. The trigger can batch records before invoking the function.” If AWS Lambda event-source mapping behavior is needed, frame it as AWS background and avoid saying Stacktape configures a specific internal object unless source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new messages are available in a Kafka topic."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The function will be invoked with up to this many records. Maximum is 10,000."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Kafka topic triggers require authentication — there is no unauthenticated mode.”",
+              "reason": "The source requires authentication inside CustomKafkaEventSource, but customKafkaConfiguration itself is optional on KafkaTopicIntegrationProps. The draft’s absolute claim that every Kafka topic trigger requires authentication is broader than the provided type source supports.",
+              "suggestedFix": "Say: “When you provide customKafkaConfiguration, the Kafka cluster configuration includes an authentication block. The documented authentication variants are SASL and MTLS.” Avoid the absolute “no unauthenticated mode” unless runtime validator source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "customKafkaConfiguration?: CustomKafkaEventSource;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "authentication: KafkaSASLAuth | KafkaMTLSAuth;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The bootstrapServers endpoints are used to establish the initial connection and discover the full broker topology.”",
+              "reason": "The source only says bootstrapServers is a list of host:port addresses for Kafka brokers. It does not document initial-connection or broker-topology discovery behavior. That may be general Kafka behavior, but it is not grounded in the supplied Stacktape source.",
+              "suggestedFix": "Use the documented meaning only: “The bootstrapServers array is a list of host:port addresses for your Kafka brokers.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A list of `host:port` addresses for your Kafka brokers."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Your function is invoked when either threshold is reached — whichever comes first.”",
+              "reason": "The source explicitly says maxBatchWindowSeconds triggers when either batchSize is reached or the window expires, but it does not include the “whichever comes first” wording. The claim is plausible, but it is a stronger behavioral guarantee than the source provides.",
+              "suggestedFix": "Keep the source phrasing: “The function is triggered when either batchSize is reached or the maxBatchWindowSeconds window expires.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The function will be triggered when either the `batchSize` is reached or this time window expires."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For high-throughput topics (thousands of messages per second), increase batchSize toward 1,000–5,000 and set maxBatchWindowSeconds to 5–10 seconds. For low-latency requirements, keep the defaults — 0.5 seconds ensures messages are processed quickly even on quiet topics.”",
+              "reason": "The source provides defaults and maximums but does not support the specific tuning ranges, throughput threshold, or latency assurance. These numbers could materially influence configuration and should not be presented as Stacktape guidance without source backing.",
+              "suggestedFix": "Replace with cautious guidance grounded in the documented controls: “Increase batchSize or maxBatchWindowSeconds when you want larger batches and can tolerate more waiting. Keep the default batch window when latency matters more than invocation count.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The maximum number of records to process in a single batch."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "@default 100"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "@default 0.5"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Kafka batches can contain multiple records, and the batch is the unit of delivery. Design your handler to be idempotent — duplicate processing of the same record should produce the same result.”",
+              "reason": "The source supports batching, but it does not document duplicate delivery or idempotency requirements for Kafka topic integrations. The source contains idempotency warnings for Kinesis and DynamoDB retries, not for Kafka.",
+              "suggestedFix": "Either remove the duplicate-processing warning or frame it as general event-consumer practice rather than Stacktape Kafka trigger behavior: “As with most event consumers, idempotent handlers are safer when retries or reprocessing can happen outside your function.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The function will be invoked with up to this many records. Maximum is 10,000."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "> **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use stacktape debug:logs to tail your function's CloudWatch logs in real time. Use Lambda and event-source mapping metrics in AWS observability tooling or stacktape debug:metrics to monitor invocation rates and consumer lag.”",
+              "reason": "The provided source file contains no CLI command behavior or observability source for debug:logs, debug:metrics, real-time tailing, invocation rates, event-source mapping metrics, or consumer lag. The route list proves the CLI pages exist, but not these command capabilities.",
+              "suggestedFix": "Either provide CLI/observability source files for this page or narrow the FAQ answer to a cross-link without behavioral claims, e.g. “Use the logs and metrics docs for the Lambda function that handles the Kafka topic trigger.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Can I consume from multiple Kafka topics with one Lambda function? Yes. The Lambda function events property accepts an array, so you can add multiple KafkaTopicIntegration entries.”",
+              "reason": "The draft’s conclusion depends on LambdaFunctionProps, but the provided source list does not include Lambda function types. The Kafka integration source defines the integration shape, not whether LambdaFunction.events accepts multiple entries or multiple Kafka topic integrations.",
+              "suggestedFix": "Either provide the LambdaFunctionProps source or write cautiously: “KafkaTopicIntegration is an event integration for functions. If your function configuration uses multiple events, each KafkaTopicIntegration can point at a separate topic.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses a TypeScript CodeBlock with defineConfig and no hand-authored YAML Stacktape configuration.",
+            "The authentication variants in the draft match the source: BASIC_AUTH, SASL_SCRAM_256_AUTH, SASL_SCRAM_512_AUTH, and MTLS.",
+            "The batching defaults and maximums shown in the draft match KafkaTopicIntegrationProps: batchSize default 100 with maximum 10,000, and maxBatchWindowSeconds default 0.5 with maximum 300.",
+            "The draft correctly states that KafkaTopicIntegrationProps does not expose maximumRetryAttempts, onFailure, or bisectBatchOnFunctionError, while Kinesis and DynamoDB integrations do expose those properties."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided Kafka integration type source. The highest-impact problems are a few Stacktape-specific claims that go beyond the available type/JSDoc evidence, plus one CLI command example that uses flags not supported by the provided source list.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `bootstrapServers` array must contain at least one `host:port` endpoint for your Kafka cluster.”",
+              "reason": "The source requires `bootstrapServers` to be a string array and describes each entry as a `host:port` address, but it does not specify a minimum item count. The “at least one” constraint may be true operationally, but it is not present in the provided source.",
+              "suggestedFix": "Narrow the wording to: “The `bootstrapServers` array contains `host:port` addresses for your Kafka brokers.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface CustomKafkaEventSource {\n  /**\n   * #### A list of `host:port` addresses for your Kafka brokers.\n   */\n  bootstrapServers: string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use the Stacktape CLI to create a secret containing your Kafka credentials. `stacktape secret:create --name kafka-creds --value '{...}' --region eu-west-1`”",
+              "reason": "The Kafka source only says secrets can be created with `stacktape secret:create`; it does not document the `--name`, `--value`, or `--region` flags. No CLI source for `secret:create` was provided, so the specific command invocation is unsupported by the supplied sources.",
+              "suggestedFix": "Either remove the concrete CLI flags or write a source-grounded sentence: “You can create secrets using the `stacktape secret:create` command.” Link to `/cli/secret-create` for exact usage.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The secret must be a JSON object with `username` and `password` keys.\n   * You can create secrets using the `stacktape secret:create` command."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Unlike SQS or SNS triggers that support filter policies, all messages on the subscribed topic are delivered to your function.”",
+              "reason": "The source supports the narrow claim that `KafkaTopicIntegrationProps` has no filter property, but it does not support the comparison to SQS. In the provided source, SNS has `filterPolicy`; SQS does not expose a filter property.",
+              "suggestedFix": "Change to: “`KafkaTopicIntegrationProps` does not expose a filter property. If you need to skip records, implement that logic in the handler.” If comparing, mention only SNS as having `filterPolicy` in the provided source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The details of your Kafka cluster.\n   *\n   * ---\n   *\n   * Specifies the bootstrap servers and topic name.\n   */\n  customKafkaConfiguration?: CustomKafkaEventSource;\n  /**\n   * #### The maximum number of records to process in a single batch."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources.\n   *\n   * ---\n   *\n   * You must specify either `sqsQueueName` or `sqsQueueArn`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {\n  /**\n   * #### The name of an SNS topic defined in your stack's resources.\n   *\n   * ---\n   *\n   * You must specify either `snsTopicName` or `snsTopicArn`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "filterPolicy?: any;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use Lambda and event-source mapping metrics in AWS observability tooling or [`stacktape debug:metrics`](/cli/debug-metrics) to monitor invocation rates and consumer lag.”",
+              "reason": "The provided source does not document Lambda metrics, event-source mapping metrics, consumer lag, or `stacktape debug:metrics` behavior. The CLI link route exists in the navigation index, but the specific monitoring capabilities are unsupported by the Kafka source file.",
+              "suggestedFix": "Keep the grounded log guidance if desired, but narrow the metrics sentence to a general pointer such as: “Use AWS Lambda metrics for invocation behavior; consult AWS Lambda Kafka monitoring docs for consumer-lag metrics.” Avoid attributing consumer-lag monitoring to Stacktape without CLI/source evidence.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The details of your Kafka cluster.\n   *\n   * ---\n   *\n   * Specifies the bootstrap servers and topic name.\n   */\n  customKafkaConfiguration?: CustomKafkaEventSource;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The AWS Lambda event-source mapping itself has no additional AWS charge beyond the Lambda invocation cost.”",
+              "reason": "The general AWS pricing statement may be true, but the draft then gives concrete cost behavior for Secrets Manager API calls without any provided pricing source. The page’s pricing rules say concrete pricing should be sourced when present; no pricing source was provided for this page.",
+              "suggestedFix": "Keep pricing at the billing-model level or remove the Secrets Manager pricing sentence unless a pricing source is supplied.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and `defineConfig`; there are no hand-authored YAML Stacktape config examples.",
+            "The draft correctly uses `<ApiReference definitionName=\"KafkaTopicIntegrationProps\" />`, matching the provided interface name.",
+            "The documented Kafka authentication variants match the source: `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`.",
+            "The documented `batchSize` and `maxBatchWindowSeconds` defaults and maximums match the JSDoc in `events.d.ts`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the KafkaTopicIntegrationProps surface well: the primary properties, nested customKafkaConfiguration fields, SASL variants, MTLS variant, and batching controls are all documented. I found no API-completeness or union-variant gaps that meet the audit threshold.",
+          "issues": [],
+          "positiveFindings": [
+            "KafkaTopicIntegrationProps properties are covered: customKafkaConfiguration, batchSize, and maxBatchWindowSeconds all appear in prose or examples.",
+            "Nested Kafka configuration fields are covered: bootstrapServers, topicName, authentication, authenticationSecretArn, clientCertificate, and serverRootCaCertificate are documented.",
+            "Authentication union coverage is complete: BASIC_AUTH, SASL_SCRAM_256_AUTH, SASL_SCRAM_512_AUTH, and MTLS are all named.",
+            "The examples are demonstrative for the core trigger, SASL authentication, MTLS authentication, and batching-related properties."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\kafka-topics.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T12:06:18.193Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

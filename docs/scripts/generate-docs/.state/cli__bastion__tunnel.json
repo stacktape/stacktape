@@ -1,0 +1,662 @@
+{
+  "pageId": "cli__bastion__tunnel",
+  "pageRoute": "cli/bastion-tunnel",
+  "startedAt": "2026-05-17T22:18:26.134Z",
+  "updatedAt": "2026-05-17T22:28:43.364Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__bastion__tunnel\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, self-contained intro paragraph that explains what the command does and why (reach VPC-private resources) in a single tight sentence.",
+            "Supported resource types table is directly grounded in the source code (`isBastionTunnelingPossible`) and correctly captures the private-service constraint (requires an ALB).",
+            "Five distinct examples covering the most common scenarios: database GUI, pinned port, Redis, private service, and multi-bastion stacks. Each has a realistic command and a one-sentence prose callout.",
+            "Correctly uses `<CliCommandsApiReference>` for the flags table instead of hand-authoring one.",
+            "The 'How tunneling works' numbered list gives useful mechanism context (SSM, no open inbound ports) without going deep into AWS internals.",
+            "Related commands section links to the three most natural follow-up commands with brief one-liner descriptions."
+          ],
+          "problems": [
+            "Section order deviates from the prescribed CLI page structure. The section instructions say: intro → usage example → auto-generated reference → examples → related commands. This page puts 'Supported resource types', 'Important flags', multiple examples, and 'How tunneling works' all before the `<CliCommandsApiReference>`. The prescribed order exists so users scanning for a flag can find it quickly.",
+            "The AWS SSM Session Manager plugin prerequisite is buried inside an `<Info>` callout inside the 'How tunneling works' section — well after the examples. A first-time user who doesn't have the plugin installed will get an unhelpful error after already spending time writing the command.",
+            "The 'Important flags' prose section duplicates information that the `<CliCommandsApiReference>` component already renders. This creates mild maintenance risk (diverging descriptions) and pushes the auto-generated reference further down the page.",
+            "No FAQ section. CLI reference pages benefit from even 3-4 Q&A pairs covering 'what if I don't have a bastion?', 'is the SSM plugin required?', 'can the tunnel stay open indefinitely?'."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reorder page sections to match the prescribed CLI structure: intro paragraph → basic usage example → `<CliCommandsApiReference>` → examples → related commands. The 'Supported resource types' table and 'How tunneling works' detail can follow the flags reference or be folded into its own section after examples.",
+            "Surface the SSM plugin requirement early — add an `<Info>` callout immediately after the opening usage example, before any examples section, stating that the AWS SSM Session Manager plugin must be installed locally for the tunnel to work.",
+            "Remove or collapse the 'Important flags' prose section. The `<CliCommandsApiReference>` already covers every flag with descriptions. If the writer wants to highlight key flags, add a one-sentence orientation in the opening paragraph ('The key flags are `--resourceName` (required) and `--bastionResource`') rather than a full sub-section.",
+            "Add a short FAQ (4-5 entries) covering: 'What if my stack has no bastion?' (answer: add a bastion resource), 'Do I need the AWS SSM plugin?' (yes — link to AWS docs), 'Can the tunnel stay open indefinitely?' (yes, runs until Ctrl+C), 'Can I tunnel to multiple resources at once?' (no, one resource per invocation), 'What ports are opened for databases with read replicas?' (additional ports starting from localTunnelingPort+1)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Correct and well-structured supported-resource-types table, including the private-service ALB requirement sourced from isBastionTunnelingPossible in the command source.",
+            "Multiple realistic, single-purpose bash examples covering every supported resource type and the multi-bastion edge case.",
+            "SSM Session Manager plugin prerequisite surfaced explicitly in an Info callout — a real gotcha that would silently block users without it.",
+            "Proper use of <CliCommandsApiReference> with the full sortedArgs payload.",
+            "Related commands section links directly to debug:sql and debug:redis with their --bastionResource note, completing the workflow context."
+          ],
+          "problems": [
+            "FACTUAL: The intro calls this a 'secure SSH tunnel' but the implementation uses AWS SSM Session Manager port forwarding, not SSH. SSH and SSM are meaningfully different security postures — SSH requires open inbound ports and key pairs; SSM does not. Engineers adjusting security groups or auditing firewall rules will be misled. The Info callout later correctly says 'SSM Session Manager under the hood', creating a direct contradiction within the same page.",
+            "STRUCTURE: Section order deviates from the CLI section instructions, which prescribe: intro → usage → auto-generated reference → examples → related commands. The page places the flags reference (<CliCommandsApiReference>) after the Examples and 'How tunneling works' sections. Engineers who scan to the flags table first have to read past several screens of examples.",
+            "'How tunneling works' largely restates what the intro and usage paragraphs already explain (SSM session, local port mapping, Ctrl+C to exit). The only net-new fact is the multi-endpoint auto-tunnel behavior for databases with replicas, which could be a single sentence in the intro rather than a full section."
+          ],
+          "mandatoryFixes": [
+            "Replace 'secure SSH tunnel' in the intro (and seoDescription) with accurate SSM terminology. The command uses SSM Session Manager port forwarding, not SSH. Suggested wording: 'The bastion:tunnel command creates an SSM port-forwarding session through a bastion host to reach resources inside a private VPC.' This removes the contradiction with the Info callout.",
+            "Reorder sections to match CLI page instructions: (1) intro paragraph, (2) Usage section with basic example, (3) Flags reference (<CliCommandsApiReference>), (4) Supported resource types, (5) Examples, (6) Related commands. The flags reference must precede the examples per the documented CLI page rhythm."
+          ],
+          "optionalImprovements": [
+            "Condense or remove 'How tunneling works' — keep only the sentence about auto-opening multiple tunnels for resources with reader endpoints, fold it into the Usage section, and drop the rest. The step-by-step breakdown doesn't add actionable value for an engineer running the command.",
+            "Remove or shorten the 'Important flags' prose section — it partially duplicates the auto-generated flags reference. If you keep it, limit it to flags not self-explanatory from the reference (e.g. the multi-endpoint behavior of --localTunnelingPort), and rename it something like 'Key flag notes' to distinguish it from the full reference.",
+            "Add a short FAQ (4-6 items) covering: 'Do I need the AWS SSM Session Manager plugin installed?', 'Can I tunnel to multiple resources simultaneously?', 'What happens if there is no bastion in the stack?', 'Does the bastion need an open inbound port?' — these are real questions engineers hit in production."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page follows the CLI-page structure: short command description, required-flag usage example, examples, generated flags reference, and related commands.",
+            "The supported resource types are clearly listed in a table, and the private-service application-load-balancer requirement is correctly called out.",
+            "Shell examples follow the copy-button rule: one command per fenced bash block, with no explanatory comments inside the blocks.",
+            "The page uses the required <CliCommandsApiReference command=\"bastion:tunnel\" ... /> component instead of hand-authoring a flags table."
+          ],
+          "problems": [
+            "Several behavior details go beyond the provided source. The source shows SSM port-forwarding utility usage, but the draft states no SSH keys or open inbound ports are needed; that is plausible AWS background, but not directly grounded in the supplied Stacktape source.",
+            "The endpoint-detail claims in the supported-resource table are too specific for the supplied sources. The command source proves the four supported resource types and the private-service load balancer requirement, but it does not show that relational databases tunnel the primary endpoint, reader endpoint, and read replicas, or that Redis tunnels a reader endpoint.",
+            "The local port sequencing claim is insufficiently grounded. The source and generated arg text support an optional starting local port and automatic selection when omitted, but the draft claims subsequent endpoints use the next available ports starting from that number without source evidence.",
+            "The 'How tunneling works' section reads authoritative but includes implementation details not present in the supplied source, such as resolving private hosts/ports, identifying the bastion EC2 instance ID, and closing all tunnel sessions on Ctrl+C.",
+            "The page does not include a 'Related commands' link to a generic stack inspection command such as info:stack, which may help users discover the exact deployed resource name before tunneling.",
+            "The opening and H2 first paragraphs are mostly self-contained, but some later paragraphs start with weak antecedents such as 'The command opens...' and 'The output shows...' instead of naming `bastion:tunnel` or Stacktape bastion tunneling explicitly."
+          ],
+          "mandatoryFixes": [
+            "Tighten unsupported endpoint claims: replace specific primary/reader/read-replica/listener statements with wording grounded in the source unless resolveBastionTunnelsForTarget source is added. For example, say `bastion:tunnel` supports relational-database, redis-cluster, application-load-balancer, and private-service targets, and prints the tunneled endpoints it opens.",
+            "Revise the `--localTunnelingPort` description to only claim what the provided source supports: it specifies the starting local tunneling port, and Stacktape automatically selects an available port when it is omitted.",
+            "Rewrite or narrow the 'How tunneling works' section so every step is grounded in `src/commands/bastion-tunnel/index.ts`: initialize deployed-stack services, look up the target resource, validate supported resource type, resolve bastion tunnel targets, start SSM port-forwarding sessions, print mappings, register cleanup hooks, and keep the process alive.",
+            "Qualify the SSM/no-inbound-ports statement as AWS Session Manager background or remove the SSH-key/open-port claim unless source for the bastion resource or SSM utility is provided."
+          ],
+          "optionalImprovements": [
+            "Add a short troubleshooting subsection for the two explicit runtime failure paths: missing target resource (`e98`) and unsupported target resource type (`e99`). The exact message text would need `src/config/error-messages.ts` to be cited.",
+            "Add an example that includes `--bastionResource` earlier, because multiple-bastion stacks are a meaningful decision point for this command.",
+            "Link `SSM Session Manager plugin` from a prerequisites sentence near Usage instead of burying it at the end of 'How tunneling works'.",
+            "Consider adding `info:stack` to Related commands so users can discover deployed resource names before running `bastion:tunnel`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation for required args, supported resource-type gating, and the use of the generated CLI reference component. The main problems are endpoint-detail claims that are not grounded in the provided implementation and a few places where the prose describes behavior more specifically than the available source supports.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The supported resource types table says relational databases tunnel the primary endpoint plus reader endpoint and read replicas, Redis tunnels the primary endpoint plus reader endpoint, and application load balancers/private services tunnel every exposed listener port.",
+              "reason": "The provided command implementation only verifies that the target resource type is supported and delegates target resolution to `resolveBastionTunnelsForTarget`. The provided sources do not show which endpoints are resolved for each resource type, so the detailed endpoint matrix is not grounded in the source list.",
+              "suggestedFix": "Narrow the table to what the source proves: `bastion:tunnel` supports `relational-database`, `redis-cluster`, `application-load-balancer`, and `private-service`; for private services, tunneling is possible only when the deployed resource has a nested load balancer. Say the command prints the resolved tunnel targets rather than specifying primary/reader/listener behavior unless the resolver source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const supportedResourceTypes: StpResourceType[] = [\n    'relational-database',\n    'redis-cluster',\n    'application-load-balancer',\n    'private-service'\n  ];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const targets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({\n    targetStpName: resourceName,\n    bastionStpName: bastionResource\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you target a resource type not listed above, Stacktape exits with an error explaining which types are supported.”",
+              "reason": "The implementation throws `stpErrors.e99` for unsupported resource types, but the provided sources do not include the error-message definition. The claim that the error explains the supported types is not verifiable from the provided source.",
+              "suggestedFix": "Write only that Stacktape fails the command when the target resource type is not supported. Avoid describing the exact error text unless `src/config/error-messages.ts` or the relevant error source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "if (!isBastionTunnelingPossible({ resource: deployedStpResource })) {\n    throw stpErrors.e99({\n      stpResourceName: resourceName,\n      stpResourceType: deployedStpResource.resourceType as StpResourceType\n    });\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Only needed when your stack contains more than one bastion. If omitted and there is exactly one bastion, Stacktape selects it automatically.”",
+              "reason": "The command definition says `--bastionResource` can specify a bastion when multiple bastions exist, but the provided implementation delegates bastion selection to `resolveBastionTunnelsForTarget` and does not show the single-bastion auto-selection behavior. This is plausible, but not grounded in the provided source files.",
+              "suggestedFix": "Use the command-definition wording: `--bastionResource` selects which bastion resource to use when your stack has multiple bastions. Avoid claiming exact fallback behavior unless the resolver source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "If you have multiple bastions, you can specify one with the `--bastionResource` argument."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const targets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({\n    targetStpName: resourceName,\n    bastionStpName: bastionResource\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When tunneling to a resource with multiple endpoints (e.g. a database with a reader replica), subsequent endpoints use the next available ports starting from this number.”",
+              "reason": "The source confirms `localTunnelingPort` is passed as `startAtPort` and that tunnels have local ports, but the provided source does not define the port-allocation algorithm or the database reader-replica endpoint behavior.",
+              "suggestedFix": "Say `--localTunnelingPort` sets the starting local port passed to the port-forwarding session helper. If multiple tunnels are opened, Stacktape prints the assigned local port for each target.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const tunnels = await startPortForwardingSessions({\n    targets,\n    startAtPort: globalStateManager.args.localTunnelingPort\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "longDescription: \"<p>Specifies the local port for tunneling when using the <code>bastion:tunnel</code> command. If not specified, Stacktape automatically selects an available port.</p>\\n\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The output shows the local address to use in your client, along with the substituted connection string.”",
+              "reason": "The implementation prints an additional substituted string only when `additionalStringToSubstitute` is present for a resolved target. The provided sources do not prove that relational database targets always include a substituted connection string.",
+              "suggestedFix": "Qualify the wording: the output shows local-to-remote mappings and may include a substituted connection string when the resolved target provides one.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "additionalStringToSubstitute\n            ? ` ( ${tuiManager.colorize(\n                'gray',\n                additionalStringToSubstitute.replace(\n                  `${remoteHost}:${remotePort}`,\n                  `127.0.0.1:${tunnels[index].localPort}`\n                )\n              )} )`\n            : ''"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The tunnel uses AWS Systems Manager (SSM) port forwarding, so no SSH keys or open inbound ports are needed.”",
+              "reason": "The command implementation imports `startPortForwardingSessions` from an SSM session utility, which supports the SSM part of the claim. However, the provided sources do not explicitly document the SSH-key and inbound-port implications for `bastion:tunnel`. This is likely true AWS context, but it is not directly grounded in the supplied Stacktape source.",
+              "suggestedFix": "Keep the SSM wording, but soften the implication: “The command uses Stacktape’s SSM port-forwarding session helper. In typical SSM Session Manager setups, this avoids managing SSH keys or exposing inbound SSH.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses one command per shell code block and includes all required flags in the main invocation: `--stage`, `--region`, and `--resourceName`.",
+            "The `<CliCommandsApiReference command=\"bastion:tunnel\" ... />` component matches the documented command and the sorted args reflect the command definition, including required `region`, `stage`, and `resourceName`.",
+            "The supported resource-type list itself matches the implementation’s allowlist, and the private-service load balancer caveat is grounded in the implementation.",
+            "All internal markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft matches the command name, required flags, and the top-level supported resource type gate, but it overstates several implementation details that are not present in the provided sources. The most important fix is to stop calling the command an SSH tunnel and narrow endpoint, private-service, and local-port behavior to what the CLI source actually shows.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The page calls `bastion:tunnel` a “secure SSH tunnel” in the SEO description and opening paragraph.",
+              "reason": "The provided CLI source describes a secure tunnel and the runtime uses the Stacktape SSM session helper. The source does not describe the tunnel as SSH, and calling it SSH conflicts with the later SSM/no-SSH-keys framing.",
+              "suggestedFix": "Replace “secure SSH tunnel” with “secure tunnel” or “SSM-backed tunnel” throughout the page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Creates a secure tunnel to a resource through a bastion host."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "import { startPortForwardingSessions } from '@utils/ssm-session';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The supported-resource table says relational databases tunnel the primary endpoint, reader endpoint, and read replicas; Redis tunnels primary and reader endpoints; load balancers and private services tunnel every exposed listener port. The How tunneling works section also says databases with read replicas or reader endpoints get one tunnel per endpoint.",
+              "reason": "The provided command source only validates the supported resource types and delegates target resolution to `resolveBastionTunnelsForTarget`. The implementation that determines exactly which endpoints or listener ports become tunnel targets is not included in the provided sources.",
+              "suggestedFix": "Either include the source for `resolveBastionTunnelsForTarget` and verify these endpoint details, or narrow the wording to say Stacktape resolves the tunnel targets for the supported resource and prints the resulting local-to-remote mappings.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const supportedResourceTypes: StpResourceType[] = [\n    'relational-database',\n    'redis-cluster',\n    'application-load-balancer',\n    'private-service'\n  ];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const targets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({\n    targetStpName: resourceName,\n    bastionStpName: bastionResource\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The page says private-service tunneling “requires the private service to use an application load balancer” and “sits behind an application load balancer.”",
+              "reason": "The bastion tunnel command only checks whether the private service has a nested `loadBalancer`. The provided source does not establish that this load balancer must specifically be an application load balancer.",
+              "suggestedFix": "Change this to “requires the private service to have a load balancer” unless a private-service source file proves the load balancer is always or specifically an application load balancer.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "if (resource.resourceType === 'private-service' && !resource._nestedResources.loadBalancer) {\n    return false;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The `--localTunnelingPort` description says that, for resources with multiple endpoints, “subsequent endpoints use the next available ports starting from this number.”",
+              "reason": "The CLI argument description supports selecting a local tunneling port and automatically selecting one when omitted. The command source passes the value as `startAtPort`, but the provided sources do not show the allocation behavior for multiple endpoints.",
+              "suggestedFix": "Say that `--localTunnelingPort` specifies the local port to use, and omit the “subsequent endpoints” behavior unless the source for `startPortForwardingSessions` is included and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const tunnels = await startPortForwardingSessions({\n    targets,\n    startAtPort: globalStateManager.args.localTunnelingPort\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "localTunnelingPort: localTunnelingPort.optional()"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The How tunneling works section says Stacktape identifies the bastion host's EC2 instance ID and starts an SSM port-forwarding session from the machine to the bastion instance.",
+              "reason": "The provided runtime source shows resource lookup, support validation, target resolution, and a call to `startPortForwardingSessions`. It does not show the EC2 instance ID lookup or the exact SSM session topology.",
+              "suggestedFix": "Rewrite the section around the visible flow: Stacktape looks up the deployed resource, verifies it is supported, resolves tunnel targets using the target resource and optional bastion resource name, starts port-forwarding sessions, prints mappings, and registers cleanup for the sessions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const deployedStpResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const targets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({\n    targetStpName: resourceName,\n    bastionStpName: bastionResource\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const tunnels = await startPortForwardingSessions({\n    targets,\n    startAtPort: globalStateManager.args.localTunnelingPort\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The page says unsupported target resource types produce “an error explaining which types are supported.”",
+              "reason": "The command throws `stpErrors.e99` for unsupported resource types, but the provided sources do not include the error message definition. The draft can safely say the command exits with an error, but the content of that error is not grounded here.",
+              "suggestedFix": "Change the sentence to “If you target a resource type not listed above, Stacktape exits with an error.” Add the supported-types explanation only if `src/config/error-messages.ts` confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "throw stpErrors.e99({\n      stpResourceName: resourceName,\n      stpResourceType: deployedStpResource.resourceType as StpResourceType\n    });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The usage example includes all required arguments: `--stage`, `--region`, and `--resourceName`, matching `requiredArgs: ['region', 'stage', 'resourceName']`.",
+            "The supported resource type list matches the runtime gate: `relational-database`, `redis-cluster`, `application-load-balancer`, and `private-service`.",
+            "The flags table uses `<CliCommandsApiReference command=\"bastion:tunnel\" ... />`, which matches the documented command.",
+            "The draft avoids forbidden Stacktape configuration examples, hand-authored YAML config, and plain-object `StacktapeConfig` style."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API-completeness, union-coverage, or code-example demonstrativeness blockers found for the `bastion:tunnel` CLI reference draft. The page documents the command's required arguments, uses the generated CLI reference component, and its examples include the required flags for realistic invocations.",
+          "issues": [],
+          "positiveFindings": [
+            "The usage and examples consistently include the required `--stage`, `--region`, and `--resourceName` flags shown in `commandDefinitions['bastion:tunnel'].requiredArgs`.",
+            "The page uses `<CliCommandsApiReference command=\"bastion:tunnel\" ... />` for the flags table rather than hand-authoring the argument reference.",
+            "The important command-specific optional flags, `--bastionResource` and `--localTunnelingPort`, are explained in prose and demonstrated where useful.",
+            "The supported target resource types named in the draft match the `isBastionTunnelingPossible` allowlist, including the private-service load balancer caveat."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__bastion__tunnel\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "First paragraph is genuinely self-contained — it answers 'what is this and why' in one clear sentence without any meta-framing.",
+            "Multiple realistic, copy-pasteable examples covering distinct use cases (database, Redis, private service, specific port, multi-bastion).",
+            "Supported resource types table is directly grounded in the source code's `supportedResourceTypes` array and adds per-row notes that clarify constraints.",
+            "'How tunneling works' section follows the actual code path (`isBastionTunnelingPossible`, `resolveBastionTunnelsForTarget`, `startPortForwardingSessions`, cleanup hooks) and adds genuine value for debugging tunnel failures.",
+            "FAQ covers all three required categories: Stacktape-specific ('Do I need SSH keys?'), AWS-service behavior ('What is the SSM Session Manager plugin?'), and comparison/choice ('Can I run multiple tunnels at the same time?'). 8 distinct, non-padded Q&A pairs.",
+            "Related commands section correctly links to `bastion:session`, `debug:sql`, and `debug:redis` — the closest practical siblings.",
+            "The output description ('prints local-to-remote mapping, including substituted connection strings') is concrete and sets accurate expectations before the user runs the command."
+          ],
+          "problems": [
+            "The 'Important flags' section duplicates information already present in the auto-generated `<CliCommandsApiReference>` block that follows immediately. For a first-time user, this double-coverage adds scroll friction without adding information.",
+            "The SSM Session Manager plugin prerequisite is mentioned only in an `<Info>` callout deep inside 'How tunneling works' and in one FAQ answer. A first-time user will likely run the command and hit an opaque error before reaching that section. This is the most likely friction point for the target audience.",
+            "The claim in 'Important flags' that 'Stacktape validates that all required ports are available before starting' is not directly verifiable from the provided source files (`startPortForwardingSessions` is called but its internals are not shown). The sentence should be narrowed or softened.",
+            "The FAQ answer about cleanup hooks on terminal disconnect ('If your terminal disconnects or the process is killed, cleanup hooks close the sessions automatically') is slightly optimistic — the source only shows an `applicationManager.registerCleanUpHook` call, which may not fire on all disconnect scenarios (e.g. SIGKILL, hard terminal close). This could mislead users troubleshooting stale SSM sessions."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move the SSM Session Manager plugin prerequisite to a short 'Prerequisites' note or callout near the top of the page (after the intro paragraph, before 'Usage'). First-time users will hit this error before they reach 'How tunneling works'.",
+            "Remove or significantly condense the 'Important flags' prose section. The `<CliCommandsApiReference>` block already documents every flag with full descriptions. If you keep the section, convert it to a one-sentence orientation ('The only flag with non-obvious behavior is `--localTunnelingPort` — see the reference below for details') rather than re-describing each flag.",
+            "Soften the port-availability validation claim to match observable behavior from the source: 'Stacktape selects available local ports before starting the sessions.' Remove the explicit 'validates all required ports' wording unless the source confirms it.",
+            "Soften the cleanup-hook-on-disconnect claim: 'Registered cleanup hooks close tunnel sessions on graceful exit (Ctrl+C, SIGTERM). Sessions may persist if the process is killed forcefully; in that case, close them from the AWS Systems Manager console.'",
+            "Add a one-liner showing what the terminal output looks like when a tunnel is successfully established (e.g. `myDatabase (writer) --> 127.0.0.1:5432`). The source code prints exactly this pattern; showing it in the docs removes ambiguity about whether the command worked."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Supported resource types table cleanly enumerates all four types (relational-database, redis-cluster, application-load-balancer, private-service) exactly matching the source's `isBastionTunnelingPossible` function — no invented types, no omissions.",
+            "One focused example per resource type. Each block stands alone with realistic flag values, making copy-paste safe for all four use cases.",
+            "FAQ is genuinely useful: mixes Stacktape-specific questions (SSM vs SSH), operational questions (running multiple tunnels), and failure-mode questions (private-service tunnel fails). Answers are appropriately concise.",
+            "The 'How tunneling works' numbered list mirrors the actual source execution order (init → lookup → validate → resolve → start sessions → print → register cleanup → block), grounded in the bastion-tunnel index.ts steps.",
+            "Correct use of `<CliCommandsApiReference>` with the full sortedArgs payload and no hand-authored flags table. No `<ApiReference>` or `<PropertiesTable>` misuse.",
+            "No style violations: no YAML config blocks, no `StacktapeConfig` pattern, no multiple commands in one bash block, no inline `#` explanatory comments."
+          ],
+          "problems": [
+            "Unsourced claim in 'Important flags': 'Stacktape validates that all required ports are available before starting.' The source code passes `startAtPort` to `startPortForwardingSessions` but contains no explicit pre-flight port validation step. This could mislead an operator who expects a clean error before any session opens.",
+            "Over-specified constraint for private-service: the page states the private service must have `loadBalancing` type `application-load-balancer`, but the source code checks only `resource._nestedResources.loadBalancer` (existence, not type). The current wording implies other load balancer types are unsupported when the source does not confirm this distinction."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or qualify the unsourced port validation claim. Replace 'Stacktape validates that all required ports are available before starting' with wording derived from source behavior: that Stacktape opens one SSM port-forwarding session per resolved target, starting from `--localTunnelingPort` if provided or auto-selecting otherwise.",
+            "Narrow the private-service constraint to match source: change 'Requires the private service to have `loadBalancing` type `application-load-balancer`' to 'Requires the private service to have a load balancer configured' (or omit the type qualifier) since the source checks only for `_nestedResources.loadBalancer` existence.",
+            "The FAQ answer for 'Does the tunnel stay open indefinitely?' claims cleanup hooks fire on terminal disconnect. The source registers a `registerCleanUpHook` but whether it fires on abrupt terminal disconnect depends on signal handling not visible in this file. Consider narrowing the claim to 'when the process exits cleanly or receives a termination signal' to avoid misleading operators dealing with abrupt disconnects."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The page opens with a clear answer-first paragraph that explains what `bastion:tunnel` does and when a developer would use it.",
+            "The page follows the expected CLI-page rhythm: usage example, generated flags reference, examples, FAQ, and related commands.",
+            "Required flags are shown in realistic command invocations, and each shell block contains one copyable command.",
+            "The supported resource type table is useful and matches the runtime allow-list in `src/commands/bastion-tunnel/index.ts`.",
+            "The FAQ covers practical user questions, not only flag definitions."
+          ],
+          "problems": [
+            "Several behavior claims go beyond the provided source. `Stacktape validates that all required ports are available before starting`, automatic cleanup on killed terminal/process, and specific local-port sequencing are not proven by the provided `bastion-tunnel` command source.",
+            "The private-service wording is slightly over-specific. The runtime checks for a nested load balancer on a `private-service`; the provided source does not prove the docs phrase `loadBalancing type application-load-balancer`.",
+            "The page says the command uses AWS SSM Session Manager and requires the Session Manager plugin. The import from `@utils/ssm-session` supports SSM tunneling, but the plugin prerequisite is not shown in the provided source files, so this should be phrased more cautiously unless another source is added.",
+            "The `Usage` section says the command keeps running until `Ctrl+C`, but the runtime implementation is an infinite wait loop with cleanup hook registration; the `Ctrl+C` part is plausible but not explicitly grounded in the provided command source.",
+            "The page manually highlights only three important flags, while the generated reference includes other operationally important flags such as `--awsAccount`, `--profile`, `--projectName`, and `--configPath`. That is not wrong, but it may under-serve users diagnosing which deployed stack or account is being used.",
+            "The FAQ answer `Use the database credentials from your secrets or stack outputs` is not grounded in the provided source for this command and may imply a credential retrieval flow the command does not provide."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported exact behavior claims with source-grounded wording: say the command passes `--localTunnelingPort` as the starting port to the port-forwarding session helper, opens one session per resolved target, prints local-to-remote mappings, registers cleanup hooks, and then keeps the process alive.",
+            "Revise the private-service constraint to match the runtime source exactly: tunneling is allowed for a `private-service` only when the deployed resource has a nested load balancer.",
+            "Either add source support for the SSM Session Manager plugin prerequisite or soften the wording to avoid presenting the plugin installation requirement as proven by the supplied files.",
+            "Remove or qualify the claim that Stacktape validates all required local ports before starting unless `startPortForwardingSessions` source is included and proves it."
+          ],
+          "optionalImprovements": [
+            "Add a short `Prerequisites` section before `Usage` listing only source-grounded requirements: deployed stack, `region`, `stage`, `resourceName`, and a stack containing a `bastion` resource.",
+            "Make the first paragraph slightly more conservative by saying the command starts port-forwarding sessions through a bastion host rather than claiming every security property up front.",
+            "In `Important flags`, add one sentence that account/profile/project flags come from the standard stack arguments and are useful when the same stage exists in multiple AWS accounts or projects.",
+            "Consider moving `Supported resource types` before `Flags reference`; for this command, knowing what can be tunneled is usually more important than reading the full generated flag table.",
+            "Keep the FAQ, but trim unsupported credential guidance from the database GUI answer unless a credential source is provided."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation, especially the required arguments, supported target resource types, use of the CLI reference component, and the basic tunnel flow. The main problems are a few over-specific runtime claims that are not visible in the provided command source, especially around local port allocation, unsupported-resource error wording, and the exact private-service load-balancer requirement.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When multiple tunnels are opened ... each subsequent tunnel uses the next port in sequence starting from this number. Stacktape validates that all required ports are available before starting.” and “If the resource has multiple endpoints, port `5433` is used for the first tunnel, `5434` for the second, and so on.”",
+              "reason": "The provided command source only passes `targets` and `startAtPort` into `startPortForwardingSessions`. It does not show the allocation strategy for multiple ports or a preflight validation that all required local ports are available. The draft should not promise sequential port assignment or validation unless the SSM utility source is provided and confirms it.",
+              "suggestedFix": "Narrow the wording to: “`--localTunnelingPort` sets the local port passed to the tunneling helper. If the target resolves to multiple tunnels, Stacktape opens the required local port-forwarding sessions and prints the actual local ports it selected.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const tunnels = await startPortForwardingSessions({\n    targets,\n    startAtPort: globalStateManager.args.localTunnelingPort\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“[private-service] ... Requires the private service to have `loadBalancing` type `application-load-balancer`.” and “Tunneling to a private service requires the service to have `loadBalancing` type `application-load-balancer` configured.”",
+              "reason": "The command implementation checks whether the deployed private-service resource has a nested `loadBalancer`. The provided source does not inspect or name the configuration property value `loadBalancing: application-load-balancer`, so the draft is more specific than the source supports.",
+              "suggestedFix": "Replace with: “For `private-service`, Stacktape requires the deployed resource to have a nested load balancer.” If you want to mention the config-level `loadBalancing` value, ground it in the relevant private-service config type source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "if (resource.resourceType === 'private-service' && !resource._nestedResources.loadBalancer) {\n    return false;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you target a resource type not listed above, Stacktape exits with an error listing the supported types.” and FAQ: “Stacktape exits with an error that lists the supported resource types...”",
+              "reason": "The command does fail unsupported resource types, but the provided source only shows `stpErrors.e99` receiving the target resource name and actual resource type. The error message source is not provided, so the draft cannot claim the error lists the supported types.",
+              "suggestedFix": "Say: “If you target a resource type not listed above, Stacktape fails the command with an unsupported-tunnel-target error.” Avoid promising the exact error text unless `src/config/error-messages.ts` confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "throw stpErrors.e99({\n      stpResourceName: resourceName,\n      stpResourceType: deployedStpResource.resourceType as StpResourceType\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“If your terminal disconnects or the process is killed, cleanup hooks close the sessions automatically.”",
+              "reason": "The provided source confirms that a cleanup hook is registered, but it does not show which process signals or termination modes `applicationManager` handles. In particular, “process is killed” is too broad because some termination modes cannot run cleanup code.",
+              "suggestedFix": "Narrow to: “Stacktape registers a cleanup hook to close tunnel sessions when the CLI exits normally or handles an exit signal.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "applicationManager.registerCleanUpHook(async () => {\n    // printer.info('Received exit signal. Closing tunnels...');\n    return Promise.all(tunnels.map((tunnel) => tunnel.kill()));\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Use the database credentials from your secrets or stack outputs.”",
+              "reason": "The bastion tunnel source only prints local-to-remote mappings and optionally substitutes a host:port string. It does not establish where database credentials are retrieved from, and no database credential source files are provided for this page.",
+              "suggestedFix": "Use narrower wording: “Use the same database credentials you normally use for the deployed database; `bastion:tunnel` only changes the host and port you connect to.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "additionalStringToSubstitute.replace(\n                  `${remoteHost}:${remotePort}`,\n                  `127.0.0.1:${tunnels[index].localPort}`\n                )"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The required arguments in the usage example match the command definition: `region`, `stage`, and `resourceName`.",
+            "The supported resource type list matches the implementation: `relational-database`, `redis-cluster`, `application-load-balancer`, and `private-service`.",
+            "The draft correctly uses `<CliCommandsApiReference command=\"bastion:tunnel\" ... />` rather than hand-authoring a flags table.",
+            "The related command links point to routes present in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the command definition and implementation, including required flags, supported target resource types, SSM-based tunneling, and the generated CLI reference component. The main issues are a few unsupported operational details about local port assignment, configuration requirements, and cleanup behavior that are not visible in the provided source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When multiple tunnels are opened … each subsequent tunnel uses the next port in sequence starting from this number. Stacktape validates that all required ports are available before starting.”",
+              "reason": "The provided command source only passes `localTunnelingPort` as `startAtPort` to `startPortForwardingSessions`. The provided sources do not show the port allocation strategy or any pre-validation of all required local ports.",
+              "suggestedFix": "Narrow this to the sourced behavior: `--localTunnelingPort` is passed as the starting local port for SSM port-forwarding sessions; if omitted, the CLI reference says Stacktape automatically selects an available port. Avoid claiming sequential allocation or pre-validation unless `@utils/ssm-session` is included as a source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "const tunnels = await startPortForwardingSessions({\n    targets,\n    startAtPort: globalStateManager.args.localTunnelingPort\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When a connection string is available for the target, Stacktape also prints a substituted version with `127.0.0.1:<localPort>` replacing the remote host and port.”",
+              "reason": "The implementation substitutes `remoteHost:remotePort` inside `additionalStringToSubstitute` when that field exists. The provided source does not identify that string specifically as a connection string or define when it is available.",
+              "suggestedFix": "Replace with a narrower statement: “When tunnel metadata includes an additional string, Stacktape prints that string with the remote host and port replaced by the local tunnel address.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "additionalStringToSubstitute\n            ? ` ( ${tuiManager.colorize(\n                'gray',\n                additionalStringToSubstitute.replace(\n                  `${remoteHost}:${remotePort}`,\n                  `127.0.0.1:${tunnels[index].localPort}`\n                )\n              )} )`\n            : ''"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“For `private-service`, it also checks that the resource has a nested load balancer.” and “Requires the private service to have `loadBalancing` type `application-load-balancer`.”",
+              "reason": "The implementation checks only for `resource._nestedResources.loadBalancer` on a private service. The provided source does not prove that the nested load balancer must specifically come from `loadBalancing` type `application-load-balancer`, even if that may be true elsewhere.",
+              "suggestedFix": "Use the exact implementation-backed wording: “For `private-service`, Stacktape checks that the deployed resource has a nested load balancer.” Only mention `loadBalancing: 'application-load-balancer'` if the private-service config type source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "if (resource.resourceType === 'private-service' && !resource._nestedResources.loadBalancer) {\n    return false;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The tunnel stays open as long as the `bastion:tunnel` process is running. Press `Ctrl+C` to close all tunnel sessions and exit. If your terminal disconnects or the process is killed, cleanup hooks close the sessions automatically.”",
+              "reason": "The source registers a cleanup hook and then keeps the process alive indefinitely. The provided source does not show how cleanup hooks are triggered, and it does not support the stronger claim that sessions are closed automatically if the terminal disconnects or the process is killed.",
+              "suggestedFix": "Keep the sourced part and remove the process-kill guarantee: “The command registers a cleanup hook that kills the opened tunnel sessions when Stacktape runs cleanup, then keeps the process alive.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts",
+                  "quote": "applicationManager.registerCleanUpHook(async () => {\n    // printer.info('Received exit signal. Closing tunnels...');\n    return Promise.all(tunnels.map((tunnel) => tunnel.kill()));\n  });\n\n  // blocking event loop? maybe there is some other better way\n\n  while (true) {\n    await wait(3000);\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The only prerequisite is the SSM Session Manager plugin installed on your local machine.”",
+              "reason": "The source supports that the command uses SSM port-forwarding sessions, but it does not define the complete prerequisite set. The command also requires an existing stack with a bastion resource, required CLI args, and AWS/Stacktape access. Calling the plugin the only prerequisite is overstated.",
+              "suggestedFix": "Say “One local prerequisite for SSM port forwarding is the AWS SSM Session Manager plugin. The stack must also include a bastion resource and the command requires `--region`, `--stage`, and `--resourceName`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "requiredArgs: ['region', 'stage', 'resourceName'] as const"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Your stack must include a `bastion` resource."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The required arguments `--region`, `--stage`, and `--resourceName` match `commandDefinitions['bastion:tunnel'].requiredArgs`.",
+            "The supported target resource types listed in the draft match `isBastionTunnelingPossible`: `relational-database`, `redis-cluster`, `application-load-balancer`, and `private-service`.",
+            "The draft uses the generated `<CliCommandsApiReference command=\"bastion:tunnel\" ... />` component and does not hand-author an alternative flags table.",
+            "The related command links point to routes that exist in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking issues for the `bastion:tunnel` CLI reference. The page covers the required command arguments, uses the generated CLI API reference, acknowledges the supported tunnel target resource types from the runtime command source, and the shell examples demonstrate the flags discussed in their sections.",
+          "issues": [],
+          "positiveFindings": [
+            "The primary usage example includes all required arguments for `bastion:tunnel`: `--stage`, `--region`, and `--resourceName`.",
+            "The page uses `<CliCommandsApiReference command=\"bastion:tunnel\" ... />` rather than hand-authoring the full flags table.",
+            "The important optional flags discussed in prose, `--bastionResource` and `--localTunnelingPort`, are demonstrated with concrete command examples.",
+            "The supported resource type list matches the runtime command guard: `relational-database`, `redis-cluster`, `application-load-balancer`, and `private-service`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\bastion-tunnel.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T22:28:43.364Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\bastion-tunnel\\index.ts": "66bf7fb2c6e9fd8d8678ca25baf6fa1fd6aabfb1",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\bastion-tunnel.md": "5f6097a92152865fc27cd48eba23d310312edd40"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

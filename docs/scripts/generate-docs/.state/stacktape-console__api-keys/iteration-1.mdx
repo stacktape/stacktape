@@ -1,0 +1,130 @@
+---
+title: 'API Keys'
+order: 126
+seoTitle: 'Manage API Keys in Stacktape Console | Stacktape Docs'
+seoDescription: 'Create, revoke, and manage Stacktape API keys for CLI authentication in CI/CD pipelines. Set expiration dates, monitor usage, and rotate keys securely.'
+---
+
+# API Keys
+
+Stacktape API keys authenticate CLI sessions and CI/CD pipelines against your organization without requiring interactive login. Create keys with optional expiration dates, track their usage, and revoke them instantly when they are no longer needed or compromised. API keys are managed per-organization in the Stacktape Console.
+
+## What API keys are for
+
+An API key replaces the interactive `stacktape login` flow in environments where a browser is unavailable — CI/CD runners, headless servers, automated scripts, and shared developer machines. Each key is scoped to the organization that created it and carries the permissions of the user who owns it.
+
+Use API keys when you need non-interactive authentication. For local development where a browser is available, the standard [`stacktape login`](/cli/login) command is simpler and does not require key management.
+
+## Creating an API key
+
+In the Stacktape Console, navigate to the **API Keys** page. Click **Create new API Key** to open the creation form.
+
+The form requires two fields:
+
+| Field | Description |
+|-------|-------------|
+| **API Key name** | A human-readable label to identify this key (e.g. `github-actions-prod`, `dev-laptop`). Required. |
+| **Expiration** | How long the key remains valid. Options: No expiration, 30 days, 60 days, 90 days, 180 days, or 365 days. |
+
+After creation, the key value appears in the API Keys list. Copy it immediately — the full value is stored and can be revealed or copied later from the Console, but treat it as a secret.
+
+<Tip>Name keys after their purpose or location (`ci-deploy-production`, `developer-alice-laptop`) so you can identify and rotate them without guessing which integration depends on each key.</Tip>
+
+## Using an API key
+
+Once created, pass the key to the Stacktape CLI via the `--apiKey` flag or the `STP_API_KEY` environment variable. The environment variable approach is preferred for CI/CD because it avoids exposing the key in command history or logs.
+
+Set the environment variable in your pipeline:
+
+```bash
+export STP_API_KEY=your-api-key-value
+```
+
+Then run any CLI command without `stacktape login`:
+
+```bash
+stacktape deploy --stage production --region eu-west-1
+```
+
+For CI/CD setup details, see [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) or [GitOps with Console](/ci-cd-and-gitops/gitops-with-console).
+
+## Key status and lifecycle
+
+Each API key has one of three statuses:
+
+| Status | Meaning |
+|--------|---------|
+| **Active** | The key is valid and can authenticate requests. |
+| **Expired** | The key passed its expiration date and no longer works. Cannot be reactivated. |
+| **Revoked** | The key was manually revoked and no longer works. Cannot be reactivated. |
+
+The Console displays active keys separately from expired and revoked keys for quick scanning. Each key card shows:
+
+- **Name** — the label you assigned at creation
+- **Created** — timestamp of creation
+- **Last used** — timestamp of the most recent authentication, or "never"
+- **Expiration** — remaining days until expiry, or the expired date
+- **Revoked** — timestamp of revocation (if applicable)
+
+## Revoking an API key
+
+Click **Revoke** on any active key to immediately invalidate it. Any CLI session or CI/CD pipeline currently using that key will fail on the next request. Revocation is irreversible — create a new key if you need to restore access.
+
+<Warning>Revoking a key takes effect immediately. Confirm that no running pipelines depend on the key before revoking, or rotate to a new key first.</Warning>
+
+## Revealing and copying a key value
+
+Active keys can be revealed or copied from the Console at any time. Click **Show** to display the full key value, or **Copy** to place it in your clipboard without revealing it on screen. Use this when rotating keys in CI/CD secrets.
+
+## Permissions
+
+Managing API keys requires the `api-keys:manage-own` permission. Users without this permission are redirected away from the API Keys page. Organization admins can control who has this permission through [team and access control](/stacktape-console/team-and-access-control).
+
+## Best practices
+
+- **Set an expiration** for CI/CD keys. 90 or 180 days strikes a balance between security and maintenance burden.
+- **Use "No expiration" sparingly** — only for long-lived infrastructure where rotation is handled by another process.
+- **One key per integration point.** Sharing a single key across multiple pipelines makes revocation disruptive. Create separate keys for production deploy, staging deploy, and developer machines.
+- **Rotate before expiration.** Create the replacement key, update your CI/CD secrets, verify a deployment succeeds, then revoke the old key.
+- **Monitor "Last used."** Keys that show "never" or a date months in the past are candidates for revocation.
+
+## FAQ
+
+### How do I authenticate the Stacktape CLI in CI/CD?
+
+Set the `STP_API_KEY` environment variable to your API key value in your pipeline's secret store. The CLI picks it up automatically — no `stacktape login` step is needed. See [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) for pipeline-specific examples.
+
+### Can I restrict what an API key can do?
+
+API keys inherit the permissions of the user who created them. There is no per-key permission scoping. To limit what a key can do, create it from a user account that has only the required role, managed through [team and access control](/stacktape-console/team-and-access-control).
+
+### What happens when an API key expires?
+
+Expired keys stop authenticating immediately at the expiration timestamp. Any CLI command or pipeline using the key receives an authentication error. Create a new key and update your integrations to restore access.
+
+### Can I reactivate a revoked or expired key?
+
+No. Revocation and expiration are permanent. Create a new key if you need to restore access for that integration point.
+
+### How many API keys can I create?
+
+The Console does not enforce a visible per-organization limit on API key count. Create as many as needed — one per integration point is the recommended pattern.
+
+### Is the API key value stored securely?
+
+The key value is stored server-side and can be revealed in the Console by users with the `api-keys:manage-own` permission. Treat it like any other credential: store it in your CI/CD platform's secrets manager, not in source code or plain-text config files.
+
+### How do I rotate an API key without downtime?
+
+Create the new key first, update your CI/CD secret or environment variable to the new value, run a test deployment to confirm it works, then revoke the old key. Both keys remain valid simultaneously until the old one is revoked.
+
+### What expiration period should I choose?
+
+For production CI/CD pipelines, 90 or 180 days provides a reasonable security-maintenance tradeoff. For developer laptops where `stacktape login` is an alternative, shorter expirations (30-60 days) encourage using the interactive login flow instead. Use "No expiration" only when you have a separate rotation process in place.
+
+## Related features
+
+- [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) — use API keys to authenticate Stacktape in GitHub Actions, GitLab CI, or other pipelines
+- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — automatic deployments managed by the Console (no manual key setup needed)
+- [Team and access control](/stacktape-console/team-and-access-control) — manage user permissions including API key access
+- [`stacktape login`](/cli/login) — interactive login for local development

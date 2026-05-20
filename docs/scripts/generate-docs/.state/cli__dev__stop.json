@@ -1,0 +1,267 @@
+{
+  "pageId": "cli__dev__stop",
+  "pageRoute": "cli/dev-stop",
+  "startedAt": "2026-05-17T20:58:31.353Z",
+  "updatedAt": "2026-05-17T21:00:58.734Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__dev__stop\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Clear, self-contained opening paragraph — immediately tells the reader what the command does and when to use it.",
+            "Each flag gets its own subsection with a dedicated, single-command bash block. No multi-command blocks, no inline comments, no copy-buffer pollution.",
+            "The 'How agent discovery works' section is grounded entirely in the source code and adds genuine value — especially the fallback to port 7331 behavior, which users would otherwise only discover when the command doesn't behave as expected.",
+            "The <CliCommandsApiReference> component is used correctly with properly shaped sortedArgs data.",
+            "No mandatory style violations: no YAML config blocks, no StacktapeConfig type, no fenced TypeScript with defineConfig, no marketing language."
+          ],
+          "problems": [
+            "Factual accuracy issue: the --cleanupContainers description says 'Clean up orphaned Docker containers without stopping any agent', and the Examples section repeats this framing. But the source code (src/commands/dev-stop/index.ts) shows that when --cleanupContainers is used alone (no --agentPort), the command only returns early if no agents are running. If agents ARE running, it falls through to the standard stopping logic — a single agent gets stopped automatically, and multiple agents prompt the user to re-run with --agentPort. The 'without stopping any agent' claim is only accurate when no agents happen to be running.",
+            "The Examples section duplicates content already present in the Usage and Important flags sections (same three commands shown a second time). CLI reference pages benefit from a consolidated Examples section, but these particular examples add zero new scenarios beyond what the flag-specific subsections already show. The section creates length without adding information.",
+            "Related commands links to 'delete' and 'deploy' — neither is a close sibling of dev:stop. A user coming from dev:stop is almost certainly looking for the dev command page (already linked) or possibly debug:logs. delete and deploy are unrelated to the local dev workflow this command belongs to."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Correct the --cleanupContainers behavior description: when no --agentPort is given, the command cleans containers and then falls through to normal agent-stopping logic if any agents are running (single agent auto-stops; multiple agents prompt for --agentPort). Only if no agents are running does the command exit after cleanup. Update both the flag description prose and the standalone example to reflect this.",
+            "Remove or replace the Examples section. The three examples shown are identical to what already appears in Usage and under the two flag subsections. If an Examples section is kept, it should add non-obvious patterns — such as what happens when cleanup finds nothing, or the exit-code behavior when no agent is found on the specified port.",
+            "Replace 'delete' and 'deploy' in Related commands with more contextually relevant links. Consider linking to debug:logs (a natural next step after stopping a dev session) or removing the weaker links entirely."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurate description of all three agent-discovery code paths (single lock file, multiple agents, fallback to port 7331) — matches src/commands/dev-stop/index.ts exactly.",
+            "Examples are each in their own fenced bash block with no multi-command grouping or explanatory # comments inside blocks.",
+            "The --cleanupContainers + --agentPort combination is correctly described.",
+            "CliCommandsApiReference is used correctly for the flags table, matching the section instructions.",
+            "Flags listed in sortedArgs match the dev:stop command definition in commands.ts (universalArgs + agentPort + cleanupContainers)."
+          ],
+          "problems": [
+            "Factual inaccuracy: the Examples section labels `stacktape dev:stop --cleanupContainers` as 'Clean up orphaned Docker containers without stopping any agent.' This is only true when no agents are running. Per src/commands/dev-stop/index.ts, when --cleanupContainers is used without --agentPort and agents ARE running, the command falls through to the full agent-stop logic (auto-stops a single agent, or lists multiple and asks for --agentPort). The description misrepresents the command's behavior in the common case where both containers and agents need cleanup.",
+            "Related commands section links to `delete` and `deploy`, which are production-lifecycle commands unrelated to dev mode. The closest sibling is `dev`; `delete` and `deploy` add noise without improving navigation for someone trying to stop a dev session.",
+            "The 'Important flags' section and the 'Examples' section contain redundant invocations — the three bash examples in Examples exactly replicate the per-flag examples already shown under Important flags. This duplication adds length without adding information."
+          ],
+          "mandatoryFixes": [
+            "Fix the factual misrepresentation of --cleanupContainers behavior. Replace 'Clean up orphaned Docker containers without stopping any agent' with accurate wording that reflects the source: when no agents are running, the command stops after cleanup; when agents are running, it continues to the agent-stop flow (auto-stopping a single agent or prompting for --agentPort). The Important flags prose description should also be updated to mention this fall-through behavior.",
+            "Replace `delete` and `deploy` in Related commands with commands actually related to dev mode — `dev` is the primary sibling. Keep at most one general-purpose command if desired (e.g., `deploy` as context), but the section should help a reader who just stopped a dev agent, not someone starting a production deploy."
+          ],
+          "optionalImprovements": [
+            "Collapse the Examples section into the Important flags section or remove it entirely — every example there is already shown directly under the flag it demonstrates. The section adds scroll without adding signal.",
+            "Move 'How agent discovery works' immediately after the Usage section (before Important flags) so the behavior model is established before the individual flag options are shown. Currently the reader encounters `--agentPort` guidance before understanding what 'multiple agents' means.",
+            "Add a one-liner about the exit behavior: the source shows `process.exit(1)` when a specified --agentPort has no agent responding. Noting that the command exits non-zero on failure is useful for scripts and CI integration."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is direct, self-contained, and explains the main purpose of `dev:stop` without meta-framing.",
+            "All shell snippets use one command per fenced block, with no explanatory comments inside the copy buffer.",
+            "The page uses the required `<CliCommandsApiReference command=\"dev:stop\" ... />` component instead of hand-authoring a flags table.",
+            "The page covers the two important command paths: stopping by `--agentPort` and cleaning orphaned dev containers."
+          ],
+          "problems": [
+            "The example text says `stacktape dev:stop --cleanupContainers` cleans up orphaned Docker containers without stopping any agent, but `src/commands/dev-stop/index.ts` continues into normal agent-stop behavior when running agents are found. With one running agent, cleanup-only can still stop that agent.",
+            "The page describes multiple-agent handling as asking or prompting the user to specify an agent. Runtime source prints the agents and tells the user to use `dev:stop --agentPort <port>`; it does not show an interactive prompt in `commandDevStop`.",
+            "The phrase \"sends them a shutdown signal\" is not grounded in the provided source. The source only shows a status request followed by `stopRunningAgent(agent)`.",
+            "Several H2 sections do not start with a self-contained paragraph. `Usage` starts with a code block and then a paragraph beginning with \"This\"; `Important flags` starts immediately with H3s; `Flags reference` starts with a component.",
+            "The CLI page does not follow the requested CLI rhythm closely: generated API reference is placed after custom flag sections and discovery details, instead of directly after the usage example.",
+            "Related commands include `delete` and `deploy`, which are weak siblings for `dev:stop`; the closest related command in the provided source is clearly `dev`."
+          ],
+          "mandatoryFixes": [
+            "Correct the `--cleanupContainers` example and prose: say the flag removes orphaned Stacktape dev containers first, and if no `--agentPort` is provided the command may still continue with normal agent discovery and stop behavior when running agents are found.",
+            "Replace wording that implies an interactive multiple-agent prompt with the source-grounded behavior: `dev:stop` lists running agents and tells the user to re-run with `--agentPort <port>`.",
+            "Remove or narrow \"sends them a shutdown signal\" unless the source for `stopRunningAgent` is provided; use \"calls the dev agent stop flow\" or simply \"stops the dev agent\".",
+            "Make each H2 section extractable: add a short self-contained paragraph under `Usage`, `Important flags`, and `Flags reference`, and avoid paragraphs that begin with unsupported pronouns like \"This\"."
+          ],
+          "optionalImprovements": [
+            "Move `<CliCommandsApiReference command=\"dev:stop\" ... />` immediately after the basic usage example to match the CLI page instructions, then keep examples and discovery behavior below it.",
+            "Add one concise sentence that `dev:stop` has no required `stage`, `region`, or config flags, matching `requiredArgs: []` in the source.",
+            "Trim related commands to `dev`, or add only genuinely close CLI siblings if the source/navigation supports them.",
+            "Mention the failure path for `--agentPort`: when no dev agent responds on the specified port, the command warns and exits with status 1."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and dev-stop implementation. I found one concrete behavioral error around `--cleanupContainers` semantics; the rest of the page aligns with the available source and uses valid documented routes/components.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Clean up orphaned Docker containers without stopping any agent: `stacktape dev:stop --cleanupContainers`”",
+              "reason": "The implementation only returns after cleanup when no running agents are found. If running agents exist and no `--agentPort` is provided, the command continues into the normal agent discovery flow and may stop a single running agent or list multiple agents. The example description is therefore wrong for the case where one agent is running.",
+              "suggestedFix": "Narrow the wording to: “Clean up orphaned Docker containers; if no agents are running, the command exits after cleanup.” Also update the `--cleanupContainers` section to avoid claiming this flag never stops an agent when used alone.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "// If only cleanup was requested (no agent stop), we're done\n    if (!agentPortArg) {\n      const allAgents = await getAllRunningAgents();\n      if (allAgents.length === 0) {\n        return;\n      }\n    }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "if (allAgents.length === 1) {\n    // Single agent from lock file - stop it\n    const agent = allAgents[0];\n    tuiManager.info(`Stopping dev agent: ${agent.projectName}/${agent.stage} (port ${agent.port})...`);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses the correct `/cli/dev-stop` route and links only to routes present in the documentation index.",
+            "The `CliCommandsApiReference` command value matches the documented command name `dev:stop`.",
+            "The descriptions of `--agentPort`, fallback probing of port `7331`, and multiple-agent handling are supported by `src/commands/dev-stop/index.ts`.",
+            "The shell snippets each contain a single command and do not include copy-buffer comments."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and runtime implementation. I found two issues that should be fixed before publication: one unsupported/over-specific mechanism claim and one misleading example description for `--cleanupContainers`.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Dev agents run as background HTTP servers on your machine, and this command sends them a shutdown signal.”",
+              "reason": "The provided sources support that `dev --agent` enables an HTTP server and that `dev:stop` probes `http://localhost:<port>/status` before calling `stopRunningAgent`, but they do not show that agents are “background” servers or that `dev:stop` sends a specific “shutdown signal.” The implementation detail available here is narrower: the command contacts the local agent status endpoint and then calls `stopRunningAgent`.",
+              "suggestedFix": "Narrow the wording to: “Dev agents expose a local HTTP status endpoint, and `dev:stop` uses the selected port to stop the matching agent.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "const response = await fetch(`http://localhost:${port}/status`, {\n        signal: AbortSignal.timeout(2000)\n      });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "const stopped = await stopRunningAgent(agent);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "For dev command: also enables HTTP server for programmatic control."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Clean up orphaned Docker containers without stopping any agent:” followed by `stacktape dev:stop --cleanupContainers`.",
+              "reason": "The runtime only exits after cleanup when no running agents are found. If running agents exist, the command continues into normal agent discovery and may stop the only running agent or ask the user to specify a port when multiple agents are running. The example description implies cleanup-only behavior unconditionally, which would mislead readers.",
+              "suggestedFix": "Change the example label to: “Clean up orphaned Docker containers, and stop the only running agent if one is found:” Or explain: “When `--cleanupContainers` is used without `--agentPort`, Stacktape exits after cleanup only if no agents are running.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "if (!agentPortArg) {\n      const allAgents = await getAllRunningAgents();\n      if (allAgents.length === 0) {\n        return;\n      }\n    }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "if (allAgents.length === 1) {\n    // Single agent from lock file - stop it\n    const agent = allAgents[0];"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses one command per shell block and does not include forbidden Stacktape YAML or plain-object config examples.",
+            "The `<CliCommandsApiReference command=\"dev:stop\" ... />` command name matches the page route and source command key.",
+            "The `--agentPort`, `--cleanupContainers`, no-lock-file fallback to port 7331, and multiple-agent behavior are broadly aligned with `src/commands/dev-stop/index.ts`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page is mostly complete for a small CLI command: it covers the command purpose, usage, `--agentPort`, `--cleanupContainers`, and uses the required generated CLI API reference. I found two issues where the prose should be tightened against the runtime implementation.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Clean up orphaned Docker containers without stopping any agent:” followed by `stacktape dev:stop --cleanupContainers`.",
+              "reason": "The implementation only exits after cleanup when no running agents are found. If `--cleanupContainers` is used without `--agentPort` and one running agent is discovered, the command continues into the normal no-port stop flow and stops that single agent. The current example title promises cleanup-only behavior that the code does not guarantee.",
+              "suggestedFix": "Change the wording to something like: “Clean up orphaned Docker containers, then continue with normal agent discovery:” or explicitly say that `--cleanupContainers` by itself may still stop a running agent if one is discovered.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "if (shouldCleanupContainers) {\n    tuiManager.info('Cleaning up orphaned Stacktape dev containers...');\n    const cleaned = await cleanupOrphanedContainers();\n    ...\n    // If only cleanup was requested (no agent stop), we're done\n    if (!agentPortArg) {\n      const allAgents = await getAllRunningAgents();\n      if (allAgents.length === 0) {\n        return;\n      }\n    }\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "if (allAgents.length === 1) {\n    // Single agent from lock file - stop it\n    const agent = allAgents[0];\n    tuiManager.info(`Stopping dev agent: ${agent.projectName}/${agent.stage} (port ${agent.port})...`);\n    const stopped = await stopRunningAgent(agent);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“When multiple dev agents are running simultaneously, `dev:stop` lists them and asks you to specify which one to stop.”",
+              "reason": "The implementation does not show an interactive selection prompt. It prints the running agents and tells the user to run `dev:stop --agentPort <port>`. The current wording can be read as an interactive prompt in the current command run.",
+              "suggestedFix": "Replace with: “When multiple dev agents are running, `dev:stop` lists their project, stage, and port, then tells you to re-run the command with `--agentPort <port>`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts",
+                  "quote": "if (allAgents.length > 1) {\n    // Multiple agents - list them and ask user to be specific\n    tuiManager.info('Multiple dev agents running:');\n    for (const agent of allAgents) {\n      tuiManager.info(`  - ${agent.projectName}/${agent.stage} on port ${agent.port}`);\n    }\n    tuiManager.printLines(['']);\n    tuiManager.info('To stop a specific agent, use: dev:stop --agentPort <port>');\n    return;\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents the two command-specific options exposed by `dev:stop`: `agentPort` and `cleanupContainers`.",
+            "The page uses `<CliCommandsApiReference command=\"dev:stop\" ... />` instead of hand-authoring the flags table.",
+            "The usage examples follow the one-command-per-shell-block rule."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\dev-stop.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T21:00:58.734Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\dev-stop\\index.ts": "6e5adbe7359304d1eaa8145c1d5de09917f074e1",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\dev-stop.md": "4710d1a3e3f83989d434ae41bcf45cabee9789ba"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

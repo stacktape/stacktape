@@ -1,0 +1,130 @@
+---
+title: 'Managing Costs Overview'
+order: 96
+seoTitle: 'Managing AWS Costs in Stacktape | Dashboards, Budgets & Optimization'
+seoDescription: 'Understand and control AWS spend in Stacktape with cost dashboards, budget alerts, per-resource attribution, and optimization guidance. AWS bills your account directly — Stacktape helps you track and reduce it.'
+---
+
+# Managing Costs Overview
+
+AWS costs are billed directly to your AWS account — Stacktape does not mark up AWS pricing. The Stacktape Console gives you dashboards, per-stack cost attribution, budget alerts, and optimization guidance so you can understand, control, and reduce your AWS spend without leaving the platform. Stacktape's own subscription fee is separate and managed on the [billing page](/stacktape-console/billing-and-subscription).
+
+## How AWS cost data works
+
+Stacktape pulls cost data from AWS Cost and Usage Reports, which AWS generates daily. This means cost figures in the Console reflect spend with up to a one-day delay. Month-to-date totals update once per day, not in real time. The data is attributed to your stacks using deployment metadata — Stacktape tags every resource it creates, and those tags map costs back to specific projects, stages, and resource types.
+
+Cost attribution requires that your stacks were deployed with Stacktape. Resources created outside of Stacktape (manually in the AWS console, or by other tools) appear in account-level totals but cannot be attributed to a Stacktape project or stage.
+
+## Three concerns: viewing, controlling, reducing
+
+Managing costs breaks down into three activities. Each has a dedicated page with full details:
+
+| Concern | What it answers | Where to go |
+|---------|----------------|-------------|
+| **Viewing costs** | "What am I spending and where?" | [Dashboards](/managing-costs/dashboards) |
+| **Controlling costs** | "How do I get alerted before I overspend?" | [Budgets](/managing-costs/budgets) |
+| **Reducing costs** | "How do I spend less?" | [Optimization tips](/managing-costs/optimization-tips) |
+
+A fourth page, [Per-resource breakdown](/managing-costs/per-resource-breakdown), bridges viewing and reducing — it shows exactly which resource type (Lambda, RDS, ECS, S3, etc.) drives cost in each stack.
+
+## Viewing costs
+
+The Stacktape Console shows AWS costs in two places: the organization overview dashboard and the dedicated costs page.
+
+The **overview dashboard** displays a month-to-date cost KPI with a trend comparison against the previous month (percentage change), a cost-by-project chart (top 10 projects plus an "Other" bucket), a cost-by-resource-type chart, and a monthly cost trend sparkline. These give you a quick pulse without digging into details.
+
+The **costs per stack page** lets you select a connected AWS account and a specific month, then shows a table of every attributed stack with its project name, stage, region, and month-to-date spend — sortable by cost. Clicking a row navigates to the per-stage cost detail view.
+
+<Info>
+Cost reports are generated daily from AWS Cost and Usage Reports. New stacks may take up to a day to appear in cost data after their first deployment.
+</Info>
+
+For the full walkthrough of cost dashboards, see [Dashboards](/managing-costs/dashboards).
+
+## Controlling costs with budgets
+
+Budget alerts let you set spending thresholds and receive notifications before costs exceed them. Stacktape supports two scopes:
+
+- **Organization-wide budgets** — applied to an entire AWS account. Created immediately when you save the budget configuration.
+- **Per-stack budgets** — scoped to specific projects and stages. These depend on Stacktape deployment metadata, so you need to deploy matching stacks after creating or changing stack-scoped alerts.
+
+Each budget has a threshold amount (in your account's currency) and one or more alert percentages. When spend crosses a percentage threshold (e.g., 50%, 80%, 100% of the budget), an alert is sent to your configured [alert channels](/observability/alert-channels) — Slack, email, Teams, Discord, or a webhook.
+
+<Tip>
+Start with a single organization-wide budget at a comfortable monthly cap. Add per-stack budgets later for production stages that you want to monitor individually.
+</Tip>
+
+For setup details, see [Budgets](/managing-costs/budgets).
+
+## Reducing costs
+
+The largest cost-reduction levers in a typical Stacktape deployment are:
+
+1. **Right-sizing compute** — matching memory, CPU, and instance types to actual workload needs rather than over-provisioning.
+2. **Scaling to zero** — using Lambda functions or scale-to-zero container configurations for workloads with intermittent traffic.
+3. **Choosing the right database tier** — using serverless database engines for variable workloads and provisioned instances only when sustained throughput justifies the cost.
+4. **CDN caching** — offloading repetitive responses to CloudFront edge locations to reduce origin compute.
+5. **Cleaning up unused stages** — deleting preview/dev stages that are no longer needed.
+
+For concrete, actionable guidance on each of these, see [Optimization tips](/managing-costs/optimization-tips).
+
+## Cost attribution by resource type
+
+The Console breaks down costs not just by project and stage, but also by AWS service and Stacktape resource type. This lets you answer questions like "how much of my bill is RDS vs. Lambda?" or "which resource in my production stage is the most expensive?" without manually navigating AWS Cost Explorer.
+
+For details on reading the per-resource view, see [Per-resource breakdown](/managing-costs/per-resource-breakdown).
+
+## Stacktape subscription vs. AWS costs
+
+These are independent charges on separate invoices:
+
+| Charge | Billed by | What it covers |
+|--------|-----------|----------------|
+| AWS infrastructure costs | AWS (to your AWS account) | Compute, storage, networking, databases — everything your stack uses |
+| Stacktape subscription | Stacktape (to your organization) | Console access, GitOps, build runners, observability features, support |
+
+Stacktape does not add surcharges to AWS pricing. Your AWS bill is identical to what you would pay if you provisioned the same resources manually. The Stacktape subscription covers the platform tooling — the Console, CI/CD orchestration, observability, and guardrails.
+
+Subscription plans and billing are managed on the [Billing page](/stacktape-console/billing-and-subscription).
+
+## FAQ
+
+### How long does it take for cost data to appear?
+
+Cost data comes from AWS Cost and Usage Reports, which AWS generates daily. After deploying a new stack, expect up to 24 hours before its costs appear in the Console. Existing stacks update once per day.
+
+### Are AWS costs billed through Stacktape?
+
+No. AWS bills your AWS account directly at standard AWS pricing. Stacktape has no access to your billing and does not mark up or intermediate AWS charges. Stacktape's own subscription is a separate charge billed by Stacktape to your organization.
+
+### Can I see costs for resources not managed by Stacktape?
+
+Account-level totals include all AWS spending in your connected account. However, per-project and per-stage attribution only works for resources deployed through Stacktape, because attribution relies on the tags Stacktape applies during deployment.
+
+### How do budget alerts work?
+
+You define a spending threshold and one or more percentage triggers (e.g., alert at 50%, 80%, 100%). When your month-to-date spend crosses a trigger, Stacktape sends an alert to your configured channels — Slack, email, Teams, Discord, or webhook. Organization-wide budgets activate immediately; per-stack budgets require a redeploy of matching stacks.
+
+### Can I set budgets per stage?
+
+Yes. Stack-scoped budgets can target specific projects and stages. This is useful for monitoring production spend separately from development stages. After creating a stack-scoped budget, deploy the matching stacks so the budget metadata is attached.
+
+### What AWS services typically cost the most?
+
+For most Stacktape deployments, the top cost drivers are compute (ECS Fargate tasks or Lambda invocations), databases (RDS or Aurora instances), and data transfer. The exact breakdown depends on your architecture — the per-resource breakdown page shows your actual distribution.
+
+### How can I reduce Lambda costs?
+
+Reduce Lambda costs by right-sizing memory (smaller memory means lower per-millisecond cost), reducing execution duration through code optimization, and using ARM/Graviton architecture which is ~20% cheaper per GB-second. For high-throughput functions, evaluate whether a container-based [web service](/resources/compute/web-service) would be cheaper at sustained load.
+
+### How often are cost reports updated?
+
+AWS generates Cost and Usage Reports once per day. The Stacktape Console fetches these reports daily, so the data you see is at most 24 hours old. Real-time cost monitoring is not available through this mechanism — use AWS CloudWatch billing metrics if you need sub-daily granularity.
+
+### What's the difference between the overview dashboard costs and the costs page?
+
+The overview dashboard shows a summary — month-to-date total, trend vs. last month, and top projects by spend. The dedicated costs page provides a full table of every stack with sortable columns, account and month selectors, and navigation to per-stage detail views.
+
+### Can I export cost data?
+
+Cost data is sourced from AWS Cost and Usage Reports in your AWS account. You can access the raw reports directly in S3 (where AWS stores them) or use AWS Cost Explorer for custom exports and analysis beyond what the Stacktape Console provides.

@@ -1,0 +1,367 @@
+---
+title: 'Configuration Files'
+order: 1
+seoTitle: 'Configuration Files — TypeScript & YAML | Stacktape Docs'
+seoDescription: 'Learn how to configure Stacktape infrastructure using TypeScript (recommended) or YAML. Type-safe config with defineConfig, IDE autocompletion, conditional logic, and deploy-time directives.'
+---
+
+# Configuration Files
+
+Stacktape configuration defines your infrastructure as code in a single file. You declare resources — APIs, databases, containers, functions — and Stacktape provisions them on AWS. The configuration file supports two formats: TypeScript (recommended) and YAML.
+
+## Choosing a format
+
+Stacktape accepts four config filenames. When multiple files exist in the same directory, it uses precedence order: `stacktape.ts` > `stacktape.yml` > `stacktape.yaml` > `stacktape.js`. You can also specify an explicit path with the `--configPath` CLI flag.
+
+TypeScript is the recommended format for most teams. It provides full type safety, IDE autocompletion, conditional logic, loops, and the ability to split configuration across multiple files with standard imports. YAML works for straightforward projects where configuration is static and short.
+
+<FeatureComparisonTable
+  columns={["TypeScript", "YAML"]}
+  features={[
+    { name: "Type checking", values: { "TypeScript": true, "YAML": false } },
+    { name: "IDE autocompletion", values: { "TypeScript": "Full", "YAML": "With VS Code extension" } },
+    { name: "Conditional logic", values: { "TypeScript": "Native (if/else, ternary)", "YAML": "Via directives only" } },
+    { name: "Loops / dynamic resources", values: { "TypeScript": "Native (for, map)", "YAML": false } },
+    { name: "Code reuse", values: { "TypeScript": "Imports, functions, modules", "YAML": "Variables only" } },
+    { name: "Refactoring support", values: { "TypeScript": true, "YAML": false } },
+    { name: "Multi-file configs", values: { "TypeScript": true, "YAML": false } }
+  ]}
+/>
+
+<Tip>Use TypeScript when your configuration involves per-stage differences, dynamic resource creation, or shared patterns across projects. Use YAML for prototypes or small projects with a fixed set of resources.</Tip>
+
+## TypeScript configuration
+
+Create a `stacktape.ts` file in your project root. Install the `stacktape` package as a dev dependency to get types and resource classes.
+
+```bash
+npm install stacktape --save-dev
+```
+
+The TypeScript config uses `defineConfig` as its entry point. You instantiate resource classes, configure them with typed properties, and return them from the callback.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  HttpApiGateway,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiIntegration
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(({ stage }) => {
+  const api = new HttpApiGateway({
+    cors: { enabled: true }
+  });
+
+  const handler = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    events: [
+      new HttpApiIntegration({
+        httpApiGatewayName: 'api',
+        method: 'GET',
+        path: '/'
+      })
+    ]
+  });
+
+  return {
+    resources: { api, handler }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+### The defineConfig callback
+
+The `defineConfig` function receives a callback whose argument provides deploy-time context. Use these values for per-stage branching without separate config files.
+
+| Property      | Type     | Description                                                          |
+| ------------- | -------- | -------------------------------------------------------------------- |
+| `stage`       | `string` | Current stage name (e.g. `dev`, `production`)                        |
+| `region`      | `string` | AWS region for this deployment (e.g. `eu-west-1`)                    |
+| `projectName` | `string` | Project name passed via CLI                                          |
+| `command`     | `string` | The CLI command being run (`deploy`, `delete`, `dev`, etc.)          |
+| `cliArgs`     | `object` | All CLI arguments passed to the operation                            |
+| `awsProfile`  | `string` | Locally-configured AWS profile (not applicable in automatic mode)    |
+| `user`        | `object` | Information about the logged-in user (`id`, `name`, `email`)         |
+
+### Conditional logic and loops
+
+Because the config is standard TypeScript, you can use any language feature to create resources dynamically.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(({ stage }) => {
+  const isProduction = stage === 'production';
+
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: {
+        instanceSize: isProduction ? 'db.t4g.medium' : 'db.t4g.micro'
+      }
+    }),
+    credentials: {
+      masterUserPassword: $Secret('db-password')
+    }
+  });
+
+  const endpoints = ['users', 'products', 'orders'];
+  const handlers: Record<string, LambdaFunction> = {};
+  for (const name of endpoints) {
+    handlers[name] = new LambdaFunction({
+      packaging: new StacktapeLambdaBuildpackPackaging({
+        entryfilePath: \`./src/handlers/\${name}.ts\`
+      }),
+      connectTo: [database]
+    });
+  }
+
+  return {
+    resources: { database, ...handlers }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+### Splitting config across files
+
+Extract reusable patterns into helper modules and import them into your main config. This keeps large configurations readable without any framework-level mechanism.
+
+```typescript
+// config/database.ts
+import { RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
+export const createDatabase = (stage: string) =>
+  new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: {
+        instanceSize: stage === 'production' ? 'db.t4g.medium' : 'db.t4g.micro'
+      }
+    }),
+    credentials: {
+      masterUserPassword: $Secret('db-password')
+    }
+  });
+```
+
+```typescript
+// stacktape.ts
+import { defineConfig } from 'stacktape';
+import { createDatabase } from './config/database';
+
+export default defineConfig(({ stage }) => {
+  const database = createDatabase(stage);
+  return { resources: { database } };
+});
+```
+
+### IDE experience
+
+With TypeScript, your editor provides autocompletion for every property, inline JSDoc documentation on hover, go-to-definition for resource types, and real-time error highlighting. Typos in property names or invalid values are caught before you deploy.
+
+## YAML configuration
+
+For simpler projects, create a `stacktape.yml` file in your project root. No package installation is needed — Stacktape parses YAML natively.
+
+YAML uses a `type` + `properties` structure for each resource. This maps 1:1 to the TypeScript class-based pattern: the `type` corresponds to the resource class, and `properties` correspond to the constructor argument.
+
+<Info>The Stacktape VS Code extension provides autocompletion, validation, and inline documentation for YAML configuration files.</Info>
+
+### When YAML falls short
+
+YAML configuration cannot express conditional logic natively — you need [directives](/configuration/directives) for deploy-time interpolation. There are no loops, so you cannot generate resources dynamically. Large YAML configs tend to become repetitive because there is no import mechanism; [variables](/configuration/variables-and-reuse) provide limited reuse. If you find yourself working around these constraints, switch to TypeScript.
+
+## Config file structure
+
+Regardless of format, every Stacktape configuration has the same logical structure. The only required field is `resources`.
+
+| Top-level field            | Purpose                                                                 |
+| -------------------------- | ----------------------------------------------------------------------- |
+| `resources`                | Your infrastructure: functions, containers, databases, buckets, etc.    |
+| `variables`                | Reusable values referenced with `$Var()` in YAML or the callback in TS |
+| `hooks`                    | Run scripts before/after deploy, delete, or dev commands                |
+| `scripts`                  | Shell commands or code files you can run manually or via hooks          |
+| `directives`              | Custom deploy-time functions that compute config values dynamically     |
+| `deploymentConfig`         | Rollback behavior, termination protection, artifact retention           |
+| `stackConfig`              | Tags, custom outputs, VPC configuration                                 |
+| `providerConfig`           | Credentials for third-party services (MongoDB Atlas, Upstash)           |
+| `cloudformationResources`  | Raw CloudFormation resources (escape hatch)                             |
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  $Secret,
+  LocalScript
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(({ stage }) => {
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
+    credentials: {
+      masterUserPassword: $Secret('db-password')
+    }
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: [database]
+  });
+
+  const migrate = new LocalScript({
+    executeCommand: 'npx prisma migrate deploy',
+    connectTo: [database]
+  });
+
+  return {
+    resources: { database, api },
+    scripts: { migrate },
+    hooks: {
+      afterDeploy: [{ scriptName: 'migrate' }]
+    }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+## Specifying a custom config path
+
+By default, Stacktape auto-detects your config file in the current directory. Override this with the `--configPath` (or `-cp`) CLI flag.
+
+```bash
+stacktape deploy --stage production --configPath ./infrastructure/stacktape.ts
+```
+
+The path is resolved relative to the current working directory. If multiple config files exist in the same directory and no `--configPath` is provided, Stacktape warns you and uses the highest-priority file.
+
+## Directives in configuration
+
+Both TypeScript and YAML configurations support [directives](/configuration/directives) — built-in functions that resolve values at deploy time. In TypeScript, directives are imported as functions from the `stacktape` package. In YAML, they use a `$DirectiveName()` string syntax.
+
+Available built-in directives:
+
+| Directive          | Purpose                                                        |
+| ------------------ | -------------------------------------------------------------- |
+| `$Secret()`        | Reference a secret from AWS Secrets Manager                    |
+| `$ResourceParam()` | Reference a deployed resource's parameter                      |
+| `$Stage()`         | Returns the current stage name                                 |
+| `$Region()`        | Returns the current AWS region                                 |
+| `$Var()`           | Access a value from the `variables` section                    |
+| `$File()`          | Load and parse a JSON, YAML, .env, or INI file                 |
+| `$CfFormat()`      | String interpolation that supports runtime-resolved directives |
+| `$CfStackOutput()` | Reference an output from another deployed stack                |
+| `$GitInfo()`       | Access Git metadata (branch, commit, user)                     |
+| `$SsmParam()`      | Reference an SSM Parameter Store value                         |
+
+See [Directives](/configuration/directives) for detailed usage.
+
+## How TypeScript maps to YAML
+
+Every TypeScript resource class corresponds to a YAML `type`. The class constructor argument maps to the `properties` object. Nested classes (packaging modes, engines, integrations) map to nested `type` + `properties` objects in YAML.
+
+| TypeScript class                       | YAML type                       |
+| -------------------------------------- | ------------------------------- |
+| `LambdaFunction`                       | `function`                      |
+| `WebService`                           | `web-service`                   |
+| `PrivateService`                       | `private-service`               |
+| `WorkerService`                        | `worker-service`                |
+| `MultiContainerWorkload`               | `multi-container-workload`      |
+| `BatchJob`                             | `batch-job`                     |
+| `RelationalDatabase`                   | `relational-database`           |
+| `DynamoDbTable`                        | `dynamo-db-table`               |
+| `RedisCluster`                         | `redis-cluster`                 |
+| `Bucket`                               | `bucket`                        |
+| `HostingBucket`                        | `hosting-bucket`                |
+| `HttpApiGateway`                       | `http-api-gateway`              |
+| `ApplicationLoadBalancer`              | `application-load-balancer`     |
+| `SqsQueue`                             | `sqs-queue`                     |
+| `SnsTopic`                             | `sns-topic`                     |
+| `EventBus`                             | `event-bus`                     |
+| `NextjsWeb`                            | `nextjs-web`                    |
+| `StateMachine`                         | `state-machine`                 |
+| `UserAuthPool`                         | `user-auth-pool`                |
+| `WebAppFirewall`                       | `web-app-firewall`              |
+
+The documentation site renders both TypeScript and YAML views of every configuration example. The YAML view is derived automatically from the TypeScript source.
+
+## FAQ
+
+### Should I use TypeScript or YAML for my Stacktape config?
+
+Use TypeScript for most projects. It catches configuration errors before deployment, provides full IDE support, and lets you use conditional logic and loops for per-stage differences. YAML is appropriate for very small, static projects or when your team strongly prefers declarative-only configuration.
+
+### Can I switch from YAML to TypeScript without redeploying?
+
+Yes. Both formats produce the same internal configuration structure. Rename your `stacktape.yml` to `stacktape.ts`, convert to the `defineConfig` pattern, and the next deployment proceeds normally. Nothing changes in AWS.
+
+### Where should I put my stacktape.ts file?
+
+Place it in your project root alongside `package.json`. Stacktape auto-detects it there. If you prefer a different location (e.g. `infrastructure/stacktape.ts`), use the `--configPath` flag on every CLI command.
+
+### Can I use JavaScript instead of TypeScript?
+
+Yes — Stacktape accepts `stacktape.js` files. However, you lose type checking and IDE autocompletion. TypeScript is strongly recommended. The `stacktape` package ships its own type definitions, so no additional `@types` package is needed.
+
+### What happens if I have both stacktape.ts and stacktape.yml?
+
+Stacktape uses a precedence order: `stacktape.ts` > `stacktape.yml` > `stacktape.yaml` > `stacktape.js`. It picks the highest-priority file and warns about the others. Avoid keeping multiple config files in the same directory — it causes confusion.
+
+### How do I pass per-stage values without duplicating config?
+
+In TypeScript, use the `stage` parameter from the `defineConfig` callback to branch conditionally. In YAML, use the `variables` section combined with [directives](/configuration/directives) like `$Stage()` for stage-aware interpolation.
+
+### Can I reference environment variables in my config?
+
+Not directly. Stacktape configuration is evaluated at deploy time, not at runtime. Use the `$Secret()` directive to inject secrets from AWS Secrets Manager, or `$SsmParam()` for SSM Parameter Store values. In TypeScript configs you can read `process.env` during config evaluation, but this only works when running commands locally.
+
+### How do I validate my configuration before deploying?
+
+In TypeScript, the type system catches most errors in your editor. For both formats, run [`stacktape compile-template`](/cli/compile-template) to validate and compile your configuration without deploying. This catches directive resolution errors, missing resources, and schema violations.
+
+### What is the resources field?
+
+The `resources` field is the only required top-level property. It maps resource names (keys you choose) to resource definitions. Each resource name becomes the identifier used in `connectTo`, `$ResourceParam()`, and the Stacktape Console. Names must be unique within a config and should be descriptive (e.g. `mainDatabase`, `apiHandler`, `uploadsBucket`).
+
+### Can I use raw CloudFormation alongside Stacktape resources?
+
+Yes. The `cloudformationResources` top-level field accepts raw CloudFormation resource definitions that are merged into the template alongside Stacktape-managed resources. See [Raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) for details.

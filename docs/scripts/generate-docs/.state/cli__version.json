@@ -1,0 +1,175 @@
+{
+  "pageId": "cli__version",
+  "pageRoute": "cli/version",
+  "startedAt": "2026-05-17T21:12:14.910Z",
+  "updatedAt": "2026-05-17T21:13:58.586Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__version\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Accurate and minimal — matches the source precisely: no args, no API key required, no config needed.",
+            "Lead paragraph is self-contained and directly answers what the command does and when to use it.",
+            "Correctly uses <CliCommandsApiReference command=\"version\" sortedArgs={[]} /> with an empty args list matching the source definition.",
+            "Related commands are relevant and well-chosen (upgrade, help, info:whoami).",
+            "FAQ answers real questions a new user would ask (API key? how to upgrade?) without padding.",
+            "No forbidden patterns: no YAML config blocks, no StacktapeConfig type import, no marketing language, no multi-command bash blocks, no PropertiesTable.",
+            "Single command per bash block, no # comments used for explanation inside blocks.",
+            "Page tone is appropriately confident and pragmatic without hand-waving."
+          ],
+          "problems": [
+            "The 'Flags reference' section heading followed by an empty component (no args exist) may confuse first-time readers who expect to see a table of options. No prose note prepares them for an empty section.",
+            "The Usage section's second paragraph ('The command outputs the installed version number and exits. No AWS credentials...') restates facts already in the lead paragraph, adding minor redundancy without new information.",
+            "The FAQ has only 2 entries. While the narrow scope justifies brevity, 1-2 additional entries (e.g., 'What does the output look like?' referencing the 'Stacktape version: x.x.x' format from source, or 'How do I check if Stacktape is installed?') would increase coverage without padding."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the 'Flags reference' section, add a one-sentence note before the component — e.g., 'This command accepts no flags.' — so the empty auto-generated table is not silently confusing.",
+            "Trim or merge the second paragraph in the Usage section into the lead paragraph to avoid restating the same facts twice.",
+            "Add 1-2 more FAQ entries: 'What does the output look like?' (answer: the CLI prints 'Stacktape version: x.x.x.' with the version highlighted) and 'How do I check whether Stacktape is installed at all?' (answer: run stacktape version; a missing binary will produce a shell error, not a Stacktape error)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurately reflects the source: no flags, no API key required, no config file needed — all verified against commands.ts and version/index.ts.",
+            "Correct use of <CliCommandsApiReference command=\"version\" sortedArgs={[]} /> for a zero-arg command — does not hand-author a flags table.",
+            "FAQ entry 'Does stacktape version require an API key or login?' answers a genuinely useful question and is grounded in commandsNotRequiringApiKey.",
+            "Related commands section is well-chosen: upgrade and info:whoami are the natural follow-ons.",
+            "No forbidden patterns: no YAML Stacktape config blocks, no StacktapeConfig type, no fenced TypeScript with defineConfig, no marketing language."
+          ],
+          "problems": [
+            "The explanatory sentence after the Usage bash block ('The command outputs the installed version number and exits. No AWS credentials, project configuration, or login are required.') repeats the same facts stated in the opening paragraph — redundant prose the reader will skim.",
+            "FAQ has only 2 questions for a command where 3-4 distinct useful questions exist. Missing obvious candidates: 'What does the version number format mean?' / 'Where do I find the Stacktape changelog or release notes?' / 'How do I check the version in CI without an interactive terminal?'. The style guide allows fewer questions for narrow-scope pages but 2 feels thin when real questions are left unanswered.",
+            "The 'Flags reference' section heading will render above what is effectively an empty or near-empty auto-generated table since the command has no flags. Readers who land there expecting a table of options may be confused. A brief note like 'This command accepts no flags.' would clarify intent, or the section can be omitted since the component will handle the empty state."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the redundant explanatory sentence after the Usage code block ('The command outputs the installed version number and exits…') — this is already covered in the opening paragraph.",
+            "Add 1-2 more FAQ entries to reach the practical floor for this command type. Strong candidates: 'Where can I find the changelog for this version?' (link to release notes if available) and 'How do I check the version in a CI script?' (non-interactive, just run stacktape version and capture output).",
+            "Consider replacing or annotating the 'Flags reference' section with a brief note like 'The version command accepts no flags.' before or instead of the auto-generated component, so the section is not visually empty without explanation."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The page stays tightly scoped to one CLI command and uses the required <CliCommandsApiReference command=\"version\" sortedArgs={[]} /> component.",
+            "The usage example is copyable, contains one command, and correctly shows that `stacktape version` has no required flags.",
+            "The page avoids forbidden Stacktape config patterns, YAML examples, and marketing language.",
+            "Related commands are relevant for the main user intent: checking version, upgrading, getting help, and verifying identity."
+          ],
+          "problems": [
+            "The opening paragraph is self-contained but only about 34 words, below the required 40-75 word answer-first target.",
+            "The `Usage` H2 begins with a code block instead of a self-contained explanatory paragraph, so the section is weaker for snippet extraction.",
+            "The runtime output is described generically as \"the installed version number\" even though the source shows the command prints `Stacktape version: <version>.`; the page should name that output shape more precisely.",
+            "The FAQ is useful but very small. For a CLI reference page this is not a major gap, but it could answer one or two more real questions without padding."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand the first paragraph to 40-75 words while keeping the same grounded facts: current Stacktape version, no args, no API key, no config file, useful before deploys or after upgrades.",
+            "Add one short sentence before the Usage code block, such as: \"Run `stacktape version` from any directory to print the installed Stacktape CLI version.\"",
+            "Change the output sentence to match the source more closely: \"The command prints a message in the form `Stacktape version: <version>.` and returns the version string internally.\"",
+            "Consider adding FAQ entries for \"Can I run `stacktape version` outside a Stacktape project?\" and \"Why check the Stacktape CLI version before deploying?\" if those claims are kept grounded in the provided command args and runtime source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is well grounded in the provided CLI command definitions and version command implementation. I found no publication-blocking factual issues.",
+          "issues": [],
+          "positiveFindings": [
+            "The command name, usage, no-argument behavior, and empty flags reference match `commandDefinitions.version` with `args: {}` and `requiredArgs: []`.",
+            "The statement that `version` does not require an API key is grounded by `commandsNotRequiringApiKey` including `version`.",
+            "The output behavior is grounded by `src/commands/version/index.ts`, which calls `getStacktapeVersion()` and prints `Stacktape version: ...`.",
+            "All markdown cross-links point to routes present in the provided documentation navigation index.",
+            "The page uses the required `<CliCommandsApiReference command=\"version\" sortedArgs={[]} />` component and does not hand-author a flags table."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is well aligned with the provided CLI command sources. I found no publication-blocking factual issues.",
+          "issues": [],
+          "positiveFindings": [
+            "`version` is documented as a single-command CLI reference page with the expected usage example and generated `<CliCommandsApiReference command=\"version\" sortedArgs={[]} />` component.",
+            "The no-argument claim is grounded in `commandDefinitions.version.args: {}` and `requiredArgs: []`.",
+            "The no-login/API-key claim is grounded by `version` appearing in `commandsNotRequiringApiKey`.",
+            "The output behavior is grounded in `src/commands/version/index.ts`, which prints `Stacktape version: ...` and returns the version."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is API-complete for the `version` CLI page. The source defines `version` with no args and no required args, and the implementation only reads and prints the Stacktape version.",
+          "issues": [],
+          "positiveFindings": [
+            "Uses the required `<CliCommandsApiReference command=\"version\" sortedArgs={[]} />` component instead of hand-authoring flags.",
+            "The usage example is a single copyable command and matches the command definition.",
+            "The draft correctly reflects that `version` has no arguments and no required flags.",
+            "The no-login/API-key guidance is supported by `commandsNotRequiringApiKey` including `version` and by the implementation only calling `getStacktapeVersion()`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\version.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T21:13:58.586Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\version\\index.ts": "30c1467ebc3c7f3127b5ae5fb9150b98e21e5c2e",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\version.md": "414b3cac927175c35ba578e1a1970f688b828a1c"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

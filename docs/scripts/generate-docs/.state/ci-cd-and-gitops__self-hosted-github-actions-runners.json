@@ -1,0 +1,1043 @@
+{
+  "pageId": "ci-cd-and-gitops__self-hosted-github-actions-runners",
+  "pageRoute": "ci-cd-and-gitops/self-hosted-github-actions-runners",
+  "startedAt": "2026-05-17T18:31:16.469Z",
+  "updatedAt": "2026-05-17T18:56:29.361Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\ci-cd-and-gitops__self-hosted-github-actions-runners\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph — self-contained, answers 'what is this and why care' without meta-framing.",
+            "Instance-type table with vCPU/RAM and 'Best for' column is exactly the decision support readers need and is grounded in the Console source.",
+            "Lifecycle state machine (Active → Idle → Hibernated → Resumed → Reprovisioned) is an excellent conceptual model that matches the server-side handler behavior.",
+            "Resume (~15s) and cold-start (~30s) timings, STACKTAPE_API_KEY auto-injection, and the 15-minute idle timeout are all confirmed by the Console tooltip source — no invented facts in those key details.",
+            "GitHub Actions YAML examples are realistic, copy-paste ready, and structurally correct; using fenced YAML for workflow files (not Stacktape config) is correct per style rules.",
+            "Duplicate-webhook deduplication behavior (Warning callout) is directly grounded in the handler's `existingJob` check.",
+            "FAQ spans all three required categories: Stacktape-specific, AWS-service questions, and choosing/comparison questions.",
+            "When NOT to use section is concrete and opinionated — names specific thresholds (5-minute builds) rather than vague advice."
+          ],
+          "problems": [
+            "PRICING VIOLATION: The cost section states 'expect roughly ~$0.30-0.40/hour' for c7a.2xlarge and the FAQ states 'GitHub charges $0.008/minute for Linux hosted runners (~$0.48/hour)'. Neither figure appears in any source file. The pricing rules explicitly forbid inventing AWS list prices not present in the source.",
+            "UNSOURCED TOOLS: Maven and Gradle appear in the pre-installed tools table but are NOT mentioned in either source file. The GithubRunnerConfigModal tooltip lists: 'Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git' — Maven and Gradle are absent.",
+            "UNSOURCED TOOL PATHS: Specific filesystem paths (e.g., '/usr/lib/jvm/java-21-amazon-corretto.x86_64', '/opt/maven/bin', '/opt/gradle/bin', '~/.bun/bin', '~/.local/share/pnpm', '/usr/local/go/bin') are not present in any source file. The source only names the tools, not their install locations.",
+            "UNSOURCED INFRASTRUCTURE SPECS: 'encrypted 50 GB EBS volumes' is stated in the instance-type table and cost section but appears nowhere in the source.",
+            "UNSOURCED LAMBDA FREQUENCY: 'A scheduled Lambda runs every 5 minutes to enforce the idle timeout' — the 5-minute interval is not in any source file.",
+            "UNSOURCED STALE TIMEOUT: 'auto-stop Lambda marks stale operations as failed after 120 minutes' — the 120-minute figure is not in any source file.",
+            "CONCURRENT JOB BEHAVIOR: 'The runner handles one job at a time per project per region. If multiple jobs queue simultaneously, the GitHub Actions runner agent processes them sequentially on the same EC2 instance.' This specific concurrency behavior is not stated in the source handler code."
+          ],
+          "mandatoryFixes": [
+            "Remove invented EC2 and GitHub-hosted pricing figures from both the Cost section and the FAQ. Replace with: 'Check current EC2 pricing on the AWS pricing page for the exact rate for your region and instance type.' Do not approximate or estimate prices not found in the source files.",
+            "Remove Maven and Gradle rows from the pre-installed tools table — they are not listed in the source tooltip. Retain only the tools explicitly named: Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git.",
+            "Remove all specific filesystem paths from the pre-installed tools table (the source does not specify install locations). The table 'Details' column should reference only what the source supports (tool name, version where stated). Retain only grounded context.",
+            "Remove '50 GB encrypted EBS volumes' from the instance-type table header and the Cost table — volume size and encryption are not in the source.",
+            "Remove the specific '5 minutes' Lambda polling interval — replace with 'a scheduled Lambda periodically enforces the idle timeout' without a frequency claim.",
+            "Remove the '120 minutes' stale-timeout claim from the Warning callout — replace with a grounded statement: 'If a runner gets stuck, Stacktape's backend eventually marks the job as failed and resets the runner state' (without the specific duration)."
+          ],
+          "optionalImprovements": [
+            "Verify that FlowDiagram and FeatureComparisonTable are components that exist in the Stacktape docs MDX component palette before publishing — neither appears in the style guide or example page guidance provided.",
+            "The concurrent-job behavior paragraph ('handles one job at a time per project per region') should either be confirmed against a source or softened to 'each project gets its own runner instance' without the sequential-processing claim.",
+            "The 'Mixing with hosted runners' section is pure general GitHub Actions knowledge — consider adding a brief note that this is standard GitHub Actions capability rather than Stacktape-specific to set reader expectations.",
+            "The Setup > Configuring the runner table states AWS account and region 'Default' values as 'Auto-detected from connected accounts' and 'Auto-detected from project deployments' — this matches the handler code well, but the Console modal source shows that region and account are required fields when 'Enabled' is selected (with validation). Clarify that auto-detection applies only when no explicit config exists, not that fields are optional.",
+            "Consider linking the FAQ answer about the GitHub App to the GitOps with Console page more directly, since users may confuse the GitHub App installation requirement for self-hosted runners with the GitOps trigger setup."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Instance type table with vCPU/RAM specs is accurate — every entry matches the source `instanceOptions` array exactly, including the default `c7a.2xlarge`.",
+            "The four-step flow (webhook → JIT config → SSM dispatch → auto-hibernate) is correctly grounded in `github-actions-handler.ts`. The JIT runner labels (`self-hosted`, `linux`, `x64`, `stacktape`) match the source `generate-jitconfig` API call.",
+            "STACKTAPE_API_KEY auto-injection is sourced from both the handler's `deployingUser.apiKey` injection path and the Console tooltip — this is a non-obvious production detail that saves engineers a debugging session.",
+            "Duplicate webhook guard mention in the FAQ is source-grounded (the `existingJob` check in `handleJobQueued`) and directly relevant for production engineers troubleshooting retried webhook deliveries.",
+            "Region and AWS account auto-detection logic is accurately described: region auto-detects from project deployment flags, account auto-detects to the first active connected account — both confirmed by `resolveRegionForRunner` and `resolveAwsAccount`.",
+            "Project-matching priority (GithubRunnerConfig project > installationId match > first match) appears in the source and is implicitly handled in the FAQ, protecting engineers who have multiple projects pointing to the same repo.",
+            "When-to-use and When-NOT-to-use sections are opinionated and concrete — they direct users toward GitOps with Console for simple cases instead of overselling the self-hosted runner."
+          ],
+          "problems": [
+            "PRICING INVENTED: `$0.30-0.40/hour` for `c7a.2xlarge` and `$0.008/minute for Linux hosted runners` are not present in any provided source file. The pricing rules explicitly forbid inventing or estimating AWS list prices not present in the source. These figures will become stale and mislead production engineers making cost decisions.",
+            "PRE-INSTALLED TOOLS OVER-CLAIMED: The tool table lists fnm (`~/.bun/bin`), pnpm (`~/.local/share/pnpm`), Maven (`/opt/maven/bin`), and Gradle (`/opt/gradle/bin`) with specific filesystem paths. The only tool list in the source is the Console tooltip: `Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git`. An engineer who writes `~/.local/share/pnpm/pnpm install` in their workflow and finds it missing will have a broken build with no obvious explanation.",
+            "EBS VOLUME SIZE INVENTED: `50 GB encrypted gp3` is not in any provided source file. A production engineer sizing their toolchain cache around this number would have no grounding for it.",
+            "LAMBDA CHECK FREQUENCY INVENTED: `A scheduled Lambda runs every 5 minutes to enforce the idle timeout` — the 5-minute frequency is not in the provided source. The source only states `15 min of idle` as the hibernation threshold.",
+            "STALE OPERATION TIMEOUT INVENTED: `auto-stop Lambda marks stale operations as failed after 120 minutes` — the 120-minute figure is not in any provided source file.",
+            "UNKNOWN MDX COMPONENT: `<FlowDiagram>` is not in the documented MDX component palette (the style guide lists `<Info>`, `<Warning>`, `<Tip>`, `<CodeBlock>`, `<ApiReference>`, `<ReferenceableParams>`, `<FeatureComparisonTable>`). If this component does not exist in the docs pipeline, the section will fail to render.",
+            "SHARED RUNNER INSTANCE OMITTED: The Console tooltip source states `The runner uses the same EC2 instance as Stacktape deployments.` This is a significant operational fact — simultaneous CI jobs and Stacktape deploy operations share the same EC2 instance, which affects scheduling, cache state, and potential conflicts. Omitting this could mislead production engineers who run heavy CI jobs at the same time as deploys.",
+            "OS CLAIM UNGROUNDED: `Amazon Linux on x86_64` — the `x64` and `linux` labels are confirmed by the JIT config API call, but `Amazon Linux` as the specific distro is not stated anywhere in the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Remove invented pricing: delete `$0.30-0.40/hour` for `c7a.2xlarge` and `$0.008/minute for Linux hosted runners (~$0.48/hour)`. Replace with a sentence directing readers to the AWS EC2 pricing page for current on-demand rates. No pricing is present in the source files.",
+            "Trim the pre-installed tools table to only what the source confirms: `Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, Git`. Remove the rows for fnm, pnpm, Maven, and Gradle entirely, or explicitly caveat them as 'may vary by AMI version — verify before relying on specific paths' rather than asserting specific filesystem paths not in source.",
+            "Remove `<FlowDiagram>` — this MDX component is not in the documented palette. Replace with a numbered list (already partially present in `How it works`) or a prose paragraph. The step-by-step list already on the page makes the flow diagram redundant.",
+            "Remove the `50 GB encrypted gp3` EBS volume claim from the cost table and the instance type section. The source files contain no information about EBS volume size or encryption configuration.",
+            "Remove the '5 minutes' Lambda check frequency and the '120 minutes' stale operation timeout from the `Hibernation and lifecycle` section and the Warning callout. Neither figure appears in the provided source files. Replace with source-grounded language: 'A scheduled Lambda enforces the 15-minute idle timeout' without asserting how often it runs.",
+            "Add a note in the `Hibernation and lifecycle` section that the runner EC2 instance is shared with Stacktape deployment operations (confirmed by the Console tooltip: 'The runner uses the same EC2 instance as Stacktape deployments'). Production engineers need this to understand potential interaction between concurrent CI jobs and `stacktape deploy` operations."
+          ],
+          "optionalImprovements": [
+            "The FAQ answer for 'What happens if two jobs are queued at the same time?' says jobs run sequentially — but the source code only shows a single `ensureRunner` call per webhook and doesn't explicitly serialize jobs in the handler. Consider weakening to 'the runner handles one job at a time per EC2 instance' and noting that parallel job configurations (matrix builds on the same runner) depend on GitHub Actions job concurrency settings.",
+            "The `Disabling the runner` section says workflows 'will fail with no matching runner' — this is accurate but harsh. Add a one-sentence note that GitHub Actions will queue the job indefinitely until a matching runner is available if `runs-on` still specifies `stacktape`, giving engineers a heads-up to update their workflow files proactively.",
+            "The 'OS claim' (`Amazon Linux`) should either be sourced or generalized to 'Amazon Linux AMI' with a note that the specific version is managed by Stacktape and updated periodically.",
+            "Consider adding a troubleshooting subsection covering the most common failure mode the source reveals: when no project is found for the repository, or when the region cannot be determined (no existing deployments and no explicit config). The handler logs these as errors — engineers using CloudWatch on the handler Lambda will see them, and knowing in advance speeds up diagnosis."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening paragraph with concrete scope: Stacktape-managed GitHub Actions runners on EC2 in the user's AWS account.",
+            "Good scannability: short H2s, tables for instance types and cost states, and realistic workflow examples.",
+            "The page distinguishes self-hosted GitHub Actions runners from GitOps with Console and hosted runners, which is useful for CI/CD decision-making.",
+            "The `runs-on: [self-hosted, stacktape]` guidance is well grounded in the source handler's `stacktape` label check and the Console tooltip."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source files, including default VPC access, 50 GB encrypted gp3 EBS volumes, scheduled Lambda timing, stale operation cleanup after 120 minutes, no Stacktape surcharge, and exact AWS/GitHub pricing comparisons.",
+            "The page describes Console navigation and troubleshooting flows more specifically than the provided Console source supports. The source shows the modal fields and labels, but not a full navigation path or runner status troubleshooting screen.",
+            "The Cost section invents concrete prices and comparative savings that are not present in the source files. Pricing rules only allow concrete pricing when present in provided source files.",
+            "The page says the runner handles one job at a time per project per region and queues simultaneous jobs sequentially, but the handler source does not establish concurrency behavior beyond creating job records and dispatching to an ensured runner.",
+            "The page states `STACKTAPE_API_KEY` is cleaned up after each job in the FAQ, but the provided handler only passes `stacktapeApiKey` into `executeGithubActionsJob`; cleanup is not shown.",
+            "Some paragraphs use broad claims that read stronger than the source, such as automatic security updates, latest security patches, VPC/private resource access, and standard Linux x64 compatibility for any workflow step.",
+            "The GitHub Actions workflow YAML examples are appropriate because they are application/workflow code, but shell commands inside them use `--autoConfirmOperation`; the provided source files do not ground that CLI option.",
+            "The FAQ is useful and broad, but several answers rely on unsupported Stacktape-specific behavior rather than clearly separating general AWS/GitHub facts from source-grounded Stacktape behavior."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported Stacktape-specific claims: default VPC access, 50 GB encrypted gp3 EBS volumes, scheduled Lambda every 5 minutes, stale operation reset after 120 minutes, no Stacktape surcharge, one-job-at-a-time queuing, automatic security patch replacement, and API key cleanup after each job.",
+            "Replace the Cost section's invented dollar amounts and GitHub pricing comparison with source-grounded pricing model wording only, or cite provided pricing source files if available.",
+            "Narrow Console workflow wording to what the provided `GithubRunnerConfigModal.tsx` source proves: the modal has Status, AWS account, AWS region, and Instance type fields, with enabled/disabled options and the listed instance choices.",
+            "Revise troubleshooting guidance so it does not describe unsupported Console status flows or specific failure causes unless those causes are visible in the provided sources.",
+            "Explicitly distinguish sourced behavior from general AWS/GitHub background in FAQ answers; do not present general AWS behavior as Stacktape implementation unless the source shows it."
+          ],
+          "optionalImprovements": [
+            "Add a short table contrasting CodeBuild-based GitOps/remote deployment runners and EC2 GitHub Actions runners, because the section instructions explicitly ask to distinguish CodeBuild-based runners from EC2 runners.",
+            "In the lifecycle section, keep the source-grounded facts: 15-minute idle hibernation, approximately 15-second resume, approximately 30-second cold start, JIT runner registration, SSM dispatch, and labels `self-hosted`, `linux`, `x64`, `stacktape`.",
+            "Move unsupported advanced lifecycle details into cautious wording such as \"Stacktape ensures a runner is available before dispatching the job\" unless additional EC2 service source files are provided.",
+            "Add a concise source-grounded explanation of project matching priority from the handler: project with runner config, matching GitHub installation, then first repository match.",
+            "Keep the instance type table; it is well grounded in the modal source and useful for readers."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific operational claims that go beyond the two provided source files. The strongest issues are around runner routing, VPC access, lifecycle automation, pre-installed tools, secret handling, storage/cost details, and concurrency behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Without [the stacktape label], the job runs on GitHub-hosted infrastructure as usual.”",
+              "reason": "The source only shows that Stacktape ignores `workflow_job` events without the `stacktape` label. It does not say GitHub will reroute such jobs to GitHub-hosted runners; GitHub scheduling depends on the workflow’s `runs-on` labels.",
+              "suggestedFix": "Replace with: “Stacktape only handles jobs whose labels include `stacktape`. Jobs without that label are ignored by the Stacktape GitHub App and are scheduled according to the rest of your GitHub Actions `runs-on` configuration.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "if (!isStacktapeRunner(workflowJob.labels)) {\n    console.info(\n      `Ignoring workflow_job event - no '${STACKTAPE_RUNNER_LABEL}' label in: ${workflowJob.labels.join(', ')}`\n    );\n    return;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly claims VPC/private-network behavior: “VPC access during CI,” “The runner lives inside your AWS account's default VPC,” and “can reach private resources without exposing them publicly.”",
+              "reason": "The provided source files show AWS account, AWS region, and instance type selection, but they do not describe VPC placement, default VPC usage, subnets, security groups, or private resource reachability.",
+              "suggestedFix": "Remove the default VPC and private-resource access claims unless additional EC2 provisioning source is provided. A cautious sourced version is: “The runner launches in a connected AWS account and selected AWS region.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<p css={{ marginBottom: '10px' }}>\n            Run GitHub Actions workflows on your Stacktape EC2 runner instead of GitHub-hosted runners.\n          </p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "label=\"AWS account\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "label=\"AWS region\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "label=\"Instance type\""
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The lifecycle section claims a scheduled Lambda runs every 5 minutes, checks active deployments and GitHub Actions jobs, reprovisions the runner when a newer AMI exists, and marks stale operations failed after 120 minutes.",
+              "reason": "The provided sources support hibernation after 15 minutes, approximate resume and cold-start times, and runner dispatch. They do not include the scheduled Lambda behavior, AMI update policy, active-deployment checks, or 120-minute stale-operation reset.",
+              "suggestedFix": "Narrow lifecycle wording to the sourced facts: the runner hibernates after 15 minutes of idle, resumes in about 15 seconds, and cold start is about 30 seconds. Remove the AMI, scheduled Lambda, and stale-operation claims unless their source files are added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "const runner = await ensureRunner({\n      projectId: project.id,\n      projectName: project.name,\n      organizationId,\n      awsAccountId: awsAccount.awsAccountId,\n      region,\n      instanceType,\n      awsSdkManager,\n      prismaClient\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The pre-installed tools section lists pnpm, Maven, Gradle, fnm, exact filesystem paths, and Amazon Corretto 21.",
+              "reason": "The Console tooltip only lists Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git. The extra package managers, build tools, paths, and Java distribution/version are not grounded in the provided source.",
+              "suggestedFix": "Limit the table to the tools explicitly listed in the source, or add the AMI/build source that proves the expanded tool list and paths.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<p>Pre-installed tools: Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git.</p>"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The handler stores the API key in AWS Systems Manager Parameter Store (encrypted) and makes it available to the runner agent,” and the FAQ says the key is “cleaned up after each job.”",
+              "reason": "The source supports automatic `STACKTAPE_API_KEY` injection, and the handler passes `stacktapeApiKey` to `executeGithubActionsJob`. It does not show Parameter Store storage, encryption mechanics, or cleanup after each job.",
+              "suggestedFix": "Keep the sourced claim that `STACKTAPE_API_KEY` is automatically injected and no GitHub Secret is needed. Remove the Parameter Store and cleanup details unless the relevant implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<code>STACKTAPE_API_KEY</code> is automatically injected - no need to configure GitHub Secrets."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "stacktapeApiKey: deployingUser.apiKey,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All instances use AMD processors and encrypted 50 GB EBS volumes with hibernation support,” plus the cost table’s “50 GB encrypted gp3” hibernated-storage claim.",
+              "reason": "The provided sources list allowed EC2 instance types and hibernation timing, but they do not specify EBS volume size, gp3, encryption, or storage billing details.",
+              "suggestedFix": "Keep the sourced instance type table and hibernation behavior. Remove the 50 GB, gp3, and encryption claims unless EC2 provisioning source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "const instanceOptions: Option<string>[] = [\n  {\n    value: 'm6a.large',"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“There is no Stacktape surcharge for self-hosted runners.”",
+              "reason": "Neither provided source file discusses billing policy or Stacktape charges. This is a product-pricing claim, not general AWS pricing context.",
+              "suggestedFix": "Remove the no-surcharge sentence unless a billing/pricing source is provided. The cost section can safely say the provided source shows the runner uses an EC2 instance in the selected AWS account.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "Run GitHub Actions workflows on your Stacktape EC2 runner instead of GitHub-hosted runners."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "console.info(`[GitHub Actions] Ensuring EC2 runner for project ${project.name} in ${region}`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The runner handles one job at a time per project per region,” “multiple jobs queue simultaneously ... sequentially on the same EC2 instance,” and “each project has its own independent runner instance.”",
+              "reason": "The handler creates a job record and calls `ensureRunner` for each queued event, but the provided source does not document queueing semantics, one-job concurrency, sequential execution, or per-project runner isolation guarantees.",
+              "suggestedFix": "Remove the concurrency FAQ or narrow it to sourced behavior: Stacktape records each queued GitHub Actions job, ensures an EC2 runner for the matching project, and dispatches the job through SSM.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "await prismaClient.githubActionsJob.create({\n      data: {\n        githubJobId,\n        projectId: project.id,\n        organizationId,\n        region,\n        status: 'QUEUED',"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "const { ssmCommandId } = await executeGithubActionsJob({\n      instanceId: runner.ec2InstanceId!,\n      jobId: githubJobId,\n      jitconfig,\n      region,\n      invocationId,"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the `workflow_job` webhook path and the `stacktape` label as the Stacktape-specific routing signal.",
+            "The supported instance type list and vCPU/RAM values match the Console source.",
+            "The draft correctly says `runs-on: [self-hosted, stacktape]` is the workflow label combination shown in the Console.",
+            "The draft correctly describes region and AWS account as Console configuration inputs, and `c7a.2xlarge` as the UI default instance type."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the visible Console modal and GitHub Actions handler for the core flow: `workflow_job` events, `stacktape` label routing, JIT runner registration, SSM dispatch, default instance type, and basic hibernation timing. The main problems are unsupported operational details that go beyond the provided source, especially networking, lifecycle, tooling, pricing, and concurrent-job behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Without it, the job runs on GitHub-hosted infrastructure as usual.\"",
+              "reason": "The source only shows that Stacktape ignores `workflow_job` events without the `stacktape` label. GitHub Actions runner selection depends on the workflow's `runs-on` labels; removing only `stacktape` from `runs-on: [self-hosted, stacktape]` would still target self-hosted runners, not GitHub-hosted infrastructure.",
+              "suggestedFix": "Say that the `stacktape` label is what makes Stacktape handle the job. If the label is missing, Stacktape ignores the event and GitHub must find another runner matching the remaining labels.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "if (!isStacktapeRunner(workflowJob.labels)) {\n    console.info(\n      `Ignoring workflow_job event - no '${STACKTAPE_RUNNER_LABEL}' label in: ${workflowJob.labels.join(', ')}`\n    );\n    return;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "const isStacktapeRunner = (labels: string[]): boolean => {\n  return labels.some((label) => label.toLowerCase() === STACKTAPE_RUNNER_LABEL);\n};"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Your workflow needs to reach private databases, caches, or internal services during tests or migrations. The runner lives inside your AWS account's default VPC and can reach private resources without exposing them publicly.\"",
+              "reason": "The provided source confirms the runner uses a connected AWS account and region, but it does not describe the VPC, subnet placement, security groups, or reachability to private resources. This claim would materially affect whether readers choose self-hosted runners for VPC access.",
+              "suggestedFix": "Narrow the wording to what the source supports: the runner is launched in a connected AWS account and selected AWS region. Remove the default VPC/private-resource reachability claim unless additional EC2 provisioning source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "const awsAccount = await resolveAwsAccount(organizationId, config);\n  if (!awsAccount?.awsAccountId) {\n    console.error(\n      `Cannot determine AWS account for GitHub Actions runner. Project: ${project.name}. ` +\n        'Connect an AWS account or configure one in the GitHub Runner settings.'\n    );\n    return;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "console.info(`[GitHub Actions] Ensuring EC2 runner for project ${project.name} in ${region}`);\n\n    // Ensure the EC2 runner is running\n    const runner = await ensureRunner({\n      projectId: project.id,\n      projectName: project.name,\n      organizationId,\n      awsAccountId: awsAccount.awsAccountId,\n      region,\n      instanceType,\n      awsSdkManager,\n      prismaClient\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"If multiple jobs queue simultaneously, the GitHub Actions runner agent processes them sequentially on the same EC2 instance.\"",
+              "reason": "The handler creates a separate GitHub Actions job record for each queued job, calls `ensureRunner`, generates a JIT config, and sends an SSM command for each job. The provided source does not state a single-job queue, sequential processing, or concurrency behavior on the EC2 instance.",
+              "suggestedFix": "Remove the sequential-processing claim. A safer grounded answer is that Stacktape creates a job record and dispatches each queued Stacktape-labeled job to the ensured EC2 runner; concurrency behavior is not documented in the provided source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "await prismaClient.githubActionsJob.create({\n      data: {\n        githubJobId,\n        projectId: project.id,\n        organizationId,\n        region,\n        status: 'QUEUED',\n        workflowName: workflowJob.workflow_name,\n        jobName: workflowJob.name,\n        gitCommit: workflowJob.head_sha,\n        gitBranch: workflowJob.head_branch\n      }\n    });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "const { ssmCommandId } = await executeGithubActionsJob({\n      instanceId: runner.ec2InstanceId!,\n      jobId: githubJobId,\n      jitconfig,\n      region,\n      invocationId,\n      stacktapeApiKey: deployingUser.apiKey,\n      stacktapeTrpcEndpoint: serverConfig.STACKTAPE_TRPC_API_ENDPOINT,\n      awsSdkManager\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"There is no Stacktape surcharge for self-hosted runners.\"",
+              "reason": "Neither provided source file contains billing or subscription behavior for GitHub Actions runners. This is a pricing claim that affects buying decisions and must be sourced from pricing or billing code/docs.",
+              "suggestedFix": "Remove the no-surcharge sentence unless a billing source is added. Keep the AWS-side cost model at a general level: the runner uses EC2 and EBS, so AWS charges may apply.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "Run GitHub Actions workflows on your Stacktape EC2 runner instead of GitHub-hosted runners."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "// Ensure the EC2 runner is running\n    const runner = await ensureRunner({\n      projectId: project.id,\n      projectName: project.name,\n      organizationId,\n      awsAccountId: awsAccount.awsAccountId,\n      region,\n      instanceType,\n      awsSdkManager,\n      prismaClient\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"All instances use AMD processors and encrypted 50 GB EBS volumes with hibernation support.\" and the cost table entries \"Hibernated | EBS storage only (50 GB encrypted gp3)\" / \"Terminated | Nothing\".",
+              "reason": "The source lists supported instance types and mentions hibernation, but it does not specify processor vendor, EBS size, EBS encryption, gp3 volume type, or terminated-state billing. These details may be true in omitted EC2 provisioning code, but they are not grounded in the provided files.",
+              "suggestedFix": "Keep the supported instance-type table, because it is grounded in the modal. Remove or qualify storage details unless EC2 provisioning source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "const instanceOptions: Option<string>[] = [\n  {\n    value: 'm6a.large',"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The pre-installed tools table includes `pnpm`, Maven, and Gradle, and gives installation paths for Bun, pnpm, Go, Java, Maven, and Gradle.",
+              "reason": "The Console tooltip only lists Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git. It does not mention pnpm, Maven, Gradle, or any tool installation paths. Adding extra tools could cause users to write workflows that fail on the runner image.",
+              "suggestedFix": "Limit the pre-installed tools list to the tools named in the source, and remove path details unless the AMI build source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<p>Pre-installed tools: Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git.</p>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The handler stores the API key in AWS Systems Manager Parameter Store (encrypted) and makes it available to the runner agent.\" and FAQ: \"It's stored encrypted in AWS Systems Manager Parameter Store and cleaned up after each job.\"",
+              "reason": "The handler passes `stacktapeApiKey` into `executeGithubActionsJob`, and the modal says `STACKTAPE_API_KEY` is automatically injected. The provided source does not show Parameter Store storage, encryption, or cleanup after each job.",
+              "suggestedFix": "Say only that `STACKTAPE_API_KEY` is automatically injected and that the handler passes a Stacktape API key when dispatching the job. Remove Parameter Store and cleanup details unless EC2 execution source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<code>STACKTAPE_API_KEY</code> is automatically injected - no need to configure GitHub Secrets."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "const { ssmCommandId } = await executeGithubActionsJob({\n      instanceId: runner.ec2InstanceId!,\n      jobId: githubJobId,\n      jitconfig,\n      region,\n      invocationId,\n      stacktapeApiKey: deployingUser.apiKey,\n      stacktapeTrpcEndpoint: serverConfig.STACKTAPE_TRPC_API_ENDPOINT,\n      awsSdkManager\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Lifecycle claims including \"a scheduled Lambda automatically hibernates the instance\", \"runs every 5 minutes\", \"checks for active deployments and GitHub Actions jobs\", \"reprovision Lambda detects when a newer AMI is available\", and \"stale operations are marked failed after 120 minutes\".",
+              "reason": "The modal tooltip supports only the 15-minute idle hibernation, approximately 15-second resume, and approximately 30-second cold start. The provided source does not include scheduled Lambda cadence, active-work checks, AMI replacement logic, or stale-operation timeout behavior.",
+              "suggestedFix": "Retain the sourced timing claim. Remove the scheduled Lambda cadence, active-work checks, AMI replacement, and 120-minute stale-operation details unless the lifecycle service source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "import { ensureRunner, executeGithubActionsJob, updateLastUsedAtTag } from '../../services/remote-deploy/ec2';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The supported instance type names, vCPU/RAM values, and `c7a.2xlarge` default are grounded in `GithubRunnerConfigModal.tsx`.",
+            "The core GitHub webhook mechanics are grounded: Stacktape handles `workflow_job` events with the `stacktape` label, ignores non-queued actions except completed-job updates, requests a JIT runner config, and dispatches work through SSM.",
+            "The region and AWS account fallback behavior is mostly grounded: region comes from explicit config, existing deployment flags, or `project.defaultRegion`; AWS account comes from explicit config or the first active connected account.",
+            "The `STACKTAPE_API_KEY` automatic injection claim is grounded at a high level by the Console tooltip and by the handler passing `stacktapeApiKey` into `executeGithubActionsJob`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the visible Console configuration surface for Stacktape-managed GitHub Actions runners: enabled/disabled status, AWS account, AWS region, instance type, required `runs-on` label, instance size options, startup timing, preinstalled tools, and automatic API key injection. The main API-completeness gap is that the page does not clearly separate this EC2-based GitHub Actions runner from Stacktape’s CodeBuild-based CI/CD runner path, which the section instructions require.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The page does not explicitly distinguish Stacktape-managed GitHub Actions self-hosted runners from CodeBuild-based runners.",
+              "reason": "The human-maintained section instructions require this distinction. The provided source for this page supports that the GitHub Actions runner path is EC2-based: the Console modal says workflows run on a Stacktape EC2 runner, and the handler resolves an EC2 runner instance. The draft mentions CodeBuild only indirectly in a comparison table row, which is not enough for a reader choosing between CI/CD runner models.",
+              "suggestedFix": "Add a short section or comparison paragraph near the top: Stacktape-managed GitHub Actions runners are EC2 runners for GitHub Actions jobs labeled `stacktape`; CodeBuild-based runners are a separate CI/CD execution path and are better covered on `/ci-cd-and-gitops/build-runners` or `/cli/codebuild-deploy`. Keep the mechanics for this page scoped to EC2 runners.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "Run GitHub Actions workflows on your Stacktape EC2 runner instead of GitHub-hosted runners."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "console.info(`[GitHub Actions] Ensuring EC2 runner for project ${project.name} in ${region}`);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents every visible runner configuration field from the Console modal: status, AWS account, AWS region, and instance type.",
+            "The draft names all six supported instance options shown in source: `m6a.large`, `m6a.xlarge`, `c7a.xlarge`, `c7a.2xlarge`, `c7a.4xlarge`, and `c7a.8xlarge`.",
+            "The required workflow label is documented correctly: the handler only processes workflow jobs whose labels include `stacktape`, and the modal shows `runs-on: [self-hosted, stacktape]`.",
+            "No Stacktape config `<CodeBlock intellisense>` examples are present, so there are no demonstrativeness issues for Stacktape configuration examples."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\ci-cd-and-gitops__self-hosted-github-actions-runners\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Workflow YAML examples are realistic, complete, and immediately copyable — the PR preview + cleanup pair is exactly what a first-timer needs.",
+            "Instance types table precisely mirrors the source (GithubRunnerConfigModal.tsx instanceOptions) with an added 'Best for' column that helps readers choose without guessing.",
+            "Pre-installed tools table eliminates a common first-timer question ('do I need to install Node/Docker?') and the content is directly grounded in the modal tooltip.",
+            "The 'How it works' flowchart section accurately reconstructs the source code sequence (webhook → ensureRunner → JIT config → SSM dispatch → hibernate) without inventing steps.",
+            "FAQ section spans all three required categories: Stacktape-specific (STACKTAPE_API_KEY injection, setup steps), AWS-service use-case (cold start times, EC2 pricing model), and comparison/choosing (hosted vs self-hosted, vs GitOps). All 10 answers are concise and stand alone.",
+            "No mandatory style violations: GitHub Actions YAML blocks are correctly in fenced blocks (not Stacktape config), no StacktapeConfig type usage, no fenced TypeScript blocks wrapping defineConfig.",
+            "The 'When NOT to use' section is concrete and opinionated rather than hedged — directly useful for a first-timer deciding whether to bother."
+          ],
+          "problems": [
+            "The 'idle timeout is enforced automatically by a scheduled Lambda' claim is not supported by the provided source files. The handler code (github-actions-handler.ts) shows the hibernation trigger but nothing in the provided sources describes a scheduled Lambda enforcing the idle timeout. This is an implementation detail asserted without grounding.",
+            "The FeatureComparisonTable row for 'GitOps with Console' states the cost model is 'CodeBuild or EC2 runner' — this is not grounded in either provided source file. The sources cover the self-hosted runner only; GitOps with Console details come from a different surface not provided.",
+            "The 'Setting up' section's console navigation description ('Open your project in the Stacktape Console and open the GitHub Actions runner configuration modal') is adequately grounded given GithubRunnerConfigModal.tsx is in the source list, but the step 'open the GitHub Actions runner configuration modal' gives no hint of where to find it in the project overview — a first-timer with no prior Console experience cannot follow this.",
+            "The region auto-detection fallback path describes 'the connected account's primary region' but the source shows this logic only in the UI layer (GithubRunnerConfigModal.tsx useEffect), not in the server-side resolveRegionForRunner function, which falls back to project.defaultRegion and then null. The page conflates UI auto-selection with server-side resolution, slightly overstating the server's fallback behavior."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or soften 'The idle timeout is enforced automatically by a scheduled Lambda' to something like 'After 15 minutes with no new jobs, the instance hibernates automatically' — the mechanism is confirmed in the modal tooltip but the scheduled Lambda implementation detail isn't in the provided sources.",
+            "Narrow the FeatureComparisonTable 'GitOps with Console' cost model cell from 'CodeBuild or EC2 runner' to a more cautious 'Managed by Stacktape' or link to the GitOps page rather than asserting an implementation detail not grounded in provided sources.",
+            "Add one sentence to the 'Setting up → Configuring the runner' step that locates the modal in the project view (e.g., 'In the project overview, find the GitHub Actions runner card and click Configure') — GithubRunnerConfigModal.tsx is rendered from ProjectOverview so this is grounded and will unblock a first-timer who doesn't know where to look.",
+            "Adjust the region fallback description to match what the server-side resolveRegionForRunner actually does: it checks deployment region flags, then project.defaultRegion, then returns null (which causes an error). The UI separately auto-selects an account's primaryRegion at form-load time. Conflating these two paths is technically inaccurate for readers who want to understand why their runner fails to start.",
+            "The 'Disabling the runner' section says 'terminate it from the AWS EC2 console' but for a low-AWS-experience reader, a brief note that this means going to the AWS Management Console → EC2 → Instances would remove an unnecessary AWS jargon gap.",
+            "Consider adding a note that after disabling the runner and updating runs-on, any in-flight jobs already queued with the stacktape label will fail because no runner will accept them — this is a practical gotcha a first-timer would hit."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurately captures the JIT runner registration, SSM dispatch, and duplicate webhook guard mechanics directly from the github-actions-handler.ts source — these are non-obvious behaviors and the page gets them right.",
+            "Instance type table is precise and matches GithubRunnerConfigModal.tsx exactly (vCPU/RAM for all six options, correct default annotation on c7a.2xlarge).",
+            "Pre-installed tools list matches the source modal tooltip verbatim: Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, Git.",
+            "Multiple realistic workflow YAML examples cover the major use-case patterns (push deploy, PR preview, cleanup, test-then-deploy, mixed hosted+self-hosted) — all are copyable and realistic.",
+            "Hibernation lifecycle section (Active → Idle → Hibernated → Resumed → Cold) accurately reflects the source's 15-min idle timeout and resume/cold-start timings.",
+            "FAQ is substantive with 10 Q&A pairs spanning Stacktape-specific, AWS-behavioral, and comparison questions; the answer on credentials (no GitHub Secrets needed, IAM instance profile for AWS access) is accurate and directly addresses a common pain point.",
+            "The 'Mixing with hosted runners' section adds practical decision-support value that goes beyond what the source forces, but stays grounded.",
+            "Multiple-project priority resolution order ('project with runner config > matching installation > first match') is accurately described from the source handler logic."
+          ],
+          "problems": [
+            "Factual inaccuracy in region fallback: the page claims 'it falls back to the project's default region or the connected account's primary region' in both the 'Configuring the runner' prose and the FAQ answer 'How does Stacktape decide which AWS region to use?'. The server-side resolveRegionForRunner() does NOT check the connected account's primary region — it checks config.region, then iterates deployment region fields, then checks project.defaultRegion, then returns null. The account's primary region is used only for UI form pre-filling in GithubRunnerConfigModal.tsx and is not a server-side fallback. If region resolves to null, the handler logs an error and returns without dispatching the job (the workflow job stalls). This is a meaningful behavioral claim that is wrong.",
+            "Section instructions require 'Distinguish CodeBuild-based runners from EC2 runners explicitly.' The comparison table lists 'CodeBuild or EC2 runner' for GitOps but never explains what CodeBuild runners are or when they're used, nor does the page link to the build-runners page where this distinction is drawn. A reader who came here first would not understand the difference."
+          ],
+          "mandatoryFixes": [
+            "Fix the region fallback claim in two places: (1) In the 'Configuring the runner' table row for AWS region, change 'Auto-detected from project deployments or account\\'s primary region' to 'Auto-detected from project\\'s existing deployment regions, then project\\'s default region. If none can be determined, the job stalls — configure a region explicitly to avoid this.' (2) In the FAQ answer 'How does Stacktape decide which AWS region to use?', remove the claim about 'connected account\\'s primary region' as a runtime fallback. Add a note that if no region can be resolved the handler returns without dispatching — the workflow job will stall waiting for a runner. The source (resolveRegionForRunner) only checks: config.region → deployment region fields → project.defaultRegion → null."
+          ],
+          "optionalImprovements": [
+            "Add an explicit sentence distinguishing CodeBuild-based runners (used by GitOps with Console) from EC2-based runners (self-hosted) per section instructions. A one-sentence callout near the comparison table — 'GitOps with Console uses AWS CodeBuild or an EC2 build runner managed by Stacktape; see [Build runners](/ci-cd-and-gitops/build-runners) for details' — would satisfy the requirement without bloating the page.",
+            "Add a failure-mode note to the 'Setting up / Configuring the runner' section: explain what happens when region or AWS account cannot be resolved (handler logs an error, job stays in 'waiting for runner' state indefinitely). This is a common gotcha for first-time setup — knowing the symptom and the fix (configure region explicitly or deploy a stage first) in context is more useful than only the FAQ covering it.",
+            "The 'Disabling the runner' section says workflows will 'stall with no matching runner unless you update runs-on.' Consider adding that any in-flight job on the instance completes before hibernation; the warning only applies to newly queued jobs. The current wording could be read as 'jobs already running will stall', which is not the case.",
+            "The 'How it works' section mentions the project-matching priority logic in step 1 but the prose version ('a project with an explicit runner configuration takes priority') omits the second-priority tier (matching gitProviderInstallationId). For a multi-project team this matters. Consider adding the full three-level fallback list as a short bullet sub-list under step 1."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page opens with a clear answer-first paragraph and most H2s are short, descriptive, and easy to scan.",
+            "The instance type table is concrete and grounded in the Console source, including the six supported EC2 types and the default `c7a.2xlarge`.",
+            "Workflow examples are practical and copyable; the GitHub Actions YAML is appropriate because it is application workflow code, not Stacktape configuration.",
+            "The page clearly explains the Stacktape-specific `runs-on: [self-hosted, stacktape]` label and the handler behavior for jobs without the `stacktape` label."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are stronger than the provided source supports, especially cost behavior, hibernated billing, cleanup behavior, disabling behavior, and troubleshooting UI paths.",
+            "The page describes Console navigation and a “runner configuration modal” workflow more specifically than the source supports. The source shows the modal component and fields, but not a durable user navigation path to reach it.",
+            "The setup defaults table is partially inaccurate or over-broad: the UI auto-selects the first active AWS account and that account’s first primary region when no config exists; the server-side handler falls back to project deployment flags and then `project.defaultRegion`, but the provided source does not support “account’s primary region” as a server fallback.",
+            "The page repeatedly says cold provision is approximately 30 seconds and hibernated resume is approximately 15 seconds. Those numbers are visible only in the Console tooltip, so they can be used, but the page should avoid extending them into broader lifecycle guarantees such as “ready without additional startup delay.”",
+            "The “Cost” section is useful but not source-grounded enough. The provided files do not contain EC2/EBS pricing details, billing-state logic, or a guarantee that hibernation means EBS-only charges.",
+            "The page claims the runner uses an IAM instance profile for AWS access. The provided handler source shows connected-account credentials used by the server to manage the runner, but it does not show the EC2 instance profile configuration.",
+            "The page claims disabling the runner does not terminate the EC2 instance immediately and suggests terminating it from the AWS console. The provided handler only shows disabled queued jobs are ignored; it does not define instance cleanup behavior.",
+            "The FAQ answer “Any workflow step that runs on a Linux x64 runner works” is too broad. The source supports Linux/x64 labels and tool availability, but not universal compatibility for every Linux x64 workflow step.",
+            "The comparison table includes claims not grounded in the provided files, including “GitOps with Console runs in your AWS account,” “GitOps cost model: CodeBuild or EC2 runner,” and GitHub free-tier 2 vCPU.",
+            "The page does not explicitly distinguish CodeBuild-based runners from EC2 runners, despite the human-maintained section instruction requiring that distinction."
+          ],
+          "mandatoryFixes": [
+            "Add an explicit grounded distinction between Stacktape-managed GitHub Actions EC2 runners and any CodeBuild-based runner path. If CodeBuild mechanics are not present in the provided source, say this page covers the EC2 runner shown in the Console and handler sources, and do not describe CodeBuild behavior beyond that.",
+            "Correct the region/account default wording: the Console preselects the first active connected AWS account and that account’s first primary region when creating config; the handler resolves region from explicit config, then project deployment region flags, then `project.defaultRegion`, and returns null if none is available.",
+            "Remove or narrow unsupported lifecycle and cost guarantees. Do not state “hibernated = EBS storage only,” “no instance = nothing,” or immediate disable/termination behavior unless those facts are provided by source files.",
+            "Remove the unsupported IAM instance profile claim, or replace it with source-grounded wording that the handler obtains credentials for the connected AWS account and dispatches the job with `STACKTAPE_API_KEY`.",
+            "Remove specific Console navigation claims that are not in source, or phrase them narrowly around the available Console runner configuration modal and its fields.",
+            "Revise the comparison table to remove unsupported GitOps, CodeBuild, GitHub free-tier hardware, and “runs in your AWS account” claims unless source files for those features are included."
+          ],
+          "optionalImprovements": [
+            "Make the “How it works” opening paragraph more self-contained by naming “Stacktape-managed GitHub Actions runner” instead of starting directly with the GitHub App mechanism.",
+            "Shorten or split the “Hibernation and lifecycle” section so source-backed behavior is distinct from AWS background cost context.",
+            "Add a small table for event handling: ignored without `stacktape` label, ignored when disabled, ignored for non-queued actions except completed status update, failed when no region/account/service API key can be resolved.",
+            "Trim repeated “most teams” recommendations unless they are tied to a concrete decision signal such as workflow duration, compute size, or need for pre-deploy tests."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided Console modal and GitHub Actions handler sources, but it overstates several behaviors that are not grounded in the available source files. The most important fixes are around region fallback, runner lifecycle/hibernation details, and unsupported claims about AWS credentials and non-Stacktape workflows.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“If no deployments exist yet, it falls back to the project's default region or the connected account's primary region.”",
+              "reason": "The backend region resolver falls back to the project default region and then returns null. It does not fall back to the connected account's primary region when processing a workflow job. The Console modal may preselect an account primary region in the form for a new config, but that is different from the backend fallback behavior when no region is configured.",
+              "suggestedFix": "Narrow the wording: “If no region is configured, Stacktape checks existing project deployments, then the project default region. If no region can be determined, the job is not dispatched and the handler logs an error asking you to configure a region or deploy a stage first.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "if (project.defaultRegion) {\n    return project.defaultRegion;\n  }\n\n  return null;"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "`Cannot determine region for GitHub Actions runner. Project: ${project.name}. ` +\n        'Configure a region in the GitHub Runner settings or deploy a stage first.'"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly claims the EC2 instance automatically hibernates after 15 minutes of idle, hibernation preserves memory/filesystem state, hibernated runners pay only EBS storage, and hibernation is enforced by a scheduled Lambda.",
+              "reason": "The provided source supports the Console tooltip text that the runner “hibernates after 15 min of idle and resumes in ~15s,” but it does not include the lifecycle implementation, scheduled Lambda behavior, billing details, memory preservation semantics, or the assertion that in-progress work is protected from hibernation. These details would materially affect operational expectations.",
+              "suggestedFix": "Keep only the source-backed tooltip facts unless additional lifecycle source files are provided. For example: “The Console describes the runner as hibernating after 15 minutes of idle, resuming in about 15 seconds, and cold-starting in about 30 seconds.” Remove scheduled-Lambda, memory-state, filesystem-state, and billing-specific hibernation claims unless grounded in EC2 service source or Stacktape lifecycle code.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The runner is a standard GitHub Actions self-hosted runner… Any workflow step that runs on a Linux x64 runner works — you can use it for tests, builds, deployments to other platforms, or any other automation.”",
+              "reason": "The handler only processes jobs with the `stacktape` label and dispatches a JIT runner, but the provided sources do not establish that arbitrary non-Stacktape workflows are supported as a product guarantee. The available UI text frames the feature as running GitHub Actions workflows on a Stacktape EC2 runner, not as general-purpose automation for any external platform.",
+              "suggestedFix": "Narrow to what the source proves: “The runner executes GitHub Actions jobs that include the `stacktape` label on a Linux x64 JIT runner. Use it for Stacktape deployment workflows and other GitHub Actions steps only where that operational model fits.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "labels: ['self-hosted', 'linux', 'x64', STACKTAPE_RUNNER_LABEL],"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "if (!isStacktapeRunner(workflowJob.labels)) {\n    console.info(\n      `Ignoring workflow_job event - no '${STACKTAPE_RUNNER_LABEL}' label in: ${workflowJob.labels.join(', ')}`\n    );\n    return;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The EC2 instance uses an IAM instance profile for AWS access, so you do not need IAM access keys as GitHub Secrets either.”",
+              "reason": "The provided sources support automatic `STACKTAPE_API_KEY` injection, but they do not show an IAM instance profile being attached to the runner or prove that workflow AWS access works without GitHub Secrets. This is a security-sensitive configuration claim.",
+              "suggestedFix": "State only the API-key fact from the source. Remove the IAM instance profile claim unless a source for runner instance provisioning confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<code>STACKTAPE_API_KEY</code> is automatically injected - no need to configure GitHub Secrets."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "stacktapeApiKey: deployingUser.apiKey,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape supports six EC2 instance types for runners” and the instance type table presents those six as the complete supported set.",
+              "reason": "The Console modal exposes six selectable instance options, but the backend passes `config?.ec2RunnerInstanceType || project.ec2RunnerInstanceType || undefined` through to `ensureRunner`; the provided handler source does not validate the value against those six options. The draft can say the Console offers six options, but “supports” as a complete backend constraint is stronger than the source proves.",
+              "suggestedFix": "Change to “The Stacktape Console offers these runner instance types” or provide the backend validation source if this is intended to be a hard supported-values list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "const instanceOptions: Option<string>[] = ["
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "const instanceType = config?.ec2RunnerInstanceType || project.ec2RunnerInstanceType || undefined;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Hibernation preserves filesystem state (caches, installed tools, build artifacts).” and “caches and installed packages survive across runs within the same active session.”",
+              "reason": "The source tooltip mentions hibernation timing and preinstalled tools, but it does not state what filesystem paths persist, whether installed packages survive, or whether build artifacts are intentionally preserved. This could lead readers to design workflows around cache persistence that the source files do not guarantee.",
+              "suggestedFix": "Remove filesystem/cache persistence guarantees, or rephrase as general AWS EC2 hibernation context without making it a Stacktape product guarantee. Keep the source-backed recommendation simple: install missing tools in workflow steps if needed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "Pre-installed tools: Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Self-hosted runners also share an EC2 instance with Stacktape deployments, so your workflow and deploy steps run on the same infrastructure.”",
+              "reason": "The Console tooltip says the runner uses the same EC2 instance as Stacktape deployments, but the second clause goes further by asserting workflow and deploy steps run on the same infrastructure. The provided sources do not define what “Stacktape deployments” means here or prove that every deploy step runs on the same instance used for the workflow job.",
+              "suggestedFix": "Use the exact narrower product claim: “The Console describes the runner as using the same EC2 instance as Stacktape deployments.” Avoid extrapolating broader deployment architecture from the tooltip.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The setup section describes a specific Console flow: “Open your project in the Stacktape Console and open the GitHub Actions runner configuration modal.”",
+              "reason": "The provided React source confirms the modal title, fields, and save/remove actions, but it does not show the navigation path or how a user opens the modal from the project page. The prompt requires Console UI flows to be grounded in console-app source where available; the triggering UI is not included here.",
+              "suggestedFix": "Avoid ungrounded navigation instructions. Say “In the GitHub Actions self-hosted runner modal, configure…” or provide the source for the project page button/route that opens the modal.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "title=\"GitHub Actions self-hosted runner\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<Button\n            rootCss={{ width: '140px', height: '31px' }}\n            text=\"Save\""
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the `stacktape` label as the routing signal; the handler ignores workflow jobs whose labels do not include `stacktape`.",
+            "The draft correctly lists the JIT runner labels `self-hosted`, `linux`, `x64`, and `stacktape` from the GitHub API request body.",
+            "The draft’s instance type names, vCPU, RAM values, and `c7a.2xlarge` default match the Console modal options.",
+            "The draft correctly states that `STACKTAPE_API_KEY` is automatically injected, which is visible in both the Console tooltip and the handler dispatch call.",
+            "The draft correctly describes duplicate webhook protection using an existing `githubActionsJob` record keyed by GitHub job ID."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally aligned with the provided GitHub runner UI and handler sources, especially around labels, instance types, JIT runner registration, SSM dispatch, duplicate webhook handling, and API key injection. The main publication risks are unsupported lifecycle/control claims and a region fallback claim that conflicts with the backend handler.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“If no deployments exist yet, it falls back to the project's default region or the connected account's primary region.”",
+              "reason": "The backend runner handler falls back from configured region to existing project deployment regions, then to the project's defaultRegion, then returns null. It does not fall back to the connected AWS account's primary region at job-handling time. The Console form may preselect an account primary region when creating config, but that is different from backend auto-resolution.",
+              "suggestedFix": "Narrow the backend behavior: “If no region is configured, Stacktape checks existing project deployments, then the project default region. If no region can be determined, configure one explicitly.” If discussing the Console form separately, say it may preselect the first active account's primary region before saving.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "if (project.defaultRegion) {\n    return project.defaultRegion;\n  }\n\n  return null;"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "const primaryRegion = firstActive?.primaryRegions?.[0] as string | undefined;\n      const autoRegion = primaryRegion ? awsRegionOptions.find((r) => r.value === primaryRegion) || null : null;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“After 15 minutes of idle, the instance automatically hibernates”; “The idle timeout is enforced automatically by a scheduled Lambda”; “An instance with in-progress work is not hibernated”; and “Disabling the runner configuration does not terminate the EC2 instance immediately.”",
+              "reason": "The provided sources support the 15-minute hibernation tooltip, but they do not show the lifecycle implementation, a scheduled Lambda, in-progress-work protection, or behavior after disabling. Those claims would affect cost and operational expectations and are not grounded in the provided files.",
+              "suggestedFix": "Keep the sourced claim from the UI tooltip: “The runner hibernates after 15 minutes of idle and resumes in approximately 15 seconds.” Remove or qualify the scheduled-Lambda, in-progress protection, and disable/termination claims unless lifecycle source files are added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "// Check if the runner is explicitly disabled\n  if (config && !config.enabled) {\n    console.info(`GitHub Actions runner is disabled for project ${project.name}`);\n    return;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Hibernation preserves filesystem state (caches, installed tools, build artifacts)” and “caches and installed packages survive across runs within the same active session.”",
+              "reason": "The provided UI source says hibernation preserves memory state, but it does not document filesystem/cache persistence guarantees or installed package persistence. The draft turns this into a broader operational guarantee that readers may rely on for build caching.",
+              "suggestedFix": "Say only what the source supports: “The tooltip describes hibernation as preserving memory state and reducing resume time.” If you want to discuss caches, frame it cautiously as something teams should verify for their workflow, or add source that documents the runner disk/cache behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You are not paying for a running instance between pushes”; “You pay only for EBS storage while hibernated, not for compute”; and the Cost table states “Hibernated | EBS storage only” and “No instance | Nothing.”",
+              "reason": "The provided sources only say the runner hibernates after 15 minutes of idle. They do not provide pricing semantics for hibernated EC2 instances, EBS billing, or what other resources may remain. General AWS cost context is allowed, but the draft states these as Stacktape runner billing guarantees without source support.",
+              "suggestedFix": "Rephrase as AWS-level cost context: “For EC2 hibernation, AWS stops instance compute billing while storage-backed resources such as EBS volumes can still incur charges. Check EC2 and EBS pricing for the selected region and instance type.” Avoid claiming “nothing” unless source covers all retained resources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Open your project in the Stacktape Console and open the GitHub Actions runner configuration modal.”",
+              "reason": "The source shows the modal component and its title, but it does not show the navigation path or how the user opens it from the project page. Console UI flow claims must be grounded in console-app source; this file alone does not expose the entry point.",
+              "suggestedFix": "Use source-grounded wording: “The Console exposes a ‘GitHub Actions self-hosted runner’ configuration modal for a project.” Avoid describing how to navigate to it unless the page source containing the button/link is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "title=\"GitHub Actions self-hosted runner\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Pre-installed tools table includes “AWS CLI | Pre-configured with instance profile credentials.”",
+              "reason": "The modal tooltip lists AWS CLI as pre-installed, but the provided sources do not state that AWS CLI is preconfigured with instance profile credentials. The handler obtains connected-account credentials to ensure and dispatch the runner, but that is not the same as documenting AWS CLI credential configuration inside workflow steps.",
+              "suggestedFix": "Change the table note to “Listed as pre-installed in the Console tooltip.” Remove “pre-configured with instance profile credentials” unless runner bootstrap source documents it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "Pre-installed tools: Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "const credentials = await getCredentialsForAccessingConnectedAccount({\n      awsAccountId: awsAccount.awsAccountId,\n      accountConnectionId: awsAccount.id\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The EC2 instance uses an IAM instance profile for AWS access, so you do not need IAM access keys as GitHub Secrets either.”",
+              "reason": "The provided sources do not mention an IAM instance profile for the runner instance or guarantee AWS access inside GitHub Actions jobs. The handler uses credentials to call AWS APIs from the Stacktape backend, but that does not prove workflow steps receive IAM role credentials.",
+              "suggestedFix": "Keep the supported API-key claim and remove the IAM instance profile sentence unless runner infrastructure source is provided. For example: “The Console tooltip says STACKTAPE_API_KEY is injected automatically.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<code>STACKTAPE_API_KEY</code> is automatically injected - no need to configure GitHub Secrets."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "stacktapeApiKey: deployingUser.apiKey,\n      stacktapeTrpcEndpoint: serverConfig.STACKTAPE_TRPC_API_ENDPOINT,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Any workflow step that runs on a Linux x64 runner works — you can use it for tests, builds, deployments to other platforms, or any other automation.”",
+              "reason": "The source supports that Stacktape registers labels `self-hosted`, `linux`, `x64`, and `stacktape`, but it does not guarantee that any arbitrary Linux x64 GitHub Actions step will work. This is broader than the documented labels and pre-installed tools.",
+              "suggestedFix": "Narrow to the supported claim: “Stacktape registers the runner with GitHub as `self-hosted`, `linux`, `x64`, and `stacktape`, so target jobs with those labels. Install any missing tools in workflow steps.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "labels: ['self-hosted', 'linux', 'x64', STACKTAPE_RUNNER_LABEL],"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the `stacktape` label as the filter used by the GitHub App handler.",
+            "The supported instance type list, vCPU/RAM values, and `c7a.2xlarge` default match the Console modal source.",
+            "The description of JIT runner registration, GitHub labels, and SSM dispatch is grounded in the GitHub Actions handler source.",
+            "The duplicate webhook handling claim is supported by the `githubActionsJob.findUnique` check before dispatch.",
+            "The workflow YAML examples are not Stacktape configuration examples, so they do not violate the hand-authored YAML Stacktape config rule."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the main user-facing runner controls and the important workflow label behavior. I found several publication-risk claims where the page goes beyond the provided source, plus one likely documentation gap from the section instructions.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“If no deployments exist yet, it falls back to the project's default region or the connected account's primary region.”",
+              "reason": "The GitHub Actions handler resolves runner region from an explicit runner config, then known project deployment-region flags, then project.defaultRegion, then null. The handler source does not fall back to the connected AWS account primary region. The Console modal may auto-select an account primary region before saving, but the runtime resolver does not use account primaryRegions.",
+              "suggestedFix": "Narrow the runtime wording: “At runtime, Stacktape uses the configured runner region. If no runner region is configured, the handler checks the project’s existing deployment-region flags and then the project default region; if no region can be determined, the job is not dispatched and the logs ask you to configure a region or deploy a stage first.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "if (config?.region) {\n    return config.region;\n  }\n\n  // Autodetect from project's existing deployments"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "if (project.defaultRegion) {\n    return project.defaultRegion;\n  }\n\n  return null;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Self-hosted runners also share an EC2 instance with Stacktape deployments, so your workflow and deploy steps run on the same infrastructure.”",
+              "reason": "The provided source supports that the Console tooltip says the runner uses the same EC2 instance as Stacktape deployments. It does not support the broader implication that workflow and deploy steps run on the same infrastructure in a way users can rely on for deployment execution semantics.",
+              "suggestedFix": "Use only the grounded UI wording: “The Console describes the runner as using the same EC2 instance as Stacktape deployments.” Avoid implying deployment steps execute on the exact same infrastructure path beyond the runner EC2 instance.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“An EC2 c7a.2xlarge (8 vCPU, 16 GB RAM) or larger instance finishes these builds significantly faster” and “subsequent builds are faster because node_modules, Docker layers, and compiled artifacts persist.”",
+              "reason": "The source lists instance sizes and says hibernation exists, but it does not provide benchmark results or guarantee faster builds from cache persistence. These claims are plausible, but not grounded in the provided files.",
+              "suggestedFix": "Rephrase as decision guidance without promising measured outcomes: “The larger runner sizes give builds more CPU and memory than many hosted-runner defaults, and hibernation can preserve local state between active sessions.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<b>c7a.2xlarge</b>\n        <span>8 vCPU, 16 GB RAM (default)</span>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Hibernation preserves filesystem state (caches, installed tools, build artifacts).”",
+              "reason": "The provided source says the runner hibernates after 15 minutes and resumes in about 15 seconds. It does not document filesystem-cache persistence, memory-to-disk behavior, or which artifacts survive across jobs. Treating that as a Stacktape guarantee is not grounded in the supplied files.",
+              "suggestedFix": "Say only what the source supports: “Stacktape hibernates the EC2 runner after 15 minutes of idle and resumes it in about 15 seconds. If your workflow requires a clean working tree, keep cleanup steps in the workflow.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "The runner uses the same EC2 instance as Stacktape deployments. It hibernates after 15 min of idle\n                    and resumes in ~15s (cold start ~30s)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“STACKTAPE_API_KEY is automatically injected into the runner environment” and “you do not need IAM access keys as GitHub Secrets either.”",
+              "reason": "The source supports passing a Stacktape API key into executeGithubActionsJob and the Console tooltip says STACKTAPE_API_KEY is automatically injected. The source does not show the implementation of executeGithubActionsJob or establish general AWS credential behavior inside workflow steps, so the IAM-secret claim is broader than the provided evidence.",
+              "suggestedFix": "Keep the Stacktape API key claim, but remove or narrow the IAM claim: “The handler passes a Stacktape API key when dispatching the job, and the Console states that STACKTAPE_API_KEY is automatically injected. Configure any non-Stacktape credentials your workflow needs separately.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "<code>STACKTAPE_API_KEY</code> is automatically injected - no need to configure GitHub Secrets."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "stacktapeApiKey: deployingUser.apiKey,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The runner is a standard GitHub Actions self-hosted runner with pre-installed development tools. Any workflow step that runs on a Linux x64 runner works.”",
+              "reason": "The source confirms JIT runner labels self-hosted, linux, x64, and stacktape, plus a list of pre-installed tools. It does not prove that any Linux x64 workflow step works; some workflows may depend on tools, permissions, services, or hosted-runner image assumptions not shown in source.",
+              "suggestedFix": "Make the compatibility statement narrower: “The runner registers as a Linux x64 GitHub Actions self-hosted runner. Workflows that only require that runner type and the listed tools are a good fit; install extra dependencies in workflow steps when needed.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "labels: ['self-hosted', 'linux', 'x64', STACKTAPE_RUNNER_LABEL],"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "Pre-installed tools: Node.js, npm, Bun, Docker, AWS CLI, Go, Java, Python 3, and Git."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The page does not clearly distinguish Stacktape self-hosted GitHub Actions EC2 runners from CodeBuild-based runners.",
+              "reason": "The human-maintained section instructions explicitly require distinguishing CodeBuild-based runners from EC2 runners. The draft mentions CodeBuild only in one comparison-table cell, but it does not define the distinction or help the reader choose between them.",
+              "suggestedFix": "Add a short section or comparison paragraph near “Self-hosted runners vs other CI/CD options”: “Stacktape self-hosted GitHub Actions runners are EC2-based runners for GitHub Actions workflow jobs. CodeBuild-based runners are a separate Stacktape build-runner option used by Stacktape-managed deployment automation; use the EC2 runner when you want GitHub Actions job control, and use CodeBuild-based GitOps when you want Console-managed deploy automation.” Keep only details supported by the relevant build-runners sources if adding more depth.",
+              "evidence": [
+                {
+                  "file": "Human-maintained section instructions",
+                  "quote": "Distinguish CodeBuild-based runners from EC2 runners explicitly."
+                },
+                {
+                  "file": "Draft page",
+                  "quote": "Self-hosted runners vs other CI/CD options"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Disabling the runner configuration does not terminate the EC2 instance immediately. The instance hibernates after the idle timeout as usual.”",
+              "reason": "The provided handler source only shows that disabled runner configs cause queued workflow_job events to be ignored. The modal source only deletes or upserts configuration. Neither file shows lifecycle behavior for already existing EC2 runner instances after disabling or removing config.",
+              "suggestedFix": "Replace with a narrower caveat: “When a runner configuration is disabled, Stacktape ignores matching queued jobs for that project. The provided source does not document immediate EC2 instance termination behavior, so check the runner state in AWS or the Stacktape Console if you need to stop costs right away.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\server\\lambdas\\github-app\\github-actions-handler.ts",
+                  "quote": "if (config && !config.enabled) {\n    console.info(`GitHub Actions runner is disabled for project ${project.name}`);\n    return;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\GithubRunnerConfigModal.tsx",
+                  "quote": "deleteMutation.mutate(\n      { organizationId: selectedOrg!.id, projectName: projectDetails.name },"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly documents the required workflow label shape `runs-on: [self-hosted, stacktape]`, matching the Console modal and handler label check.",
+            "The draft covers all runner configuration fields visible in the Console modal: enabled status, AWS account, AWS region, and instance type.",
+            "The instance type table matches the six options and vCPU/RAM values shown in `GithubRunnerConfigModal.tsx`.",
+            "There are no forbidden Stacktape config examples: the page does not hand-author Stacktape YAML, does not use `StacktapeConfig`, and does not put Stacktape resource configuration in fenced TypeScript blocks."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\ci-cd-and-gitops\\self-hosted-github-actions-runners.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 6, advisory high 2, verifier medium 16"
+}

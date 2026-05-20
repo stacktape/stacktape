@@ -1,0 +1,222 @@
+---
+title: 'Debugging Containers'
+order: 114
+seoTitle: 'Debugging Containers on AWS ECS | Stacktape Docs'
+seoDescription: 'Debug deployed container workloads with Stacktape. Use container:session for interactive shell access or debug:container-exec for scripted one-off commands via ECS Exec.'
+---
+
+# Debugging Containers
+
+Stacktape provides two CLI commands for debugging deployed container workloads: [`container:session`](/cli/container-session) for interactive shell access and [`debug:container-exec`](/cli/debug-container-exec) for running one-off commands. Both use AWS ECS Exec over a secure SSM connection to reach containers running on Fargate or EC2.
+
+## Supported resources
+
+Container debugging commands work with any deployed resource that runs as an ECS service:
+
+- [Web service](/resources/compute/web-service)
+- [Private service](/resources/compute/private-service)
+- [Worker service](/resources/compute/worker-service)
+- [Multi-container workload](/resources/compute/multi-container-workload)
+
+These commands do NOT apply to [Lambda functions](/resources/compute/lambda-function) (see [Debugging Lambda Functions](/local-development/debugging-lambda-functions)), [batch jobs](/resources/compute/batch-job) (not always running), or SSR frontends (use Lambda under the hood).
+
+## Choosing the right command
+
+<FeatureComparisonTable
+  columns={["container:session", "debug:container-exec"]}
+  features={[
+    { name: "Interactive shell", values: { "container:session": true, "debug:container-exec": false } },
+    { name: "Captures output as JSON", values: { "container:session": false, "debug:container-exec": true } },
+    { name: "Scriptable / CI-friendly", values: { "container:session": false, "debug:container-exec": true } },
+    { name: "Custom shell command", values: { "container:session": "Optional (defaults to /bin/sh)", "debug:container-exec": "Required" } },
+    { name: "Task selection", values: { "container:session": "Prompted if multiple", "debug:container-exec": "Via --taskArn flag" } },
+    { name: "Timeout", values: { "container:session": "None (interactive)", "debug:container-exec": "60 seconds" } }
+  ]}
+/>
+
+Use `container:session` when you need to poke around interactively — inspect files, check running processes, test network connectivity. Use `debug:container-exec` when you need to automate a check, pipe output into another tool, or run a quick command without holding a terminal open.
+
+## Interactive shell sessions
+
+The [`container:session`](/cli/container-session) command opens an interactive shell inside a running container. It connects via ECS Exec and SSM, dropping you into a terminal session identical to SSH-ing into the container.
+
+```bash
+stacktape container:session --stage production --region eu-west-1 --resourceName apiServer
+```
+
+By default, the session starts `/bin/sh`. To use a different shell or run a specific command interactively, pass `--command`:
+
+```bash
+stacktape container:session --stage production --region eu-west-1 --resourceName apiServer --command "/bin/bash"
+```
+
+### Multiple running tasks
+
+When your service scales to multiple tasks (instances), Stacktape prompts you to choose which task to connect to. The prompt shows each task's ARN suffix and start time so you can identify the one you need.
+
+### Common use cases
+
+- **Inspect the filesystem** — check if config files, environment variables, or mounted volumes are correct.
+- **Test connectivity** — run `curl`, `ping`, or `nc` from inside the container to verify network paths to databases or external APIs.
+- **Debug running processes** — use `ps`, `top`, or language-specific tools to inspect application state.
+- **Run ad-hoc migrations** — execute one-off scripts that need access to the container's environment.
+
+<Warning>
+The container must have a shell available (`/bin/sh` or `/bin/bash`). Minimal images built `FROM scratch` or distroless images without a shell will not work with this command.
+</Warning>
+
+## Running one-off commands
+
+The [`debug:container-exec`](/cli/debug-container-exec) command executes a single command inside a running container and returns the output as structured JSON. It does not open an interactive session.
+
+```bash
+stacktape debug:container-exec --stage production --region eu-west-1 --resourceName apiServer --command "ls -la /app"
+```
+
+The output includes the resource name, container, task ARN, command, stdout/stderr output, and exit code:
+
+```json
+{
+  "resourceName": "apiServer",
+  "containerName": "apiServer",
+  "taskArn": "arn:aws:ecs:eu-west-1:123456789:task/cluster/abc123",
+  "command": "ls -la /app",
+  "output": "total 48\ndrwxr-xr-x 1 root root ...",
+  "exitCode": 0
+}
+```
+
+### Targeting a specific task
+
+When multiple tasks are running, `debug:container-exec` connects to the first available task by default. Use `--taskArn` to target a specific one:
+
+```bash
+stacktape debug:container-exec --stage production --region eu-west-1 --resourceName apiServer --taskArn abc123def --command "env"
+```
+
+You can provide the full ARN or just the task ID suffix. If the specified task is not found, Stacktape lists the available task IDs.
+
+### Scripting and automation
+
+Because `debug:container-exec` returns structured JSON and has a 60-second timeout, it works well in scripts and CI pipelines:
+
+```bash
+stacktape debug:container-exec --stage staging --region eu-west-1 --resourceName worker --command "cat /app/version.txt"
+```
+
+Non-zero exit codes from the command are captured in the `exitCode` field rather than causing the CLI to fail — you can inspect both output and exit code to determine success.
+
+## Multi-container workloads
+
+When your resource runs multiple containers (side containers, init containers), you must specify which container to connect to using `--container`:
+
+```bash
+stacktape container:session --stage production --region eu-west-1 --resourceName apiServer --container nginx
+```
+
+```bash
+stacktape debug:container-exec --stage production --region eu-west-1 --resourceName apiServer --container app --command "node -e 'console.log(process.env.PORT)'"
+```
+
+If your resource has multiple containers and you omit `--container`, Stacktape shows an error listing the available container names as defined in your configuration.
+
+For resources with a single container, the `--container` flag is optional — Stacktape connects to the only available container automatically.
+
+## Viewing container logs
+
+For log-based debugging, use [`stacktape debug:logs`](/cli/debug-logs) rather than exec-ing into a container to read log files. Container stdout/stderr is automatically captured by CloudWatch:
+
+```bash
+stacktape debug:logs --stage production --region eu-west-1 --resourceName apiServer
+```
+
+Add `--follow` for live tailing. See [Logs](/observability/logs) for filtering, time ranges, and structured log queries.
+
+## Dev mode vs deployed stacks
+
+Stacktape's [dev mode](/local-development/dev-mode-overview) (`stacktape dev`) runs containers **locally on your machine** using Docker. Because local containers are not deployed to AWS ECS, the `container:session` and `debug:container-exec` commands do not apply in dev mode.
+
+To debug containers running locally in dev mode:
+
+- Use `docker exec -it <container-name> /bin/sh` for interactive access to the local container.
+- Read stdout/stderr directly in your terminal where `stacktape dev` is running.
+- Use your IDE's debugger by attaching to the local container process.
+- Use standard Docker tooling (`docker logs`, `docker inspect`, etc.).
+
+The `container:session` and `debug:container-exec` commands work only against **deployed stacks** — stacks created with [`stacktape deploy`](/cli/deploy). This includes production, staging, and any other deployed stage.
+
+<Info>
+In legacy dev mode (`--devMode legacy`), containers also run locally while connecting to deployed AWS resources. The same local debugging approach applies.
+</Info>
+
+## Prerequisites
+
+Both commands require:
+
+1. **A deployed stack** — The resource must be deployed and have at least one running ECS task. If no tasks are running (e.g., the service scaled to zero or failed to start), the command returns an error.
+2. **AWS credentials** — Standard Stacktape authentication via `stacktape login` or AWS profile.
+3. **Session Manager plugin** — Stacktape bundles the AWS Session Manager plugin. No separate installation is required.
+
+<Tip>
+If you get "No running tasks found" errors, check that your service has healthy tasks. Use `stacktape debug:logs` to investigate why containers may be crashing before becoming reachable.
+</Tip>
+
+## Troubleshooting
+
+### "Resource is not a valid container based resource"
+
+This error means the `--resourceName` you specified doesn't match any deployed container workload in the stack. Verify:
+- The resource name matches exactly what's in your Stacktape config (case-sensitive).
+- The stack is deployed and the resource exists in it.
+- You're targeting the correct `--stage` and `--region`.
+
+### "No running tasks found"
+
+The ECS service exists but has no healthy running tasks. Common causes:
+- The container is crash-looping — check [`stacktape debug:logs`](/cli/debug-logs) for error output.
+- A deployment is in progress and old tasks were stopped before new ones started.
+- The service scaled to zero (if using scaling rules with a minimum of 0).
+
+### Session disconnects immediately
+
+If the shell session connects and immediately closes:
+- The container may lack a shell (`/bin/sh`). Try `--command "/bin/bash"` or use a different base image.
+- The container may be terminating due to health check failures or resource constraints.
+
+## FAQ
+
+### Which container resources support debugging?
+
+All ECS-based container resources support both `container:session` and `debug:container-exec`: [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload). Lambda-based resources and batch jobs are not supported by these commands.
+
+### Can I debug containers in dev mode?
+
+No. Dev mode runs containers locally via Docker, not on AWS ECS. Use standard Docker commands (`docker exec`, `docker logs`) to debug local containers. The `container:session` and `debug:container-exec` commands only work with deployed stacks.
+
+### How does ECS Exec work under the hood?
+
+ECS Exec uses the AWS Systems Manager (SSM) agent running inside your container to establish a secure WebSocket connection. Stacktape automatically configures the necessary IAM permissions and SSM agent when you deploy container workloads. The Session Manager plugin on your machine handles the local end of the connection.
+
+### Do I need to install the Session Manager plugin separately?
+
+No. Stacktape bundles the AWS Session Manager plugin with its CLI distribution. You do not need to install or manage it separately.
+
+### Can I use container:session in CI/CD pipelines?
+
+`container:session` is interactive and requires a terminal, so it's not suitable for CI. Use `debug:container-exec` instead — it runs a single command, captures the output as JSON, and exits. The 60-second timeout and structured output make it automation-friendly.
+
+### What's the difference between container:session and SSH?
+
+`container:session` provides SSH-like access without requiring SSH to be installed in the container or any inbound ports to be open. It uses AWS SSM (outbound-only) for the connection, which is more secure — no SSH keys to manage, no open ports in your security groups, and all sessions are logged by AWS.
+
+### How do I connect to a specific container in a multi-container workload?
+
+Use the `--container` flag with the container name as defined in your Stacktape config. If you omit it and the workload has multiple containers, Stacktape returns an error listing the available container names. For single-container workloads, the flag is optional.
+
+### Is there a timeout on debug:container-exec?
+
+Yes. Commands executed via `debug:container-exec` have a 60-second timeout. If your command needs more time (e.g., a database dump), consider using `container:session` interactively instead, or break the work into smaller commands.
+
+### Can I run destructive commands like rm or kill?
+
+Yes — both commands give you full access to the container's filesystem and processes with the same permissions as the container's running process. Exercise caution in production. There are no guardrails preventing destructive operations once you're connected.

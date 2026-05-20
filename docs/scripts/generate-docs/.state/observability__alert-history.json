@@ -1,0 +1,975 @@
+{
+  "pageId": "observability__alert-history",
+  "pageRoute": "observability/alert-history",
+  "startedAt": "2026-05-17T16:48:17.712Z",
+  "updatedAt": "2026-05-17T16:58:18.605Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\observability__alert-history\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Event types table is exhaustively grounded in the source's `eventTypeLabels` record — every key is present and correctly labeled.",
+            "Source filter options (All sources, Issues, Alarms, Notifications, Budgets) match the source code's `sourceFilterOptions` array exactly.",
+            "The observability section requirement to distinguish CLI vs Console is handled cleanly: the Info callout explicitly tells readers there is no CLI equivalent and points to `debug:alarms`.",
+            "FAQ section covers all three required categories (Stacktape-specific, AWS-service, and comparison/choosing questions) and reaches a solid 8 Q&A pairs.",
+            "Severity levels (INFO, WARNING, ERROR, CRITICAL) with color associations match `severityColors` in the source.",
+            "Column headers listed in the page (Time, Source, Event, Severity, Project, Stage, Title, Delivery) exactly match the `columnHeaders` array in `AlertHistoryPage.tsx`.",
+            "The 'No rules matched' behavior is precisely grounded in the source's `event.deliveries.length === 0` conditional render.",
+            "No forbidden patterns present: no YAML config blocks, no `StacktapeConfig` type import, no fenced TypeScript with `defineConfig`, no marketing language."
+          ],
+          "problems": [
+            "UNGROUNDED CLAIM — computed delivery summary rollup: The `<Info>` callout claims a summary label is shown ('Delivered', 'Partially failed', 'Failed', 'Pending', 'No matching rules'). The source renders individual delivery rows (status + channel per delivery), with no computed rollup label anywhere in `AlertHistoryPage.tsx` or a visible sub-component that aggregates them. This is invented UX behavior.",
+            "UNGROUNDED CLAIM — failed delivery error messages: The 'Diagnosing failed deliveries' section states that 'the alert history records the error message from the failed attempt'. Delivery objects in the source expose only `d.status`, `d.alertChannel`, `d.channelName`, `d.channelType`, and `d.channelProperties` — no error message field is visible.",
+            "UNGROUNDED CLAIM — 15-second webhook timeout: No timeout value appears anywhere in the provided source files.",
+            "UNGROUNDED CLAIM — Overview page 'Recent Alerts' widget: The claim that the alert history is reachable from an Overview page widget is not grounded in the provided source files. No console-app source for an Overview page is provided.",
+            "Page headline mismatch: The source code sets `headline='Alert activity'` in `PageHeadline`, but the docs title the page 'Alert History' throughout without acknowledging the discrepancy. Readers visiting the Console will see 'Alert activity', not 'Alert History'.",
+            "The `alertHistory` entry in `Explanations.tsx` says 'notifications, alarms, and budgets' (three sources), but the source component includes ISSUE as a fourth source kind. The page correctly documents four sources — this is a minor inconsistency between two source files, but docs should follow the component source."
+          ],
+          "mandatoryFixes": [
+            "Remove or replace the `<Info>` callout describing a computed delivery summary rollup ('Delivered', 'Partially failed', 'Failed', 'Pending', 'No matching rules'). The source renders individual per-channel delivery rows with no aggregation. Replace with a source-grounded description: each delivery in the list shows the raw status (SENT, FAILED, or PENDING) alongside the channel name and type.",
+            "Remove or narrow the 'Diagnosing failed deliveries' subsection: the claim that failed delivery error messages are recorded and the 15-second webhook timeout are not grounded in the provided source. Either remove the section entirely or restrict it to what the source confirms — that deliveries have a status field and a channel reference. Do not list provider-specific error causes unless they appear in the source.",
+            "Remove the 'Overview page Recent Alerts widget' access path bullet. No source file confirms this navigation path exists. Keep only the grounded access path (the Console's `/alert-history` route and the sidebar navigation implied by the page structure)."
+          ],
+          "optionalImprovements": [
+            "Align the page title or add a note: the Console renders this page with the headline 'Alert activity' (per `PageHeadline` in source). Either use 'Alert activity' as the canonical name or add a parenthetical so readers aren't confused when they land in the Console.",
+            "The delivery status values in the source are uppercase strings (SENT, FAILED, PENDING). The docs silently convert to mixed case ('Sent', 'Failed', 'Pending'). Consider either matching the source exactly or noting that the UI displays them in uppercase, so readers searching the Console can recognize them.",
+            "The FAQ answer to 'Can I filter alert history by project or stage?' suggests using browser find-in-page to locate a project. Consider also noting that the Console table columns are sortable/filterable if that is confirmed by the source, or simply advise navigating to the per-project stack view for tighter scoping.",
+            "The 'Alert history vs individual history pages' section is good but could be strengthened with one concrete scenario per view to improve the decision-support value (e.g., 'use alert history after an outage to see the full sequence of alarm + deploy + rollback events in a single timeline')."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Event types table is fully source-confirmed — every entry in the table matches the eventTypeLabels map in AlertHistoryPage.tsx exactly.",
+            "Severity levels (INFO/WARNING/ERROR/CRITICAL) and delivery status values (SENT/FAILED/PENDING) are both confirmed in the source with their color coding.",
+            "Source filter options ('All sources', Issues, Alarms, Notifications, Budgets) match the sourceFilterOptions array in the component exactly.",
+            "Table column list (Time, Source, Event, Severity, Project, Stage, Title, Delivery) is confirmed in the columnHeaders array.",
+            "The 'No rules matched' label is directly sourced from the component: event.deliveries.length === 0 branch.",
+            "The CLI vs. Console distinction is handled correctly — the Info callout clearly states alert history is Console-only and correctly points to stacktape debug:alarms for CLI-based alarm inspection.",
+            "FAQ is comprehensive with good mix of Stacktape-specific, AWS-service, and choosing questions."
+          ],
+          "problems": [
+            "UNGROUNDED — The Info callout describes a 'computed delivery summary' with five specific named labels: Delivered, Partially failed, Failed, Pending, No matching rules. The source component renders individual delivery rows (one per d in event.deliveries) with per-row status and AlertChannelSummary. There is no roll-up summary label or aggregate computation visible in the provided source. AlertChannelSummary source is not provided, so these label names are fabricated.",
+            "UNGROUNDED — The 'Diagnosing failed deliveries' subsection states that the alert history 'records the error message from the failed attempt'. The source shows d.status (SENT/FAILED/PENDING) but no error message field is rendered anywhere in the component. Asserting error messages are displayed is unsupported.",
+            "UNGROUNDED — The 15-second timeout for webhooks is stated as a fact but does not appear anywhere in the provided source files.",
+            "UNGROUNDED — 'Delivery Status: Failed' entries being recorded with per-channel error messages is not confirmed. The component only renders d.status and AlertChannelSummary channel info.",
+            "UNGROUNDED — The 'Accessing alert history' section claims the Console Overview page has a 'Recent Alerts' widget that links to alert history. This is not confirmed by any provided source file.",
+            "UNGROUNDED — The FAQ answer about alert history retention ('available as long as your organization exists') is not grounded in source.",
+            "FACTUAL — The Console page headline is 'Alert activity' (headline=\"Alert activity\" in AlertHistoryPage.tsx), not 'Alert History'. The page title and H1 use the unsourced label 'Alert History' for a page the Console calls 'Alert activity'."
+          ],
+          "mandatoryFixes": [
+            "Remove the Info callout describing the 'computed delivery summary' and its five named labels (Delivered, Partially failed, Failed, Pending, No matching rules). These labels are not in the source. The source renders individual per-delivery status rows, not a roll-up. If a summary component exists, describe only what is confirmed: per-delivery SENT/FAILED/PENDING status badges shown per channel.",
+            "Remove or narrow the 'Diagnosing failed deliveries' subsection claim that 'the alert history records the error message from the failed attempt'. The source does not show an error message field in the delivery row rendering. Remove the specific error message examples as well as the 15-second webhook timeout — none of these are in the provided source.",
+            "Remove the claim that the Overview page has a 'Recent Alerts' widget linking to alert history. Replace with only the sourced navigation path: the page is accessible from the Console (the route exists), no widget is confirmed.",
+            "Correct the Console page headline reference: the component sets headline=\"Alert activity\". Either align the H1/title to say 'Alert Activity' to match the Console label, or add a parenthetical noting the Console calls this page 'Alert activity'.",
+            "Revise the FAQ retention answer to remove the specific claim ('available as long as your organization exists') since no retention policy is stated in source. Replace with 'Retention policy is not documented at this layer; contact Stacktape support for specifics.'"
+          ],
+          "optionalImprovements": [
+            "The 'Event types' section and table is the strongest part of the page — consider adding a brief sentence noting that Notification events are the most numerous category (18 event types vs. 2–2 for Alarm/Budget/Issue) so readers understand the relative noise floor they'll encounter.",
+            "The FAQ answer for 'Can I filter by project or stage?' correctly notes the filter is source-only. Consider adding a one-sentence workaround: the page is paginated and sorted by time, so filtering by project requires scrolling or a browser search — this is a real UX limitation production users will hit.",
+            "The Delivery tracking section could note that deliveries only appear for events that were routed to at least one alert channel; events with no matching rules show 'No rules matched' rather than a delivery row — the source confirms this branch explicitly and it is useful for diagnosing misconfigured routing."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the desired length range.",
+            "The page is easy to scan: short H2s, focused tables for event types and severities, and a useful FAQ structure.",
+            "The draft correctly reflects several UI facts from AlertHistoryPage.tsx: source filters, table columns, event labels, severity labels, pagination, newest-first default sorting, and the no-delivery label \"No rules matched\".",
+            "The page clearly distinguishes the unified Console view from CLI alarm inspection in the Accessing alert history section."
+          ],
+          "problems": [
+            "Several operational claims are not grounded in the provided source files: delivery error messages, common failure causes, 15-second webhook timeout, no automatic retries, export/API absence, and alert retention for the lifetime of the organization.",
+            "The Info callout about a computed delivery summary is unsupported by AlertHistoryPage.tsx. The source shows per-delivery statuses only; it does not show labels such as Delivered, Partially failed, Failed, Pending, or No matching rules as a summary.",
+            "The Accessing alert history section invents Console navigation details not present in the source: the Overview page's Recent Alerts widget and the direct `/alert-history` route are not grounded in the provided files.",
+            "The Alert history vs. individual history pages section claims sidebar locations and same-underlying-events behavior without source support. Explanations.tsx mentions separate history concepts, but not sidebar paths or data reuse.",
+            "The FAQ repeats unsupported claims, especially no retries, permanent retention, no export/API endpoint, and routing through alert channels for all source systems.",
+            "The draft states \"Severity is assigned by the source system\" and gives mappings for alarms, budgets, and notifications that are only partly grounded. The source exposes severity values and renders event.severity, but it does not define assignment rules.",
+            "The page would be more useful if it included the empty-state behavior from the source: \"No alert events yet...\" and the fact that events appear when alarms trigger, issues are detected, or notifications are sent."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the unsupported delivery troubleshooting details: error-message storage, Slack/Teams/Discord/email/webhook causes, webhook timeout, and retry behavior. If retained, add source files that actually implement delivery failure handling.",
+            "Delete or rewrite the computed delivery summary callout. The provided UI source only renders individual delivery statuses `SENT`, `FAILED`, and `PENDING`, plus `No rules matched` when `event.deliveries.length === 0`.",
+            "Rewrite Console navigation claims to match provided source only. Do not mention the Overview widget, Monitoring sidebar, submenu labels, or direct route unless those route/sidebar source files are included.",
+            "Replace retention and export/API claims with cautious wording or remove them. The provided source does not define retention duration, CSV/JSON export support, or API availability.",
+            "Narrow severity wording to what the source proves: the table renders `INFO`, `WARNING`, `ERROR`, and `CRITICAL` with colors. Do not claim source-system assignment rules unless backed by additional source.",
+            "Revise FAQ answers so every Stacktape-specific claim is grounded in AlertHistoryPage.tsx or Explanations.tsx. Unsupported negative claims such as \"not retried\" and \"no built-in export or API endpoint\" should be removed or explicitly sourced."
+          ],
+          "optionalImprovements": [
+            "Add a short section or sentence covering the empty state: the table shows no data until alarms trigger, issues are detected, or notifications are sent.",
+            "Clarify that delivery statuses are displayed as raw Console status values `SENT`, `FAILED`, and `PENDING`, not the prose labels `Sent`, `Failed`, and `Pending`, unless the docs intentionally translate UI labels.",
+            "Make the first paragraph of \"Delivery tracking\" name the Stacktape Console alert history page explicitly instead of starting with \"Each alert event\" for stronger snippet extraction.",
+            "Consider adding a compact table for table columns: Time, Source, Event, Severity, Project, Stage, Title, Delivery. That would align tightly with the UI source and improve extractability.",
+            "If broader Console workflow guidance is desired, include the relevant route, sidebar, and related history page source files in the source list before making those claims."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the visible AlertHistoryPage table shape, source filter, event labels, and delivery column, but it overstates several backend behaviors that are not present in the provided source. The highest-risk issues are unsupported delivery retry/timeout claims, retention/export claims, and Console navigation claims not grounded in the provided console source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Failed deliveries are not automatically retried.” and FAQ: “Are failed alert deliveries retried? No… the delivery is not retried.”",
+              "reason": "The provided AlertHistoryPage source only renders delivery statuses from `event.deliveries`; it does not show retry behavior. This claim changes operational expectations and is not grounded in the provided files.",
+              "suggestedFix": "Remove the retry claim or narrow it to what the source shows: failed deliveries are displayed with status `FAILED`; the provided source does not document retry behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.map((d: any) => (\n                  <div key={d.id} css={{ display: 'flex', alignItems: 'center', gap: '6px' }}>\n                    <span css={{ color: deliveryStatusColors[d.status], fontWeight: 'bold', fontSize: 12 }}>\n                      {d.status}\n                    </span>"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Webhook — endpoint returned a non-2xx status code, or the request timed out (15-second timeout).”",
+              "reason": "The source files do not include delivery implementation details, webhook status handling, or any timeout value. The specific 15-second timeout is unsupported.",
+              "suggestedFix": "Say only that failed deliveries can display an error message if that is documented elsewhere, or remove webhook-specific causes and timeout details unless delivery backend source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<AlertChannelSummary\n                      channels={[\n                        {\n                          name: d.alertChannel?.name || d.channelName || 'Unknown',\n                          type: d.alertChannel?.type || d.channelType || 'e-mail',\n                          properties: d.alertChannel?.properties || d.channelProperties || undefined\n                        }\n                      ]}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Alert events are stored in the Stacktape Console's database and are available as long as your organization exists.”",
+              "reason": "The provided UI source queries alert events and paginates results, but it does not document storage backend or retention duration. The claim would materially affect compliance and audit expectations.",
+              "suggestedFix": "Replace with a narrower statement: alert history is paginated in the Console; the provided source does not document retention duration.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventsQuery = trpc.alertEvents.useQuery({\n    organizationId: selectedOrg.id,\n    limit: perPageAmount,\n    page: currentPage,\n    ...(sourceFilter.value && { sourceKind: sourceFilter.value })\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The Console also offers separate history views for notifications, alarms, and budgets — accessible from the Monitoring sidebar under each category's ‘History’ submenu.”",
+              "reason": "The provided source includes explanatory text for notification, alarm, and budget history, but it does not include route definitions, sidebar labels, or navigation structure. Console UI flow claims must be grounded in console-app source.",
+              "suggestedFix": "Avoid sidebar/navigation details unless the relevant routing/sidebar source is provided. A grounded version can say that the Console has separate history concepts for notifications, alarms, and budgets, based on `Explanations.tsx`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "notificationHistory: (\n    <>\n      <p>A log of all notification alerts that were sent, including their delivery status.</p>\n      <p>Check here if you're not sure whether a notification was delivered.</p>\n    </>\n  ),"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "alarmHistory: (\n    <>\n      <p>A log of all alarm events (triggered and resolved), including their delivery status.</p>\n      <p>Check here to see when alarms fired and whether the alerts were delivered.</p>\n    </>\n  ),"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "budgetHistory: (\n    <>\n      <p>A log of all budget alert events (threshold exceeded, forecasted overspend).</p>\n      <p>Check here to see when budget alerts were triggered and whether they were delivered.</p>\n    </>\n  ),"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The table is sorted by time (newest first) and paginated.”",
+              "reason": "Pagination is directly shown, but newest-first ordering is not established in the provided source. The table has `defaultSortColumnIndex={0}`, but no source confirms descending order or server-side ordering.",
+              "suggestedFix": "Keep the paginated claim and remove “newest first,” or state only that the table includes a Time column and uses pagination.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "perPageAmount={perPageAmount}\n        externalPagination={{\n          totalAmount: eventsQuery.data?.totalCount || 0,\n          perPageAmount,\n          currentPage,\n          onSetPage: setCurrentPage,\n          onSetPerPageAmount: setPerPageAmount\n        }}\n        align=\"left\"\n        defaultSortColumnIndex={0}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Severity is assigned by the source system, not by the user. For example, alarm rules set the severity when they fire, and budget alerts use WARNING for forecasted overspend and ERROR for threshold breaches.”",
+              "reason": "The UI source displays `event.severity` and has color mappings for four severities, but it does not show who assigns severity or which event types map to which severity. The alarm and budget mapping claims are unsupported by the provided files.",
+              "suggestedFix": "Limit the section to displayed severities: the alert history table renders the event severity value and colors `INFO`, `WARNING`, `ERROR`, and `CRITICAL`. Do not describe assignment rules unless backend or rule source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const severityColors: Record<string, string> = {\n  INFO: colors.fontColorPrimary,\n  WARNING: '#f39c12',\n  ERROR: '#e74c3c',\n  CRITICAL: '#8b0000'\n};"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<span css={{ color: severityColors[event.severity] || colors.fontColorPrimary, fontWeight: 'bold' }}>\n                {event.severity}\n              </span>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each delivery shows: Status — `Sent` (delivered), `Failed` (delivery attempt failed), or `Pending` (still being processed).”",
+              "reason": "The source displays uppercase backend status strings and only defines colors for `SENT`, `FAILED`, and `PENDING`. It does not define title-cased labels or explain the semantic meaning of each status.",
+              "suggestedFix": "Use the exact rendered values and avoid unsupported semantics: delivery rows display statuses such as `SENT`, `FAILED`, and `PENDING`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const deliveryStatusColors: Record<string, string> = {\n  SENT: '#2ecc71',\n  FAILED: '#e74c3c',\n  PENDING: '#f39c12'\n};"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<span css={{ color: deliveryStatusColors[d.status], fontWeight: 'bold', fontSize: 12 }}>\n                      {d.status}\n                    </span>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Alert history is available in the Stacktape Console at the organization level. You can reach it from the Overview page's ‘Recent Alerts’ widget… The direct `/alert-history` route in the Console.”",
+              "reason": "The source shows the query is scoped by `organizationId`, but it does not include route registration or an Overview widget. Console navigation and route claims are not supported by the provided files.",
+              "suggestedFix": "Keep the organization-scoped wording if desired, because the query uses `organizationId`; remove the Overview widget and direct route claims unless route/widget source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const selectedOrg = useGlobalStore((store) => store.selectedOrganization)!;"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventsQuery = trpc.alertEvents.useQuery({\n    organizationId: selectedOrg.id,\n    limit: perPageAmount,\n    page: currentPage,\n    ...(sourceFilter.value && { sourceKind: sourceFilter.value })\n  });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the four visible source filter options: Issues, Alarms, Notifications, and Budgets, plus the All sources default.",
+            "The event type table matches the labels present in `eventTypeLabels` in the provided AlertHistoryPage source.",
+            "The draft correctly describes the visible table columns: Time, Source, Event, Severity, Project, Stage, Title, and Delivery.",
+            "The statement that `stacktape debug:alarms` is the CLI command for alarm inspection uses a valid documented route from the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the AlertHistoryPage source for source filters, event type labels, visible table columns, and delivery rows. The main problems are unsupported Console behavior claims around severity assignment, delivery summary semantics, retries, retention, export/API availability, and navigation paths that are not present in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“A computed delivery summary rolls up per-channel statuses into a single label: Delivered (all channels succeeded), Partially failed (some succeeded, some failed), Failed (all failed), Pending (still processing), or No matching rules (no channels configured for this event type).”",
+              "reason": "The provided AlertHistoryPage renders each delivery row and shows “No rules matched” when there are no deliveries. It does not compute or display a roll-up delivery summary with labels such as Delivered, Partially failed, Failed, or Pending.",
+              "suggestedFix": "Remove the delivery-summary claim or narrow it to the visible behavior: the Delivery column lists each delivery status and channel, and shows “No rules matched” when the event has no deliveries.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.map((d: any) => (\n                  <div key={d.id} css={{ display: 'flex', alignItems: 'center', gap: '6px' }}>\n                    <span css={{ color: deliveryStatusColors[d.status], fontWeight: 'bold', fontSize: 12 }}>\n                      {d.status}\n                    </span>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.length === 0 && (\n                  <span css={{ color: colors.fontColorLighterGray, fontSize: 12 }}>No rules matched</span>\n                )}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Failed deliveries are not automatically retried.” and FAQ: “No. ... the delivery is not retried.”",
+              "reason": "The provided Console source only displays delivery statuses from alert event deliveries. It does not show delivery retry behavior, retry absence, or delivery processing policy.",
+              "suggestedFix": "Remove the retry claim unless additional backend source is provided. A grounded replacement would be: “The alert history row records failed delivery status when the Console receives a failed delivery entry.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const deliveryStatusColors: Record<string, string> = {\n  SENT: '#2ecc71',\n  FAILED: '#e74c3c',\n  PENDING: '#f39c12'\n};"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "value: event.deliveries.map((d: any) => d.status).join(',')"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Alert events are stored in the Stacktape Console's database and are available as long as your organization exists. The history is paginated and loads on demand, so older events remain accessible.”",
+              "reason": "The source supports paginated loading via limit/page/totalCount, but it does not state database retention, retention duration, or that events remain available for the lifetime of the organization.",
+              "suggestedFix": "Keep the paginated loading claim and remove the retention guarantee. For example: “Alert history is paginated in the Console. The provided source does not document a retention period.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventsQuery = trpc.alertEvents.useQuery({\n    organizationId: selectedOrg.id,\n    limit: perPageAmount,\n    page: currentPage,\n    ...(sourceFilter.value && { sourceKind: sourceFilter.value })\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "externalPagination={{\n          totalAmount: eventsQuery.data?.totalCount || 0,\n          perPageAmount,\n          currentPage,\n          onSetPage: setCurrentPage,\n          onSetPerPageAmount: setPerPageAmount\n        }}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Alert history is available in the Stacktape Console at the organization level. You can reach it from: The Overview page's ‘Recent Alerts’ widget ... The direct `/alert-history` route in the Console.”",
+              "reason": "The provided source shows AlertHistoryPage uses the selected organization ID, but it does not include route registration, sidebar/navigation, an Overview page, or a Recent Alerts widget. Those navigation claims are not grounded in the provided console-app source.",
+              "suggestedFix": "Narrow the section to what is visible from source: the page queries alert events for the selected organization. Remove route and widget claims unless route/overview source files are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const selectedOrg = useGlobalStore((store) => store.selectedOrganization)!;"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventsQuery = trpc.alertEvents.useQuery({\n    organizationId: selectedOrg.id,\n    limit: perPageAmount,\n    page: currentPage,\n    ...(sourceFilter.value && { sourceKind: sourceFilter.value })\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Severity is assigned by the source system, not by the user. For example, alarm rules set the severity when they fire, and budget alerts use WARNING for forecasted overspend and ERROR for threshold breaches.”",
+              "reason": "The source shows four severity labels/colors and renders event.severity, but it does not document who assigns severity or any per-event severity mapping for alarms, budgets, notifications, or issues.",
+              "suggestedFix": "Say only that the Console displays the event severity when present, using INFO, WARNING, ERROR, and CRITICAL styling. Remove the per-source assignment and budget mapping unless backend source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const severityColors: Record<string, string> = {\n  INFO: colors.fontColorPrimary,\n  WARNING: '#f39c12',\n  ERROR: '#e74c3c',\n  CRITICAL: '#8b0000'\n};"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{ label: event.severity }\n            value: event.severity"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The table is sorted by time (newest first) ...”",
+              "reason": "The source sets the default sort column index to the Time column, but it does not show the default sort direction or that the API returns newest-first rows.",
+              "suggestedFix": "Write cautiously: “The table includes a Time column and uses it as the default sort column.” Avoid claiming newest-first order unless ElevatedTable or API source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "columnHeaders={[[\"Time\", 165], 'Source', 'Event', 'Severity', 'Project', 'Stage', 'Title', 'Delivery']}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "defaultSortColumnIndex={0}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If a delivery shows as `Failed`, the alert history records the error message from the failed attempt. Common causes include Slack invalid token, Teams/Discord webhook URL, email recipient, webhook non-2xx or 15-second timeout.”",
+              "reason": "The AlertHistoryPage source displays delivery status and channel summary, but no delivery error message is rendered. The listed failure causes and 15-second timeout are not present in the provided source.",
+              "suggestedFix": "Remove the error-message and common-cause list unless alert-channel delivery backend source is provided. A grounded diagnostic sentence can say the Delivery column shows FAILED for failed delivery entries and identifies the target channel.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<AlertChannelSummary\n                      channels={[\n                        {\n                          name: d.alertChannel?.name || d.channelName || 'Unknown',\n                          type: d.alertChannel?.type || d.channelType || 'e-mail',\n                          properties: d.alertChannel?.properties || d.channelProperties || undefined\n                        }\n                      ]}\n                    />"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.map((d: any) => (\n                  <div key={d.id} css={{ display: 'flex', alignItems: 'center', gap: '6px' }}>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“There is no built-in export or API endpoint for downloading alert history as CSV or JSON.”",
+              "reason": "The provided source does not show an export control on the page, but it also does not include backend routes or API definitions. The absence of an export button in this file does not support the stronger claim that no API endpoint exists.",
+              "suggestedFix": "Narrow to Console UI only: “The provided AlertHistoryPage source does not show an export control.” Avoid claiming there is no API endpoint unless API/server source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "return (\n    <main>\n      <PageHeadline\n        headline=\"Alert activity\"\n        icon={BiHistory}\n        tooltipText={explanations.alertHistory}\n        rightSideItems={["
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<ElevatedTable\n        rootCss={{ width: '100%' }}\n        isLoading={eventsQuery.isPending}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft’s event type list matches the eventTypeLabels defined in AlertHistoryPage.tsx.",
+            "The source filter labels in the draft match sourceFilterOptions: All sources, Issues, Alarms, Notifications, and Budgets.",
+            "The draft correctly identifies the visible table columns: Time, Source, Event, Severity, Project, Stage, Title, and Delivery.",
+            "The CLI distinction for unified alert history is cautious: the provided sources show this as a Console page and do not show a unified alert-history CLI command."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page has no primary Stacktape config type, no union-typed config properties, and no Stacktape CodeBlock examples, so the API-completeness, union-coverage, and demonstrativeness checks are mostly not applicable. The main risks are unsupported Console-behavior claims that go beyond the provided AlertHistoryPage and Explanations sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each event captures ... Delivery status — whether the alert was successfully sent to each configured alert channel, with per-channel status tracking.”",
+              "reason": "The table renders delivery rows and status values for event.deliveries, but the source does not establish that these are every configured alert channel or that all configured destinations are represented. The grounded claim is narrower: the Delivery column displays the deliveries attached to the event, or “No rules matched” when there are none.",
+              "suggestedFix": "Say: “The Delivery column lists the deliveries attached to the event, showing each delivery status and alert channel summary. If the event has no deliveries, the Console shows ‘No rules matched.’”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.map((d: any) => ( ... <span css={{ color: deliveryStatusColors[d.status], fontWeight: 'bold', fontSize: 12 }}> {d.status} </span> <AlertChannelSummary channels={[{ name: d.alertChannel?.name || d.channelName || 'Unknown', type: d.alertChannel?.type || d.channelType || 'e-mail', properties: d.alertChannel?.properties || d.channelProperties || undefined }]} /> ... ))} {event.deliveries.length === 0 && ( <span css={{ color: colors.fontColorLighterGray, fontSize: 12 }}>No rules matched</span> )}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Severity is assigned by the source system, not by the user. For example, alarm rules set the severity when they fire, and budget alerts use WARNING for forecasted overspend and ERROR for threshold breaches.”",
+              "reason": "The provided source only renders event.severity and defines color mappings for INFO, WARNING, ERROR, and CRITICAL. It does not document who assigns severity or map budget event types to severity levels.",
+              "suggestedFix": "Keep only the grounded UI fact: “The Console displays the severity value stored on each alert event. The UI recognizes INFO, WARNING, ERROR, and CRITICAL.” Avoid source-specific assignment rules unless backed by server or config sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const severityColors: Record<string, string> = { INFO: colors.fontColorPrimary, WARNING: '#f39c12', ERROR: '#e74c3c', CRITICAL: '#8b0000' }; ... value: event.severity"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Status — `Sent` (delivered), `Failed` (delivery attempt failed), or `Pending` (still being processed).”",
+              "reason": "The Console renders the raw delivery status strings and the color map keys are uppercase: SENT, FAILED, and PENDING. The draft’s title-case values do not match the UI source.",
+              "suggestedFix": "Use uppercase status values: `SENT`, `FAILED`, and `PENDING`. If adding human-readable explanations, phrase them as interpretations rather than displayed labels.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const deliveryStatusColors: Record<string, string> = { SENT: '#2ecc71', FAILED: '#e74c3c', PENDING: '#f39c12' }; ... {d.status}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A computed delivery summary rolls up per-channel statuses into a single label: Delivered, Partially failed, Failed, Pending, or No matching rules.”",
+              "reason": "No delivery-summary computation or these summary labels appear in the provided AlertHistoryPage source. The Delivery column renders individual delivery statuses and an AlertChannelSummary for each delivery, with only “No rules matched” shown when there are zero deliveries.",
+              "suggestedFix": "Remove the computed-summary Info block, or replace it with the grounded behavior: the Delivery column lists individual delivery statuses and shows “No rules matched” when event.deliveries is empty.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<div css={{ display: 'flex', flexDirection: 'column', gap: '3px' }}> {event.deliveries.map((d: any) => ( ... {d.status} ... <AlertChannelSummary ... /> ))} {event.deliveries.length === 0 && ( <span css={{ color: colors.fontColorLighterGray, fontSize: 12 }}>No rules matched</span> )} </div>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If a delivery shows as `Failed`, the alert history records the error message from the failed attempt… Failed deliveries are not automatically retried.”",
+              "reason": "The AlertHistoryPage source does not render any delivery error message and does not describe retry behavior. Those may be true server-side, but they are not grounded in the provided source files.",
+              "suggestedFix": "Narrow the section to what the page displays: failed delivery status and channel summary. Remove retry and error-message claims unless server-side alert delivery source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.map((d: any) => ( <div key={d.id} css={{ display: 'flex', alignItems: 'center', gap: '6px' }}> <span css={{ color: deliveryStatusColors[d.status], fontWeight: 'bold', fontSize: 12 }}> {d.status} </span> <AlertChannelSummary ... /> </div> ))}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Console also offers separate history views for notifications, alarms, and budgets — accessible from the Monitoring sidebar under each category's ‘History’ submenu.”",
+              "reason": "The provided sources include tooltip text for notificationHistory, alarmHistory, and budgetHistory, but they do not show Console navigation, sidebar structure, or submenu labels. Console UI flows must be grounded in console-app source, not inferred.",
+              "suggestedFix": "Say only that the Console has separate notification, alarm, and budget history concepts if those pages are linked elsewhere in docs, or add the relevant console route/sidebar source before documenting the navigation path.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "notificationHistory: ( <> <p>A log of all notification alerts that were sent, including their delivery status.</p> ... alarmHistory: ( <> <p>A log of all alarm events (triggered and resolved), including their delivery status.</p> ... budgetHistory: ( <> <p>A log of all budget alert events (threshold exceeded, forecasted overspend).</p>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You can reach it from the Overview page's ‘Recent Alerts’ widget, which links to the full alert history.”",
+              "reason": "Neither AlertHistoryPage.tsx nor Explanations.tsx contains an Overview page, a Recent Alerts widget, or a link from that widget to alert history.",
+              "suggestedFix": "Remove the Overview widget access path unless the relevant Overview source is included. Keep the grounded route-level statement only if the route is supplied by page metadata or source list context.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<PageHeadline headline=\"Alert activity\" icon={BiHistory} tooltipText={explanations.alertHistory} ... />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "FAQ claims such as “stored ... as long as your organization exists,” “no built-in export or API endpoint,” and “use your browser's find-in-page feature.”",
+              "reason": "The provided Console source shows paginated query parameters and table columns, but does not define retention, export/API availability, or recommend browser find as a workflow. These are operational/product claims outside the supplied source.",
+              "suggestedFix": "Remove these FAQ answers or rewrite cautiously: “The provided Console page uses paginated loading for alert events,” and avoid retention/export claims unless backend API or product policy sources are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventsQuery = trpc.alertEvents.useQuery({ organizationId: selectedOrg.id, limit: perPageAmount, page: currentPage, ...(sourceFilter.value && { sourceKind: sourceFilter.value }) }); ... externalPagination={{ totalAmount: eventsQuery.data?.totalCount || 0, perPageAmount, currentPage, onSetPage: setCurrentPage, onSetPerPageAmount: setPerPageAmount }}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the main Alert History surface as a Stacktape Console page, not a CLI command.",
+            "The event type table matches the eventTypeLabels map in AlertHistoryPage.tsx.",
+            "The source filter options in the draft match the Console source filter values: All sources, Issues, Alarms, Notifications, and Budgets.",
+            "The draft correctly states that the table includes Time, Source, Event, Severity, Project, Stage, Title, and Delivery columns.",
+            "No forbidden Stacktape configuration examples are present: there are no hand-authored YAML config blocks, no StacktapeConfig typed examples, and no fenced TypeScript Stacktape config examples."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\observability__alert-history\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Every column name, event type, severity level, delivery status, and filter option is directly verifiable in AlertHistoryPage.tsx — no invented details.",
+            "Heavy table usage (columns, event types, severity, delivery statuses) makes reference-heavy content scannable without wall-of-text prose.",
+            "The CLI/Console boundary is explicitly drawn in the <Info> callout, which is exactly what the observability section guidelines require.",
+            "The 'No rules matched' explanation + <Tip> callout is the most practically useful piece of the page — it answers the most frustrating first-timer question before they ask it.",
+            "Eight FAQ pairs spanning Stacktape-specific, AWS-adjacent, and comparison questions — the mix is correct and the answers are concise enough to be Featured Snippet candidates.",
+            "The delivery tracking section correctly handles the multi-delivery-per-event case (matching multiple rules) which is genuinely non-obvious behavior.",
+            "Source filter resets to page 0 on change — subtle UX detail that is verified in source and correctly documented."
+          ],
+          "problems": [
+            "H2 heading 'What alert history tracks' is a sentence fragment, not the noun-form 1-5 word label the style guide requires. It could be 'Columns' or 'Table columns'.",
+            "H2 heading 'Alert history vs. individual history views' is 7 words and reads as a mini-sentence. Style guide caps at 1-5 noun-form words.",
+            "H2 heading 'When the table is empty' is condition-form, inconsistent with the noun-form majority on the page.",
+            "The Pagination section is thin — one paragraph, no concrete details. The source shows the default per-page amount is 25 (useState(25)) but the page omits this. For a first-timer, knowing 'it defaults to 25 rows per page' is useful context.",
+            "The first-timer who arrives with no alarms/notifications/budgets configured gets useful guidance in 'When the table is empty', but that section is buried at position 7 of 8. A reader with an empty table is the most likely first-timer scenario — the guidance could be higher-priority or signposted earlier."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Shorten H2 headings to noun-form labels: 'What alert history tracks' → 'Columns', 'Alert history vs. individual history views' → 'Cross-system vs. per-source views', 'When the table is empty' → 'Empty state'.",
+            "Add one sentence to the Pagination section noting the default of 25 rows per page (verifiable from useState(25) in AlertHistoryPage.tsx).",
+            "Consider moving the 'When the table is empty' / empty state section up to immediately after the columns table — first-time readers are most likely to arrive at this page with an empty table.",
+            "The page headline in the Console is 'Alert activity' (from PageHeadline headline='Alert activity') while the docs title is 'Alert History'. A one-line note acknowledging the Console label 'Alert activity' would help orient users who navigate there and see a different title than the docs page.",
+            "The explanations.alertHistory tooltip omits issues ('A unified log of all alerts across notifications, alarms, and budgets') but the page correctly includes issues as a fourth source. The discrepancy doesn't affect the docs page but could confuse readers who read the Console tooltip — a brief note like 'including issue events' in the intro paragraph would be a subtle accuracy signal."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Every table column, event type, severity level, delivery status, color, and empty-state message is directly verified against AlertHistoryPage.tsx — the page is exceptionally source-grounded for a Console UI doc.",
+            "The event types table is exhaustive and organized by source, making it easy for engineers to cross-reference what they configured (notification rules, alarm rules, budget alerts) against what they'll see in the timeline.",
+            "The CLI-vs-Console split is handled cleanly: the Info callout and the FAQ both explicitly say alert history is Console-only and redirect to debug:alarms / debug:logs / debug:metrics for CLI equivalents — satisfying the observability section instructions.",
+            "The 'Delivery tracking' section explains the three-status model (SENT / FAILED / PENDING) and the 'No rules matched' case with enough detail that an engineer can diagnose a missing notification without guessing.",
+            "The 'Alert history vs. individual history views' section adds real decision support — explains when to use each view, which most UI docs omit.",
+            "The FAQ mixes all three required categories: Stacktape-specific behavior, underlying AWS alarm context, and CLI comparison questions."
+          ],
+          "problems": [
+            "The Console page renders the headline 'Alert activity' (source: `headline=\"Alert activity\"` in the PageHeadline call), but the docs title and H1 both say 'Alert History'. An engineer navigating to the Console to find this page will see 'Alert activity', not 'Alert History'. This naming mismatch is a mild but real orientation problem.",
+            "The 'Pagination' section is sourced but adds little beyond generic table behavior. It mentions the total count display and per-page control, but omits the one concrete default that would be useful to an engineer: per-page defaults to 25 rows (source: `useState(25)`).",
+            "The default sort direction is never stated. The source sets `defaultSortColumnIndex={0}` (Time column), and the docs mention this, but do not specify that the default sort is newest-first — which is the behavior engineers expect and will notice if they're auditing recent alerts."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the introduction or 'What alert history tracks' section, note that the Console page's own headline reads 'Alert activity' — users who navigate to the Console may not immediately recognize the page if they search for 'Alert History'.",
+            "Add the default per-page amount (25 rows) to the Pagination section, sourced from `useState(25)` in AlertHistoryPage.tsx. This is a concrete detail engineers will check when they want to understand how many events load by default.",
+            "The default sort is by Time column, newest first. Make this explicit in the 'What alert history tracks' section or in the columns table, so engineers know the table loads with the most recent event at the top without having to try it.",
+            "Consider merging the thin 'Pagination' and 'When the table is empty' sections, or folding 'When the table is empty' into the introduction. Both are short enough that they read as filler sections when standalone; combined they form one coherent 'Table behavior' note."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and suitable for search snippets.",
+            "Tables make the event types, columns, filters, and severity values easy to scan.",
+            "The page cleanly separates Console alert history from CLI debug commands and uses the documented `stacktape debug:*` command names.",
+            "FAQ covers practical Stacktape-specific questions and includes CLI vs Console distinction."
+          ],
+          "problems": [
+            "Several claims go beyond the provided source files: Microsoft Teams/Discord channel types, the reason a delivery list can contain multiple deliveries, and the exact routing-rule cause behind \"No rules matched\" are not directly supported by the included source.",
+            "Severity \"Typical use\" descriptions are partly inferred. The source supports severity labels and colors, but not that CRITICAL always means an urgent condition or that INFO means successful operations.",
+            "The page says alert history replaces checking separate history views for each system, but the source only shows notification, alarm, and budget history explanations. It does not show a separate issue history view.",
+            "FAQ scope is mostly Stacktape-specific. For an observability page, it could include a little more decision/use-case coverage, such as when to use unified alert history versus logs, metrics, alarms, or issues.",
+            "Some H2 first paragraphs are shorter than the requested 40-75 word extractable target, especially `Pagination`, `Filtering events`, and `When the table is empty`. They are understandable but less citation-ready."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported channel-type wording with only source-grounded wording, or add source files for `AlertChannelSummary`/alert-channel definitions before naming Slack, Microsoft Teams, Discord, email, and webhook as the supported set.",
+            "Narrow the \"No rules matched\" explanation to what the source proves: the Console shows this text when `event.deliveries.length === 0`. Do not assert the exact rule-matching cause unless supported by backend or alert-rule source.",
+            "Revise the severity table so the prose does not invent operational meanings. Keep labels and colors from `severityColors`, or explicitly frame any usage guidance as general interpretation rather than Stacktape behavior.",
+            "Change the individual-history comparison to mention only notification, alarm, and budget history unless issue-history source files are added."
+          ],
+          "optionalImprovements": [
+            "Add a compact comparison table for `Alert history` vs `Notification history` vs `Alarm history` vs `Budget history`; it would improve decision-making and extractability.",
+            "Expand the FAQ with one or two non-duplicative observability questions, such as when to use alert history versus `stacktape debug:logs`, or whether alert history shows current alarm state versus historical alert events.",
+            "Make short H2 sections more self-contained by naming `Stacktape alert history` in the first paragraph and adding a second practical sentence where useful.",
+            "Consider removing the `Tip` callout if the docs component palette for observability pages does not commonly use it; no example page was provided, so this is only a consistency suggestion."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the AlertHistoryPage source for columns, source filters, event type labels, delivery statuses, pagination, empty state, and CLI separation. The main issues are claims that go beyond the provided Console source, especially around per-category history views, alarm management wording, delivery routing semantics, and unsupported UI capabilities.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The Console also provides separate history concepts for notifications, alarms, and budgets — each focused on a single source kind. These per-category views show events from their respective system only.”",
+              "reason": "The provided sources include tooltip/explanation text for notificationHistory, alarmHistory, and budgetHistory, but do not include page source proving that the Console provides these separate views or how they behave. The page source only proves the unified AlertHistoryPage.",
+              "suggestedFix": "Narrow this to the sourced fact: “The Console copy describes separate notification, alarm, and budget history concepts. Alert history is the unified view for the alert event rows shown on this page.” Avoid claiming actual page availability or behavior unless the corresponding console page sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "export function Component() {"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "notificationHistory: (\n    <>\n      <p>A log of all notification alerts that were sent, including their delivery status.</p>\n      <p>Check here if you're not sure whether a notification was delivered.</p>\n    </>\n  ),"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "alarmHistory: (\n    <>\n      <p>A log of all alarm events (triggered and resolved), including their delivery status.</p>\n      <p>Check here to see when alarms fired and whether the alerts were delivered.</p>\n    </>\n  ),"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "budgetHistory: (\n    <>\n      <p>A log of all budget alert events (threshold exceeded, forecasted overspend).</p>\n      <p>Check here to see when budget alerts were triggered and whether they were delivered.</p>\n    </>\n  ),"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The actual CloudWatch alarms run in your AWS account and are managed through alarm rules configured in the Console.”",
+              "reason": "The source says alarm rules are saved in the Console and Stacktape creates, updates, or removes the actual CloudWatch alarms on the next deployment. Saying CloudWatch alarms are “managed through alarm rules configured in the Console” omits the deployment step and can mislead readers about when AWS-side alarms change.",
+              "suggestedFix": "State the sourced lifecycle explicitly: “Alarm rules are configured in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing on the next deployment of each matching project and stage.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A single alert event can have multiple deliveries if it matched multiple notification rules or alarm rules pointing to different channels.”",
+              "reason": "The UI source supports multiple delivery rows per event, but it does not prove why multiple deliveries exist or that they specifically come from multiple notification rules or alarm rules. The source only maps over event.deliveries and renders each delivery.",
+              "suggestedFix": "Keep the grounded behavior and remove the inferred cause: “A single alert event can show multiple deliveries. The Delivery column lists each delivery separately with its own status and channel summary.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.map((d: any) => (\n                  <div key={d.id} css={{ display: 'flex', alignItems: 'center', gap: '6px' }}>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "value: event.deliveries.map((d: any) => d.status).join(',')"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“‘No rules matched’ means no notification rule, alarm rule, or budget alert was configured to route that particular event type to a channel.”",
+              "reason": "The source proves only that the UI displays “No rules matched” when event.deliveries.length === 0. It does not define the backend semantics or enumerate which rule systems were checked.",
+              "suggestedFix": "Phrase the claim from the UI condition: “The table shows ‘No rules matched’ when the event has no delivery records. In practice, review the relevant notification, alarm, or budget routing configuration for events you expected to deliver.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.length === 0 && (\n                  <span css={{ color: colors.fontColorLighterGray, fontSize: 12 }}>No rules matched</span>\n                )}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Alert events are created automatically by the underlying systems — you do not need to do anything special to populate alert history.”",
+              "reason": "The provided AlertHistoryPage source reads alert events from trpc.alertEvents and renders them, but it does not describe event creation behavior. Explanations text describes related features but does not support the broad claim that all alert history events are automatically created without any setup.",
+              "suggestedFix": "Narrow to the visible behavior: “Alert history displays alert events returned for the selected organization. Events appear after alarms trigger, issues are detected, or notifications are sent.” That wording matches the empty-state source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventsQuery = trpc.alertEvents.useQuery({\n    organizationId: selectedOrg.id,\n    limit: perPageAmount,\n    page: currentPage,\n    ...(sourceFilter.value && { sourceKind: sourceFilter.value })\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "noDataMessage=\"No alert events yet. Events will appear here when alarms trigger, issues are detected, or notifications are sent.\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each of these records events in alert history and routes them through alert channels.”",
+              "reason": "The source supports that the alert history page can display source kinds for notifications, alarms, budgets, and issues, and it can display deliveries. It does not prove that every listed system both records events in alert history and routes them through alert channels, especially issues.",
+              "suggestedFix": "Split the sourced facts: “Alert history can display Notification, Alarm, Budget, and Issue source kinds. Delivery information appears when delivery records exist for an event.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const sourceKindLabels: Record<string, string> = {\n  NOTIFICATION: 'Notification',\n  ALARM: 'Alarm',\n  BUDGET: 'Budget',\n  ISSUE: 'Issue'\n};"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<AlertChannelSummary\n                      channels={[\n                        {\n                          name: d.alertChannel?.name || d.channelName || 'Unknown',\n                          type: d.alertChannel?.type || d.channelType || 'e-mail',"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Four severity levels are supported: INFO, WARNING, ERROR, or CRITICAL.”",
+              "reason": "The UI source defines colors for INFO, WARNING, ERROR, and CRITICAL, but the event severity is typed as any and the rendering includes a fallback color for unknown severity values. The source supports that these four are styled explicitly, not necessarily that they are the complete supported set.",
+              "suggestedFix": "Use narrower wording: “The Console has explicit styling for INFO, WARNING, ERROR, and CRITICAL severities.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“You can visually scan for a specific project or use your browser's find-in-page feature to locate events for a particular project or stage.”",
+              "reason": "The table does display Project and Stage columns, but browser find behavior is generic and may not work reliably across paginated data because only the current page is loaded. This is guidance rather than source-backed Console functionality.",
+              "suggestedFix": "Say only that the current table page includes Project and Stage columns. Avoid implying find-in-page is an effective filter across alert history.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists the AlertHistoryPage columns: Time, Source, Event, Severity, Project, Stage, Title, and Delivery.",
+            "The draft correctly names the source filter options shown in the Console source: All sources, Issues, Alarms, Notifications, and Budgets.",
+            "The draft’s event type list matches the eventTypeLabels mapping in AlertHistoryPage.tsx.",
+            "The draft correctly separates CLI observability commands from the Console-only unified alert history view and uses valid documented CLI links.",
+            "The draft correctly describes pagination, total count, source-filter page reset behavior, and the empty-state message from the page source."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided Console source, but several claims overstate what the source proves. The main problems are exhaustive wording around event types and severity, plus a few Console behavior claims that are not visible in the provided files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The table below lists every event type the system records.”",
+              "reason": "The source provides a UI label map for known event types, but the table rendering explicitly falls back to displaying any raw event type not present in that map. The provided source does not prove that the label map is exhaustive for all events the backend records.",
+              "suggestedFix": "Narrow the wording to “The Console has labels for these event types” or “The alert history page displays these known event types.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventTypeLabels: Record<string, string> = {"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{eventTypeLabels[event.type] || event.type}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Four levels are supported: INFO, WARNING, ERROR, or CRITICAL.”",
+              "reason": "The source defines colors for four named severity values, but the rendering falls back to the primary font color for any other severity string. The provided source supports saying these four severities have defined colors, not that they are the only supported severities.",
+              "suggestedFix": "Write “The Console defines distinct colors for INFO, WARNING, ERROR, and CRITICAL” unless a backend enum source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const severityColors: Record<string, string> = {\n  INFO: colors.fontColorPrimary,\n  WARNING: '#f39c12',\n  ERROR: '#e74c3c',\n  CRITICAL: '#8b0000'\n};"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<span css={{ color: severityColors[event.severity] || colors.fontColorPrimary, fontWeight: 'bold' }}>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every time an alarm fires, a notification rule matches, a budget threshold is crossed, or an issue is detected, Stacktape records an alert event.”",
+              "reason": "The provided Console page source shows that alert events are queried and displayed, and it lists event labels. It does not prove the backend creation rule “every time” for each source, especially notification rule matches and budget threshold crossing.",
+              "suggestedFix": "Use UI-grounded wording: “Alert history displays recorded events for alarms, notifications, budgets, and issues, including triggered/resolved, deployment lifecycle, budget, and issue events.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventsQuery = trpc.alertEvents.useQuery({\n    organizationId: selectedOrg.id,\n    limit: perPageAmount,\n    page: currentPage,\n    ...(sourceFilter.value && { sourceKind: sourceFilter.value })\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "noDataMessage=\"No alert events yet. Events will appear here when alarms trigger, issues are detected, or notifications are sent.\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A single alert event can have multiple deliveries if it matched multiple notification rules or alarm rules pointing to different channels.”",
+              "reason": "The UI supports rendering multiple delivery entries for one event, but the source does not explain why multiple deliveries exist or tie them specifically to multiple notification rules or alarm rules.",
+              "suggestedFix": "Say “A single alert event can display multiple delivery entries; each entry is listed individually in the Delivery column.” Avoid claiming the rule-matching cause unless backend/rules source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.map((d: any) => ("
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "{event.deliveries.length === 0 && (\n                  <span css={{ color: colors.fontColorLighterGray, fontSize: 12 }}>No rules matched</span>\n                )}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Console also provides separate history concepts for notifications, alarms, and budgets — each focused on a single source kind.”",
+              "reason": "Explanations source includes notificationHistory, alarmHistory, and budgetHistory text, but the provided source list does not include the actual Console pages or routes for those views. The claim is plausible, but the provided source only proves those explanation entries exist, not full Console views or navigation behavior.",
+              "suggestedFix": "Narrow to “The Console source includes separate explanation entries for notification, alarm, and budget history.” Or provide the relevant Console page sources before documenting the separate views as user-facing pages.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "notificationHistory: (\n    <>\n      <p>A log of all notification alerts that were sent, including their delivery status.</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "alarmHistory: (\n    <>\n      <p>A log of all alarm events (triggered and resolved), including their delivery status.</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "budgetHistory: (\n    <>\n      <p>A log of all budget alert events (threshold exceeded, forecasted overspend).</p>"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Alert history is a Console-only feature. There is no CLI equivalent for viewing the unified alert timeline.”",
+              "reason": "The provided sources include only the Console page and explanations, not CLI command source. The navigation index has debug commands but no alert-history CLI page, so the claim is likely correct, but the supplied source files do not directly prove absence of a CLI equivalent.",
+              "suggestedFix": "Keep the practical distinction but narrow the certainty: “The provided Console source exposes alert history as a Console view; CLI observability commands cover logs, metrics, and current alarm inspection rather than this unified table.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The actual CloudWatch alarms run in your AWS account and are managed through alarm rules configured in the Console.”",
+              "reason": "The provided Explanations source says alarm rules monitor AWS metrics and that Stacktape creates, updates, or removes actual CloudWatch alarms on the next deployment. It does not explicitly say the alarms run in the user's AWS account. That may be true, but it is not directly grounded in the supplied files.",
+              "suggestedFix": "Use the sourced wording: “Alarm rules monitor AWS metrics, and Stacktape creates, updates, or removes the actual CloudWatch alarms on the next deployment.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All markdown links in the draft point to routes present in the provided navigation index.",
+            "The source filter options, table columns, empty-state message, delivery statuses, source labels, and pagination behavior are accurately reflected from AlertHistoryPage.tsx.",
+            "The draft correctly distinguishes the Console alert history view from CLI debug commands and uses documented CLI links for debug alarms, logs, and metrics."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page has no Stacktape config examples and no primary config type, so the API completeness and code-example checks do not apply. I found one medium issue: the draft makes a broad Console-only/CLI-negative claim that is not grounded in the provided source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Alert history is a Console-only feature. There is no CLI equivalent for viewing the unified alert timeline.”",
+              "reason": "The provided source proves a Console alert history page exists, but it does not prove that no CLI command or other API exists for the unified alert timeline. The page can safely distinguish the shown Console view from documented CLI debug surfaces, but the negative “no CLI equivalent” claim needs CLI source evidence that was not included.",
+              "suggestedFix": "Narrow the wording to the sourced fact: “The provided Console view shows unified alert history. For CLI-based alarm inspection, use `stacktape debug:alarms`; for logs and metrics, use `stacktape debug:logs` and `stacktape debug:metrics`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "export function Component() {"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "<PageHeadline\n        headline=\"Alert activity\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx",
+                  "quote": "const eventsQuery = trpc.alertEvents.useQuery({\n    organizationId: selectedOrg.id,"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft names all source filter variants shown in the Console source: all sources, issues, alarms, notifications, and budgets.",
+            "The draft covers every event label visible in `eventTypeLabels`.",
+            "The draft accurately describes the displayed columns, delivery statuses, empty-state message, and pagination behavior from `AlertHistoryPage.tsx`.",
+            "No hand-authored YAML, plain-object `StacktapeConfig`, or fenced Stacktape TypeScript config examples are present."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\alert-history.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T16:58:18.605Z",
+  "inputHashes": {
+    "C:\\Projects\\console-app\\src\\pages\\AlertHistoryPage\\AlertHistoryPage.tsx": "10396af7ac83cf04425d008ae1750b665b22948d",
+    "C:\\Projects\\console-app\\src\\Explanations.tsx": "3f2604010b1492917861d68a6940ceab8d04a693"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

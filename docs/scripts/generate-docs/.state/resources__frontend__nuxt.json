@@ -1,0 +1,1559 @@
+{
+  "pageId": "resources__frontend__nuxt",
+  "pageRoute": "resources/frontend/nuxt",
+  "startedAt": "2026-05-14T12:09:48.798Z",
+  "updatedAt": "2026-05-16T00:07:59.163Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__frontend__nuxt\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Noun-form H2s match the example exactly, and all shared H2 sections appear in the same relative order.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript'. No forbidden YAML or plain-object patterns present.",
+            "The basic example is minimal and copyable, with appDirectory clearly explained and the default value ('.') documented.",
+            "The 'When NOT to use' section includes links to concrete alternatives and correctly references the hosting-bucket hostingContentType: 'nuxt-static-website' option grounded in the source JSDoc.",
+            "FAQ has exactly 10 Q&A pairs spanning Stacktape-specific, AWS-service, and comparison categories as required.",
+            "The Connecting resources section uses a named example resource (mainDatabase) and correctly derives the STP_MAIN_DATABASE_CONNECTION_STRING env var name from it.",
+            "Correctly omits 'Cold starts' and 'Edge and streaming' sections because NuxtWebProps has no warmServerInstances or useEdgeLambda — appropriate flex deviation from the example.",
+            "Static files and CDN section goes beyond a thin description by covering disableInvalidationAfterDeploy and per-path caching overrides, giving readers decision support.",
+            "Frontmatter keys (title, order, seoTitle, seoDescription) match the example exactly."
+          ],
+          "problems": [
+            "MDX component palette drift: the example page ends with a '## Referenceable parameters' section using <ReferenceableParams resource=\"nextjs-web\" />, but the draft omits this section entirely for the Nuxt resource. This is a pattern the example uses that the draft fails to include.",
+            "The 'Build and dev' section mentions dev.workingDirectory as a configurable option, but SsrWebDevConfig is not provided in the source files for this page. This claim is unverified from authoritative source for the Nuxt resource specifically.",
+            "The 'Static files and CDN' section names cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions, and cdn.pathCachingOverrides as properties on SsrWebCdnConfig, but the SsrWebCdnConfig type definition is not present in the provided source files, making these claims unverifiable."
+          ],
+          "mandatoryFixes": [
+            "MDX component palette drift: add a '## Referenceable parameters' section after the API Reference section containing <ReferenceableParams resource=\"nuxt-web\" />, matching the example page's closing structure."
+          ],
+          "optionalImprovements": [
+            "Verify dev.workingDirectory exists in SsrWebDevConfig before publishing; if unconfirmed, remove the mention to avoid an ungrounded claim.",
+            "Verify cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions, and cdn.pathCachingOverrides against the authoritative SsrWebCdnConfig type definition; if any are absent, remove them from the prose.",
+            "The last 'When NOT to use' bullet ('Next.js or other frameworks') lists sibling framework pages rather than describing a use-case mismatch. Consider rewriting it as 'Other framework SSR apps — each framework has a dedicated resource type' or moving the cross-links to an Info callout so the section stays focused on use-case decisions rather than framework enumeration.",
+            "The Server Lambda section states 'the maximum documented timeout for the Next.js server Lambda is 30 seconds' in the example, and the draft mirrors this — but omits 'documented' qualification. Add a hedge ('the documented maximum is 30 seconds') if the actual Lambda limit is higher but the config surface caps it, to match the example's precision."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Correctly identifies the Nitro aws-lambda preset as the deployment mechanism — this is the most important Nuxt-specific technical detail and it appears in the opening paragraph, the Server Lambda section, and the FAQ.",
+            "All Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript'. No YAML blocks, no plain-object StacktapeConfig style, no fenced TypeScript with defineConfig.",
+            "Static hosting alternative is grounded directly in the source file JSDoc: 'hosting-bucket with hostingContentType: nuxt-static-website'. This is precise and directly usable.",
+            "The 'connectTo' example with mainDatabase is realistic and the env var names (STP_MAIN_DATABASE_CONNECTION_STRING etc.) are correctly derived from the resource name, not generic.",
+            "VPC join trade-off (loses internet access, S3/DynamoDB still accessible via VPC endpoints) is accurately documented and matches the source warning.",
+            "CDN section adds useful depth beyond the example page by naming cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions, and cdn.pathCachingOverrides — this is better than the equivalent Next.js section.",
+            "H2 heading form, ordering, frontmatter shape, and <ApiReference> placement all match the example page precisely. Sections that don't apply to Nuxt (Cold starts, Edge and streaming) are correctly omitted rather than padded.",
+            "Exactly 10 FAQ pairs covering all three required categories."
+          ],
+          "problems": [
+            "Missing '## Referenceable parameters' section with <ReferenceableParams resource=\"nuxt-web\" />. The example page ends with this section after the API Reference. The draft omits it entirely, creating structural drift from the example pattern that the pipeline enforces strictly.",
+            "FAQ category balance is light on category-2 (use-case questions about the underlying AWS service itself). Questions 1, 2, 3, 4, 5, 6 are all Stacktape-specific. Only Q7 (cost) and Q8/Q9 (comparison) cover non-Stacktape territory. There are no questions about Lambda cold-start behavior, Lambda response size limits, or similar AWS Lambda operational concerns that Nuxt SSR developers will search for.",
+            "The 'Build and dev' section mentions 'dev.workingDirectory can be set when the dev command should run from a directory other than the project root.' The provided source files do not show the SsrWebDevConfig type definition, so this property's existence is unverified from the available source. This is a potential invented feature claim.",
+            "The serverLambda defaults (memory: 1024 MB, timeout: 30s, max 30s) are asserted without sourcing them to the NuxtWebProps type. The source files provided do not show SsrWebServerLambdaConfig's internals. These values are borrowed from the Next.js example page. If Nuxt's SsrWebServerLambdaConfig has different defaults, this would mislead readers at production configuration time."
+          ],
+          "mandatoryFixes": [
+            "Add '## Referenceable parameters' section after '## API Reference', containing '<ReferenceableParams resource=\"nuxt-web\" />'. The example page has this section and the instructions mandate H2 ordering and MDX component palette match the example strictly. This section must appear even if the resource exposes only a URL parameter — its absence breaks the structural contract of this docs section."
+          ],
+          "optionalImprovements": [
+            "In the 'Build and dev' section, remove or hedge the dev.workingDirectory claim ('can be set when the dev command should run from a directory other than the project root') unless you can verify it exists in SsrWebDevConfig. The provided sources don't show this property.",
+            "Add one or two FAQ questions targeting category-2 AWS service questions — for example: 'What is the Lambda response size limit for Nuxt SSR?' or 'How fast does Nuxt SSR cold-start on Lambda?' These are high-intent searches that bring readers in from search engines and AI engines.",
+            "Add a brief qualifier near the serverLambda defaults section noting these values come from the shared SsrWebServerLambdaConfig type (also used by the Next.js resource), since the Nuxt source files provided don't directly expose those numeric defaults. One sentence is enough — this builds reader trust for production configuration.",
+            "Consider a one-line pricing context note near the top (after the opening paragraph) matching the example's convention. The example page includes pricing framing when pricing data is in source — even if the Nuxt source has no specific pricing, a one-liner like 'Costs include Lambda invocations for SSR, S3 storage for static assets, and CloudFront data transfer for CDN traffic' would match the example page's opening shape and help readers plan costs."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong answer-first opening paragraph (~55 words, self-contained, suitable for AI extraction verbatim)",
+            "All H2 headings are compact noun-form labels matching the example page's heading style exactly (When to use, When NOT to use, Basic example, Build and dev, Server Lambda, Domains and firewall, Static files and CDN, Connecting resources, Environment variables, Logging, FAQ, API Reference)",
+            "Every Stacktape config example correctly uses <CodeBlock intellisense tabs={[...]} /> with label 'TypeScript' — no fenced YAML blocks or forbidden StacktapeConfig type imports",
+            "NuxtWeb class name is valid and used consistently; ApiReference uses the correct definitionName='NuxtWebProps'",
+            "Sections correctly omitted for features absent from NuxtWebProps (warmServerInstances, useEdgeLambda, streamingEnabled) — no padding with inapplicable sections",
+            "Connecting resources section is grounded and concrete: uses the resource name 'mainDatabase' to derive correct env var names (STP_MAIN_DATABASE_CONNECTION_STRING etc.)",
+            "Server Lambda section correctly grounds the defaults (1024 MB memory, 30 s timeout, 1769 MB = 1 vCPU) and explains the VPC tradeoff precisely",
+            "FAQ has exactly 10 questions with good category spread: Stacktape-specific, AWS use-case, and comparison questions all represented",
+            "When NOT to use links to concrete alternative resource types with full paths — opinionated and immediately actionable",
+            "Decision guidance present for opt-in features (useFirewall, joinDefaultVpc): when-to-enable, when-default-is-fine, and cost/tradeoff signal are all addressed"
+          ],
+          "problems": [
+            "Missing <ReferenceableParams resource=\"nuxt-web\" /> at the end of the page. The example page ends with this component after <ApiReference>. Omitting it is MDX component palette drift — mandatory fix required.",
+            "The Static files and CDN section references specific SsrWebCdnConfig sub-properties (cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions, cdn.pathCachingOverrides) that do not appear in any provided source file. The SsrWebCdnConfig type is listed in NuxtWebProps but its contents are not supplied. These property names cannot be verified — potential source-grounding issue.",
+            "The Build and dev section mentions dev.workingDirectory as a settable property, but the SsrWebDevConfig type is not in the provided sources. The example page does not mention workingDirectory at all. This is unverified content.",
+            "The Server Lambda section states 'The default serverLambda.timeout is 30 seconds, and the maximum is 30 seconds.' Having the same value for default and maximum without clarification is confusing — the reader cannot distinguish between the two, and the repetition undermines confidence in the grounding."
+          ],
+          "mandatoryFixes": [
+            "Add '<ReferenceableParams resource=\"nuxt-web\" />' after the API Reference section to match the example page's MDX component palette. The example ends with this component and omitting it is a palette drift violation that penalizes scannability."
+          ],
+          "optionalImprovements": [
+            "Rephrase the timeout claim in the Server Lambda section. 'default is 30 seconds, and the maximum is 30 seconds' is redundant and confusing. If both values are truly 30 s, write 'The maximum timeout for the Nuxt server Lambda is 30 seconds' and drop the separate default mention, or verify and state the actual default if it differs.",
+            "Remove or explicitly verify the CDN sub-property names (cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions, cdn.pathCachingOverrides) against the actual SsrWebCdnConfig type before publication. If they cannot be confirmed from the source, replace the paragraph with the same conservative framing the example page uses: 'Use cdn when SSR route caching needs deliberate tuning by path' without naming specific sub-properties.",
+            "Remove the dev.workingDirectory mention from the Build and dev section unless SsrWebDevConfig is confirmed to expose that property. The example page does not mention it, and the type is not in the provided sources.",
+            "The Static files and CDN section has three paragraphs of prose but no code example, while most other sections have one. Consider adding a minimal cdn example (e.g., disableInvalidationAfterDeploy: true) once the property names are source-verified — or collapse the prose to match the example page's shorter treatment of this section."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "the source warns that the function loses direct internet access when joining a VPC, while S3 and DynamoDB remain accessible through auto-created VPC endpoints",
+              "reason": "The source JSDoc for `joinDefaultVpc` says only: \"Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access.\" It does NOT mention S3, DynamoDB, or auto-created VPC endpoints. The claim about VPC endpoints is unsupported by the provided source and attributes specifics to 'the source' that aren't there. While VPC endpoints may exist in the Stacktape implementation, the type definition does not confirm this.",
+              "suggestedFix": "Remove the specific claim about S3 and DynamoDB VPC endpoints, or soften to general guidance: \"The source warns that the function loses direct internet access when joining a VPC. Access to AWS services from within the VPC depends on how the stack's VPC is configured.\"",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/ssr-web-shared.d.ts",
+                  "quote": "#### Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The 'Static files and CDN' section introduces CDN cache controls and fileOptions without adequate decision support",
+              "reason": "The section names `cdn.defaultCachingOptions` and `cdn.pathCachingOverrides` as configuration levers but does not explain what those properties actually control (TTLs, cache policy details) or what the alternatives/defaults are. The property names are correct per source, but the reader cannot decide whether to use them based on the prose provided. The section says 'Leave both fileOptions and cdn unset first' which is good, but the rest is too thin — no example for cdn configuration, no explanation of what defaultCachingOptions contains.",
+              "suggestedFix": "Add a brief explanation of what `defaultCachingOptions` controls (e.g., TTL values for SSR responses) and mention that `pathCachingOverrides` targets specific URL patterns. A code example showing one CDN override would ground the section.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/ssr-web-shared.d.ts",
+                  "quote": "#### Override default SSR caching behavior for all routes handled by the server.\n   *\n   * ---\n   *\n   * Useful when you want to cache SSR responses longer than the framework defaults."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The 'Environment variables' section has no code example and is too brief to help the reader act",
+              "reason": "The section consists of two short paragraphs with no code example showing how to set environment variables on a Nuxt resource. It mentions `$ResourceParam()` and `$Secret()` but doesn't show usage. Per documentation-quality rules, sections that stop after the opening paragraph without a working example fail completeness.",
+              "suggestedFix": "Add a short CodeBlock example showing `environment` with at least one static value and one `$Secret()` directive. Two sentences of surrounding context explaining when to use explicit environment variables vs connectTo would complete the section.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/nuxt-web.d.ts",
+                  "quote": "#### Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The Logging section says 'the lower-level Lambda logging options are documented in the API reference'",
+              "reason": "The source type `SsrWebServerLambdaConfig` has `logging?: LambdaFunctionLogging` but the `LambdaFunctionLogging` type is not provided. The draft's wording 'lower-level Lambda logging options' is vague — the reader doesn't know what those options are (log format, retention, log level). Also, the source JSDoc for `logging` says 'View with `stacktape logs`' which is NOT the canonical CLI command — it should be `stacktape debug:logs`. This is a source JSDoc issue, not a draft issue, since the draft correctly uses `stacktape debug:logs`.",
+              "suggestedFix": "Replace 'the lower-level Lambda logging options are documented in the API reference' with a brief mention of what can be configured (e.g., log retention period, log format) to give the reader a reason to check the API reference.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/ssr-web-shared.d.ts",
+                  "quote": "#### Logging config. Logs are sent to CloudWatch. View with `stacktape logs` or in the AWS console."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The 'Connecting resources' section mentions iamRoleStatements but doesn't show an example or explain when connectTo is insufficient",
+              "reason": "The prose says 'use `iamRoleStatements` only for AWS permissions that are not covered by the resource connection model' but gives no example of what those permissions look like. A reader unfamiliar with IAM statements has no guidance on when to use this escape hatch. This is a minor depth gap — the link to connecting-resources partially covers it.",
+              "suggestedFix": "Add one sentence naming a concrete scenario (e.g., 'Use `iamRoleStatements` when the SSR function needs to call AWS services like Bedrock or Rekognition that are not modeled as Stacktape resources').",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/__helpers.d.ts",
+                  "quote": "#### Raw IAM policy statements for permissions not covered by `connectTo`.\n   *\n   * ---\n   *\n   * Added as a separate policy alongside auto-generated permissions. Use this for\n   * accessing AWS services directly (e.g., Rekognition, Textract, Bedrock)."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All top-level NuxtWebProps property names (appDirectory, buildCommand, environment, customDomains, serverLambda, useFirewall, dev, fileOptions, cdn, connectTo, iamRoleStatements) are correctly sourced from the type definition.",
+            "ApiReference uses `definitionName=\"NuxtWebProps\"` which correctly matches the Props type name from the source — not the bare class name.",
+            "serverLambda.memory default (1024), timeout default (30), and max timeout (30) are all confirmed by the SsrWebServerLambdaConfig type JSDoc annotations.",
+            "CDN property names (disableInvalidationAfterDeploy, defaultCachingOptions, pathCachingOverrides) and the invalidation default behavior are confirmed by SsrWebCdnConfig source.",
+            "dev.command and dev.workingDirectory properties are confirmed by SsrWebDevConfig source.",
+            "The `_nestedResources` structure (bucket + serverFunction) accurately matches the StpNuxtWeb type definition.",
+            "All 20+ cross-links point to valid routes from the navigation index — no invented routes.",
+            "FAQ has exactly 10 Q&A pairs spanning Stacktape-specific, AWS use-case, and comparison categories.",
+            "No forbidden patterns: no hand-authored YAML config, no StacktapeConfig typed style, no fenced TypeScript containing defineConfig, no marketing language.",
+            "connectTo environment variable names correctly follow the STP_[RESOURCE_NAME]_[PARAM] pattern with concrete example (STP_MAIN_DATABASE_CONNECTION_STRING for resource named mainDatabase).",
+            "Static hosting alternative correctly references `hostingContentType: 'nuxt-static-website'` as documented in the NuxtWeb JSDoc.",
+            "When NOT to use is correctly at H2 level (peer with When to use), not nested as H3."
+          ],
+          "summary": "The draft is factually solid on all Stacktape-specific configuration claims. After locating the SsrWebServerLambdaConfig, SsrWebCdnConfig, and SsrWebDevConfig types in ssr-web-shared.d.ts, the key numeric claims (memory default 1024, timeout default/max 30, CDN invalidation default) are all confirmed. Property names, cross-links, and code examples are accurate. The five issues raised are medium-to-low severity: one unsupported VPC endpoint detail attributed to 'the source', two sections that lack sufficient depth (CDN caching and environment variables), and two minor prose gaps (logging options description, iamRoleStatements scenario). No high-severity factual errors found."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided NuxtWeb source: it uses the correct resource type, class-based TypeScript CodeBlock examples, the correct ApiReference name, valid cross-links, and the required peer H2 structure. The main problems are a few Stacktape-specific behavioral details that are either not present in the provided source or go beyond what the NuxtWeb type documents.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The default `serverLambda.memory` is `1024` MB, and the allowed memory range is `128`–`10240` MB. Lambda CPU scales with memory, with `1769` MB corresponding to 1 vCPU. The default `serverLambda.timeout` is `30` seconds, and the maximum is `30` seconds.”",
+              "reason": "The provided NuxtWeb source only says `serverLambda` customizes memory, timeout, VPC, and logging. It does not provide these Stacktape-specific defaults, allowed ranges, or timeout maximums for `SsrWebServerLambdaConfig`. The Lambda CPU note is general AWS context, but it is embedded in a paragraph presenting unsourced Stacktape defaults and limits.",
+              "suggestedFix": "Remove the numeric defaults/ranges unless the `SsrWebServerLambdaConfig` source is available. Write narrowly: “`serverLambda` customizes the SSR Lambda function, including memory, timeout, VPC, and logging.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Customize the SSR Lambda function (memory, timeout, VPC, logging)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Nitro server routes deploy alongside SSR on the same Lambda function”; “No additional configuration is needed beyond the standard Nuxt resource setup.”",
+              "reason": "The source establishes that NuxtWeb deploys a Nuxt SSR app using the Nitro `aws-lambda` preset and has a nested server Lambda function, but it does not explicitly document Nuxt API/server routes or guarantee that no additional configuration is needed for them.",
+              "suggestedFix": "Narrow the claim to the sourced build model, or phrase API routes as a Nuxt/Nitro expectation rather than a Stacktape guarantee. For example: “Stacktape builds the Nuxt app with the Nitro `aws-lambda` preset and deploys the SSR output through the server Lambda.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Deploy a Nuxt SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "_nestedResources: {\n    bucket: StpBucket;\n    serverFunction: StpLambdaFunction;\n  };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape can create DNS records and provision free TLS certificates automatically”; “Stacktape can create the DNS record and manage the TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`.”",
+              "reason": "The DomainConfiguration source supports automatic DNS record creation and free TLS certificate provisioning. It does not say Stacktape “manages” the TLS certificate beyond provisioning and renewal, so the wording is broader than the source.",
+              "suggestedFix": "Use the exact supported behavior: “Stacktape automatically creates a DNS record and provisions and renews a free TLS certificate by default.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "By default, Stacktape provisions and renews free certificates automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, all cached CDN content is flushed on every deploy so users see the latest version. Set `cdn.disableInvalidationAfterDeploy` to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.”",
+              "reason": "The provided NuxtWeb source only says `cdn` controls CDN cache behavior for SSR routes and path patterns. The specific `disableInvalidationAfterDeploy` property and default invalidation behavior are not present in the provided source files.",
+              "suggestedFix": "Remove the `disableInvalidationAfterDeploy` detail unless the `SsrWebCdnConfig` source is available. Keep this section at the sourced level: “`cdn` configures cache behavior for SSR routes and specific path patterns.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "CDN cache controls for SSR routes and specific path patterns."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "cdn?: SsrWebCdnConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`dev.workingDirectory` can be set when the dev command should run from a directory other than the project root.”",
+              "reason": "The provided NuxtWeb source documents `dev` as `SsrWebDevConfig` and says it defaults to `nuxt dev`, but the provided source does not expose a `workingDirectory` property for that type.",
+              "suggestedFix": "Remove `dev.workingDirectory` or replace it with the sourced statement: “`dev` configures the dev server for `stacktape dev`, and the documented default command is `nuxt dev`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Dev server config for `stacktape dev`. Defaults to `nuxt dev`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "dev?: SsrWebDevConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `joinDefaultVpc: true` only when the SSR function must access VPC-protected resources; the source warns that the function loses direct internet access when joining a VPC, while S3 and DynamoDB remain accessible through auto-created VPC endpoints.”",
+              "reason": "The NuxtWeb source confirms that `serverLambda` can customize VPC behavior, but the provided files do not include the claimed warning about losing direct internet access or auto-created S3/DynamoDB VPC endpoints for the SSR Lambda.",
+              "suggestedFix": "Keep the recommendation but remove the unsourced implementation detail, or cite the actual `SsrWebServerLambdaConfig` source if available. A safe version is: “Set VPC options only when the SSR Lambda needs access to VPC-protected resources such as databases or Redis.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Customize the SSR Lambda function (memory, timeout, VPC, logging)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The connecting resources example uses `new RelationalDatabase({ engine: 'postgres-16', instanceClass: 'db.t4g.micro' })`, and the surrounding prose does not explain what those tunable values control or what alternatives are supported.",
+              "reason": "The draft sets concrete tunable values for database engine and instance class, but the provided sources for this page do not include the RelationalDatabase type or supported engine/instance-class alternatives. The documentation-quality rule requires property-value anchors for non-obvious values in examples.",
+              "suggestedFix": "Either remove the concrete database resource from the example and show `connectTo` against a pre-existing `mainDatabase`, or add a short, source-grounded explanation from the RelationalDatabase source if available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The Nuxt server Lambda supports Lambda logging configuration through `serverLambda.logging`, and logs are sent to CloudWatch.”",
+              "reason": "The source says `serverLambda` customizes logging, but the provided NuxtWeb-specific files do not show a `logging` nested property or CloudWatch log destination for `SsrWebServerLambdaConfig`. Lambda-to-CloudWatch logging is general AWS behavior, but the exact Stacktape property path is not visible in the provided source.",
+              "suggestedFix": "Narrow the Stacktape-specific property claim unless the `SsrWebServerLambdaConfig` definition is available: “`serverLambda` includes logging configuration for the SSR Lambda; use `stacktape debug:logs` or the Stacktape Console to inspect runtime logs.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `CodeBlock intellisense` with a visible `label: 'TypeScript'` tab for every Stacktape config example and does not hand-author YAML Stacktape config.",
+            "The page uses the correct `<ApiReference definitionName=\"NuxtWebProps\" />` value for the resource props type.",
+            "The `When to use` and `When NOT to use` sections are peer H2 sections, not nested incorrectly.",
+            "The first paragraph accurately reflects the core NuxtWeb source: Lambda SSR with Nitro `aws-lambda`, S3 static assets, and CloudFront CDN.",
+            "The `connectTo` environment-variable pattern and concrete `STP_MAIN_DATABASE_*` names follow the required resource-name-dependent convention.",
+            "All checked markdown cross-links point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is API-complete for the NuxtWebProps surface provided. It mentions every primary property on NuxtWebProps plus inherited connectTo and iamRoleStatements, uses the correct ApiReference name, and the existing CodeBlock examples generally demonstrate their surrounding sections. I found no medium or high API-completeness, union-coverage, or demonstrativeness issues under the requested audit scope.",
+          "issues": [],
+          "positiveFindings": [
+            "All primary NuxtWebProps properties are covered somewhere in the draft: appDirectory, buildCommand, environment, customDomains, serverLambda, useFirewall, dev, fileOptions, and cdn.",
+            "Inherited ResourceAccessProps coverage is present: connectTo has a dedicated section, and iamRoleStatements is mentioned as the lower-level permission escape hatch.",
+            "The Stacktape config examples use CodeBlock intellisense with a TypeScript tab and class-based defineConfig examples rather than hand-authored YAML or StacktapeConfig object style.",
+            "Feature-specific examples demonstrate the relevant properties in their sections: buildCommand/dev, serverLambda, customDomains/useFirewall, and connectTo/serverLambda.joinDefaultVpc.",
+            "The page uses exactly one ApiReference component and the definitionName matches the page typeName: NuxtWebProps."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__frontend__nuxt\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with exactly the 'TypeScript' label — no YAML blocks, no fenced TypeScript, no forbidden patterns.",
+            "Noun-form H2 headings exactly match the example page's heading style and relative order for all shared sections, producing a consistent section feel across the sibling Next.js and Nuxt pages.",
+            "Frontmatter keys (title, order, seoTitle, seoDescription) match the example page shape precisely.",
+            "<ApiReference definitionName=\"NuxtWebProps\" /> is placed at the bottom following FAQ, consistent with the example page's placement.",
+            "The 'Connecting resources' section is well-executed: realistic Postgres database example, concrete env-var names keyed on the resource name (STP_MAIN_DATABASE_CONNECTION_STRING), and an explicit note that joinDefaultVpc is required when reaching database over VPC — a critical gotcha for first-time users.",
+            "The 'When NOT to use' section is concrete and actionable, listing four distinct alternatives with cross-links, including the Nuxt-specific static-hosting variant (hostingContentType: 'nuxt-static-website').",
+            "Environment variables section adds a working code example that the Next.js example page omits — a genuine improvement for readers who need to inject secrets.",
+            "FAQ has exactly 10 entries spanning Stacktape-specific questions, AWS-service cost questions, and choosing/comparison questions, in line with guidelines.",
+            "The Nitro aws-lambda preset is surfaced consistently throughout the page — in the intro paragraph, When to use, Server Lambda, and FAQ — helping Nuxt-literate readers understand how their existing knowledge maps to Stacktape's model.",
+            "Correctly omits 'Cold starts' (warmServerInstances) and 'Edge and streaming' (useEdgeLambda/streamingEnabled) sections because those properties are not present in the NuxtWebProps source type — appropriate deviation from the example rather than fabrication."
+          ],
+          "problems": [
+            "The 'Build and dev' section mentions 'dev.workingDirectory sets the working directory for the dev command relative to the project root.' The SsrWebDevConfig type is referenced in the source but not expanded in any provided file, and this property does not appear in the example Next.js page's equivalent section. If it doesn't exist on SsrWebDevConfig, this is an invented property claim.",
+            "The 'Static files and CDN' section names three specific CDN sub-properties — cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions (with minTTL/maxTTL/defaultTTL), and cdn.pathCachingOverrides — that cannot be verified from the provided NuxtWebProps source or the ai-docs file. The source shows only cdn?: SsrWebCdnConfig without expanding that type. These may be correct via the shared type, but they're stated as facts without grounding.",
+            "serverLambda.memory default of 1024 MB and the claim that 'the maximum documented timeout for... server Lambda is 30 seconds' are inherited from the Next.js example page. The provided Nuxt source only shows serverLambda?: SsrWebServerLambdaConfig without expanding SsrWebServerLambdaConfig — so these numeric claims are not verifiable from the provided Nuxt source files.",
+            "FAQ category balance leans Stacktape-specific: 7 of 10 questions are Stacktape configuration questions, and only question 7 (cost) is a pure AWS-service-use-case question. The guidelines require meaningful coverage of category 2 (use-case questions about the underlying AWS service), such as Lambda cold-start behavior, Lambda regional availability, or CDN pricing model — none of which appear."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify and either retain or remove the 'dev.workingDirectory' sentence in the 'Build and dev' section by inspecting the SsrWebDevConfig type definition. If the property doesn't exist, remove the sentence. If it does exist, it is a valid addition worth keeping.",
+            "For the 'Static files and CDN' section, either verify cdn.disableInvalidationAfterDeploy / cdn.defaultCachingOptions / cdn.pathCachingOverrides against the SsrWebCdnConfig type definition, or soften the claims to avoid naming specific unverified sub-properties (e.g., 'CDN cache controls for SSR routes and specific path patterns are available through the cdn property — see the API reference for the full set of options').",
+            "Replace at least one Stacktape-specific FAQ question with a stronger AWS-service question, for example: 'How fast does Nuxt SSR cold-start on Lambda?' (covering Lambda init time for Node.js runtimes and how to mitigate it), or 'What AWS regions support Nuxt deployment through Stacktape?' This directly addresses category 2 of the FAQ coverage requirement and brings high-intent search traffic.",
+            "For the serverLambda memory and timeout defaults, either verify SsrWebServerLambdaConfig against the source type, or add a qualifier like 'Check the API reference for the definitive defaults and limits' instead of stating specific numbers that come from the Next.js page rather than the Nuxt source."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Heading form (noun-form H2s) and H2 ordering are perfectly consistent with the example Next.js page; sections shared between both pages appear in the same relative order.",
+            "Appropriate omission of 'Cold starts' and 'Edge and streaming' sections — Nuxt does not expose `warmServerInstances`, `useEdgeLambda`, or `streamingEnabled`, and the page correctly skips those sections rather than writing placeholder content.",
+            "`<ApiReference definitionName=\"NuxtWebProps\" />` placement at the bottom matches the example page's placement, and only one `<ApiReference>` is present.",
+            "All Stacktape config examples use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'`; no forbidden fenced YAML or plain-object `StacktapeConfig` patterns appear.",
+            "FAQ has exactly 10 Q&A pairs spanning all three required categories (Stacktape-specific, underlying AWS service, and choosing/comparison).",
+            "`connectTo` environment variable naming is source-grounded to the example resource name: `STP_MAIN_DATABASE_CONNECTION_STRING` for a resource named `mainDatabase`.",
+            "Decision support for opt-in features is present: VPC (`joinDefaultVpc`) warns about internet access loss, `useFirewall` explains when to enable and skip it, and CDN overrides explain when defaults are sufficient.",
+            "The 'When NOT to use' section is a peer H2, not nested under 'When to use', matching example page heading hierarchy discipline.",
+            "Frontmatter keys (title, order, seoTitle, seoDescription) exactly match the example page's shape."
+          ],
+          "problems": [
+            "The 'Static files and CDN' section mentions three specific sub-properties of `cdn` (`disableInvalidationAfterDeploy`, `defaultCachingOptions` with `minTTL`/`maxTTL`/`defaultTTL`, and `pathCachingOverrides`) that are sub-fields of `SsrWebCdnConfig`. That type is not in the provided source files, so these specific property names are unverifiable and could be wrong or misnamed.",
+            "The 'Build and dev' section mentions `dev.workingDirectory` as a settable property, but `SsrWebDevConfig` is not in the provided source files. This sub-property name cannot be verified.",
+            "The 'Server Lambda' section states specific defaults and limits (`1024` MB default memory, `128`–`10240` MB range, `1769` MB = 1 vCPU, `30` s default and maximum timeout). `SsrWebServerLambdaConfig` is not in the provided source files — these numbers are copied from the Next.js page which shares the type, but they are technically unsourced here and could differ for the Nuxt variant.",
+            "The 'Server Lambda' section claims the maximum documented timeout is `30` seconds for the SSR Lambda. This exact cap is not in the provided source files and is asserted without proof."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify the three specific `cdn` sub-properties (`disableInvalidationAfterDeploy`, `defaultCachingOptions`, `pathCachingOverrides`) from the 'Static files and CDN' section. Since `SsrWebCdnConfig` is not in the provided source files, these property names cannot be verified. Replace with a source-grounded statement such as 'The CDN cache behavior is configurable via the `cdn` property — see the API reference for available sub-options' rather than naming specific sub-properties that may be incorrect.",
+            "Remove the mention of `dev.workingDirectory` from the 'Build and dev' section. `SsrWebDevConfig` is not in the provided source files, so this sub-property name is unverifiable. If it needs to be mentioned, narrow the wording to 'see the API reference for available dev sub-options' rather than asserting a specific property name.",
+            "Qualify the `serverLambda` memory and timeout defaults ('1024 MB', '128–10240 MB', '1769 MB = 1 vCPU', '30 s maximum') — these are not present in the provided source files. Either source them explicitly from `SsrWebServerLambdaConfig` (not provided) or soften the wording to 'Lambda memory and timeout are configurable via `serverLambda`; defaults follow standard Lambda limits — see the API reference for exact values.' Presenting unsourced numbers as authoritative defaults will mislead users who hit a different actual limit."
+          ],
+          "optionalImprovements": [
+            "Consider adding a one-line pricing context near the top, matching the example page's pattern for resources where pricing data is available. If pricing source files are not provided, this is fine to omit, but it would strengthen parity with the example.",
+            "The 'When NOT to use' bullet for 'Next.js or other frameworks' is useful for navigation but slightly padded — consider trimming to two or three framework alternatives rather than listing all six sibling resources, which makes the bullet feel like a directory rather than a decision guide.",
+            "The 'Connecting resources' section's second paragraph explaining `STP_MAIN_DATABASE_*` variables is well-placed, but noting that `joinDefaultVpc` is required for database access (as the page does) could be bolded or called out more prominently — it is a common deployment mistake that deserves visual emphasis."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Strong structural consistency with the Next.js example page — identical noun-form H2 ordering, same MDX component palette, same CodeBlock style with focus markers and hidden imports.",
+            "All opt-in sections (VPC, firewall, CDN, custom domains) include decision guidance: when to enable, when the default suffices, and an opinionated recommendation.",
+            "FAQ covers all three required categories: Stacktape-specific questions, AWS use-case questions, and choosing/comparison questions — all 10 slots filled.",
+            "Correctly omits sections present in the example (Cold starts with warmServerInstances, Edge and streaming) because those properties do not exist on NuxtWebProps.",
+            "Connecting resources section is fully developed: code example, named env var pattern STP_MAIN_DATABASE_*, joinDefaultVpc explanation, and a cross-link to the connecting resources doc.",
+            "Opening paragraph is self-contained (definition + reason to care) and within the 40-75 word target.",
+            "Property-value anchors in code examples (engine: 'postgres-16', instanceClass: 'db.t4g.micro') are explained with a cross-link to the relational database page.",
+            "No forbidden patterns: no YAML Stacktape config, no StacktapeConfig import, no fenced TypeScript with defineConfig, exactly one ApiReference at the bottom, correct label: 'TypeScript' on all tabs."
+          ],
+          "problems": [
+            "The 'Static files and CDN' section names specific CDN sub-properties — cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions (with minTTL/maxTTL/defaultTTL), and cdn.pathCachingOverrides — but these identifiers are not present in the provided source files. The source only declares cdn?: SsrWebCdnConfig without exposing SsrWebCdnConfig's shape. These names may be accurate (they appear consistent with the Next.js page) but constitute unsourced Stacktape-specific claims.",
+            "The same section has no code example. Every other opt-in configuration section on this page provides a working CodeBlock (serverLambda, domains, connectTo, environment). The CDN/fileOptions section is the only one that relies entirely on prose, making it the weakest section for practical usefulness.",
+            "Server Lambda defaults and limits (memory: 1024 MB, range 128-10240 MB, 1769 MB = 1 vCPU, timeout max 30 s) are stated as facts but originate from SsrWebServerLambdaConfig, which is not in the provided source files. These may be correct but cannot be verified from the supplied sources.",
+            "The 'Build and dev' section mentions dev.workingDirectory as a property without a code example showing it — the prose reference is useful but readers cannot verify whether this exists on SsrWebDevConfig from the provided sources."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a code example to the 'Static files and CDN' section showing at least one of fileOptions or cdn configuration — this makes the section consistent with the page's own pattern and more useful for copy-paste.",
+            "Verify cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions (with sub-fields), and cdn.pathCachingOverrides against the SsrWebCdnConfig type definition. If they exist, add a source-grounding note or cross-link; if not, replace with the actual property names from that type.",
+            "Verify dev.workingDirectory exists on SsrWebDevConfig before mentioning it in prose; if it does, add a brief inline note; if not, remove it to avoid reader confusion.",
+            "The 'When NOT to use' section links to /resources/frontend/static-hosting with hostingContentType: 'nuxt-static-website' — this is a Stacktape-specific claim. Verify that this hostingContentType value is a documented string in the HostingBucket type before publishing."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The 'Static files and CDN' section describes `fileOptions`, `cdn.disableInvalidationAfterDeploy`, `cdn.defaultCachingOptions`, and `cdn.pathCachingOverrides` without providing a code example.",
+              "reason": "Per documentation-quality discipline, every opt-in configuration section should include at least an opening paragraph + a working code example + 2-4 sentences of tradeoff/depth. The 'Static files and CDN' section describes multiple tunable properties (fileOptions, cdn.disableInvalidationAfterDeploy, cdn.defaultCachingOptions, cdn.pathCachingOverrides) but has no CodeBlock example showing how any of them are configured. A reader would need to guess the syntax from prose alone.",
+              "suggestedFix": "Add a <CodeBlock intellisense> example showing at least one realistic CDN or fileOptions configuration — e.g., setting cdn.defaultCachingOptions with a TTL, or fileOptions with a Cache-Control header for static assets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "disableInvalidationAfterDeploy?: boolean;\n  defaultCachingOptions?: CdnCachingOptions;\n  pathCachingOverrides?: SsrWebPathCachingOverride[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The 'Logging' section says 'the lower-level Lambda logging options are documented in the API reference' without giving any concrete guidance on what logging options exist or when to change them.",
+              "reason": "The SsrWebServerLambdaConfig type shows `logging?: LambdaFunctionLogging`, but the Logging section is only two short paragraphs with no code example and no information about what the logging property actually controls (retention, log level, format). The section says 'tune logging only when retention, cost, or compliance requirements justify changing the default behavior' but never names the tunable options. This is a section-too-brief issue.",
+              "suggestedFix": "Either add brief mention of the key logging options (e.g. retention period), or if the section truly has nothing meaningful to add beyond the API reference, omit it entirely rather than leaving a stub.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "logging?: LambdaFunctionLogging;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The 'Build and dev' section says 'the default command is `nuxt dev`' for the dev server, but the source type shows `command` as an optional override without documenting a specific default value.",
+              "reason": "The SsrWebDevConfig interface in ssr-web-shared.d.ts has `command?: string` with JSDoc 'Override the default dev server command' but does not include a @default tag specifying 'nuxt dev'. The nuxt-web.d.ts JSDoc says 'Defaults to `nuxt dev`' which supports the claim, but it's a JSDoc description rather than a formal @default annotation. This is a minor ambiguity — the claim is likely correct but the evidence is indirect.",
+              "suggestedFix": "The current wording is acceptable since the nuxt-web.d.ts JSDoc does say 'Defaults to `nuxt dev`'. No change required, but if being extra cautious, soften to 'Stacktape runs `nuxt dev` by default when no custom dev command is set.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Override the default dev server command (e.g., `npm run dev`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The 'Server Lambda' section mentions `joinDefaultVpc` in prose as a VPC-related option but does not show a code example demonstrating it, while the 'Connecting resources' section shows it only in the context of database access.",
+              "reason": "The `joinDefaultVpc` property is a meaningful opt-in with tradeoffs (loses direct internet access). The Server Lambda section's prose mentions it but gives no standalone example showing its usage and tradeoffs independently from the connectTo pattern. The Connecting resources section does show it, but decision support for VPC access as a Lambda feature belongs in the Server Lambda section where the reader is configuring the function.",
+              "suggestedFix": "Add a brief code example in the Server Lambda section showing `joinDefaultVpc: true` being set, or at minimum add a forward-link to the Connecting resources section where the example appears.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access.\n   */\n  joinDefaultVpc?: boolean;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape-specific defaults (serverLambda.memory: 1024, serverLambda.timeout: 30, appDirectory: '.') are correctly sourced from the type definitions in ssr-web-shared.d.ts and nuxt-web.d.ts.",
+            "The `<ApiReference definitionName=\"NuxtWebProps\" />` correctly uses the Props-suffixed type name matching the source.",
+            "The `<ReferenceableParams resource=\"nuxt-web\" />` correctly matches the resource type from the source.",
+            "The VPC warning ('function loses direct internet access') is correctly grounded in the ssr-web-shared.d.ts JSDoc.",
+            "The static hosting alternative (`hostingContentType: 'nuxt-static-website'`) is confirmed in both nuxt-web.d.ts and hosting-buckets.d.ts.",
+            "All cross-links in the draft (/resources/frontend/static-hosting, /cli/debug-logs, /configuration/connecting-resources, etc.) match valid routes in the documentation navigation index.",
+            "The draft correctly uses `stacktape debug:logs` (not the non-existent `stacktape logs`) for CLI log viewing, following the canonical command name.",
+            "connectTo environment variable names correctly use the resource-name-dependent pattern: STP_MAIN_DATABASE_CONNECTION_STRING matches the example resource name `mainDatabase`.",
+            "The FAQ has exactly 10 Q&A pairs spanning all three required categories: Stacktape-specific, AWS service, and comparison questions.",
+            "The nested resource structure claim ('nested bucket for static assets and a server Lambda function') matches the source: `_nestedResources: { bucket: StpBucket; serverFunction: StpLambdaFunction; }`.",
+            "CDN configuration property names (disableInvalidationAfterDeploy, defaultCachingOptions, pathCachingOverrides) match the SsrWebCdnConfig interface exactly."
+          ],
+          "summary": "The draft is factually solid on all Stacktape-specific claims — defaults, property names, type shapes, and constraints are well-grounded in the source types. All cross-links are valid. The main gaps are documentation-quality issues: the 'Static files and CDN' section lacks a code example despite describing multiple tunable properties, the 'Logging' section is a thin stub, and `joinDefaultVpc` decision-support is split awkwardly across two sections. No high-severity factual errors found."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided NuxtWeb type, especially the high-level resource shape, custom domain prerequisite, firewall scope, appDirectory default, and connectTo variable pattern. The main risks are unsupported detailed claims about nested SSR Lambda/CDN properties and a few claims that go beyond the available source for Nuxt-specific behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The default serverLambda.memory is 1024 MB, and the allowed range is 128–10240 MB. Lambda CPU scales proportionally with memory — 1769 MB corresponds to 1 vCPU. The default serverLambda.timeout is 30 seconds, and the maximum is 30 seconds.”",
+              "reason": "The provided Nuxt source only states that serverLambda customizes memory, timeout, VPC, and logging. It does not provide these defaults, ranges, max values, or the 1769 MB CPU mapping. These numbers affect configuration choices, so they need a source-backed replacement or removal.",
+              "suggestedFix": "Keep the statement narrow: say `serverLambda` can customize memory and timeout, and omit defaults/ranges unless the SsrWebServerLambdaConfig source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Customize the SSR Lambda function (memory, timeout, VPC, logging)."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Set joinDefaultVpc: true only when the SSR function must access VPC-protected resources … the source warns that the function loses direct internet access when joining a VPC.”",
+              "reason": "The provided Nuxt source confirms that serverLambda includes VPC customization, but it does not show a `joinDefaultVpc` property or the warning about losing direct internet access. The claim may be true in another type file, but it is not grounded in the supplied sources.",
+              "suggestedFix": "Either provide the SsrWebServerLambdaConfig source and verify the exact property and warning, or narrow the page to say that `serverLambda` contains VPC-related configuration without naming `joinDefaultVpc` or the internet-access caveat.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Connecting resources example sets `serverLambda: { joinDefaultVpc: true }` and says “joinDefaultVpc is required here because the SSR function must reach the database over the VPC network.”",
+              "reason": "The provided sources do not define `joinDefaultVpc` for `SsrWebServerLambdaConfig`. The broader ResourceAccessProps source says connectTo opens network access for databases and Redis, but it does not state that a Nuxt SSR function must also set `joinDefaultVpc` manually.",
+              "suggestedFix": "Remove the `joinDefaultVpc` requirement unless the relevant serverLambda type or runtime validator is provided. If keeping the database example, ground it in `connectTo` opening network access and injecting variables.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically:\n   * - **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n   * - **Opens network access** (security group rules for databases, Redis)\n   * - **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, all cached CDN content is flushed on every deploy … Set cdn.disableInvalidationAfterDeploy to true … Use cdn.defaultCachingOptions … Use cdn.pathCachingOverrides …”",
+              "reason": "The provided Nuxt source only says `cdn` configures cache controls for SSR routes and specific path patterns. It does not define the nested CDN properties or the default invalidation behavior. These property names and defaults need direct source support.",
+              "suggestedFix": "Replace the nested-property discussion with the sourced wording: `cdn` controls SSR route caching and path-specific cache behavior. Add the detailed property names only if the SsrWebCdnConfig source is supplied.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "CDN cache controls for SSR routes and specific path patterns."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“dev.workingDirectory sets the working directory for the dev command relative to the project root.”",
+              "reason": "The supplied source states only that `dev` configures the dev server for `stacktape dev` and defaults to `nuxt dev`. It does not expose `dev.workingDirectory` or define its path semantics.",
+              "suggestedFix": "Remove the `dev.workingDirectory` sentence unless the SsrWebDevConfig type is provided and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Dev server config for `stacktape dev`. Defaults to `nuxt dev`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CloudFront routes requests to the appropriate origin based on the path.”",
+              "reason": "The provided sources establish that NuxtWeb uses Lambda, S3, and CloudFront CDN, with nested bucket and serverFunction resources. They do not describe CloudFront path-based origin routing behavior for NuxtWeb.",
+              "suggestedFix": "Narrow the wording to the sourced shape: Stacktape deploys a server Lambda for SSR, a bucket for static assets, and a CloudFront CDN for the app.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "_nestedResources: {\n    bucket: StpBucket;\n    serverFunction: StpLambdaFunction;\n  };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The server Lambda handles both SSR pages and Nitro server routes … No separate configuration is needed for Nitro server routes beyond setting up the Nuxt resource.”",
+              "reason": "The source says NuxtWeb deploys a Nuxt SSR app with the Nitro aws-lambda preset, but it does not explicitly state that Nitro server routes are included or require no additional configuration. This is likely framework knowledge, but it is a Stacktape-specific deployment behavior claim.",
+              "suggestedFix": "Rephrase cautiously: because the resource builds Nuxt using the Nitro `aws-lambda` preset, Nuxt server behavior supported by that build output is deployed through the SSR Lambda. Avoid promising no separate configuration unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Deploy a Nuxt SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The page uses `<ReferenceableParams resource=\"nuxt-web\" />`.",
+              "reason": "The provided `StacktapeResourceReferenceableParam` union lists many resource referenceable parameter types but does not include a Nuxt/SsrWeb/frontend web referenceable parameter type. The component may still be valid from another source, but the supplied files do not prove NuxtWeb exposes referenceable parameters.",
+              "suggestedFix": "Verify against the generated referenceable-parameters source. If NuxtWeb exposes none, remove the section.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The first paragraph accurately matches the NuxtWeb source: Lambda SSR with Nitro `aws-lambda`, S3 static assets, and CloudFront CDN.",
+            "The page uses the required `defineConfig` class-based TypeScript examples inside `<CodeBlock intellisense>` and does not hand-author Stacktape YAML.",
+            "`<ApiReference definitionName=\"NuxtWebProps\" />` matches the page resource type definition in `nuxt-web.d.ts`.",
+            "The custom domain prerequisite and auto-managed DNS/TLS wording are grounded in `DomainConfiguration`.",
+            "The `connectTo` environment variable pattern and concrete `STP_MAIN_DATABASE_*` examples follow the source-defined `STP_[RESOURCE_NAME]_[PARAM]` convention."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The Nuxt page covers the primary NuxtWebProps surface well: appDirectory, buildCommand, dev, serverLambda, customDomains, useFirewall, fileOptions, cdn, environment, connectTo, and iamRoleStatements are all mentioned. I found one API-completeness issue: the Static files and CDN section discusses important CDN and file header configuration but provides no demonstrative config example for either property.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The “Static files and CDN” section explains `fileOptions`, `cdn.disableInvalidationAfterDeploy`, `cdn.defaultCachingOptions`, and `cdn.pathCachingOverrides`, but has no `<CodeBlock intellisense>` example demonstrating `fileOptions` or `cdn`.",
+              "reason": "For code-example demonstrativeness, sections that introduce concrete Stacktape config properties should show the smallest realistic config exercising those properties. This section documents cache headers and CDN cache controls, but the reader never sees the shape of `fileOptions` or `cdn` in a working NuxtWeb example.",
+              "suggestedFix": "Add a NuxtWeb `<CodeBlock intellisense>` example in this section that sets `fileOptions` and/or `cdn`, with focus markers around the demonstrated properties. Keep surrounding prose clear that the exact nested options are covered by the API reference if the nested type source is not available in this page context.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "fileOptions?: DirectoryUploadFilter[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "cdn?: SsrWebCdnConfig;"
+                },
+                {
+                  "file": "Draft page",
+                  "quote": "## Static files and CDN\n\nA Stacktape Nuxt resource uploads static assets to S3 and serves the app through CloudFront. `fileOptions` lets teams set custom headers such as `Cache-Control` for uploaded files matching a pattern, and `cdn` configures cache behavior for SSR routes and specific path patterns."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page mentions every top-level NuxtWebProps property that a typical Nuxt SSR user is likely to touch: `appDirectory`, `buildCommand`, `environment`, `customDomains`, `serverLambda`, `useFirewall`, `dev`, `fileOptions`, and `cdn`.",
+            "The page also covers the inherited ResourceAccessProps that matter for this resource: `connectTo` and `iamRoleStatements`.",
+            "The documented custom domain and firewall example is demonstrative: it sets `customDomains`, creates a `WebAppFirewall`, and attaches it with `useFirewall`.",
+            "The API reference uses the exact primary type name from metadata: `<ApiReference definitionName=\"NuxtWebProps\" />`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<ReferenceableParams resource=\"nuxt-web\" /> references an unknown resource type.",
+              "reason": "nuxt-web is not present in docs/.resources.json.",
+              "suggestedFix": "Use a resource type from docs/.resources.json or remove the component."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__frontend__nuxt\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Correctly names the Nitro `aws-lambda` preset throughout and grounds every SSR claim in the source type, giving readers accurate mental model of how Nuxt deploys.",
+            "Noun-form H2 headings and section order match the example page exactly for all shared sections — readers scanning both pages will feel consistent navigation.",
+            "All Stacktape config examples use `<CodeBlock intellisense tabs={[...]}/>` with `label: 'TypeScript'` and properly hidden imports; no forbidden YAML blocks or plain-object style.",
+            "FAQ section contains exactly 10 Q&A pairs with good spread across Stacktape-specific, AWS use-case, and comparison categories. The Nitro server routes FAQ entry is genuinely useful and specific.",
+            "Correct `<ApiReference definitionName=\"NuxtWebProps\" />` with the exact type name from the source, placed at the bottom matching the example's positioning.",
+            "Clear 'When NOT to use' lists the static hosting alternative with the specific `hostingContentType: 'nuxt-static-website'` value, grounded in the source JSDoc."
+          ],
+          "problems": [
+            "MDX component palette drift: the example page ends with `<ReferenceableParams resource=\"nextjs-web\" />` as the final section after API Reference. The draft omits `<ReferenceableParams resource=\"nuxt-web\" />` entirely. This is a mandatory palette/section drift.",
+            "The 'Static files and CDN' section includes a code example with `fileOptions: []` and `cdn: {}` — empty array and empty object literals that convey no information. Readers who copy this will wonder what to put inside. The example page (Next.js) has no code block for the equivalent section and relies on prose only.",
+            "The 'Server Lambda' section defers all specifics to 'See the API reference' without stating any concrete defaults. The example page includes memory default (1024 MB), allowed range (128–10240 MB), the 1769 MB = 1 vCPU signal, and the 30-second timeout default/maximum. The underlying type (`SsrWebServerLambdaConfig`) is shared between Next.js and Nuxt, so the same numbers apply here.",
+            "The 'Connecting resources' code example shows a `RelationalDatabase` connection without including `serverLambda: { joinDefaultVpc: true }`. The example page (Next.js) includes this because connecting to a VPC-protected resource like RDS requires the SSR Lambda to join the VPC. Omitting it means readers who copy the example will get a working config that silently fails to reach the database at runtime."
+          ],
+          "mandatoryFixes": [
+            "Add `<ReferenceableParams resource=\"nuxt-web\" />` as the final section after `<ApiReference definitionName=\"NuxtWebProps\" />`, matching the example page's MDX component palette and section structure. Omitting it is MDX palette drift (penalizes scannability).",
+            "Remove the code example from 'Static files and CDN' that contains `fileOptions: []` and `cdn: {}`. These empty literals add confusion, not clarity. Replace with the prose-only treatment the example page uses for this section — explain what each property controls and when to set it, without a placeholder code block."
+          ],
+          "optionalImprovements": [
+            "In the 'Server Lambda' section, add the concrete defaults available from `SsrWebServerLambdaConfig`: default memory (1024 MB), allowed range (128–10240 MB), the 1769 MB ≈ 1 vCPU rule of thumb, and the default timeout (30 seconds). This matches the depth the example provides and gives readers something to act on.",
+            "In the 'Connecting resources' code example, add `serverLambda: { joinDefaultVpc: true }` alongside `connectTo: ['mainDatabase']` and explain in the following prose that VPC-protected resources like relational databases and Redis clusters require the SSR Lambda to join the stack's default VPC. Without this, copying the example produces a config that cannot reach the database.",
+            "The 'Build and dev' section prose says `dev.command` defaults to `nuxt dev` but only in the middle of a longer sentence. Consider echoing the pattern from the example: state the default explicitly at the top of the section before describing when to override it, so skimmers can verify what 'leave it unset' actually gives them."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Consistent noun-form H2s match the example page pattern precisely, with shared sections appearing in the correct order.",
+            "Decision guidance is solid throughout — 'When to use', 'When NOT to use', and per-section opinions ('Skip it for internal prototypes') follow the example's opinionated voice.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]}/>` with `label: 'TypeScript'`; no YAML blocks or forbidden patterns present.",
+            "Nitro `aws-lambda` preset is correctly identified and consistently referenced as the deployment mechanism — source-grounded throughout.",
+            "FAQ mixes all three required question categories: Stacktape-specific, AWS service mechanics, and comparison/choosing questions.",
+            "The `appDirectory` default of `\".\"` and monorepo guidance match the source type's JSDoc exactly.",
+            "Frontmatter keys (title, order, seoTitle, seoDescription) match the example page exactly.",
+            "Single `<ApiReference definitionName=\"NuxtWebProps\" />` placed correctly at the bottom, matching example placement."
+          ],
+          "problems": [
+            "PALETTE DRIFT (mandatory): Missing `<ReferenceableParams resource=\"nuxt-web\" />` section after the API Reference. The example page includes this component and a 'Referenceable parameters' heading. The Nuxt resource exposes at minimum a CDN URL referenceable param; omitting this component breaks consistency and deprives readers of a standard section.",
+            "MISLEADING CODE EXAMPLE: The 'Static files and CDN' section's code example shows `fileOptions: []` and `cdn: {}` — empty arrays and empty objects. These values are not realistic, not copyable meaningfully, and imply the reader should write empty config. The Next.js example page does not include a code block for this section at all, using only prose.",
+            "CONNECTING RESOURCES practical gap: The code example for connecting resources does not show `serverLambda: { joinDefaultVpc: true }`, even though the prose explicitly warns that VPC-protected resources require VPC access. The Next.js example page shows this explicitly in the code block. A reader copying the example to connect to RDS will get a runtime connection failure without this property."
+          ],
+          "mandatoryFixes": [
+            "Add `<ReferenceableParams resource=\"nuxt-web\" />` after `<ApiReference definitionName=\"NuxtWebProps\" />` and add the 'Referenceable parameters' H2 heading to match the example page's MDX component palette. This is a concrete palette drift that penalizes scannability.",
+            "Fix or remove the 'Static files and CDN' code example. The current example showing `fileOptions: []` and `cdn: {}` (empty arrays/objects) is a misleading placeholder. Either replace it with a realistic example (e.g., `fileOptions: [{ include: ['**/*.js', '**/*.css'], headers: { 'Cache-Control': 'max-age=31536000, immutable' } }]`) or remove the code block entirely and keep only prose, matching what the Next.js example page does for this section."
+          ],
+          "optionalImprovements": [
+            "Add `serverLambda: { joinDefaultVpc: true }` to the 'Connecting resources' code example when connecting to `mainDatabase`, matching the Next.js example page and preventing a common misconfiguration where the SSR function cannot reach a VPC-protected RDS instance.",
+            "The 'When NOT to use' section lists all 7 sibling SSR framework resources by name. This is thorough but verbose; consider trimming to the two or three most likely substitutes (Next.js, web-service, static hosting) to keep the section scannable.",
+            "Consider adding a one-line note in the 'Server Lambda' section that memory and timeout defaults are shared with other SSR frontend resources and documented in the API reference — this prevents readers from assuming NuxtWeb has different defaults than Next.js when comparing the two pages side by side."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Noun-form H2 headings match the example page style exactly — consistent with sibling pages.",
+            "Opening paragraph is self-contained, names the AWS services explicitly, and mentions the Nitro aws-lambda preset — highly extractable.",
+            "Frontmatter shape (title, order, seoTitle, seoDescription) matches the example exactly.",
+            "10-question FAQ with good mix of Stacktape-specific, AWS use-case, and choosing/comparison questions.",
+            "ApiReference placement (bottom, after FAQ) matches the example page.",
+            "definitionName 'NuxtWebProps' correctly matches the source type from nuxt-web.d.ts.",
+            "When NOT to use section is explicit with concrete alternatives including the correct nuxt-static-website hostingContentType.",
+            "Environment variables section correctly steers toward connectTo and includes a realistic secrets example.",
+            "Connecting resources section correctly documents the STP_MAIN_DATABASE_* env var pattern using the example resource name.",
+            "Source-grounding is cautious — defers to API reference for defaults and limits rather than inventing numbers."
+          ],
+          "problems": [
+            "MDX component palette drift: the example page ends with `<ReferenceableParams resource=\"nextjs-web\" />` as a standalone section after `<ApiReference>`. The draft omits `<ReferenceableParams resource=\"nuxt-web\" />` entirely. Per example-guided rules this is a mandatory palette match failure.",
+            "The 'Static files and CDN' section includes a code block that sets `fileOptions: []` and `cdn: {}` — both are empty values that convey zero configuration. This is worse than the Next.js sibling page which uses prose-only for this section. An empty array and empty object look like placeholders and do not help the reader understand what to configure.",
+            "The 'Connecting resources' code example omits `serverLambda: { joinDefaultVpc: true }` but the surrounding prose explicitly warns that VPC-protected resources (databases, Redis) require VPC access configured through serverLambda. The Next.js sibling example shows this explicitly in the code block. The disconnect between prose and code leaves the reader unsure how to wire it up.",
+            "The 'Server Lambda' section is vaguer than the equivalent Next.js section. The Next.js page grounds the section with specific defaults (1024 MB memory, 128–10240 MB range, 1769 MB = 1 vCPU, 30s max timeout). The Nuxt source type references SsrWebServerLambdaConfig without specifying Nuxt-specific overrides, so caution is appropriate — but the section currently offers less actionable guidance than the sibling page without explaining why.",
+            "The 'Static files and CDN' section H2 ordering matches the example (after Domains and firewall) but the presence of a low-value code block for this section that the example omits creates an asymmetry that makes the page feel padded."
+          ],
+          "mandatoryFixes": [
+            "Add `<ReferenceableParams resource=\"nuxt-web\" />` as a '## Referenceable parameters' section immediately after the '## API Reference' section to match the example page's MDX component palette. This is a clear palette drift from the reviewed example.",
+            "Remove or replace the code block in the 'Static files and CDN' section. The current block sets `fileOptions: []` and `cdn: {}` — these are empty values that convey no real configuration and look like placeholders. The Next.js sibling page handles this section with prose only. Either drop the code block to match that pattern, or replace it with a realistic example showing an actual file pattern and cache header (e.g., `fileOptions: [{ include: ['**/*.js', '**/*.css'], cacheControl: 'public, max-age=31536000, immutable' }]`).",
+            "Update the 'Connecting resources' code example to include `serverLambda: { joinDefaultVpc: true }` when connecting to a relational database. The prose says VPC access may be needed but the code does not demonstrate it. The Next.js sibling example shows this property explicitly — the Nuxt example should match to avoid leaving readers who copy-paste the snippet with a broken database connection."
+          ],
+          "optionalImprovements": [
+            "If SsrWebServerLambdaConfig documents memory defaults (1024 MB) and range (128–10240 MB) in its own type definition, surface those numbers in the Server Lambda section prose to give the reader concrete anchors, matching the depth the Next.js sibling achieves.",
+            "The FAQ answer to 'How much does hosting Nuxt on Lambda and CloudFront cost?' could note that Lambda has a free tier of 1 million requests and 400,000 GB-seconds per month — a well-known fact that is highly cited and helps readers estimate whether cost is a concern before deploying.",
+            "Consider adding a one-sentence note in the Build and dev section clarifying that Stacktape automatically sets the Nitro build preset to `aws-lambda` — this is the key thing that makes the NuxtWeb resource different from a generic Nuxt build, and readers coming from the Nuxt docs will immediately look for this.",
+            "The 'When NOT to use' bullet for 'Other frameworks' is helpful but slightly noisy — the list of six links is longer than the same bullet in the Next.js example. Trimming to the two or three most closely related frameworks (e.g. Astro, SvelteKit) and linking to a 'frontend overview' page for the rest would reduce visual clutter."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "When the SSR function needs to reach VPC-protected resources such as databases or Redis clusters, configure VPC access through `serverLambda` — the API reference documents the available options.",
+              "reason": "The source type `SsrWebServerLambdaConfig` exposes VPC connectivity via `joinDefaultVpc`, whose JSDoc includes an explicit warning: the function 'loses direct internet access'. The draft recommends VPC configuration without mentioning this significant tradeoff, which could leave users with a broken SSR function unable to reach external APIs, third-party services, or public endpoints unless they also configure NAT gateways.",
+              "suggestedFix": "Name the property (`joinDefaultVpc`) and mention the tradeoff: enabling VPC access removes direct internet access from the Lambda function. If the SSR function also needs to call external services, the stack must include NAT gateway configuration (`stackConfig.vpc.nat`).",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `serverLambda` property customizes that function: memory, timeout, VPC access, and logging are all configurable. [...] serverLambda: { memory: 2048, timeout: 30 }",
+              "reason": "The code example sets `timeout: 30` without explaining that this is both the default and the maximum for SSR web Lambda functions. A reader copying this example gets no value from the line and might believe it can be increased further. Similarly, the default `memory` of 1024 MB is never stated — the reader doesn't know how 2048 compares to the default, or that the range is 128–10,240.",
+              "suggestedFix": "State the defaults (memory: 1024, timeout: 30) and the timeout ceiling (max 30 seconds) in the surrounding prose. Consider changing the example `timeout` to a value below 30 (e.g., 10) so it demonstrates an actual customization, or remove it and only show `memory`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU.\n   *\n   * @default 1024"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Max execution time in seconds. Max: 30.\n   *\n   * @default 30"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `fileOptions` property sets custom headers (such as `Cache-Control`) for static files matching a pattern. [...] fileOptions: [], cdn: {}",
+              "reason": "The code example for 'Static files and CDN' shows `fileOptions: []` (empty array) and `cdn: {}` (empty object), which demonstrate nothing. The reader cannot learn how to configure file options or CDN caching from this example. A realistic example should show at least one `DirectoryUploadFilter` with `includePattern` and `headers`, and/or one CDN override. The section lacks a working, copyable example.",
+              "suggestedFix": "Replace with a realistic example showing a file option with `includePattern` (e.g., `'_nuxt/**'`) and a `Cache-Control` header, and optionally a `cdn.pathCachingOverrides` entry. Show the actual shape of `DirectoryUploadFilter` with `includePattern` (required) and `headers`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "interface DirectoryUploadFilter {\n  includePattern: string;\n  excludePattern?: string;\n  headers?: KeyValuePair[];\n  tags?: KeyValuePair[];\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `cdn` property configures cache behavior for SSR routes and specific path patterns. [...] Use `cdn` when SSR route caching needs deliberate tuning by path. Leave both unset first",
+              "reason": "The 'Static files and CDN' section does not describe what the CDN property actually contains (`disableInvalidationAfterDeploy`, `defaultCachingOptions`, `pathCachingOverrides`). The reader gets no decision support: when should they change default caching? What does `disableInvalidationAfterDeploy` do? The section is too thin to qualify as a guide — it's a one-paragraph definition, an empty code example, and a paragraph saying 'leave it unset'.",
+              "suggestedFix": "Add a brief enumeration of the CDN sub-properties. Explain that CDN cache is automatically invalidated on every deploy (default behavior), and that `defaultCachingOptions` overrides the framework's SSR cache headers. Provide a realistic code example with at least one `pathCachingOverrides` entry.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "interface SsrWebCdnConfig {\n  disableInvalidationAfterDeploy?: boolean;\n  defaultCachingOptions?: CdnCachingOptions;\n  pathCachingOverrides?: SsrWebPathCachingOverride[];\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Nuxt SSR function runs on AWS Lambda. [...] See the API reference below for the full list of sub-properties, defaults, and limits.",
+              "reason": "The 'Server Lambda' section mentions memory and timeout in the example and prose but does not state the default memory (1024 MB), the memory range (128–10,240 MB), or that the timeout maximum is 30 seconds (specific to SSR web resources — lower than the standard Lambda 900s max). These are decision-relevant facts the reader needs to know whether to customize.",
+              "suggestedFix": "State the memory default (1024 MB), range (128–10,240 MB), and that timeout is capped at 30 seconds for SSR web Lambda functions (which is also the default). Mention that this 30-second cap comes from CloudFront's origin response timeout.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU.\n   *\n   * @default 1024"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Max execution time in seconds. Max: 30.\n   *\n   * @default 30"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "Use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview) to view SSR logs, initialization failures, and runtime exceptions. Logging behavior is configurable through `serverLambda`.",
+              "reason": "The 'Logging' section is only two paragraphs with no code example and no concrete guidance. It doesn't explain what the `logging` sub-property of `serverLambda` controls (the type is `LambdaFunctionLogging`) or what the reader would configure (log retention, format, level). It also doesn't mention the `debug:logs` command's `--resourceName` flag or filtering.",
+              "suggestedFix": "Add a brief note about what logging options exist (retention period, log format if applicable). Consider a short code example showing `serverLambda.logging` configuration. Even a one-line mention of useful `debug:logs` flags (like filtering by resource) would add value.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Logging config. Logs are sent to CloudWatch. View with `stacktape logs` or in the AWS console."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "`dev.command` only affects `stacktape dev`; it does not change the deployed build command.",
+              "reason": "The `SsrWebDevConfig` type also has a `workingDirectory` property ('Working directory for the dev command, relative to project root') which is not mentioned anywhere in the draft. While not critical, it is a useful property for monorepo setups and complements the `command` property already documented.",
+              "suggestedFix": "Mention that `dev.workingDirectory` exists for cases where the dev command should run from a directory different from `appDirectory`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\ssr-web-shared.d.ts",
+                  "quote": "#### Working directory for the dev command, relative to project root."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All cross-page links point to valid routes in the navigation index — no invented routes.",
+            "The `<ApiReference definitionName=\"NuxtWebProps\" />` correctly uses the Props suffix matching the source type.",
+            "The `nuxt-static-website` value for static hosting is verified against the `SupportedHeaderPreset` union in the source.",
+            "The `connectTo` environment variable naming correctly uses `STP_MAIN_DATABASE_CONNECTION_STRING` matching the example resource name `mainDatabase`.",
+            "All Stacktape class names (`NuxtWeb`, `WebAppFirewall`, `RelationalDatabase`) are in the valid class name whitelist.",
+            "The `useFirewall` requirement for `scope: 'cdn'` correctly matches the source JSDoc.",
+            "The FAQ has exactly 10 Q&A pairs spanning all three required categories (Stacktape-specific, AWS use-case, choosing/comparison).",
+            "The `_nestedResources` architecture (bucket + serverFunction) matches the draft's description of S3 static assets + Lambda SSR.",
+            "No forbidden patterns detected: no hand-authored YAML config, no `StacktapeConfig` type usage, no fenced TypeScript blocks with `defineConfig`, no marketing language.",
+            "The `customDomains` and `disableDnsRecordCreation` claims are accurately grounded in the `DomainConfiguration` type definition."
+          ],
+          "summary": "The draft is factually solid — all Stacktape-specific claims (resource type, property names, class names, architecture, cross-links) are correctly grounded in the source types. No high-severity factual errors were found. The seven issues raised are all medium or low severity and concern documentation depth rather than factual accuracy: the Server Lambda section omits defaults and limits (memory 1024 MB, timeout max 30s) that are decision-relevant, the VPC connectivity option (`joinDefaultVpc`) has a significant tradeoff (loss of internet access) not mentioned in the draft, and the Static files and CDN section uses empty placeholder values in its code example instead of realistic configuration. The Logging section is thin but delegates appropriately to the API reference and CLI docs."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided NuxtWeb type definitions and follows the required MDX/code-block conventions. I found a few unsupported or over-specific Stacktape behavior claims, mainly around automatic network access, exact injected database variables, and logging defaults.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Prefer `connectTo` for Stacktape-managed resources because it also handles permissions and, where needed, network access.\"",
+              "reason": "The source says `connectTo` grants IAM permissions, opens security group rules, and injects environment variables, but it does not say `connectTo` configures the Nuxt SSR Lambda's own VPC access. The draft elsewhere says VPC-protected resources may need `serverLambda` VPC configuration, so this sentence could mislead readers into thinking `connectTo` is sufficient for all network access.",
+              "suggestedFix": "Narrow the sentence: \"Prefer `connectTo` for Stacktape-managed resources because it grants supported IAM permissions, opens supported resource-side network access, and injects connection variables. For VPC-protected resources, also configure the SSR Lambda's VPC access through `serverLambda` when needed.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically:\n   * - **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n   * - **Opens network access** (security group rules for databases, Redis)\n   * - **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Customize the SSR Lambda function (memory, timeout, VPC, logging)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"With the resource name `mainDatabase`, the Nuxt app receives variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`.\"",
+              "reason": "The source confirms these parameter names for `RelationalDatabase`, but the provided type file does not define the exact casing/conversion from camelCase resource names to environment-variable names. The global instruction says to use the `STP_[RESOURCE_NAME]_[PARAM]` pattern and concrete names only when the example proves them; here the source does not prove that `mainDatabase` becomes `MAIN_DATABASE`.",
+              "suggestedFix": "Keep the pattern and avoid claiming exact camelCase conversion unless another source proves it: \"With the resource name `mainDatabase`, the injected variables follow the `STP_[RESOURCE_NAME]_[PARAM]` pattern for relational database parameters such as `CONNECTION_STRING`, `HOST`, and `PORT`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Injects environment variables with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The Nuxt server Lambda sends logs to CloudWatch.\"",
+              "reason": "The Nuxt source only says logging is configurable through `serverLambda`; it does not explicitly state that Nuxt server Lambda logs are sent to CloudWatch. Similar CloudWatch logging language appears for container output, but not for NuxtWeb or SsrWebServerLambdaConfig in the provided sources.",
+              "suggestedFix": "Write only what the Nuxt source supports: \"The Nuxt SSR function has logging settings under `serverLambda`. Use `stacktape debug:logs` or the Stacktape Console to inspect deployed resource logs.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Customize the SSR Lambda function (memory, timeout, VPC, logging)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Most teams should keep logging enabled for deployed Nuxt apps. Tune logging only when retention, cost, or compliance requirements justify changing the default behavior.\"",
+              "reason": "The source says logging is configurable through `serverLambda`, but it does not state the default logging behavior, whether logging is enabled by default, or any retention default for Nuxt SSR Lambda logging. The recommendation depends on an unstated default.",
+              "suggestedFix": "Avoid asserting the default. For example: \"Use the `serverLambda` logging settings when retention, cost, or compliance requirements require a specific log configuration.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "Customize the SSR Lambda function (memory, timeout, VPC, logging)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Stacktape handles the SSR function, static asset hosting, CDN routing, custom domains, and firewall configuration automatically.\"",
+              "reason": "The source supports the SSR function, static asset hosting, CDN, custom domains, and firewall properties, but \"automatically\" overstates custom domains and firewall behavior because both are opt-in properties (`customDomains` and `useFirewall`).",
+              "suggestedFix": "Change to: \"Stacktape manages the SSR function, static asset hosting, and CDN routing, and can attach custom domains and a CDN-scoped web application firewall when configured.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape config examples and does not hand-author YAML config.",
+            "The `<ApiReference definitionName=\"NuxtWebProps\" />` value matches the page resource props type from `nuxt-web.d.ts`.",
+            "The custom domain and firewall sections are mostly well grounded: the Route 53 hosted zone prerequisite, auto-managed DNS/TLS language, `customCertificateArn`, `disableDnsRecordCreation`, and `scope: 'cdn'` requirement all appear in the provided type definitions.",
+            "The draft correctly uses `stacktape debug:logs` and links it to `/cli/debug-logs`, which exists in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The Nuxt page covers the important NuxtWebProps surface well: appDirectory, build/dev commands, SSR Lambda settings, domains, WAF, static/CDN settings, connectTo, environment variables, logs, and the correct ApiReference name are all present. I found one API-audit issue: the Static files and CDN example names the properties but does not demonstrate the feature it is explaining.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The Static files and CDN section uses a Stacktape config example with `fileOptions: []` and `cdn: {}`.",
+              "reason": "This example does not demonstrate the section topic. The section explains custom headers for matched static files and CDN cache controls for SSR routes/path patterns, but the config sets both properties to empty values. Readers cannot see the shape of a real header rule or CDN cache rule from the example.",
+              "suggestedFix": "Replace the example with the smallest realistic config that exercises at least one `fileOptions` rule and one meaningful `cdn` cache setting supported by the source/API reference, or split the section so each example demonstrates only the property it discusses. Keep the example source-grounded and avoid inventing unsupported sub-properties.",
+              "evidence": [
+                {
+                  "file": "Draft page — Static files and CDN",
+                  "quote": "fileOptions: [],\n    cdn: {}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "fileOptions?: DirectoryUploadFilter[];\n  /**\n   * #### CDN cache controls for SSR routes and specific path patterns.\n   */\n  cdn?: SsrWebCdnConfig;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page mentions every important top-level NuxtWebProps property, including inherited `connectTo` and `iamRoleStatements`.",
+            "The page correctly uses exactly one `<ApiReference definitionName=\"NuxtWebProps\" />`, matching the metadata typeName.",
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with a `label: 'TypeScript'` tab and class-based `defineConfig` examples, with no hand-authored YAML.",
+            "The page correctly scopes `useFirewall` to the Nuxt CDN path and states that the referenced WebAppFirewall must use `scope: 'cdn'`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__frontend__nuxt\\iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All major NuxtWebProps properties (appDirectory, buildCommand, environment, customDomains, serverLambda, useFirewall, dev, fileOptions, cdn, connectTo) are covered with working code examples and surrounding explanation — nothing important is silently skipped.",
+            "Every Stacktape config example correctly uses <CodeBlock intellisense tabs={[...]} /> with a TypeScript tab and focus markers. No forbidden YAML blocks or fenced TypeScript patterns appear anywhere.",
+            "The 'When to use' / 'When NOT to use' sections are opinionated and concrete: each bullet names a specific alternative resource type with a link, making the choice actionable.",
+            "The FAQ has exactly 10 questions covering all three required categories: Stacktape-specific (appDirectory, custom domains, WAF), underlying-AWS questions (how Lambda SSR works, cost model), and comparison questions (static hosting vs Nuxt resource, web service vs Nuxt resource).",
+            "The 'Connecting resources' example correctly uses a named resource (mainDatabase) and describes injected variables using the STP_MAIN_DATABASE_*_* pattern with the resource name — not a generic placeholder.",
+            "Decision-support text is present for every opt-in feature (WAF, custom domains, CDN cache overrides, fileOptions, VPC) covering when to enable, when to skip, and the cost or tradeoff signal.",
+            "Single <ApiReference definitionName=\"NuxtWebProps\" /> placed at the bottom — matches the Props type name from the source types file exactly, no duplicates, no <PropertiesTable> usage."
+          ],
+          "problems": [
+            "The 'Logging' section is too thin to be useful. It has two short paragraphs and no code example. Neither paragraph tells the reader anything actionable beyond 'use the CLI or Console' — the same boilerplate that applies to every resource. It does not explain what the serverLambda logging sub-properties are, what retention means for cost, or when to change the defaults. A reader who turns to this section looking for help configuring logging leaves empty-handed.",
+            "Memory default (1024 MB) and timeout maximum (30 seconds, 'capped by the CloudFront origin response timeout') in the 'Server Lambda' section are stated confidently but SsrWebServerLambdaConfig is not in the provided source files. These are likely correct AWS facts, but they read as Stacktape-specific defaults that cannot be verified from the inline sources provided to this review. If they are wrong, a reader misconfigures memory.",
+            "The fileOptions and cdn sub-property descriptions (DirectoryUploadFilter fields, SsrWebCdnConfig sub-properties: defaultCachingOptions, pathCachingOverrides, disableInvalidationAfterDeploy) are described in detail but neither DirectoryUploadFilter nor SsrWebCdnConfig are in the provided source files. The descriptions may be accurate, but they are unverifiable from the provided inline sources.",
+            "The RelationalDatabase example in 'Connecting resources' uses engine: 'postgres-16' as a string literal. The valid class name guidance states database engine classes start with RdsEngine or AuroraEngine, implying a class-based API is required (e.g., new RdsEnginePostgres16()). A string shorthand may be accepted but the code-block-validator should confirm; if it is wrong, the example silently teaches bad practice."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Thicken the 'Logging' section or remove it. If SsrWebServerLambdaConfig exposes log-retention or log-forwarding properties, add a code example and one sentence on cost (e.g., CloudWatch log storage pricing, 90-day default retention). If nothing grounded can be said, remove the section rather than leaving it as placeholder prose.",
+            "Verify and cite the memory/timeout defaults in the 'Server Lambda' section. Either pull the default values from the SsrWebServerLambdaConfig type definition (if accessible) or soften the language to 'consult the API reference for defaults' to avoid unverifiable specific claims.",
+            "For the RelationalDatabase connectTo example, confirm whether engine accepts a string shorthand like 'postgres-16' or requires a class instance. If class-based, update the example to new RdsEnginePostgres16() (or the correct class name) so the example matches the rest of the class-based config pattern.",
+            "The 'Build and dev' section mentions dev.workingDirectory but gives no code example of it being used. Either add a brief example covering the monorepo case (different appDirectory vs devCommand working directory) or remove the mention if it is rarely needed.",
+            "The 'Static files and CDN' section could open with a one-sentence framing of when you need either sub-section at all — many readers will not need fileOptions or cdn overrides. A leading 'Skip this section if the defaults are acceptable; you only need these when...' sentence would help the audience decide quickly whether to read on."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is self-contained and within the target word count — serves well as an AI-extractable snippet.",
+            "\"When NOT to use\" section is concrete and names specific alternative resource types with links, not just vague suggestions.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs>` with focus markers; no forbidden YAML blocks or plain-object patterns anywhere.",
+            "VPC/NAT guidance in the Server Lambda section is production-relevant: explicitly tells readers that enabling VPC removes direct internet access and explains how to restore it via NAT.",
+            "connectTo section correctly uses the concrete example resource name (`mainDatabase`) to derive the injected variable names (`STP_MAIN_DATABASE_CONNECTION_STRING`), not a generic placeholder.",
+            "CDN caching example with `/api/*` set to TTL 0 is immediately copyable and reflects a real-world need.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-use-case, and choosing/comparison) with concise 2-4 sentence answers.",
+            "fileOptions example shows a realistic Cache-Control immutable header for hashed Nuxt build output — not just a toy header."
+          ],
+          "problems": [
+            "Logging section is near-empty: it tells readers to check `serverLambda` and then redirects entirely to the API reference without naming a single configurable property (retention period, log forwarding, log level). It reads as a placeholder, not a guide.",
+            "The memory default of \"1024 MB\" stated in the Server Lambda section is a specific claim, but `SsrWebServerLambdaConfig` is not in the provided source files. The claim is unverified by available source material and could mislead users who tune memory based on an incorrect baseline.",
+            "`connectTo` prose omits `JDBC_CONNECTION_STRING` (and for Aurora, `READER_JDBC_CONNECTION_STRING`) from the list of injected variables. The source JSDoc in `__helpers.d.ts` explicitly includes `JDBC_CONNECTION_STRING` for `RelationalDatabase`. While Nuxt apps rarely use JDBC, the omission creates a mismatch with the authoritative source that could confuse teams integrating with Java services.",
+            "The `RelationalDatabase` constructor in the connecting-resources example uses `engine: 'postgres-16'` as a plain string. The style guide notes that database engine classes start with `RdsEngine` or `AuroraEngine`, suggesting a class-based form may be required. If the string shorthand is not valid, this example would fail in practice."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Either fill the Logging section with at least one concrete sub-property (e.g., log retention days, log forwarding ARN, whether Lambda execution logs go to CloudWatch by default) or remove the section entirely. A section that only says \"see the API reference\" adds no value over the API reference itself.",
+            "Verify the 1024 MB default memory claim against the actual `SsrWebServerLambdaConfig` type. If it cannot be confirmed, narrow the wording to \"Lambda memory is configurable\" or state the range without asserting a default.",
+            "Add `JDBC_CONNECTION_STRING` to the connectTo injected-variable list for RelationalDatabase to match the source JSDoc. One additional line keeps the docs consistent with the authoritative source.",
+            "Verify whether the `RelationalDatabase` constructor accepts `engine: 'postgres-16'` as a string shorthand or requires a class instance (e.g., `new RdsEnginePostgres({ ... })`). If class-based, update the example to avoid shipping a broken copy-paste template.",
+            "The `serverLambda` section currently covers only memory and VPC access. If `SsrWebServerLambdaConfig` also exposes ARM/Graviton architecture selection (common for Lambda cost optimization), add a one-line mention with a when-to-use signal — many teams miss this as a cost lever."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Self-contained opening paragraph (≈45 words) precisely answers 'what is this and why does it matter' — citable verbatim by AI Overview extractors.",
+            "All source-defined top-level properties (appDirectory, buildCommand, environment, customDomains, serverLambda, useFirewall, dev, fileOptions, cdn, connectTo/iamRoleStatements) are covered with grounded descriptions.",
+            "Realistic, copy-paste-runnable code examples throughout; no placeholder values or fill-in-the-blank patterns.",
+            "Correct STP_[RESOURCE_NAME]_[PARAM] naming in the connectTo example (STP_MAIN_DATABASE_CONNECTION_STRING matches the resource named mainDatabase).",
+            "Strong decision support for every opt-in feature: WAF, custom domains, CDN overrides, and VPC access each have a when-to-enable, when-the-default-is-fine, and an opinionated recommendation.",
+            "FAQ covers all three required categories — Stacktape-specific, AWS use-case (Lambda/CloudFront cost, Nitro preset mechanics), and comparison questions (Nuxt resource vs static hosting vs web service). Exactly 10 questions.",
+            "Zero mandatory style violations: no hand-authored YAML Stacktape config, no StacktapeConfig typed style, no fenced TypeScript blocks containing defineConfig, no marketing language.",
+            "Single <ApiReference definitionName=\"NuxtWebProps\" /> placed at an appropriate position; no duplicate or nested ApiReference blocks.",
+            "H2 headings are short noun-form labels (Build and dev, Server Lambda, Domains and firewall, Connecting resources, FAQ). No sentence-form H2s.",
+            "The fileOptions example uses a realistic content-hashed glob (_nuxt/**) with a concrete Cache-Control value; prose explains why that pattern makes sense."
+          ],
+          "problems": [
+            "The Logging section consists of only two short paragraphs with no code example and no named logging sub-properties. It defers entirely to the API reference without giving the reader enough to decide whether to configure logging at all — it fails the section-depth requirement (first paragraph + at least an example or tradeoff depth).",
+            "Several specific claims about SsrWebServerLambdaConfig — 'Memory defaults to 1024 MB (range 128–10,240 MB)', 'Timeout defaults to 30 seconds, which is also the maximum for SSR web Lambda functions (capped by the CloudFront origin response timeout)', and 'set joinDefaultVpc: true in serverLambda' — cannot be verified from the provided source files because SsrWebServerLambdaConfig is referenced but never defined in the inline sources. The source-grounding verifier will likely flag these as ungrounded Stacktape-specific claims.",
+            "The 30-second timeout maximum claim may be factually imprecise: CloudFront's configurable origin response timeout currently supports up to 60 seconds. If Stacktape caps it at 30 seconds in the generated configuration, this should be cited to the SsrWebServerLambdaConfig definition; if not, the claim should be softened or corrected.",
+            "The Logging section is placed as a standalone H2 but contains less content than any other section. A reader scanning the TOC would expect parity in section depth; this section does not deliver it."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand the Logging section: add at least one code example showing a common logging configuration (e.g., custom retention period), name 1-2 frequently used sub-properties from SsrWebServerLambdaConfig so the reader knows what they can tune, and add a one-sentence opinion on when to change the defaults vs leave them alone.",
+            "Verify the 30-second timeout maximum against the SsrWebServerLambdaConfig type definition (not in the provided sources). If the actual cap differs, correct it; if the source does cap at 30s, add a brief note explaining that Stacktape enforces this limit to match the CloudFront origin response timeout default.",
+            "Source-ground the memory default (1024 MB) and range (128–10,240 MB) in prose by noting they come from the serverLambda configuration — or soften the language to 'Lambda memory can be configured in serverLambda; see the API reference for defaults and limits' if the values are not in the provided source files.",
+            "Consider merging or co-locating the Logging section content into the Server Lambda section, since logging is configured under serverLambda. A thin standalone H2 for logging can feel like padding when there is no separate logging resource or independent configuration surface.",
+            "Add a brief mention of the overrides escape hatch for teams that need to modify the underlying CloudFormation resources (e.g., add a custom Lambda layer or change the CDN behavior). A single sentence with a link to the overrides docs is sufficient — it keeps the page useful for the power-user edge case without bloating the main flow.",
+            "In the connectTo section, the prose mentions 'additional reader parameters for Aurora clusters' — consider adding a parenthetical listing READER_CONNECTION_STRING, READER_JDBC_CONNECTION_STRING, READER_HOST so the sentence is self-contained without requiring the reader to visit the relational-database page for a quick lookup.",
+            "The FAQ question 'How does Nuxt SSR run on Lambda?' largely repeats content already in the Server Lambda H2 section. Consider replacing or differentiating it with a question that adds new signal — for example, 'How do I run database migrations for a Nuxt app on AWS?' or 'Does the Nuxt resource support streaming responses?'"
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Timeout defaults to 30 seconds, which is also the maximum for SSR web Lambda functions (capped by the CloudFront origin response timeout).",
+              "reason": "The source type SsrWebServerLambdaConfig confirms both the 30-second default and the 30-second maximum. However, the parenthetical explanation '(capped by the CloudFront origin response timeout)' is the writer's inference — the source JSDoc says only 'Max execution time in seconds. Max: 30.' without stating a reason. The same unsupported explanation appears again in FAQ Q6. While the constraint itself is correct, the attribution to CloudFront origin response timeout is not grounded in the provided source and could mislead readers about the underlying mechanics.",
+              "suggestedFix": "Remove or soften the CloudFront explanation. For example: 'Timeout defaults to 30 seconds, which is also the maximum for SSR web Lambda functions.' If you want to mention CloudFront as context, frame it as general AWS knowledge: 'The 30-second cap aligns with the CloudFront origin response timeout.' Apply the same fix in FAQ Q6.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/ssr-web-shared.d.ts",
+                  "quote": "#### Max execution time in seconds. Max: 30.\n   *\n   * @default 30"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The Logging section consists of two short paragraphs with no code example and no mention of specific logging sub-properties like retention.",
+              "reason": "While the section appropriately delegates to the API reference and cross-links to debug:logs and the Console, it is the thinnest section on the page. The SsrWebServerLambdaConfig type shows logging?: LambdaFunctionLogging, and the section could briefly name what the logging config controls (e.g. retention period) and when to customize it, adding one sentence of depth without re-explaining the full cross-cutting concern.",
+              "suggestedFix": "Add one sentence naming the key logging tunable (e.g. log retention) and a sentence on when the default is sufficient vs when customization is needed. A small code example showing a non-default retention value would also improve the section.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/ssr-web-shared.d.ts",
+                  "quote": "#### Logging config. Logs are sent to CloudWatch. View with `stacktape logs` or in the AWS console.\n   */\n  logging?: LambdaFunctionLogging;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All NuxtWebProps properties are correctly described and match the source type definition — appDirectory default '.' confirmed, buildCommand, environment, customDomains, serverLambda, useFirewall, dev, fileOptions, and cdn all accurately documented.",
+            "SsrWebServerLambdaConfig claims verified: memory default 1024 MB, range 128–10,240 MB, CPU scaling at 1,769 MB = 1 vCPU, timeout default and maximum of 30 seconds, joinDefaultVpc property — all match the source type definition in ssr-web-shared.d.ts.",
+            "SsrWebCdnConfig sub-properties verified: disableInvalidationAfterDeploy (default false), defaultCachingOptions (CdnCachingOptions type), and pathCachingOverrides (SsrWebPathCachingOverride[] type) — all property names, types, and defaults match the source.",
+            "CdnCachingOptions description ('minTTL, maxTTL, defaultTTL, compression, and cache key parameters') accurately reflects the verified type definition in cdn.d.ts which contains minTTL, maxTTL, defaultTTL, disableCompression, and cacheKeyParameters with cookies/headers/queryString.",
+            "SsrWebDevConfig properties verified: command and workingDirectory both exist and match the draft's description.",
+            "DirectoryUploadFilter (fileOptions) properties verified: includePattern, excludePattern, and headers as KeyValuePair[] (with key/value fields) — the code example uses the correct property shape.",
+            "All cross-links verified against the navigation index — no invented routes found across the entire page.",
+            "connectTo environment variable claims correctly follow the ResourceAccessProps JSDoc: CONNECTION_STRING, HOST, PORT for RelationalDatabase, with reader params noted for Aurora. The page correctly avoids listing JDBC_CONNECTION_STRING, which is not in the ResourceAccessProps connectTo JSDoc.",
+            "The 'nuxt-static-website' hostingContentType value is confirmed as valid in buckets.d.ts and hosting-buckets.d.ts.",
+            "ApiReference uses the correct definitionName 'NuxtWebProps', ReferenceableParams uses the correct resource type 'nuxt-web' (confirmed to have a 'url' referenceable param from the ssr-web resolver source).",
+            "DomainConfiguration properties (domainName, customCertificateArn, disableDnsRecordCreation) are all accurately described with correct defaults and JSDoc-aligned explanations.",
+            "When to use / When NOT to use are correctly structured as peer H2 sections, not nested.",
+            "All CodeBlock examples follow the correct format: intellisense flag, 'TypeScript' tab label, defineConfig + export default, proper focus markers, no hand-authored YAML."
+          ],
+          "summary": "The draft is remarkably well-grounded. After exhaustive verification of every Stacktape-specific claim against the source types (SsrWebServerLambdaConfig, SsrWebCdnConfig, SsrWebDevConfig, CdnCachingOptions, SsrWebPathCachingOverride, DirectoryUploadFilter, KeyValuePair, DomainConfiguration, ResourceAccessProps, and the ssr-web resolver), all property names, defaults, ranges, and behavioral descriptions are confirmed accurate. The two issues found are both low severity: (1) an unsupported inference attributing the 30-second timeout maximum to 'the CloudFront origin response timeout' when the source simply states 'Max: 30' without a reason, and (2) the Logging section being the thinnest on the page with room for one or two more sentences of practical guidance. All cross-links are valid, all code examples use the correct format, and the page structure (H2 hierarchy, FAQ coverage, ApiReference definitionName) is correct."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the Nuxt top-level source, uses the required TypeScript CodeBlock pattern, and has the correct ApiReference name. The main blockers are unsupported nested-property claims for serverLambda/dev/cdn, a likely invalid ReferenceableParams component, and one custom-domain FAQ sentence that contradicts the DomainConfiguration source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"If the SSR function also needs to call external services (third-party APIs, webhooks), configure NAT gateways through `stackConfig.vpc.nat` so outbound traffic can still reach the internet.\"",
+              "reason": "The provided source only documents `stackConfig.vpc.nat` as applying to workloads using `usePrivateSubnetsWithNAT: true`. It does not support saying this setting configures outbound internet access for a Nuxt SSR Lambda joined to the VPC.",
+              "suggestedFix": "Remove the `stackConfig.vpc.nat` instruction for Nuxt SSR Lambda, or rewrite cautiously: joining the SSR Lambda to a VPC can affect outbound internet access, but the provided Nuxt source only documents VPC customization under `serverLambda`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface VpcSettings {\n  /**\n   * #### Share a VPC with another Stacktape stack or use an existing VPC.\n   *\n   * ---\n   *\n   * Useful when this stack needs to access VPC-protected resources (databases, Redis)\n   * from another stack. By default, each stack gets its own VPC.\n   *\n   * > **Important:** Set this when first creating the stack. Adding it to an already\n   * > deployed stack can cause resources to be replaced and **data to be lost**.\n   */\n  reuseVpc?: VpcReuseConfig;\n\n  /**\n   * #### NAT Gateway configuration for private subnets.\n   *\n   * ---\n   *\n   * Only applies when you have workloads using `usePrivateSubnetsWithNAT: true`.\n   * Controls how many availability zones get a NAT Gateway (affects cost and redundancy).\n   */\n  nat?: NatSettings;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Memory defaults to 1024 MB (range 128–10,240 MB) and CPU scales proportionally — 1,769 MB equals 1 vCPU. Timeout defaults to 30 seconds, which is also the maximum for SSR web Lambda functions (capped by the CloudFront origin response timeout).\"",
+              "reason": "The provided Nuxt source says `serverLambda` customizes memory, timeout, VPC, and logging, but it does not provide the numeric defaults, ranges, CPU ratio, or timeout maximum claimed in the draft.",
+              "suggestedFix": "Narrow the section to the sourced statement: `serverLambda` customizes the SSR Lambda function's memory, timeout, VPC, and logging. Remove numeric defaults and limits unless the source list includes `SsrWebServerLambdaConfig` with those values.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "  /**\n   * #### Customize the SSR Lambda function (memory, timeout, VPC, logging).\n   */\n  serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The CDN section states that `cdn` supports `defaultCachingOptions`, `pathCachingOverrides`, and `disableInvalidationAfterDeploy`, says `disableInvalidationAfterDeploy` defaults to `false`, and says the CDN cache is automatically invalidated on every deploy.",
+              "reason": "The provided source only documents `cdn` as CDN cache controls for SSR routes and path patterns. It does not show the nested property names, the default for invalidation, or deploy-time invalidation behavior.",
+              "suggestedFix": "Keep the section at the level supported by the source: `cdn` controls cache behavior for SSR routes and specific path patterns. Remove the default/invalidation claim and avoid enumerating nested properties unless their type definition is included in the source list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "  /**\n   * #### CDN cache controls for SSR routes and specific path patterns.\n   */\n  cdn?: SsrWebCdnConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft includes `<ReferenceableParams resource=\"nuxt-web\" />`.",
+              "reason": "The provided `StacktapeResourceReferenceableParam` union does not include a Nuxt Web referenceable parameter type. The draft should not render a referenceable-parameters section for `nuxt-web` unless another provided source defines it.",
+              "suggestedFix": "Remove the `## Referenceable parameters` section and `<ReferenceableParams resource=\"nuxt-web\" />` component from this page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The `dev` property also accepts a `workingDirectory` for cases where the dev command needs to run from a different directory than `appDirectory`.\"",
+              "reason": "The provided Nuxt source documents the `dev` property and its default command, but it does not show a `workingDirectory` field on `SsrWebDevConfig`. This nested property claim is not grounded in the provided source.",
+              "suggestedFix": "Remove the `workingDirectory` sentence unless the `SsrWebDevConfig` definition is added to the source list and confirms the property.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "  /**\n   * #### Dev server config for `stacktape dev`. Defaults to `nuxt dev`.\n   */\n  dev?: SsrWebDevConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"Stacktape automatically creates the DNS record and provisions a free TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`.\"",
+              "reason": "The sentence implies `disableDnsRecordCreation` disables both DNS record creation and free TLS certificate provisioning. The source says Stacktape still provisions the TLS certificate when DNS record creation is disabled.",
+              "suggestedFix": "Split the behavior: Stacktape creates DNS records by default and provisions a free TLS certificate by default. `disableDnsRecordCreation` only skips DNS record creation; `customCertificateArn` uses your own certificate instead of the auto-generated one.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "  /**\n   * #### Skip DNS record creation for this domain.\n   *\n   * ---\n   *\n   * Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS.\n   *\n   * @default false\n   */\n  disableDnsRecordCreation?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly says Nitro server routes are included and that no separate Stacktape configuration is needed for Nuxt API routes supported by the Nitro `aws-lambda` preset.",
+              "reason": "The source confirms that Stacktape deploys a Nuxt SSR app with the Nitro `aws-lambda` preset, but it does not explicitly document Nitro server routes, API routes, or the absence of separate configuration for those routes.",
+              "suggestedFix": "Rewrite more narrowly: Stacktape builds Nuxt using the Nitro `aws-lambda` preset. Avoid a specific server-route/API-route guarantee unless the source list includes runtime or build logic confirming it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\nuxt-web.d.ts",
+                  "quote": "/**\n * #### Deploy a Nuxt SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN.\n *\n * ---\n *\n * For static-only Nuxt sites, use `hosting-bucket` with `hostingContentType: 'nuxt-static-website'` instead.\n */"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The first paragraph is grounded in the Nuxt source: Lambda SSR, Nitro `aws-lambda`, S3 static assets, CloudFront CDN, custom domains, and CDN-scoped WAF are all present in the provided types.",
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and class-based `defineConfig`, avoiding the forbidden YAML and `StacktapeConfig` patterns.",
+            "`<ApiReference definitionName=\"NuxtWebProps\" />` matches the page resource type's Props interface name.",
+            "The static-only alternative is correctly grounded: the Nuxt source explicitly directs static-only Nuxt sites to `hosting-bucket` with `hostingContentType: 'nuxt-static-website'`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is API-complete for the primary NuxtWebProps surface and the Stacktape config examples are demonstrative for their sections. I found no publication-blocking API completeness, union-variant, or code-example issues within the provided source set.",
+          "issues": [],
+          "positiveFindings": [
+            "All primary NuxtWebProps properties are mentioned: appDirectory, buildCommand, environment, customDomains, serverLambda, useFirewall, dev, fileOptions, cdn, plus inherited connectTo and iamRoleStatements.",
+            "Each feature section that includes a Stacktape config example demonstrates the property being discussed, such as buildCommand/dev, serverLambda, customDomains/useFirewall, fileOptions, cdn, connectTo, and environment.",
+            "The page includes exactly one ApiReference component and uses the metadata typeName verbatim: NuxtWebProps.",
+            "No relevant primary-property union variants are visible in the provided NuxtWebProps source, so there are no union-variant coverage gaps to flag from the available sources."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<ReferenceableParams resource=\"nuxt-web\" /> references an unknown resource type.",
+              "reason": "nuxt-web is not present in docs/.resources.json.",
+              "suggestedFix": "Use a resource type from docs/.resources.json or remove the component."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\frontend\\nuxt.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 1, advisory high 0, verifier medium 12"
+}

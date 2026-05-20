@@ -1,0 +1,183 @@
+---
+title: 'Alarms as Triggers'
+order: 28
+seoTitle: 'Alarms as Lambda Triggers | Stacktape Docs'
+seoDescription: 'Trigger Lambda functions automatically when CloudWatch alarms fire. Build automated remediation, custom notifications, and incident workflows with Stacktape alarm triggers.'
+---
+
+# Alarms as Triggers
+
+Stacktape alarms can trigger [Lambda functions](/resources/compute/lambda-function) when a monitored metric breaches its threshold. This lets you build automated remediation, incident escalation, or custom notification workflows that run your own code — beyond the built-in Slack, Teams, and email notifications that alarms already support.
+
+## Why this exists
+
+Built-in alarm [notification targets](/observability/alert-channels) (Slack, email, Discord, MS Teams, webhooks) cover most alerting needs. But sometimes you need to run custom logic when an alarm fires — scale a resource, restart a process, write to a database, call a third-party API, or trigger a multi-step recovery workflow. The `cloudwatch-alarm` trigger type connects an alarm directly to a Lambda function so you can execute arbitrary code in response to alarm state changes.
+
+## When to use alarm triggers
+
+Use an alarm trigger when:
+
+- You need **automated remediation** — e.g., clearing a cache, rotating credentials, or adjusting a configuration when CPU or error rates spike.
+- You want **custom notification routing** that goes beyond the built-in channels — e.g., paging an on-call system, filing a ticket in Jira, or posting structured data to an internal API.
+- You need to **aggregate or correlate** alarm data with other signals before deciding how to respond.
+
+When the default is fine: if you only need a human to see the alert, use the built-in `notificationTargets` on the alarm itself (Slack, email, Discord, Teams, webhook). No Lambda function needed.
+
+## How it works
+
+Under the hood, Stacktape creates an Amazon EventBridge rule that matches CloudWatch Alarm State Change events for the referenced alarm. When the alarm transitions to the `ALARM` state, EventBridge invokes your Lambda function with the alarm state change event as the payload.
+
+<FlowDiagram steps={[
+  { title: "Metric breaches threshold", description: "CloudWatch evaluates the alarm condition" },
+  { title: "Alarm transitions to ALARM state", description: "CloudWatch publishes a state change event to EventBridge" },
+  { title: "EventBridge rule matches", description: "Stacktape-managed rule filters on the alarm ARN and state = ALARM" },
+  { title: "Lambda function invoked", description: "Your handler receives the alarm state change event" }
+]} />
+
+## Configuration
+
+To use an alarm as a trigger, your Lambda function's `events` array includes an entry with `type: 'cloudwatch-alarm'`. The `alarmName` property references an alarm defined on a resource in your stack.
+
+### Alarm naming
+
+The `alarmName` value uses dot-notation that matches the alarm's position in your config. For resource-level alarms, the format is `resourceName.alarms.index` where `index` is the zero-based position in the resource's `alarms` array. For global alarms (defined in the Stacktape Console), the format is `resourceName.alarms.alarmName`.
+
+### Basic example
+
+This example defines a Lambda function with an error-rate alarm, and a second Lambda function that triggers when that alarm fires:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    alarms: [
+      {
+        trigger: {
+          type: 'lambda-error-rate',
+          properties: { thresholdPercent: 5 }
+        }
+      }
+    ]
+  });
+
+  const alarmHandler = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/alarm-handler.ts'
+    }),
+    events: [
+      {
+        type: 'cloudwatch-alarm',
+        properties: {
+          alarmName: 'api.alarms.0'
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { api, alarmHandler }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+In this example, `api.alarms.0` refers to the first alarm in the `api` resource's `alarms` array (the error-rate alarm at index 0).
+
+## Event payload
+
+Your Lambda handler receives a CloudWatch Alarm State Change event from EventBridge. The event follows the standard [AWS CloudWatch Alarm State Change event structure](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch-and-eventbridge.html).
+
+```typescript
+export const handler = async (event: any) => {
+  const alarmName = event.detail.alarmName;
+  const newState = event.detail.state.value; // "ALARM"
+  const reason = event.detail.state.reason;
+  const timestamp = event.time;
+
+  console.info(`Alarm ${alarmName} entered ${newState} state: ${reason}`);
+
+  // Your remediation logic here
+};
+```
+
+Key fields in the event:
+
+| Field | Description |
+|-------|-------------|
+| `source` | Always `aws.cloudwatch` |
+| `detail-type` | Always `CloudWatch Alarm State Change` |
+| `detail.alarmName` | The AWS name of the alarm that fired |
+| `detail.state.value` | The new state (`ALARM`) |
+| `detail.state.reason` | Human-readable explanation of why the alarm fired |
+| `detail.previousState.value` | The previous state (`OK` or `INSUFFICIENT_DATA`) |
+| `detail.configuration` | The alarm's metric and threshold configuration |
+
+## Supported alarm types
+
+Any alarm defined on a resource in your stack can trigger a Lambda function. Stacktape supports alarms on these resource types:
+
+| Resource type | Alarm trigger types |
+|---------------|-------------------|
+| [Lambda function](/resources/compute/lambda-function) | `lambda-error-rate`, `lambda-duration` |
+| [Relational database](/resources/databases/relational-database) | `database-read-latency`, `database-write-latency`, `database-cpu-utilization`, `database-free-storage`, `database-free-memory`, `database-connection-count` |
+| [HTTP API Gateway](/resources/networking/http-api-gateway) | `http-api-gateway-error-rate`, `http-api-gateway-latency` |
+| [Application Load Balancer](/resources/networking/application-load-balancer) | `application-load-balancer-error-rate`, `application-load-balancer-unhealthy-targets` |
+| [SQS queue](/resources/messaging/sqs-queue) | `sqs-queue-received-messages-count`, `sqs-queue-not-empty` |
+
+For full details on alarm configuration and evaluation settings, see [Alarms](/observability/alarms).
+
+## Retry and failure behavior
+
+The alarm trigger uses EventBridge's built-in retry policy. If your Lambda function fails (throws an error or times out), EventBridge retries the invocation according to its default retry behavior (up to 185 retries over 24 hours with exponential backoff). Design your handler to be idempotent — the same alarm state change event may be delivered more than once.
+
+## Limitations
+
+- Alarm triggers are available **only on Lambda functions**. Container workloads, batch jobs, and other compute resources do not support the `cloudwatch-alarm` event type.
+- The trigger fires only on transitions **to the ALARM state**. It does not fire when the alarm returns to OK or enters INSUFFICIENT_DATA.
+- The `alarmName` must reference an alarm defined within the same Stacktape config. You cannot reference external CloudWatch alarms by ARN.
+
+## FAQ
+
+### Can I trigger multiple Lambda functions from the same alarm?
+
+Yes. Add a `cloudwatch-alarm` event referencing the same `alarmName` in multiple Lambda functions. Each function receives the alarm state change event independently.
+
+### Does the alarm trigger fire when the alarm recovers (returns to OK)?
+
+No. Stacktape configures the EventBridge rule to match only the `ALARM` state. If you need to react to recovery, consider using an [EventBridge event bus trigger](/configuration/triggers/event-bus-events) with a custom event pattern that matches both `ALARM` and `OK` states on `aws.cloudwatch` events.
+
+### Can I use a global alarm (defined in the Console) as a trigger?
+
+Yes. Global alarms from the Stacktape Console are merged with resource-local alarms. Once a global alarm is applied to a resource in your stack, you can reference it using dot-notation: `resourceName.alarms.globalAlarmName`.
+
+### What happens if the referenced alarm doesn't exist?
+
+Stacktape validates alarm references at deploy time. If the `alarmName` doesn't match any alarm in your configuration, the deployment fails with a clear error message indicating which alarm reference is invalid and where it's used.
+
+### How is this different from alarm notification targets?
+
+[Notification targets](/observability/alert-channels) send pre-formatted messages to Slack, Teams, email, Discord, or webhooks. An alarm trigger invokes a Lambda function with the full alarm event payload, giving you complete control over what happens next — arbitrary code execution, API calls, database writes, multi-step workflows.
+
+### Can I customize the event payload sent to my function?
+
+Not currently. The `input`, `inputPath`, and `inputTransformer` options are not supported on alarm triggers. Your function receives the full CloudWatch Alarm State Change event from EventBridge.
+
+### How quickly does my function run after the alarm fires?
+
+EventBridge typically delivers events within seconds of the alarm state change. Combined with Lambda cold start (if applicable), expect end-to-end latency of 1-10 seconds in most cases.
+
+### What's the cost of using alarm triggers?
+
+The alarm trigger itself adds no extra cost beyond the existing CloudWatch alarm charge (~$0.10/alarm/month). You pay standard Lambda invocation costs when the function runs. EventBridge rules for CloudWatch service events are free.

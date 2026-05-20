@@ -46,7 +46,6 @@ sections:
     - Use <CodeBlock intellisense tabs={[...]} /> only for Stacktape config examples.
     - Keep non-config code examples as ordinary fenced code blocks without Stacktape intellisense.
     - The API reference component carries exhaustive option coverage; prose should NOT enumerate every property.
-    - Choosing pages should not deep-dive any single resource — they exist to disambiguate options.
 
     # Section structure — agent picks, not a fixed template
     - Do NOT use a generic "Key Configuration Areas" section. Pick H2 sections that match this resource's actual
@@ -56,7 +55,7 @@ sections:
       that has nothing source-grounded to say.
     - Cross-cutting concerns that already have their own dedicated docs section (packaging, triggers, alarms,
       log forwarding, connecting resources) should be linked to, not re-explained from scratch on every resource page.
-    - The "API Reference" section at the end is rendered by exactly one <ApiReference definitionName="..." />.
+    - Resource pages must include exactly one <ApiReference definitionName="..." /> component. Its position on the page is the writer's choice — top, middle, or bottom — based on whichever fits the page's narrative. The component is compact, so placing it near the top is a valid option when the reader's primary goal is looking up properties.
       Nested composite types (packaging, scaling, triggers, etc.) are reachable through the component's built-in
       drill-down — do NOT add additional <ApiReference> blocks for sub-types, and do NOT use <PropertiesTable> (it
       has been removed from the writer surface). Do NOT manually enumerate properties in prose just to document them.
@@ -73,16 +72,26 @@ sections:
 
   deployment-and-lifecycle:
     - Distinguish CLI behavior (src/commands) from Console behavior (console-app) — never blur the two.
-    - Where deploy-time state matters (in-progress deployments, rollbacks, cancelled stacks), reference CloudFormation stack states and link to /reference/troubleshooting/cloudformation-stack-states.
+    - Where deploy-time state matters (in-progress deployments, rollbacks, cancelled stacks), describe the relevant CloudFormation stack states inline.
 
-  operations:
-    # Merged section: monitoring + cost + governance.
-    - Keep monitoring (logs/metrics/alarms/issues), cost (dashboards/budgets/optimization), and governance (guardrails) as logically separate H2 areas inside each page; do not mix concepts.
-    - Distinguish CLI debug commands (src/commands/debug-*) from Console views (console-app/src/pages).
-    - When discussing alarms, reference both the config-time definition (alarms.d.ts) and the runtime view (Console alarm pages).
+  observability:
+    # Split out of the old Operations section. Focused on logs, metrics, alarms, issues, alert channels, notifications, log forwarding.
+    - Distinguish CLI debug commands (src/commands/debug-*) from Console views (console-app/src/pages). Never blur the two.
+    - When discussing alarms, reference both the config-time definition (types/stacktape-config/alarms.d.ts) and the runtime view (Console alarm pages).
+    - For each observability surface (logs, metrics, alarms, issues), make it clear what the user can do from the CLI vs the Console.
+    - Cost is a separate section — do not include cost content here. Link to /managing-costs/* if cost context is needed.
+
+  managing-costs:
+    # Split out of the old Operations section. Focused on cost dashboards, budgets, attribution, and optimization.
     - Whenever the source has concrete pricing, surface it as a number, not a vague claim.
-    - Be explicit that costs are billed by AWS to the user's AWS account, and that Stacktape's fee is separate.
+    - Be explicit that costs are billed by AWS to the user's AWS account, and that Stacktape's subscription fee is separate.
+    - Distinguish "viewing cost" (Console dashboards) from "controlling cost" (budgets, alerts) from "reducing cost" (optimization recommendations).
+
+  guardrails:
+    # Promoted to top-level out of the old Operations section. Focused on organization-wide policy controls.
     - Ground every guardrail claim in types/stacktape-config/guardrails.d.ts.
+    - Distinguish guardrails (preventive policy) from alarms (reactive monitoring) — they live in different sections for a reason; do not conflate.
+    - Document the failure mode explicitly: what happens when a deploy violates a guardrail (validation error, blocked deploy, etc.).
 
   ci-cd-and-gitops:
     - Distinguish CodeBuild-based runners from EC2 runners explicitly.
@@ -108,14 +117,6 @@ sections:
     - Each recipe must end with a working stacktape.ts and the application code needed to run.
     - Be opinionated about defaults — pick one stack, do not present 3 alternatives in the same recipe.
     - Keep prose between code blocks short and decision-oriented.
-
-  reference:
-    # Includes troubleshooting/* sub-pages now. CLI reference moved to its own top-level /cli section.
-    - Prefer compact explanations and generated reference components over long tutorials.
-    - For schema/parameters reference pages, the prose should fit on one screen; the auto-generated component carries the rest.
-    - For troubleshooting pages (under reference/troubleshooting/), lead with symptoms, likely causes, and concrete remediation steps.
-    - Distinguish confirmed behavior from plausible diagnosis on troubleshooting pages.
-    - Reference src/config/error-messages.ts when documenting CLI errors.
 
   cli:
     # CLI command reference, one page per command at /cli/<command-name>.

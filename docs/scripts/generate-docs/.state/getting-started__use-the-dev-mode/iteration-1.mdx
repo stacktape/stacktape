@@ -1,0 +1,255 @@
+---
+title: 'Use the Dev Mode'
+order: 3
+seoTitle: 'Dev Mode: Iterate Locally Without Redeploys | Stacktape Docs'
+seoDescription: 'Run stacktape dev to iterate on Lambda functions, containers, and databases locally without redeploying. Automatic local database emulation, hot reload for frontends, and instant feedback loops.'
+---
+
+# Use the Dev Mode
+
+Stacktape dev mode runs your workloads locally while connecting them to real (or locally emulated) AWS resources. Edit code, save, and see results in seconds — no redeploy needed. One command sets up everything: containers, databases, frontends, and Lambda functions, all wired together.
+
+<Info>
+Already familiar with dev mode? Skip ahead to [Deploy your first stage](/getting-started/deploy-your-first-stage).
+</Info>
+
+## What you need
+
+You should have a `stacktape.ts` from [step 1](/getting-started/configure-your-stack). You also need:
+
+- **Docker** running on your machine (for containers and local databases)
+- **Stacktape CLI** installed (`npm install -g stacktape`)
+- An AWS account connected (dev mode deploys a minimal stack for IAM roles and API gateways)
+
+## Start dev mode
+
+Run this from the directory containing your `stacktape.ts`:
+
+```bash
+stacktape dev --stage dev --region eu-west-1
+```
+
+On first run, Stacktape deploys a lightweight "dev stack" to AWS — just IAM roles, secrets, and API gateways. This takes 1-2 minutes. Subsequent runs skip this step and start instantly.
+
+An interactive picker lets you choose which resources to run. To skip the picker and run everything:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --resources all
+```
+
+To run only specific resources:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
+```
+
+## What runs where
+
+Dev mode splits your stack between local execution and AWS, depending on resource type:
+
+| Resource type | Where it runs | How changes work |
+|---|---|---|
+| Container workloads (web-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (`rs` command) |
+| Lambda functions | Deployed to AWS | Repackaged and code-updated on file change or manual trigger |
+| SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix) | Local dev server | Automatic hot reload via the framework's built-in HMR |
+| Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
+| Databases (Postgres, MySQL, Redis, DynamoDB, OpenSearch) | Docker on your machine | Persistent data in `.stacktape/dev-data/{stage}/` |
+
+Lambda functions stay on AWS but Stacktape creates tunnels so they can reach your locally emulated databases. Logs from Lambda invocations stream directly to your terminal.
+
+## The edit-save-see loop
+
+This is the core dev mode experience. Here is an example config that shows a typical setup:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  RelationalDatabase,
+  RdsEnginePostgresql16
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const myDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgresql16({
+      instanceSize: 'db.t4g.micro'
+    })
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: [myDatabase],
+    environment: [{ name: 'STAGE', value: '$Stage()' }]
+  });
+
+  return {
+    resources: { myDatabase, api }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+With this config, `stacktape dev --stage dev --region eu-west-1 --resources all` does:
+
+1. Spins up a local PostgreSQL container (accessible at `localhost:5432`)
+2. Deploys the Lambda function to AWS with a tunnel back to your local database
+3. Injects environment variables like `STP_MY_DATABASE_CONNECTION_STRING` pointing to the local Postgres
+
+Now edit `./src/handler.ts`, save, and either:
+
+- **With `--watch` flag**: Stacktape detects the change and automatically repackages and updates the Lambda code on AWS
+- **Without `--watch`**: Type `rs` and press Enter in the terminal to trigger a rebuild
+
+For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly through the framework's built-in hot module replacement — no rebuild step needed.
+
+## Enable file watching
+
+Add `--watch` (or `-w`) to automatically rebuild workloads when source files change:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --resources all --watch
+```
+
+Container workloads stop, rebuild, and restart. Lambda functions repackage and update in AWS. Frontends handle their own watching natively regardless of this flag.
+
+## Local database emulation
+
+Dev mode automatically starts Docker containers for your databases:
+
+| Config resource type | Local Docker image |
+|---|---|
+| PostgreSQL / Aurora PostgreSQL | `postgres` |
+| MySQL / Aurora MySQL | `mysql` / `mariadb` |
+| Redis | `redis` |
+| DynamoDB | `amazon/dynamodb-local` |
+| OpenSearch | `opensearchproject/opensearch` |
+
+Database data persists between sessions in `.stacktape/dev-data/{stage}/`. This means you can stop and restart dev mode without losing your test data.
+
+To start with a clean database:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --freshDb
+```
+
+To skip local emulation and connect to an already-deployed database on AWS:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --remoteResources myDatabase
+```
+
+## Environment variables
+
+Local workloads receive the same `STP_*` environment variables they would get in a deployed stack, but pointing to local endpoints. For a resource named `myDatabase`:
+
+```
+STP_MY_DATABASE_CONNECTION_STRING=postgresql://postgres:localdevpassword@localhost:5432/postgres
+STP_MY_DATABASE_HOST=localhost
+STP_MY_DATABASE_PORT=5432
+```
+
+This means your application code works identically in dev mode and production — no conditional logic for local vs. deployed databases.
+
+## Terminal commands
+
+While dev mode is running, type commands in your terminal:
+
+| Command | Action |
+|---|---|
+| `rs` | Rebuild all workloads |
+| `rs myApi` | Rebuild a specific workload |
+| `c` or `clear` | Clear the log output |
+| `q` or `quit` | Stop dev mode |
+
+## Useful flags
+
+| Flag | Alias | Description |
+|---|---|---|
+| `--resources` | `-res` | Which resources to run (`all` or comma-separated names) |
+| `--skipResources` | `-sr` | Exclude specific resources |
+| `--watch` | `-w` | Auto-rebuild on file changes |
+| `--freshDb` | | Delete local database data before starting |
+| `--remoteResources` | `-rr` | Connect to deployed AWS resources instead of local emulation |
+| `--noTunnel` | `-nt` | Disable Lambda-to-local-database tunneling |
+| `--devMode legacy` | `-dm` | Use legacy mode (requires existing deployed stack) |
+
+## Agent mode for AI coding assistants
+
+Dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code or Cursor. Pass `--agent` to start the HTTP server:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --resources all --agent
+```
+
+This starts an HTTP server (default port 7331) with endpoints for status checks, rebuilds, log access, and direct database queries. See [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for details.
+
+## Debugging
+
+While dev mode handles the fast iteration loop, Stacktape also provides debugging commands for inspecting your running resources:
+
+- [`stacktape debug:logs`](/cli/debug-logs) — Stream or search logs from your Lambda functions and container workloads
+- [`stacktape debug:metrics`](/cli/debug-metrics) — View CloudWatch metrics for any resource
+
+For deeper coverage of debugging workflows, see [Local development](/local-development/dev-mode-overview).
+
+## Legacy mode
+
+If you already have a fully deployed stack and want to run workloads against it (without local database emulation):
+
+```bash
+stacktape dev --stage prod --region eu-west-1 --devMode legacy
+```
+
+Legacy mode skips the dev-stack deployment and connects directly to your existing deployed resources. It requires the stack to already exist — use it when you need to test against production-like infrastructure.
+
+## FAQ
+
+### Does dev mode cost anything on AWS?
+
+The dev stack itself is minimal — just IAM roles, secrets, and API gateways — and costs virtually nothing. Lambda function invocations during development are billed at standard AWS Lambda rates (typically pennies for development use). Local containers and databases run on your machine at no AWS cost.
+
+### Can I run dev mode without Docker?
+
+Docker is required for container workloads and local database emulation. If you only have Lambda functions with no local databases, dev mode works without Docker. For database-heavy projects, Docker Desktop or a compatible runtime (Podman, Colima) must be running.
+
+### How do Lambda functions reach my local databases?
+
+Stacktape automatically creates tunnels so that your AWS-deployed Lambda functions can reach databases running on your machine. This happens transparently — your function code uses the same `STP_*` connection strings in both dev and production. Disable this with `--noTunnel` if you don't need it.
+
+### Can I use dev mode with multiple developers on the same project?
+
+Yes. Each developer should use a unique stage name (e.g., `--stage dev-alice`, `--stage dev-bob`). Each stage gets its own isolated dev stack and local data directory. Stage names must be at most 10 characters.
+
+### What happens if I change my Stacktape config?
+
+Changes to `stacktape.ts` (adding resources, changing environment variables, modifying connections) require restarting dev mode. Dev mode reads the config once at startup. If the dev stack needs updating (new IAM permissions, new API gateway routes), Stacktape redeploys it automatically on the next start.
+
+### How is dev mode different from `stacktape deploy`?
+
+Dev mode optimizes for iteration speed. It runs what it can locally (containers, databases, frontends) and deploys only the minimum to AWS. A full `stacktape deploy` creates the complete production-grade infrastructure (load balancers, auto-scaling, CDN, alarms). Use dev mode while building; deploy when you're ready to ship.
+
+### Can I use dev mode with a monorepo?
+
+Yes. Use `--resources` to specify which workloads to run, or `--skipResources` to exclude heavy resources you're not actively working on. Each workload tracks its own source files independently for rebuild detection.
+
+### Does the local database data survive restarts?
+
+Yes. Database data persists in `.stacktape/dev-data/{stage}/` between dev mode sessions. Use `--freshDb` to wipe the data and start clean when needed (useful after schema changes that aren't backward-compatible).
+
+## Next step
+
+Your code works locally. Time to ship it.
+
+**Next → [Deploy your first stage](/getting-started/deploy-your-first-stage)**

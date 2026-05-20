@@ -1,0 +1,1190 @@
+{
+  "pageId": "using-with-ai__mcp-server-setup",
+  "pageRoute": "using-with-ai/mcp-server-setup",
+  "startedAt": "2026-05-15T22:51:07.625Z",
+  "updatedAt": "2026-05-15T23:18:34.423Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\using-with-ai__mcp-server-setup\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opens with the mandatory Preview Warning callout as required by section instructions, setting correct expectations before any other content.",
+            "All six clients are accurately documented with correct config paths, root keys, and JSON/TOML formats verified against the source — including the VS Code-specific 'servers' root key (not 'mcpServers'), and the OpenCode 'local' type variant.",
+            "Tool parameter tables for all four tools are complete and grounded in the source, including the correct default values (maxItems: 3, logs limit: 50, dev mode agentPort: 7331).",
+            "The tabbed manual-setup section gives first-time users a copy-paste config for all six clients in one compact block — the most valuable single section on the page for a beginner.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-service use-case, and comparison) and correctly uses 10 Q&A pairs.",
+            "The dev mode 12-minute timeout and the deploy/delete autoConfirmOperation injection are both correctly sourced.",
+            "Secret masking behavior in secret_get responses is called out explicitly — important security context a first-time user wouldn't expect.",
+            "Troubleshooting section covers realistic first-time-setup failures (PATH, authentication, JSON parse errors) rather than theoretical edge cases."
+          ],
+          "problems": [
+            "Inaccurate detection mechanism description: the page says mcp:add 'detects which clients are installed', but the source (detectTarget) checks only whether config file paths already exist on disk — the application itself is never probed. A user with Claude Code installed but no existing .mcp.json or ~/.claude.json would not be detected.",
+            "Unsupported environment variable claim: the Troubleshooting section states 'You can override the CLI command the MCP server uses internally by setting the STACKTAPE_MCP_CLI_COMMAND environment variable.' This variable does not appear anywhere in the provided source files (mcp/index.ts or mcp-add/index.ts) and may be invented.",
+            "Unsupported timeout claim in FAQ: 'Infrastructure operations have a default timeout of 10 minutes.' The only timeout explicitly in the source is the dev mode 12-minute timeout (timeoutMs: 12 * 60 * 1000). No per-operation timeout is defined in the provided source.",
+            "The <FlowDiagram steps={[...]} /> component in the 'How it works' section is not listed in the style guide or confirmed in the documented MDX component palette. If the component does not exist in the Stacktape docs renderer, this section will silently fail to render.",
+            "The autoConfirmOperation behavior description is slightly off: the source shows that when no clients are detected, getDefaults falls back to ALL target IDs — not just detected ones. The page implies it always installs into detected clients only."
+          ],
+          "mandatoryFixes": [
+            "Fix the detection mechanism description: replace 'detects which clients are installed' with 'detects clients that have an existing config file at one of the known paths'. Add a clarifying note that a newly installed client with no prior config will not be marked as detected, but can still be selected from the list.",
+            "Remove the STACKTAPE_MCP_CLI_COMMAND troubleshooting item entirely until it is confirmed in source. If the env var does exist but was missing from the provided files, add a source citation. Do not publish an unsupported environment variable override that users will attempt to set and find does nothing.",
+            "Remove or replace the '10 minutes' ops timeout claim in the FAQ. If the real timeout is unknown from the available source, write 'Infrastructure operations run as subprocesses; if a deployment exceeds its timeout, the MCP server terminates the subprocess and returns an error. Run long deployments directly via the CLI for more control.' — removing the specific number.",
+            "Replace <FlowDiagram steps={[...]} /> with either a prose paragraph or a markdown ordered list. The component is not confirmed in the MDX palette and risks rendering as nothing. The content is clear enough as prose and doesn't need a diagram component."
+          ],
+          "optionalImprovements": [
+            "Tighten the autoConfirmOperation description: note that if no clients are detected (no existing config files), the command defaults to offering all supported clients rather than stopping or producing an empty selection.",
+            "The 'When to use' section is slightly generic and reachable only by a user who already knows they want MCP. Consider leading with the friction it removes ('instead of running stacktape deploy in a terminal, your AI assistant can do it directly') before the bullet list.",
+            "The 'How it works' section could note that the lexical index is built once at server startup from bundled documentation files — not rebuilt on each query — which is relevant to users wondering about startup latency.",
+            "Consider a one-sentence note in the Supported Clients table or Automatic Setup section clarifying that detection is config-file-based, not application-based, so newly installed clients may need manual selection."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Client-by-client config examples with per-tab JSON/TOML are accurate against the source's `serverConfig` and `rootKey` values for all six clients.",
+            "Tool parameter tables for all four MCP tools are well-grounded: enums, required/optional distinctions, and defaults (e.g. `maxItems: 3`, `logs` default `limit: 50`) all match the source.",
+            "Backup path format (`.bak.<timestamp>`), `confirm: true` requirement for delete, and `autoConfirmOperation` injection for deploy/delete are all correctly sourced.",
+            "The verification step (`stacktape mcp` on the CLI) and the detection-label behavior (`(detected)` suffix in the prompt) are accurately sourced from `mcp-add/index.ts`.",
+            "FAQ section is well-structured with 10 Q&A pairs that span Stacktape-specific, AWS-general, and comparison-style questions. Security and credential-handling answers are accurate.",
+            "Response truncation at 30,000 characters and dev-mode startup timeout of 12 minutes are correctly sourced from `MAX_RESPONSE_CHARS` and the `timeoutMs: 12 * 60 * 1000` call."
+          ],
+          "problems": [
+            "INVENTED FACT — Troubleshooting section: 'You can override the CLI command the MCP server uses internally by setting the `STACKTAPE_MCP_CLI_COMMAND` environment variable.' This env var does not appear anywhere in the provided source (`mcp/index.ts` or `mcp-add/index.ts`). An engineer who tries this during a broken-install debugging session will be chasing a non-existent knob.",
+            "UNGROUNDED CLAIM — FAQ answer 'What happens if a tool call times out?' states 'Infrastructure operations have a default timeout of 10 minutes.' The source calls `runStacktapeCommandJsonl` without an explicit `timeoutMs` for all non-dev operations. No 10-minute figure appears in the provided source. The only confirmed timeout is the dev `start` timeout of 12 minutes.",
+            "IMPRECISE CLAIM — Auto-confirm behavior: the draft says '--autoConfirmOperation… installs into all detected clients.' The source's `getDefaults` logic returns detected targets if any exist, or ALL targets if none are detected. The 'all detected' framing is wrong in the zero-detected-clients case.",
+            "UNGROUNDED CLAIM — BM25 is named as the search algorithm in both the 'How it works' section and the FAQ. The source imports `buildIndex`/`search`/`formatAnswer` from `./lexical-index`, but that file is not in the provided source set. BM25 is plausible (and matches project memory notes) but is not confirmable from the provided source files.",
+            "MINOR IMPRECISION — The draft says `stacktape` as a dependency is checked by looking at 'dependencies'. The source checks `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`. This won't cause misconfiguration but the narrower description could confuse developers who install Stacktape in devDependencies and can't explain why `mcp:add` picked `node_modules/.bin/stacktape`."
+          ],
+          "mandatoryFixes": [
+            "Remove the `STACKTAPE_MCP_CLI_COMMAND` environment variable from the Troubleshooting section. It is not present in the source and actively misleads engineers debugging a broken install. Replace with a grounded alternative, such as checking that `stacktape` is on PATH, or verifying which binary the config points to.",
+            "Remove or qualify the '10-minute timeout' claim for infrastructure operations in the FAQ. The source does not specify a timeout for `runStacktapeCommandJsonl` calls outside dev mode. Either omit the number or explicitly note that the timeout depends on the underlying CLI subprocess behavior, which is not documented at this layer.",
+            "Soften or remove the 'BM25-based' search algorithm claim in 'How it works' and the FAQ, since the `lexical-index.ts` source file is not included in the provided source set. Replace with 'full-text search index' until the algorithm is confirmed from the implementation source."
+          ],
+          "optionalImprovements": [
+            "Tighten the `--autoConfirmOperation` description to: 'installs into all detected clients, or all supported clients if none are detected.' This matches the `getDefaults` fallback behavior exactly.",
+            "Expand the dependency-detection note (in the Tip callout and in 'Automatic setup') to mention that Stacktape in `devDependencies` or `optionalDependencies` also triggers the local binary path, not just `dependencies`.",
+            "The 'Supported clients' table currently shows 'Platform-specific User/mcp.json' for VS Code global config. Consider spelling out the three platform paths (Windows AppData, macOS Library/Application Support, Linux .config) in a note or footnote, since an engineer on the wrong OS may not know where their global mcp.json lives.",
+            "Add a short note under 'Available tools → stacktape_dev' explaining that dev mode must already be running (`start` first) before `status`, `logs`, `rebuild`, and `stop` will work. The source enforces this via `ensureDevSessionAvailable`, which returns a structured error with a `nextActions` hint — documenting this upfront saves a round-trip in practice."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All four MCP tools (stacktape_docs, stacktape_ops, stacktape_diagnose, stacktape_dev) are accurately documented with correct operation lists, parameter tables, and behavioral notes verified against the source.",
+            "All six supported clients are correctly documented with accurate config paths and JSON/TOML structure — including the VS Code 'servers' vs 'mcpServers' root key distinction and OpenCode's 'local' type variant.",
+            "Source-grounded concrete details throughout: 30,000-character response truncation cap (MAX_RESPONSE_CHARS), 50-entry log default for the logs operation, 12-minute dev startup timeout, and secret masking behavior all match the source exactly.",
+            "The split between automatic setup (stacktape mcp:add) and manual setup with per-client Tabs is well-structured and practical. The note about local vs global stacktape command resolution is accurate and useful.",
+            "The required preview Warning callout appears at the top as mandated by section instructions.",
+            "10-question FAQ mixes Stacktape-specific, MCP/AWS-use-case, and comparison questions, spanning the right breadth for AI extractability.",
+            "The troubleshooting section covers real failure modes (PATH issues, authentication, JSON parse errors, backup recovery) that are grounded in the mcp-add source.",
+            "The docs tool description correctly captures the BM25-based search behavior and the structured parameter table for stacktape_diagnose is comprehensive and accurate."
+          ],
+          "problems": [
+            "The Troubleshooting section claims users can override the CLI command via a STACKTAPE_MCP_CLI_COMMAND environment variable. This env var does not appear anywhere in the provided source files (src/commands/mcp/index.ts or src/commands/mcp-add/index.ts). This is an invented feature that would mislead users.",
+            "The FAQ answer for 'What happens if a tool call times out?' states 'Infrastructure operations have a default timeout of 10 minutes.' The source only shows an explicit timeoutMs of 12 * 60 * 1000 for the dev start operation. No 10-minute timeout is specified for stacktape_ops or stacktape_diagnose operations in the source. This claim is unsupported.",
+            "The 'How it works' section uses a <FlowDiagram steps={[...]} /> component that does not appear in the documented MDX component palette. If this component is not registered in the docs system, the entire section will fail to render, leaving a broken page for readers.",
+            "The Warning callout appears before the intro paragraph, which pushes the answer-first paragraph below the fold for AI snippet extractors and search engines. The intro paragraph is self-contained and good, but it is not technically the first content element on the page."
+          ],
+          "mandatoryFixes": [
+            "Remove the 'Environment variable override' subsection in Troubleshooting entirely. The STACKTAPE_MCP_CLI_COMMAND environment variable does not appear in any provided source file and is unsupported. Replace with a grounded alternative tip, or omit the subsection.",
+            "Remove or qualify the '10 minutes' timeout claim in the FAQ answer for 'What happens if a tool call times out?' The source only documents a 12-minute timeout for dev mode start; no explicit timeout is set for stacktape_ops or stacktape_diagnose in the MCP source. Replace with a grounded statement such as: 'The dev mode start operation has a 12-minute timeout. Timeout behavior for other operations depends on the underlying CLI command and is not explicitly capped by the MCP server.'",
+            "Verify that <FlowDiagram steps={[...]} /> is a registered MDX component in the Stacktape docs system before publishing. If it is not registered, replace the 'How it works' section with prose paragraphs or a markdown list — the four steps described are source-accurate and should be preserved in a different format."
+          ],
+          "optionalImprovements": [
+            "Consider moving the intro paragraph before the Warning callout, or making the Warning a compact inline note, so that the answer-first paragraph is the literal first extractable text element on the page.",
+            "The stacktape_ops and stacktape_diagnose parameter tables could add a 'Required' column or distinguish required vs optional args more explicitly, since validation logic in the source shows specific required args per operation (e.g., logs requires resourceName, metrics requires resourceName + metric, sql requires resourceName + sql).",
+            "The 'Supported clients' table could add a 'Root JSON key' column (mcpServers vs servers vs mcp) since this distinction matters for manual setup and is currently buried in the Tabs below.",
+            "The stacktape_diagnose section notes that 'region is required for most operations' but the source shows allowed args, not required args, for most diagnose operations — consider softening this to 'region is accepted by most operations and should be provided when targeting a specific stack' to avoid overstating requirements.",
+            "The FAQ answer for 'How does the docs search work?' correctly describes BM25 and the 25% threshold, but since the lexical-index source is not included in this review, consider marking this as implementation detail rather than a guarantee: 'The search index uses BM25-based scoring; results are filtered by relevance threshold.'"
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Draft characterizes `stacktape_diagnose` as \"read-only\" in two places: the tool section heading (\"Inspects deployed infrastructure with read-only operations\") and the FAQ (\"the `stacktape_docs` and `stacktape_diagnose` tools are read-only\").",
+              "reason": "The diagnose tool includes `container_exec` (runs arbitrary commands in containers), `sql` (can execute INSERT/UPDATE/DELETE/DDL), `dynamodb`/`redis`/`opensearch` (accept `operation`+`item`/`value`/`document` parameters for writes), and `aws_sdk` (calls any AWS API). These are clearly not read-only. Calling the tool read-only is a safety mischaracterization — a reader who trusts this claim may auto-approve all diagnose tool calls without review.",
+              "suggestedFix": "Remove the \"read-only\" qualifier from both locations. In the tool section: change to \"Inspects and interacts with deployed infrastructure\" or similar. In the FAQ: change to \"While `stacktape_docs` is read-only, `stacktape_diagnose` can also execute commands in containers and run database queries — review its tool calls before approving.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "container_exec: 'debug:container-exec',"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "container_exec: ['resourceName', 'command', 'container', 'taskArn', 'projectName', 'stage', 'region'],"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "sql: ['resourceName', 'sql', 'limit', 'timeout', 'bastionResource', 'projectName', 'stage', 'region'],"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "dynamodb: ['resourceName', 'operation', 'key', 'item', 'pk', 'sk', 'index', 'limit', 'projectName', 'stage', 'region'],"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"When a project-level config file already exists, `mcp:add` writes there. Otherwise it falls back to the global config path.\"",
+              "reason": "The `resolveTargetPath` function returns the first existing path in the `paths` array, or `paths[0]` if none exist. Since `paths[0]` is always the project-level path for every target, when NO config file exists, `mcp:add` creates the config at the project level — it does NOT fall back to the global path. The draft's claim inverts the actual default behavior.",
+              "suggestedFix": "Replace with: \"If a project-level or global config file already exists, `mcp:add` writes to the first one it finds (checking project-level first). If neither exists, it creates a new project-level config file.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const resolveTargetPath = async ({ paths }: { paths: string[] }): Promise<string> => {\n  for (const candidatePath of paths) {\n    if (await pathExists(candidatePath)) return candidatePath;\n  }\n  return paths[0];\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "\"If you pass `--autoConfirmOperation`, the command skips the prompt and installs into all detected clients.\"",
+              "reason": "The `getDefaults` function returns `detectedTargets` only when at least one client is detected. When NO clients are detected, it returns `allTargets` (all six clients). So `--autoConfirmOperation` installs into all six clients when none are detected, not just detected ones. The draft omits this edge case which could surprise users.",
+              "suggestedFix": "Change to: \"If you pass `--autoConfirmOperation`, the command skips the prompt. It installs into all detected clients, or all six supported clients if none are detected.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const getDefaults = ({\n  detectedTargets,\n  allTargets\n}: {\n  detectedTargets: string[];\n  allTargets: string[];\n}): string[] => {\n  if (detectedTargets.length > 0) return detectedTargets;\n  return allTargets;\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The stacktape_diagnose section says \"Database query operations (`sql`, `dynamodb`, `redis`, `opensearch`) require both `resourceName` and the query/operation parameters.\"",
+              "reason": "This is accurate for `sql` (requires `resourceName` + `sql`), but for `dynamodb`, `redis`, and `opensearch` the source requires `resourceName` + `operation` — not a generic \"query/operation parameters\". The parameter name `operation` is specific and important since it determines whether the call reads or writes data. The draft's table correctly lists the parameters above, but this summary sentence blurs the distinction.",
+              "suggestedFix": "Change to: \"Database operations (`sql`, `dynamodb`, `redis`, `opensearch`) require `resourceName` and a command parameter — `sql` for SQL queries, `operation` for NoSQL/cache/search operations.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "operation === 'dynamodb' || operation === 'redis' || operation === 'opensearch'\n                    ? validateRequiredArgs({\n                        operation,\n                        args: filteredArgs,\n                        requiredAll: ['resourceName', 'operation']\n                      })"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The draft does not mention that the diagnose tool's `logs` operation requires `resourceName` as a mandatory parameter.",
+              "reason": "The parameter table for stacktape_diagnose says \"Most operations need `projectName`, `stage`, `region`, and `resourceName`\" without distinguishing which are validated as required. The source shows `logs` explicitly validates `resourceName` as required, as do `metrics`, `alarms`, `container_exec`, `sql`, and the NoSQL operations. This is important because the AI assistant will get a validation error if it omits `resourceName` for logs.",
+              "suggestedFix": "Add a note under the parameter table or in the `logs` description that `resourceName` is required for log queries, not just recommended.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "operation === 'logs'\n          ? validateRequiredArgs({ operation, args: filteredArgs, requiredAll: ['resourceName'] })"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All four MCP tools (docs, ops, diagnose, dev) are correctly identified and their operation enums match the source exactly.",
+            "The supported clients table accurately lists all six client targets with correct project and global config paths matching the `getTargets` function in mcp-add/index.ts.",
+            "Manual setup JSON/TOML snippets for all six clients correctly match the `serverConfig` objects and `rootKey` values in the source (including VS Code using 'servers' instead of 'mcpServers').",
+            "The stacktape_docs tool parameter table (query, mode, resourceType, docType, maxItems with default 3) matches the Zod schema exactly.",
+            "The stacktape_ops operations list and behavior claims (deploy/delete set autoConfirmOperation, delete requires confirm=true, secret_get masks values) are all source-verified.",
+            "Dev mode claims are accurate: default agentPort 7331, 12-minute startup timeout, rebuild requires workload parameter, single active session via the module-level `activeDevSession` variable.",
+            "The 30,000-character response truncation limit correctly matches `MAX_RESPONSE_CHARS = 30000` in the source.",
+            "BM25 search, title/tag boosting, and 25% top-score filtering threshold are all confirmed in lexical-index.ts.",
+            "The default logs limit of 50 for the diagnose tool matches the source: `if (operation === 'logs' && !filteredArgs.limit) { filteredArgs.limit = 50; }`.",
+            "The STACKTAPE_MCP_CLI_COMMAND environment variable and 10-minute default operation timeout are both confirmed in cli-jsonl-runner.ts.",
+            "The npm-dependency detection logic (using node_modules/.bin/stacktape for local configs, global stacktape for global configs) is accurately described and matches resolveLocalStacktapeCommand + the isLocalConfig branching.",
+            "The preview warning callout is appropriate and matches the page metadata description.",
+            "Cross-links to /cli/mcp-add, /cli/aws-profile-create, and /local-development/dev-mode-overview are all valid routes in the navigation index."
+          ],
+          "summary": "The draft is well-grounded overall. Tool operations, parameter schemas, client configurations, and behavioral details (timeouts, defaults, masking, truncation) are accurately represented against the MCP source code. The most significant issue is the characterization of `stacktape_diagnose` as \"read-only\" in two locations — the tool includes container_exec (arbitrary command execution), sql (arbitrary SQL), and write-capable NoSQL/cache operations, making this a safety mischaracterization. The config path fallback behavior is also inverted: when no config exists, mcp:add creates at project level, not global. A minor edge case with --autoConfirmOperation behavior is also slightly misrepresented. All manual setup snippets, tool parameter tables, and FAQ answers (including BM25 details, timeout values, and env var override) checked out against source."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the MCP command source and includes the required preview framing, but it has several source-grounding issues around mcp:add installation behavior, safety/read-only wording, docs-search internals, secret masking, timeouts, and unsupported security/configuration claims.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"When a project-level config file already exists, `mcp:add` writes there. Otherwise it falls back to the global config path.\"",
+              "reason": "The installer writes to the first existing candidate path. If none of the candidate config files exists, it creates the first path in the target list, which is the project-level path for these clients, not the global path.",
+              "suggestedFix": "Replace with: \"`mcp:add` writes to the first existing config path in the target list. If no config file exists yet, it creates the project-level config path for that client.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const resolveTargetPath = async ({ paths }: { paths: string[] }): Promise<string> => {\n  for (const candidatePath of paths) {\n    if (await pathExists(candidatePath)) return candidatePath;\n  }\n  return paths[0];\n};"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "paths: [join(cwd, '.mcp.json'), join(home, '.claude.json')]"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The draft says `mcp:add` \"auto-detects installed clients\" and that `--autoConfirmOperation` \"installs into all detected clients.\"",
+              "reason": "The source detects existing config files, not installed applications. Also, when no config files are detected, the default selected targets are all supported clients, so `--autoConfirmOperation` can install into all targets, not only detected ones.",
+              "suggestedFix": "Say that `mcp:add` detects existing client config files. Clarify that if no existing config files are found, the command defaults to all supported clients when prompting is skipped.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const detectTarget = async ({ paths }: { paths: string[] }): Promise<boolean> => {\n  for (const candidatePath of paths) {\n    if (await pathExists(candidatePath)) return true;\n  }\n  return false;\n};"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const getDefaults = ({\n  detectedTargets,\n  allTargets\n}: {\n  detectedTargets: string[];\n  allTargets: string[];\n}): string[] => {\n  if (detectedTargets.length > 0) return detectedTargets;\n  return allTargets;\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft describes `stacktape_diagnose` as read-only, including the FAQ statement that `stacktape_docs` and `stacktape_diagnose` are read-only tools.",
+              "reason": "The MCP source labels the diagnose tool as intended for inspection, but the runtime surface includes `container_exec` and `aws_sdk` with arbitrary command-style inputs. The MCP layer shown here does not enforce read-only AWS SDK commands or container commands, so the page should avoid promising read-only behavior without a caveat.",
+              "suggestedFix": "Write that `stacktape_diagnose` is intended for diagnostics and includes log, metric, database, container exec, and AWS SDK operations. Add that users should review tool calls carefully, especially `container_exec` and `aws_sdk`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "container_exec: 'debug:container-exec',\n  sql: 'debug:sql',\n  dynamodb: 'debug:dynamodb',\n  redis: 'debug:redis',\n  opensearch: 'debug:opensearch',\n  aws_sdk: 'debug:aws-sdk'"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "container_exec: ['resourceName', 'command', 'container', 'taskArn', 'projectName', 'stage', 'region'],"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "aws_sdk: ['service', 'command', 'input', 'region', 'projectName', 'stage']"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Secret values are masked in responses.\"",
+              "reason": "The source only shows special masking and raw-tail redaction for the `secret_get` operation. The draft's broad wording implies all secret-related responses are masked, which is not grounded in the shown code.",
+              "suggestedFix": "Narrow the claim to: \"For `secret_get`, the MCP response masks returned secret data and redacts the raw output tail.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "if (operation === 'secret_get') {\n        if (!data) {\n          data = extractJsonLogPayload(result.rawTail);\n        }\n        data = maskSensitiveValues(data || ({} as Record<string, unknown>)) as Record<string, unknown>;\n        if (result.ok) {\n          rawTail = '[REDACTED: secret_get output is masked in MCP responses]';\n        }\n      } else if (!data) {\n        data = extractJsonLogPayload(result.rawTail);\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft claims docs search is \"BM25-based,\" boosts titles and tags, filters results below 25% of the top score, and uses local files bundled with the CLI.",
+              "reason": "Those implementation details are not present in the provided source files. The shown source only establishes that `buildIndex`, `search`, and `formatAnswer` are used and comments that the lexical index is built from generated AI docs.",
+              "suggestedFix": "Replace the implementation-specific wording with source-grounded wording: \"The MCP server builds a lexical index from generated AI docs and exposes query, mode, resourceType, docType, and maxItems options.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "import { buildIndex, search, formatAnswer } from './lexical-index';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "// Build the lexical index from generated AI docs\n  const index = await buildIndex();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Infrastructure operations have a default timeout of 10 minutes.\"",
+              "reason": "The provided MCP source shows an explicit 12-minute timeout only for `stacktape_dev` start. The infrastructure operation calls shown in `stacktape_ops` do not pass a timeout, and the provided source files do not document a 10-minute default.",
+              "suggestedFix": "Remove the 10-minute infrastructure timeout claim unless a provided source for `runStacktapeCommandJsonl` documents it. Keep the sourced 12-minute dev-mode startup timeout.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const result = await runStacktapeCommandJsonl({\n        command: cliCommand,\n        args: operationArgs\n      });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "timeoutMs: 12 * 60 * 1000"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"You can override the CLI command the MCP server uses internally by setting the `STACKTAPE_MCP_CLI_COMMAND` environment variable.\"",
+              "reason": "The provided source files do not mention `STACKTAPE_MCP_CLI_COMMAND`. The implementation may exist in an unprovided helper, but this page's available sources do not ground the claim.",
+              "suggestedFix": "Remove this troubleshooting subsection or add it only after citing the source that reads `STACKTAPE_MCP_CLI_COMMAND`.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"No credentials are sent to third parties beyond what normal CLI operations require.\"",
+              "reason": "This is a broad security and network-behavior claim. The provided MCP source shows local stdio server setup and CLI subprocess invocation, but it does not fully document credential handling or outbound destinations for all invoked CLI operations.",
+              "suggestedFix": "Narrow to the sourced behavior: \"The MCP server runs locally as a stdio subprocess and invokes Stacktape CLI commands.\" Avoid broader credential-transmission guarantees unless supported by source.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft starts with the required preview warning and avoids promising production readiness.",
+            "The page does not include forbidden hand-authored YAML Stacktape configuration, plain-object `StacktapeConfig`, or fenced Stacktape TypeScript config examples.",
+            "The four MCP tool names and their operation lists mostly match `src/commands/mcp/index.ts`.",
+            "The FAQ contains exactly 10 Q&A pairs, as required for this page type."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly complete for a setup page: it names the preview status, supported clients, install paths, four MCP tools, operation unions, stdio transport, and key safety caveats. I found a few medium-impact API completeness gaps where documented tool parameters or installer behavior would materially help users operate the MCP server correctly.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The `stacktape_diagnose` section lists only `operation` and a generic `args` object, then says most operations need `projectName`, `stage`, `region`, and `resourceName`.",
+              "reason": "The diagnose tool has per-operation required arguments and allowed arguments that are important for common workflows. The draft mentions some requirements in prose, but omits required `metric` for metrics, required `command` for container_exec, required `sql` for sql, required `operation` for DynamoDB/Redis/OpenSearch, and required `service`/`command` for aws_sdk. Readers cannot reliably construct common diagnostic calls from the page.",
+              "suggestedFix": "Add a compact per-operation table for `stacktape_diagnose` that names each operation and its required arguments, with optional filters summarized separately.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "operation === 'metrics'\n            ? validateRequiredArgs({ operation, args: filteredArgs, requiredAll: ['resourceName', 'metric'] })"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "operation === 'container_exec'\n                ? validateRequiredArgs({ operation, args: filteredArgs, requiredAll: ['resourceName', 'command'] })"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "operation === 'aws_sdk'\n                      ? validateRequiredArgs({ operation, args: filteredArgs, requiredAll: ['service', 'command'] })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `stacktape_ops` section says most operations require `projectName`, `stage`, `region`, and `configPath`, and documents special requirements only for secret operations.",
+              "reason": "The source validates `script_run` with `scriptName` as a required argument. Because running deployment scripts is one of the named operations, omitting `scriptName` from the operation-specific requirements makes the API guidance incomplete.",
+              "suggestedFix": "Add `script_run` to the special-case requirements: `script_run` requires `scriptName`; `secret_create` requires `secretName` plus `secretValue` or `secretFile`; `secret_get` and `secret_delete` require `secretName`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "operation === 'script_run'\n          ? validateRequiredArgs({ operation, args: normalizedArgs, requiredAll: ['scriptName'] })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The page does not document that MCP tool arguments may be passed in snake_case or kebab-case forms and are normalized to camelCase.",
+              "reason": "The MCP server includes explicit argument aliases and a camel-case normalizer. This is a practical API behavior for AI clients because model-generated tool calls often use `project_name`, `config_path`, or `resource-name` style names. Documenting it reduces avoidable tool-call failures.",
+              "suggestedFix": "Add a short note under Available tools: argument names are normalized to camelCase, and common aliases such as `project_name`, `config_path`, `resource_name`, `secret_name`, and `auto_confirm_operation` are accepted.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const ARG_ALIASES: Record<string, string> = {\n  project_name: 'projectName',\n  config_path: 'configPath',\n  resource_name: 'resourceName',"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const toCamelCase = (value: string): string => value.replace(/[_-]([a-z])/g, (_, char: string) => char.toUpperCase());"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Supported clients section says `mcp:add` auto-detects installed clients and writes the correct MCP configuration for each one.",
+              "reason": "The source's detection checks whether one of the known config paths already exists; it does not inspect whether an editor or assistant application is installed. The draft's wording could make readers expect app detection rather than config-file detection.",
+              "suggestedFix": "Change the wording to: `mcp:add` detects existing client config files at known project and user paths, then installs into detected configs by default; if none are detected, it offers all supported targets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const detectTarget = async ({ paths }: { paths: string[] }): Promise<boolean> => {\n  for (const candidatePath of paths) {\n    if (await pathExists(candidatePath)) return true;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "if (detectedTargets.length > 0) return detectedTargets;\n  return allTargets;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft starts with the required preview warning and avoids promising production-ready MCP behavior.",
+            "All four exposed MCP tools are named, and each operation union is acknowledged for `stacktape_ops`, `stacktape_diagnose`, and `stacktape_dev`.",
+            "The manual setup examples are demonstrative for the setup task and match the client-specific config shapes in the installer source.",
+            "The draft correctly documents destructive delete confirmation and masking of `secret_get` responses."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\using-with-ai__mcp-server-setup\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No style violations: no hand-authored YAML Stacktape configs, no StacktapeConfig type import, no fenced TypeScript blocks with defineConfig — the page correctly uses JSON fenced blocks only for MCP client config files, not Stacktape configs.",
+            "All four tools are documented with accurate parameter tables sourced directly from the MCP server code — operation enums, required args, and defaults (50-entry log limit, 7331 dev port, 30,000-char truncation) all match the source.",
+            "Per-client manual setup examples in tabbed layout are copy-pasteable and technically accurate against the source's serverConfig objects — including the VS Code 'servers' root key distinction and the OpenCode 'local' type.",
+            "The `stacktape mcp:add` detection and auto-confirm behavior is accurately described: detected-first defaulting, `.bak.<timestamp>` backups, JSON5 parsing — all match the source code.",
+            "Warning callout for container_exec and aws_sdk being non-read-only is well-placed and important for beginners who might assume the diagnose tool is entirely passive.",
+            "Preview callout at the top satisfies the section instruction requirement and correctly sets expectations without overstating stability.",
+            "FAQ covers all three required categories: Stacktape-specific (authentication, credential handling, scoping), AWS service use-case (production safety, concurrent usage), and comparison/choosing questions (ops vs diagnose distinction). Exactly 10 Q&A pairs.",
+            "Troubleshooting section addresses the three most common real-world failure modes (PATH, auth, config syntax) grounded in the actual install flow."
+          ],
+          "problems": [
+            "Missing a critical first-time-user gotcha: after running `stacktape mcp:add` or editing config files manually, the user must restart their AI client for the new MCP server to be loaded. This is the single most common reason setup 'doesn't work' and is completely absent from the page, the troubleshooting section, and the FAQ.",
+            "The 'Per-operation required arguments' table for stacktape_diagnose shows 'info_stack' with '—' in the Required args column, implying no arguments are needed. In practice, projectName, stage, and region are necessary to identify which stack to inspect — the source's DIAGNOSE_ALLOWED_ARGS confirms these are accepted. A reader copying the table literally may call the operation with no args and get an empty/misleading result.",
+            "The 'Available tools' section introduces stacktape_diagnose as 'inspects and interacts' but a few paragraphs later the Warning callout says 'most operations are read-only'. These two framings conflict slightly. The Warning is accurate; the intro framing should lead with the read-mostly nature upfront.",
+            "The 'When to use' section lists four bullets that are narrowly tool-specific (deploying, querying, docs lookup, secrets) but doesn't communicate the core value proposition in one sentence: that an AI assistant can drive the entire Stacktape workflow without the user needing to relay CLI output manually. A first-time reader may not immediately understand what they gain versus just asking the AI to write CLI commands for them.",
+            "The 'Verifying the setup' section tells users to run `stacktape mcp` and press Ctrl+C, but the output ('wait for input on stdin') is not what most clients produce — clients wrap the process and the user never sees stdin. This step is confusing in practice. The more useful verification is the docs-query test mentioned in the next paragraph, which should be primary."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a one-sentence note after the setup sections (both Automatic and Manual) telling the reader to restart their AI client before the MCP server will appear. Place it in a short Info callout: 'After editing any MCP config file, restart your AI client to load the new server.' This alone will prevent the most common support question.",
+            "Fix the info_stack row in the diagnose required-args table. Change '—' to 'projectName, stage, region (to identify the stack)' or add a table note explaining that stack-identifying args are needed even when not validation-enforced.",
+            "Reorder the 'Verifying the setup' section: lead with the in-client docs-query test ('try asking your AI assistant: how do I deploy a Lambda function') as the primary verification, and demote the `stacktape mcp` terminal test to a secondary step for debugging server startup issues only.",
+            "Add a sentence to the 'When to use' intro naming the core workflow benefit explicitly: something like 'The assistant can then drive the full Stacktape workflow — write config, deploy, check logs, iterate — without you relaying terminal output back and forth.'",
+            "The stacktape_diagnose intro says 'inspects and interacts' — change to 'primarily reads deployed infrastructure' to align with the Warning callout and reduce the mild framing conflict. Then the Warning can refine with the two exceptions (container_exec, aws_sdk)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All four MCP tool schemas are accurately reflected from source code — parameters, types, required/optional status all match the Zod schemas in mcp/index.ts exactly",
+            "All six client config formats are source-verified and copyable, including the correct root key distinction ('servers' for VS Code vs 'mcpServers' for Claude Code/Cursor/Windsurf)",
+            "Security-sensitive operations (container_exec, aws_sdk, delete) are clearly flagged with appropriate Warning callouts rather than buried in parameter tables",
+            "FAQ contains exactly 10 pairs and correctly spans all three required categories: Stacktape-specific, AWS use-case, and choosing/comparison questions",
+            "Auto-detection behavior, .bak.<timestamp> backup semantics, and local vs global stacktape command resolution are all accurately sourced from mcp-add/index.ts",
+            "Default limit of 50 for logs operation is correctly sourced from the runtime branch 'if (operation === 'logs' && !filteredArgs.limit) { filteredArgs.limit = 50; }'",
+            "secret_get masking and rawTail redaction behavior is precisely described, matching the source code logic",
+            "Preview warning is prominently placed at top as required by section instructions, and the page avoids overclaiming future functionality"
+          ],
+          "problems": [
+            "The info_stacks operation receives special post-processing in source (extracts stack list from outputEvents into data.stacks and deletes rawTail) that meaningfully affects what the caller gets back — this behavioral difference from other diagnose operations is not surfaced on the page, which could mislead a developer trying to parse the response programmatically",
+            "The page describes stacktape_diagnose as used for 'READ-ONLY inspection' in the section header text but the Warning callout correctly notes the exceptions — the section-level framing and the warning are slightly inconsistent in emphasis, since aws_sdk can perform full write operations on any AWS service, not just 'inspection'"
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Mention stackName as an alternative identifier for info_stack alongside projectName+stage — it appears in DIAGNOSE_ALLOWED_ARGS for that operation and matters for stacks that were imported or renamed",
+            "Note that awsAccount is an optional arg for info_stack and info_stacks — relevant for multi-account setups where the same project/stage exists in multiple accounts",
+            "The VS Code global config path is described as 'Platform-specific User/mcp.json' — the Windows path (%APPDATA%/Code/User/mcp.json) could be called out explicitly given this documentation targets a Windows dev environment",
+            "The 'How it works' section could note that info_stacks receives special response shaping (stack lines extracted from outputEvents, rawTail stripped) since this affects programmatic response parsing for developers building tooling on top of MCP",
+            "Consider adding a one-liner about the awsAccount arg to the diagnose table for info_stacks, since cross-account debugging is a common enterprise scenario that developers will search for",
+            "The Troubleshooting section could add a note about the agent mode behavior (isAgentMode detection) — when the MCP server calls back into itself via shell, it may be detected as agent mode and skip prompts, which can surprise developers debugging MCP-initiated commands"
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Preview Warning callout appears immediately, setting correct expectations before the reader absorbs any technical details — exactly right for a feature in active development.",
+            "All six supported clients are covered with both a reference table and copy-paste-ready JSON/TOML config snippets using <Tabs>, giving the reader exactly what they need to configure their specific editor.",
+            "Parameter tables for all four tools are dense and well-structured — query, type, description per row — making them extractable as standalone reference snippets.",
+            "Per-operation required-args tables for stacktape_diagnose are unusually thorough; readers can cross-check what's needed without reading source code.",
+            "Security nuances are correctly scoped: the Warning callout inside stacktape_diagnose names specifically container_exec and aws_sdk as the non-read-only outliers rather than blanket-claiming the whole tool is safe or dangerous.",
+            "The 'When to use' / 'When NOT to use' sections are genuinely opinionated — 'long-running deployments are better run directly via the CLI' is concrete and actionable, not circular.",
+            "FAQ is exactly 10 questions, mixing Stacktape-specific (credentials, scoping, ops-vs-diagnose), technology-background (what is MCP), and practical-outcome questions (timeouts, alongside CLI usage).",
+            "The mcp:add detection/auto-selection behavior (defaults to detected clients, falls back to all six if none detected, skips prompt under --autoConfirmOperation) is explained clearly and matches the source precisely.",
+            "The node_modules/.bin/stacktape version-pinning behavior for project-level configs is explained in both automatic and manual setup sections — a subtle but important detail for npm-based projects.",
+            "Troubleshooting subsections use specific H3 labels ('Server fails to start', 'Config file conflicts', etc.) that make them individually extractable by search engines and AI overviews."
+          ],
+          "problems": [
+            "The stacktape_docs 'mode' parameter table lists the three values (answer, reference, snippet) with brief descriptions, but no example of when a reader would choose snippet over answer — the section stops after the table without prose explaining the practical difference between modes, leaving tunable values partially unexplained.",
+            "The FAQ skips a direct choosing/comparison question (MCP server vs. CLI vs. Console — when to use which?) even though 'When to use' and 'When NOT to use' cover some of this. A well-formed comparison question would be cited by AI engines answering 'should I use MCP or CLI for Stacktape deployments?'",
+            "The 'How it works' section's numbered list largely restates what earlier sections already explained (four tools, stdio transport, local docs index, JSONL subprocess). The response-truncation detail (30,000 characters) is the only net-new fact — the rest of the section could be tightened without losing coverage.",
+            "The VS Code global config path is described as 'Platform-specific User/mcp.json' in the table without spelling out the Windows or macOS paths, even though the source enumerates them explicitly. Readers on Windows seeing %APPDATA%\\Code\\User\\mcp.json in their filesystem have no breadcrumb to connect to the documentation.",
+            "The stacktape_dev section doesn't state what happens to activeDevSession state if the AI client process restarts mid-session — the module-level singleton is process-scoped, so a client restart loses the session reference and requires a new 'start'. This is a gotcha readers will encounter.",
+            "The Info callout at the bottom of stacktape_diagnose ('Secret operations are handled by stacktape_ops, not stacktape_diagnose') repeats information from the tool description table immediately above it — minor padding that slightly weakens the section's density signal."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add 1-2 sentences after the stacktape_docs mode parameter table explaining when to use 'snippet' (e.g., when the AI needs a TypeScript config block to inline) versus 'answer' (full explanation) — this anchors the tunable value for readers.",
+            "Add a FAQ question: 'MCP server, CLI, or Stacktape Console — which should I use?' with a 2-3 sentence answer covering the three paths. This maps to a high-intent comparison query that AI engines will cite.",
+            "In the VS Code row of the Supported clients table, spell out the platform-specific global path (e.g., %APPDATA%\\Code\\User\\mcp.json on Windows, ~/Library/Application Support/Code/User/mcp.json on macOS) rather than 'Platform-specific User/mcp.json'.",
+            "Add a one-sentence note in the stacktape_dev section explaining that the active session reference is process-scoped: if the AI client restarts, the session is lost and 'start' must be called again.",
+            "Trim the 'How it works' numbered list to the two genuinely non-obvious facts: (1) that JSONL event streams are parsed and consolidated before the response is returned, and (2) the 30,000-character truncation limit. Remove the restatements of the tool count and transport type already covered in the introduction.",
+            "Replace the redundant Info callout at the bottom of the stacktape_diagnose section with a cross-link anchor (e.g., 'See stacktape_ops above for secret management') to avoid padding without losing the navigation cue."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "FAQ answer 'What happens if a deployment times out through MCP?' says 'The dev mode start operation has a 12-minute timeout for initial setup' but does not mention the 10-minute default timeout for all other infrastructure operations (deploy, delete, preview_changes, etc.).",
+              "reason": "The cli-jsonl-runner.ts file shows a default timeout of 10 * 60 * 1000 ms (10 minutes) for all operations. Dev start overrides this to 12 minutes. The FAQ only mentions the 12-minute dev timeout, leaving readers unaware that deploy/delete/rollback also have a 10-minute MCP-layer timeout. A user deploying a large stack through MCP could hit this limit unexpectedly.",
+              "suggestedFix": "Add a sentence to the FAQ answer: 'All other infrastructure operations (deploy, delete, preview, rollback, etc.) have a default 10-minute timeout.' Also consider mentioning this in the stacktape_ops section.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\cli-jsonl-runner.ts",
+                  "quote": "timeoutMs = 10 * 60 * 1000"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "timeoutMs: 12 * 60 * 1000"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The 'When NOT to use' section says 'you get real-time streaming output rather than a consolidated JSON response' when running via CLI directly.",
+              "reason": "While the contrast between CLI streaming and MCP consolidated responses is directionally correct, it understates the practical concern. The real reason to prefer CLI for long deployments is the 10-minute MCP timeout, not just the output format. A deployment that takes 15 minutes will succeed via CLI but fail via MCP.",
+              "suggestedFix": "Mention the MCP-layer timeout as the primary reason to prefer CLI for long-running deployments: 'Long-running deployments (over 10 minutes) should be run directly via the CLI, which has no MCP-layer timeout and provides real-time streaming output.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\cli-jsonl-runner.ts",
+                  "quote": "timeoutMs = 10 * 60 * 1000"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All four MCP tool names, parameter schemas (Zod types, enums, defaults), and operation maps match the source exactly — stacktape_docs, stacktape_ops, stacktape_diagnose, stacktape_dev.",
+            "The supported clients table correctly lists all six clients (claude-code, codex, cursor, vscode, opencode, windsurf) with accurate project-level and global config paths matching the getTargets() function.",
+            "Manual setup JSON/TOML examples match the source's serverConfig objects and rootKey values per-client (e.g. VS Code uses 'servers' not 'mcpServers', Windsurf includes 'env: {}', OpenCode uses array-form 'command').",
+            "The stacktape_ops validation logic is accurately documented: deploy/delete auto-set autoConfirmOperation, delete requires confirm: true, script_run requires scriptName, secret_create requires secretName + secretValue|secretFile.",
+            "The stacktape_diagnose per-operation required arguments table correctly reflects the MCP-layer validation code for all 13 operations, including the default limit of 50 for logs.",
+            "The stacktape_dev section correctly documents the 12-minute start timeout, default port 7331, rebuild requiring workload name, and the single-session constraint (single activeDevSession variable).",
+            "The mcp:add behavior description is accurate: detection via pathExists, getDefaults fallback to all six clients when none detected, JSON5 parsing, .bak.timestamp backups, local vs global stacktape command resolution based on npm dependency.",
+            "Secret masking behavior for secret_get is correctly described — maskSensitiveValues applied to data, rawTail replaced with redaction notice.",
+            "The 30,000 character response truncation limit matches MAX_RESPONSE_CHARS in the source.",
+            "All cross-links point to valid routes in the documentation navigation index."
+          ],
+          "summary": "This is a high-quality, well-grounded draft. Nearly every factual claim — tool parameters, operation maps, validation logic, client config paths, default values, and behavioral descriptions — directly matches the source code. The only substantive issue is a missing mention of the 10-minute default timeout for non-dev infrastructure operations (deploy, delete, rollback, etc.), which the FAQ partially addresses for dev-start (12 minutes) but omits for the general case. This could surprise users whose deployments exceed 10 minutes when run through MCP."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well grounded in the two MCP source files, especially around supported clients, install paths, tool names, operation maps, and safety behavior. I found a few concrete issues where the prose overstates behavior or describes argument requirements more broadly than the implementation supports.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Most operations require `projectName`, `stage`, `region`, and `configPath`.”",
+              "reason": "The `stacktape_ops` MCP tool description says most operations require these arguments, but the implementation only validates extra required arguments for `script_run`, `secret_create`, `secret_get`, and `secret_delete`. It does not enforce `projectName`, `stage`, `region`, or `configPath` for deploy, delete, preview, rollback, or compile-template at the MCP layer. The draft turns a broad tool description into a stronger requirement than the runtime validation supports.",
+              "suggestedFix": "Narrow the wording: “For project-scoped operations, pass the same arguments the corresponding CLI command needs, commonly `projectName`, `stage`, `region`, and `configPath`. The MCP layer adds explicit validation for script and secret operations.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "Required args for most operations: projectName, stage, region, configPath.\nSecret operations require: secretName (and secretValue or secretFile for secret_create)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const validation =\n        operation === 'script_run'\n          ? validateRequiredArgs({ operation, args: normalizedArgs, requiredAll: ['scriptName'] })\n          : operation === 'secret_create'\n            ? validateRequiredArgs({\n                operation,\n                args: normalizedArgs,\n                requiredAll: ['secretName'],\n                requiredAny: ['secretValue', 'secretFile']\n              })\n            : operation === 'secret_get' || operation === 'secret_delete'\n              ? validateRequiredArgs({ operation, args: normalizedArgs, requiredAll: ['secretName'] })\n              : null;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“`info_stack` | — | View details of a deployed stack” in the `stacktape_diagnose` required-arguments table.",
+              "reason": "The implementation does not validate a required argument for `info_stack`, but it explicitly allows `stackName`, `projectName`, `stage`, `region`, `awsAccount`, and `logLevel`. Saying there are no required args is potentially misleading because the underlying CLI likely needs enough information to identify a stack; the source only supports saying the MCP wrapper does not enforce required args for this operation.",
+              "suggestedFix": "Change the table entry to something like: “MCP wrapper: none enforced. Pass `stackName` or project/stage/region details as needed by `stacktape info:stack`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "info_stack: ['stackName', 'projectName', 'stage', 'region', 'awsAccount', 'logLevel'],"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const validation =\n        operation === 'logs'\n          ? validateRequiredArgs({ operation, args: filteredArgs, requiredAll: ['resourceName'] })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Common optional filters include `startTime`, `endTime`, `limit`, `filter`, and `query` for log operations; `period` and `stat` for metrics; `container` and `taskArn` for container exec; and `bastionResource` for SQL queries...”",
+              "reason": "The source allows `query` for `logs`, but it does not allow `query` for the `sql` operation. Because this sentence can be read as describing query-like arguments across diagnostic operations, it should be clearer that SQL uses the required `sql` argument, while `query` is only an allowed argument for logs and OpenSearch.",
+              "suggestedFix": "Rewrite as separate bullets per operation: logs accepts `startTime`, `endTime`, `limit`, `filter`, `container`, and `query`; SQL requires `sql` and can also accept `limit`, `timeout`, and `bastionResource`; OpenSearch accepts `query`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "logs: [\n    'resourceName',\n    'raw',\n    'filter',\n    'container',\n    'query',\n    'limit',\n    'startTime',\n    'endTime',\n    'projectName',\n    'stage',\n    'region'\n  ],"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "sql: ['resourceName', 'sql', 'limit', 'timeout', 'bastionResource', 'projectName', 'stage', 'region'],"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The server should start without errors and wait for input on stdin. Press `Ctrl+C` to stop it.”",
+              "reason": "The source confirms `stacktape mcp` uses `StdioServerTransport`, but it does not document terminal behavior such as visibly waiting for stdin or `Ctrl+C` as the stop mechanism. This is plausible, but it is not grounded in the provided source and appears in a verification procedure readers may follow literally.",
+              "suggestedFix": "Use a narrower verification step grounded in source: “`stacktape mcp` starts the stdio MCP server. In normal client usage, your AI client launches and manages this process.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const transport = new StdioServerTransport();\n\n  await server.connect(transport);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After upgrading, you do not need to re-run `mcp:add` — the existing config points to the `stacktape mcp` command, which picks up the new version.”",
+              "reason": "The provided source shows that `mcp:add` can write either the global `stacktape` command or `node_modules/.bin/stacktape` for local project configs. Whether an existing config picks up a new version depends on how Stacktape was installed and updated. The source does not support the unconditional “do not need to re-run” statement.",
+              "suggestedFix": "Qualify the claim: “If the MCP config still points at the Stacktape binary you updated, the next client launch uses that updated binary. Re-run `stacktape mcp:add` only if you want to change which clients or config files are wired.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const globalStacktapeCommand = 'stacktape';\n  const localStacktapeCommand = resolveLocalStacktapeCommand();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const effectiveStacktapeCommand = isLocalConfig ? localStacktapeCommand : globalStacktapeCommand;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `stacktape_ops` tool can deploy and delete real infrastructure; destructive operations like `delete` require explicit confirmation (`confirm: true`).”",
+              "reason": "This is true for the MCP wrapper, but the phrasing “destructive operations like `delete`” may imply there are other destructive operations with the same `confirm: true` MCP safety gate. The source only applies that gate to `delete`.",
+              "suggestedFix": "Say exactly: “The MCP wrapper requires `confirm: true` only for the `delete` operation.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the four MCP tools and their operation names from `src\\commands\\mcp\\index.ts`.",
+            "The supported-client table matches the `mcp:add` target list and root config keys in `src\\commands\\mcp-add\\index.ts`.",
+            "The draft correctly states that `secret_get` responses are masked and raw output is redacted in MCP responses.",
+            "The draft correctly distinguishes secret operations as belonging to `stacktape_ops`, not `stacktape_diagnose`.",
+            "The FAQ contains exactly 10 Q&A pairs and avoids hand-authored Stacktape YAML or plain-object Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally complete for a non-resource MCP setup page: it covers the supported clients, automatic/manual setup, all four MCP tools, core operation sets, safety notes, troubleshooting, and exactly 10 FAQ entries. I found a few completeness and API-shape issues that could mislead readers configuring or operating the preview server.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `stacktape_ops` section says most operations require `projectName`, `stage`, `region`, and `configPath`, but it does not mention that the tool normalizes snake_case and kebab-case argument names to camelCase.",
+              "reason": "The MCP tool accepts `project_name`, `config_path`, `secret_name`, `start_time`, and similar aliases, then normalizes keys before validation and CLI execution. This is useful API behavior for AI clients and manual tool-call debugging, and the page currently presents only camelCase names.",
+              "suggestedFix": "Add a short note under Available tools or each parameter table: `MCP tool arguments are normalized before execution, so common snake_case and kebab-case forms such as project_name, config_path, secret_name, start_time, and end_time are accepted and mapped to camelCase.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const ARG_ALIASES: Record<string, string> = {\n  project_name: 'projectName',\n  config_path: 'configPath',\n  resource_name: 'resourceName',\n  script_name: 'scriptName',\n  secret_name: 'secretName',\n  secret_value: 'secretValue',\n  secret_file: 'secretFile',\n  bastion_resource: 'bastionResource',\n  out_file: 'outFile',\n  out_format: 'outFormat',\n  auto_confirm_operation: 'autoConfirmOperation',\n  task_arn: 'taskArn',\n  start_time: 'startTime',\n  end_time: 'endTime'\n};"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const toCamelCase = (value: string): string => value.replace(/[_-]([a-z])/g, (_, char: string) => char.toUpperCase());"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `stacktape_diagnose` section lists optional arguments but does not explain that unsupported arguments are silently filtered per operation before the CLI command runs.",
+              "reason": "The source explicitly whitelists allowed args per diagnose operation and drops anything not listed. That behavior matters because users and AI clients may expect arbitrary CLI flags to pass through, especially for `aws_sdk`, database, and logs operations.",
+              "suggestedFix": "Add a caveat after the diagnose parameter table: `For diagnose operations, the MCP server forwards only the allowlisted arguments for the selected operation; extra keys are ignored instead of being passed through to the CLI.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const pickAllowedArgs = (args: Record<string, unknown>, allowedArgs: string[]): Record<string, unknown> => {\n  const allowed = new Set(allowedArgs);\n  const filtered: Record<string, unknown> = {};\n  for (const [key, value] of Object.entries(args)) {\n    if (allowed.has(key)) {\n      filtered[key] = value;\n    }\n  }\n  return filtered;\n};"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const filteredArgs = pickAllowedArgs(normalizedArgs, DIAGNOSE_ALLOWED_ARGS[operation]);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft documents `stacktape_dev` as one active dev session per MCP server process, but does not document the `NOT_FOUND` behavior for status, logs, rebuild, rebuild_all, or stop before a session is started or after the local agent becomes unreachable.",
+              "reason": "The source has explicit behavior for missing or stale dev sessions, including next actions. This is important because most dev-mode operations depend on a prior successful `start`, and users troubleshooting AI client calls need to understand that session state is held inside the MCP server process.",
+              "suggestedFix": "In the dev-mode section or troubleshooting section, add: `Operations other than start require an active dev session in the same MCP server process. If no session is active, or the recorded local agent port no longer responds to /health, the tool returns NOT_FOUND and asks the assistant to call start again.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "if (!activeDevSession) {\n    return {\n      ok: false,\n      output: {\n        ok: false,\n        code: 'NOT_FOUND',\n        message: 'No active dev session found.',\n        nextActions: ['Call stacktape_dev with operation=start first']\n      }\n    };\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "message: `Dev session on port ${stalePort} is no longer reachable.`,\n        nextActions: ['Call stacktape_dev with operation=start to create a new dev session']"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The FAQ says `No credentials are sent to third parties beyond what normal CLI operations require (AWS API calls, Stacktape API for login).`",
+              "reason": "The provided source confirms local subprocess execution, secret masking for `secret_get`, and use of Stacktape CLI commands, but it does not establish every outbound credential path or third-party transmission behavior. As written, this is a broad security guarantee beyond the supplied source.",
+              "suggestedFix": "Narrow the FAQ answer to source-grounded behavior: `The MCP server runs locally as a subprocess of your AI client and delegates operations to Stacktape CLI commands. It uses the same local authentication context those CLI commands use. The source also masks secret_get data in MCP responses.` Avoid the third-party guarantee unless a higher-priority source explicitly documents it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const result = await runStacktapeCommandJsonl({\n        command: cliCommand,\n        args: operationArgs\n      });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "if (operation === 'secret_get') {\n        if (!data) {\n          data = extractJsonLogPayload(result.rawTail);\n        }\n        data = maskSensitiveValues(data || ({} as Record<string, unknown>)) as Record<string, unknown>;\n        if (result.ok) {\n          rawTail = '[REDACTED: secret_get output is masked in MCP responses]';\n        }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The FAQ says `After upgrading, you do not need to re-run mcp:add — the existing config points to the stacktape mcp command, which picks up the new version.`",
+              "reason": "This is only clearly true when the installed client config points to a command path that resolves to the upgraded CLI. The installer may write `node_modules/.bin/stacktape` for project-level configs when the project has a Stacktape npm dependency, so a global `stacktape upgrade` would not update that local dependency path.",
+              "suggestedFix": "Qualify the update guidance: `You usually do not need to re-run mcp:add after upgrading the CLI path referenced by your MCP config. If the config points to node_modules/.bin/stacktape, update the project dependency; if it points to stacktape, update the global CLI.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const effectiveStacktapeCommand = isLocalConfig ? localStacktapeCommand : globalStacktapeCommand;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "if (hasStacktapeDependency) {\n      return 'node_modules/.bin/stacktape';\n    }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page starts with the required preview warning and avoids presenting the MCP server as stable production infrastructure.",
+            "All four server tools from the source are named and described: `stacktape_docs`, `stacktape_ops`, `stacktape_diagnose`, and `stacktape_dev`.",
+            "The supported-client coverage matches the installer target list: Claude Code, OpenAI Codex, Cursor, VS Code / Copilot, OpenCode, and Windsurf.",
+            "The draft correctly separates secret operations into `stacktape_ops` and avoids placing them under `stacktape_diagnose`.",
+            "The page has no Stacktape configuration examples, so it does not violate the YAML, plain-object `StacktapeConfig`, or fenced TypeScript config-example rules."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\using-with-ai__mcp-server-setup\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Preview Warning callout appears at the very top exactly as the human-maintained section instructions require — sets expectations correctly before any content.",
+            "Every technical claim is grounded in the actual source: all four tool schemas, all six client config paths, argument normalization aliases, confirmation gates, masking behavior, and dev-session health-check logic are traceable to the provided source files.",
+            "The automatic setup path is immediately actionable in one command (`stacktape mcp:add`) with clear before/after behavior — perfect for a first-time reader who just wants to get running.",
+            "Per-client manual-setup examples in a tabbed layout give copyable, correct JSON/TOML for each client rather than generic placeholders.",
+            "FAQ has exactly 10 pairs and spans all three required categories: Stacktape-specific (credentials, scoping), AWS-use-case (safety, production workflows), and comparison/choosing (ops vs diagnose, MCP vs CLI).",
+            "Troubleshooting section addresses real first-encounter problems (PATH issues, version mismatch, config syntax errors, client detection) with concrete commands rather than generic advice.",
+            "The per-operation argument tables for `stacktape_diagnose` are well-structured and accurately reflect the `DIAGNOSE_ALLOWED_ARGS` map — no invented parameters.",
+            "Section ordering is ideal for the target audience: setup first, tool reference second, verification third — a reader can stop after 'Verifying the setup' and have a working integration."
+          ],
+          "problems": [
+            "The '10-minute timeout for infrastructure operations' figure is stated as concrete fact multiple times, but the `cli-jsonl-runner.ts` source file is not among the provided sources — the default cannot be verified from the inline material. The `start` operation's 12-minute timeout IS grounded (explicit `timeoutMs: 12 * 60 * 1000`), but the ops/diagnose default is not directly visible.",
+            "The 'Available tools' section is the longest by far and sits between 'Manual setup' and 'How it works' — a first-time user trying to follow the happy path (mcp:add → verify) has to scroll through four detailed tool reference tables, each with its own sub-tables and warnings, before reaching 'Verifying the setup'. There is no skip signal or summary sentence directing impatient readers past the reference material.",
+            "The intro paragraph says the server 'exposes four tools' but doesn't name them — a reader who jumps straight into a search via browser Ctrl+F for a tool name won't find the mapping until the 'Available tools' section. This is a minor SEO/extractability gap for the first paragraph.",
+            "Minor repetition: the argument normalization detail (snake_case/kebab-case → camelCase) appears in the intro paragraph, the `stacktape_ops` section paragraph, and the FAQ — three occurrences for what is a secondary feature. This adds length without proportional value for the target audience."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Soften the '10-minute timeout' claim to 'the default subprocess timeout' or cite it as 'typically around 10 minutes' unless the cli-jsonl-runner source can be consulted to confirm the exact default. The 12-minute dev-start timeout can stay as-is — it is grounded.",
+            "Add a one-sentence bridge between the 'Manual setup' section and 'Available tools' such as: 'The four sections below are reference material — skip ahead to Verifying the setup if you just want to confirm the integration is working.' This keeps the happy path navigable for first-time readers.",
+            "Expand the intro paragraph to name the four tools explicitly (stacktape_docs, stacktape_ops, stacktape_diagnose, stacktape_dev). This makes the paragraph extractable as a self-contained AI Overview snippet and lets readers Ctrl+F into the relevant section immediately.",
+            "Consolidate the argument normalization mentions into one place (the 'Available tools' intro or a brief callout) and remove the repeat in the intro paragraph. The FAQ entry on normalization can stay since FAQ answers stand alone, but the inline prose duplication adds noise.",
+            "The `stacktape_diagnose` Warning callout about `container_exec` and `aws_sdk` is good but placed inside a long section. Consider moving it to be the first thing under the `stacktape_diagnose` H3, before the parameter table, so readers see the caution before scanning the arguments.",
+            "Consider whether the 'How it works' section adds enough for a first-time reader — it largely recaps what was already stated in the introduction and per-tool descriptions. If retained, sharpen it to surface one non-obvious implementation detail (e.g., that the docs index is built once at server startup from bundled files, not rebuilt per query) to earn its place."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Exceptional source accuracy throughout: all six clients, all four tools, all parameter enums, defaults, and edge-case behaviors (secret masking, 50-entry logs default, confirm gate for delete, 12-minute dev-start timeout) are correctly reflected from the source.",
+            "Per-tool parameter tables with types and descriptions make tool usage immediately actionable without having to experiment.",
+            "Manual setup examples are copy-pasteable, use the correct JSON/TOML shapes from the installer source, and correctly distinguish the VS Code `servers` root key from the `mcpServers` root key used by other clients.",
+            "Troubleshooting section addresses concrete failure modes (PATH missing, stale config, JSON parse error, NOT_FOUND dev session) with specific, accurate resolution steps.",
+            "The Warning callout about `container_exec` and `aws_sdk` being non-read-only is exactly the right production-facing caveat for this audience.",
+            "Argument normalization coverage (snake_case/kebab-case to camelCase) is documented in context with concrete examples that match the ARG_ALIASES map in source."
+          ],
+          "problems": [
+            "The '10-minute timeout' claim for stacktape_ops infrastructure operations is not grounded in the provided source files — only the 12-minute dev start timeout is explicitly set in the source (timeoutMs: 12 * 60 * 1000). The runStacktapeCommandJsonl source is absent, so this specific number cannot be verified.",
+            "The FAQ is heavily weighted toward Stacktape-specific questions (8 of 10) and lacks meaningful entries in the 'use-case questions about the underlying service' and 'choosing/comparison' categories required by the FAQ discipline rules. For a setup page the underlying service is MCP protocol itself, but at least 1-2 comparison questions (MCP vs direct CLI, which client to choose) are missing.",
+            "The 'How it works' section partially restates content covered elsewhere: the 30,000-character truncation limit is already noted in the Available tools intro, and the 'no network access for docs' detail repeats the stacktape_docs subsection verbatim. The section has value but should be tightened to avoid the overlap."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Either source-ground the '10-minute timeout' for stacktape_ops by checking runStacktapeCommandJsonl, or soften the wording to avoid a specific unverifiable number (e.g., 'infrastructure operations run with a subprocess timeout; use the CLI directly for deploys you expect to take longer than 10–15 minutes').",
+            "Add 1-2 comparison or use-case FAQ questions: for example 'When should I use the MCP server instead of running Stacktape CLI commands directly?' and 'Does the MCP server support every Stacktape CLI command?'. This satisfies the three-category FAQ requirement and captures high-intent search queries.",
+            "Trim the 'How it works' section to strip content already covered elsewhere: remove the 30,000-character truncation sentence (already in Available tools intro) and the 'no network access' sentence (already in stacktape_docs subsection). Focus the section on what it uniquely adds: stdio transport mechanics and JSONL streaming architecture.",
+            "Document the awsAccount optional arg, which is listed in DIAGNOSE_ALLOWED_ARGS for info_stack, info_stacks, and info_operations in the source but is absent from the per-operation table. Useful for users operating multi-account setups."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Comprehensive, source-grounded coverage of all four MCP tools with accurate parameter tables cross-checked against DIAGNOSE_COMMAND_MAP, OPS_COMMAND_MAP, and DIAGNOSE_ALLOWED_ARGS in the source.",
+            "All six supported clients (Claude Code, Cursor, VS Code/Copilot, Windsurf, OpenAI Codex, OpenCode) are documented with correct config paths verified against mcp-add/index.ts, including per-client rootKey differences (mcpServers vs servers vs mcp) and the OpenCode-specific 'type':'local' with array command.",
+            "Strong FAQ section with exactly 10 questions spanning all three required categories: Stacktape-specific (credentials, safety, scoping), AWS/MCP use-case (what MCP is, production readiness), and comparison/choosing (ops vs diagnose, CLI vs MCP).",
+            "Warning callout at top correctly communicates preview status, directly satisfying the mandatory section instruction for using-with-ai pages.",
+            "Grounded numeric facts: 12-minute dev start timeout (matched to `timeoutMs: 12 * 60 * 1000` in source), 30,000-character MAX_RESPONSE_CHARS truncation, default 50-entry logs limit (matched to the `if (!filteredArgs.limit) { filteredArgs.limit = 50; }` branch), and default agent port 7331.",
+            "Decision support in 'When NOT to use' is concrete: names the MCP-layer timeout as the reason to use CLI for long-running deploys, and names the client requirement rather than just saying 'when MCP is not needed'.",
+            "Per-operation required-argument tables for stacktape_diagnose are accurate and specific, including the correct required pairs (resourceName+metric for metrics, resourceName+command for container_exec, service+command for aws_sdk).",
+            "Automatic and manual setup paths are both covered with copyable, client-specific JSON/TOML examples. The mcp:add auto-detect behavior (detect → pre-select, no detections → default to all) is accurately described from the source's getDefaults function.",
+            "Troubleshooting section covers concrete, source-grounded failure modes: PATH issues, version gap (older Stacktape without mcp subcommand), JSON5 parse errors, detection-vs-install distinction, and dev session NOT_FOUND lifecycle."
+          ],
+          "problems": [
+            "The 10-minute timeout for `stacktape_ops` operations is stated as definitive fact in multiple places ('a default 10-minute timeout', 'imposes a default 10-minute timeout') but is not explicitly grounded in the provided source files. The source shows `runStacktapeCommandJsonl` is called for ops without an explicit `timeoutMs` argument; only the dev `start` operation passes `timeoutMs: 12 * 60 * 1000`. The underlying `cli-jsonl-runner` implementation is not provided. This claim may be accurate but cannot be verified from the inline source.",
+            "The 'How it works' section partially restates information already covered in 'Available tools': the stdio transport description, the four registered tools, and the JSONL streaming behavior are all introduced earlier. The section adds little new signal and risks being flagged as backbone padding."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Hedge the ops 10-minute timeout claim: replace definitive 'a default 10-minute timeout' with 'up to approximately 10 minutes (the underlying runner's default)' or add a note that the exact timeout depends on the CLI runner version, to match source uncertainty.",
+            "Trim or fold the 'How it works' section. The first three numbered steps duplicate content already in 'Available tools'. Keep only the architectural detail not covered elsewhere: that the server process is spawned per AI client launch, that JSONL event streaming is the wire protocol, and that responses exceeding 30,000 characters are truncated — these facts are unique to this section.",
+            "The seoDescription is 155 characters, slightly over the 150-character guideline. Shorten to: 'Set up the Stacktape MCP server so AI coding assistants like Claude Code, Cursor, and Copilot can deploy, inspect infrastructure, and search docs from your editor.'",
+            "Move the 30,000-character truncation fact from 'How it works' into the 'Available tools' intro paragraph so it is discoverable when readers are scanning the tool list — it directly affects how assistants should phrase follow-up queries for large deployments.",
+            "The table in 'Supported clients' lists 'Global config path' values, but for VS Code the page says 'Platform-specific User/mcp.json' and for OpenCode 'Platform-specific'. Consider adding concrete Windows and macOS paths for at least one of these (they are in the source's `getTargets` function) to make the table immediately actionable on the most common platforms."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The MCP server imposes a default 10-minute timeout on infrastructure operations (deploy, delete, preview_changes, rollback, etc.) and returns an error if the subprocess exceeds it.",
+              "reason": "The 10-minute timeout for infrastructure operations is stated three times in the draft (When NOT to use, stacktape_ops description, FAQ answer), but the provided source file `mcp/index.ts` does not pass a `timeoutMs` parameter when calling `runStacktapeCommandJsonl` for ops operations. Only the dev `start` operation explicitly sets `timeoutMs: 12 * 60 * 1000`. The default timeout would be defined in `cli-jsonl-runner.ts`, which is not in the provided source list. The claim may be correct, but it is unverifiable from the provided source.",
+              "suggestedFix": "Either verify the default timeout in `cli-jsonl-runner.ts` and cite it, or soften the language to 'the MCP server applies a timeout to infrastructure operations' without quoting a specific number. If the 10-minute figure is confirmed, keep it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const result = await runStacktapeCommandJsonl({\n        command: cliCommand,\n        args: operationArgs\n      });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const result = await runStacktapeCommandJsonl({\n          command: 'dev',\n          args: {\n            ...toolArgs,\n            agentPort: Number.isFinite(requestedPort) ? requestedPort : 7331\n          },\n          timeoutMs: 12 * 60 * 1000\n        });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Once the start operation completes, subsequent operations (status, logs, rebuild, stop) communicate with the running dev session over its local HTTP API.",
+              "reason": "The `logs` operation is a hybrid: it makes one HTTP call to `/logs` to get the log file path, then reads the log file directly from disk using `readDevLogs` (which calls `readFile`). Saying all operations 'communicate over the HTTP API' is slightly inaccurate for `logs`. Also, `rebuild_all` is omitted from this sentence (though it is documented elsewhere on the page).",
+              "suggestedFix": "Rephrase to: 'subsequent operations (status, logs, rebuild, rebuild_all, stop) communicate with the running dev session — most over its local HTTP API, though logs reads entries from the dev session's log file on disk after fetching its path.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const logsMeta = await devApiRequest({ port, method: 'GET', path: '/logs' });\n        const logFile = logsMeta.logFile as string | undefined;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const page = await readDevLogs({\n          logFile,\n          cursor: Number.isFinite(cursor) ? cursor : 0,\n          limit: Number.isFinite(limit) ? limit : 200\n        });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All four MCP tools (stacktape_docs, stacktape_ops, stacktape_diagnose, stacktape_dev) are correctly identified and their operation enums exactly match the source Zod schemas.",
+            "The six supported clients and their config file paths are accurately documented against the `getTargets` function in `mcp-add/index.ts`, including correct root keys (mcpServers vs servers vs mcp) and format differences (JSON vs TOML).",
+            "The manual setup JSON/TOML examples for all six clients are accurately grounded: VS Code uses `servers` (not `mcpServers`), Windsurf omits `type` and includes `env: {}`, OpenCode uses `type: local` with command as array, and Codex uses TOML format — all matching the source `serverConfig` objects.",
+            "The `mcp:add` detection and defaults behavior is correctly described: `detectTarget` checks `pathExists`, `getDefaults` returns detected targets when available or all targets when none detected, and `--autoConfirmOperation` skips the interactive prompt. The backup `.bak.<timestamp>` suffix matches `createBackupPath`.",
+            "The per-operation required arguments table for `stacktape_diagnose` correctly reflects the `validateRequiredArgs` calls in the source: `logs` requires `resourceName`, `metrics` requires `resourceName` + `metric`, `container_exec` requires `resourceName` + `command`, `sql` requires `resourceName` + `sql`, database tools require `resourceName` + `operation`, and `aws_sdk` requires `service` + `command`.",
+            "The `stacktape_ops` validation rules are accurately documented: `script_run` requires `scriptName`, `secret_create` requires `secretName` + one of `secretValue`/`secretFile`, `secret_get`/`secret_delete` require `secretName`, `deploy`/`delete` auto-set `autoConfirmOperation`, and `delete` requires `confirm: true`.",
+            "The argument normalization section correctly describes both the `ARG_ALIASES` map (explicit snake_case mappings like `project_name` → `projectName`) and the `toCamelCase` fallback for general snake_case/kebab-case conversion.",
+            "Secret masking behavior is correctly described: `maskSensitiveValues` processes `secret_get` data, and `rawTail` is replaced with `'[REDACTED: secret_get output is masked in MCP responses]'` on success.",
+            "The `stacktape_dev` operations are accurately documented: default port 7331, 12-minute timeout for `start`, `rebuild` requires `workload`, `ensureDevSessionAvailable` checks `/health` and returns `NOT_FOUND` code, and only one `activeDevSession` can exist at a time.",
+            "The page correctly notes that `DIAGNOSE_ALLOWED_ARGS` filters arguments per operation via `pickAllowedArgs`, and that extra keys are silently ignored.",
+            "The 30,000-character truncation limit matches `MAX_RESPONSE_CHARS = 30000` in the source.",
+            "The default logs limit of 50 is correctly documented, matching `if (operation === 'logs' && !filteredArgs.limit) { filteredArgs.limit = 50; }`.",
+            "Cross-links all resolve to valid routes in the navigation index.",
+            "FAQ has exactly 10 Q&A pairs as required.",
+            "The local vs global stacktape command logic is correctly described: `resolveLocalStacktapeCommand` checks package.json for a stacktape dependency and returns `node_modules/.bin/stacktape` when found, and the installer uses `isLocalConfig` to decide which command to write."
+          ],
+          "summary": "The draft is well-grounded against the two provided source files. All four MCP tools, their operation enums, parameter schemas, validation rules, and the six supported client configurations are accurately documented. The two issues found are both moderate or low severity: (1) the 10-minute infrastructure timeout is cited three times but the default timeout lives in `cli-jsonl-runner.ts` which is not in the provided source list — the number may be correct but cannot be verified, and (2) the `logs` dev operation is described as communicating over HTTP API, but it actually reads log files from disk after fetching the file path via one API call. Overall, the page is accurate, comprehensive, and well-structured for this preview-stage feature."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided MCP and mcp:add source files, especially the four-tool split, client list, argument normalization, secret masking, dev-session lifecycle, and mcp:add detection behavior. The main problems are a few unsupported timeout/versioning claims and one client-path simplification that could mislead readers configuring OpenCode globally.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Long-running deployments (over 10 minutes) should be run directly via the CLI… The MCP server imposes a default 10-minute timeout on infrastructure operations (`deploy`, `delete`, `preview_changes`, `rollback`, etc.)…” and related timeout claims in “stacktape_ops,” “How it works,” and the FAQ.",
+              "reason": "The provided MCP source sets a 12-minute timeout only for `stacktape_dev` `start`. The `stacktape_ops` path calls `runStacktapeCommandJsonl` without a visible timeout, and the provided sources do not include the runner implementation or a 10-minute default. This claim may be true elsewhere, but it is not grounded in the supplied source files.",
+              "suggestedFix": "Remove the exact 10-minute timeout claim for infrastructure operations, or narrow it to source-grounded wording such as “MCP infrastructure operations run as Stacktape CLI subprocesses and return structured output.” Keep the 12-minute timeout only for dev mode `start`, which is directly shown in source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const result = await runStacktapeCommandJsonl({\n        command: cliCommand,\n        args: operationArgs\n      });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const result = await runStacktapeCommandJsonl({\n          command: 'dev',\n          args: {\n            ...toolArgs,\n            agentPort: Number.isFinite(requestedPort) ? requestedPort : 7331\n          },\n          timeoutMs: 12 * 60 * 1000\n        });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“OpenCode | `opencode.jsonc` or `.opencode/config.json` | Platform-specific” and “Add to `opencode.jsonc` in your project root or your platform-specific OpenCode config.”",
+              "reason": "The source lists concrete global OpenCode paths, not just an unspecified platform-specific config. On Windows, global paths are under `%APPDATA%\\opencode`; on macOS/Linux-like platforms, global paths are under `~/.config/opencode` and `~/.opencode`. The draft hides information that is directly available in source and useful for manual setup.",
+              "suggestedFix": "Replace “Platform-specific” with the concrete paths from `getTargets`: Windows `%APPDATA%/opencode/opencode.jsonc` or `%APPDATA%/opencode/config.json`; non-Windows `~/.config/opencode/opencode.jsonc`, `~/.config/opencode/config.json`, or `~/.opencode/config.json`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "paths: isWindows\n        ? [\n            join(cwd, 'opencode.jsonc'),\n            join(cwd, '.opencode', 'config.json'),\n            join(appData, 'opencode', 'opencode.jsonc'),\n            join(appData, 'opencode', 'config.json')\n          ]\n        : [\n            join(cwd, 'opencode.jsonc'),\n            join(cwd, '.opencode', 'config.json'),\n            join(home, '.config', 'opencode', 'opencode.jsonc'),\n            join(home, '.config', 'opencode', 'config.json'),\n            join(home, '.opencode', 'config.json')\n          ],"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Updating Stacktape (`stacktape upgrade` or updating the npm package) updates the MCP server automatically.”",
+              "reason": "The source supports that the MCP server is invoked through the `stacktape mcp` command and that mcp:add may write either `stacktape` or `node_modules/.bin/stacktape` into client config. The provided source does not describe `stacktape upgrade`, npm package update behavior, or automatic MCP update semantics.",
+              "suggestedFix": "Narrow the claim to the grounded mechanism: “The MCP server is launched from whichever Stacktape binary your MCP client config points to. If that binary changes, the next client launch uses that binary.” Link to `stacktape upgrade` only as a general update command if separately sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "const effectiveStacktapeCommand = isLocalConfig ? localStacktapeCommand : globalStacktapeCommand;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "export const commandMcp = async () => {\n  // Build the lexical index from generated AI docs\n  const index = await buildIndex();\n\n  // Create and start the MCP server\n  const server = createMcpServer(index);\n  const transport = new StdioServerTransport();\n\n  await server.connect(transport);\n};"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“No credentials are sent to third parties beyond what normal CLI operations require (AWS API calls, Stacktape API for login).”",
+              "reason": "The source shows the MCP server runs local CLI commands and masks `secret_get` output, but the provided MCP and mcp:add files do not define credential transmission boundaries, Stacktape API login behavior, or all third-party calls made by the underlying CLI commands.",
+              "suggestedFix": "Use narrower wording: “The MCP server runs locally and uses the same Stacktape CLI authentication context as normal CLI commands. For `secret_get`, MCP masks returned secret data and redacts the raw output tail.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `stacktape_docs` tool works without any authentication” and “works without an AWS account or Stacktape login.”",
+              "reason": "The MCP code builds a local index and `stacktape_docs` only searches that index, so the claim is likely correct. However, the supplied source does not explicitly state authentication is not required, and the `buildIndex` implementation is not included.",
+              "suggestedFix": "Phrase as behavior visible from the MCP layer: “The `stacktape_docs` tool searches the local docs index built when `stacktape mcp` starts; it does not call the ops or diagnose command paths.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly starts with a preview warning, matching the page instructions for MCP pages.",
+            "The four exposed MCP tools and their operation lists match the `server.tool` registrations in `src/commands/mcp/index.ts`.",
+            "The `mcp:add` client list, detection-via-existing-config behavior, default selection behavior, backup suffix, JSON/JSONC parsing with JSON5, and local `node_modules/.bin/stacktape` behavior are well grounded in `src/commands/mcp-add/index.ts`.",
+            "The draft correctly places secret operations under `stacktape_ops` rather than `stacktape_diagnose`.",
+            "The draft correctly describes `secret_get` masking/redaction and diagnose-argument allowlisting.",
+            "The draft has exactly 10 FAQ pairs and uses only cross-links present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly complete for a preview MCP setup page. I found no API-completeness or union-variant blockers from the provided source files. The main issues are a few unsupported or overbroad statements where the page goes beyond the source code's exact behavior, mostly around security wording, production safety, and client support framing.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Any other MCP-compatible client that supports stdio transport can also use the Stacktape MCP server — you just need to configure it manually with the `stacktape mcp` command.\"",
+              "reason": "The source shows that the Stacktape MCP server uses `StdioServerTransport`, but it does not test or guarantee compatibility with every MCP-compatible stdio client. The statement is likely true in spirit, but it is broader than the source proves.",
+              "suggestedFix": "Narrow to: \"The MCP server uses stdio transport, so other MCP clients may work if they can launch `stacktape mcp` as a local stdio server. Automatic setup is only implemented for the six clients listed above.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const transport = new StdioServerTransport();\n\n  await server.connect(transport);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts",
+                  "quote": "type ClientInstallerTarget = {\n  id: 'claude-code' | 'codex' | 'cursor' | 'vscode' | 'opencode' | 'windsurf';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "\"Does the MCP server store or transmit my credentials? ... No credentials are sent to third parties beyond what normal CLI operations require (AWS API calls, Stacktape API for login).\"",
+              "reason": "The provided source does not show credential storage or network-transmission behavior for login, AWS calls, or the underlying CLI commands. It only shows the MCP server runs local CLI subprocesses and masks `secret_get` responses. This security claim needs narrower wording or source support outside the provided files.",
+              "suggestedFix": "Limit the claim to sourced behavior: \"The MCP server runs locally as a subprocess and invokes Stacktape CLI commands. The provided MCP source masks `secret_get` output in MCP responses, but credential storage and transmission follow the underlying Stacktape CLI behavior.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const result = await runStacktapeCommandJsonl({\n        command: cliCommand,\n        args: operationArgs\n      });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "if (operation === 'secret_get') {\n        if (!data) {\n          data = extractJsonLogPayload(result.rawTail);\n        }\n        data = maskSensitiveValues(data || ({} as Record<string, unknown>)) as Record<string, unknown>;\n        if (result.ok) {\n          rawTail = '[REDACTED: secret_get output is masked in MCP responses]';\n        }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "\"While most `stacktape_diagnose` operations are read-only...\" and \"The `stacktape_diagnose` tool focuses on inspecting deployed stacks...\"",
+              "reason": "The MCP tool description in source labels `stacktape_diagnose` as read-only inspection, but the actual operation list includes `container_exec`, database operations for DynamoDB/Redis/OpenSearch, and `aws_sdk`. The draft does warn about `container_exec` and `aws_sdk`, but it does not similarly caveat that database operations can be mutating depending on the requested operation, especially DynamoDB `put` and `delete`.",
+              "suggestedFix": "Add DynamoDB/Redis/OpenSearch to the caution: \"Database diagnostic operations can also be mutating depending on the operation argument, such as DynamoDB `put` or `delete`; review those calls the same way you review `container_exec` and `aws_sdk`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "dynamodb: [\n    'resourceName',\n    'operation',\n    'key',\n    'item',\n    'pk',\n    'sk',\n    'index',\n    'limit',\n    'projectName',\n    'stage',\n    'region'\n  ],"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "| `dynamodb` | `resourceName`, `operation` | `key`, `item`, `pk`, `sk`, `index`, `limit` | DynamoDB operations (get, put, query, scan, delete) |"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "\"For project-scoped operations, pass the same arguments the corresponding CLI command needs — commonly `projectName`, `stage`, `region`, and `configPath`.\"",
+              "reason": "The source tool description says these args are required for most operations, but the runtime validation in `stacktape_ops` only enforces `scriptName` and secret arguments, plus `confirm` for delete. The draft could imply the MCP layer validates projectName/stage/region/configPath for deploy-like operations, which the source does not show.",
+              "suggestedFix": "Clarify enforcement: \"The MCP schema accepts an `args` object and forwards it to the corresponding CLI command. The MCP layer explicitly validates script and secret arguments; deploy-like commands rely on the underlying CLI for their required project, stage, region, and config path validation.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "args: z.record(z.string(), z.unknown()).optional(),\n      confirm: z.boolean().optional()"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts",
+                  "quote": "const validation =\n        operation === 'script_run'\n          ? validateRequiredArgs({ operation, args: normalizedArgs, requiredAll: ['scriptName'] })\n          : operation === 'secret_create'\n            ? validateRequiredArgs({\n                operation,\n                args: normalizedArgs,\n                requiredAll: ['secretName'],\n                requiredAny: ['secretValue', 'secretFile']\n              })\n            : operation === 'secret_get' || operation === 'secret_delete'\n              ? validateRequiredArgs({ operation, args: normalizedArgs, requiredAll: ['secretName'] })\n              : null;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page starts with the required preview warning and avoids presenting the MCP server as production-stable.",
+            "The draft names all four MCP tools exposed by the source: `stacktape_docs`, `stacktape_ops`, `stacktape_diagnose`, and `stacktape_dev`.",
+            "The supported-client section matches the installer targets in source and correctly distinguishes JSON/JSONC-style clients from the Codex TOML config.",
+            "The operation enums for `stacktape_ops`, `stacktape_diagnose`, and `stacktape_dev` are all acknowledged, and the important validation behavior for `delete`, scripts, and secrets is documented.",
+            "The page contains exactly 10 FAQ entries, matching the page-level AEO requirement."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\using-with-ai\\mcp-server-setup.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-15T23:18:34.423Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\commands\\mcp\\index.ts": "009cfa6dedf64d58ea06f8bc2670eb08fc4770ed",
+    "C:\\Projects\\stacktape\\src\\commands\\mcp-add\\index.ts": "f568fce33fa3ceae7579dc65a0d7b9448f854e6b"
+  },
+  "styleGuideHash": "5bfa5b4c6981088376a91bf6595269b227cedc63"
+}

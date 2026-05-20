@@ -1,0 +1,418 @@
+---
+title: 'Deploy-Time Parameters'
+order: 85
+seoTitle: 'Deploy-Time Parameters & Directives | Stacktape Docs'
+seoDescription: 'Parameterize Stacktape deployments with $Stage, $CliArgs, $Secret, $File, and other directives. Write one config that adapts across stages, regions, and environments.'
+---
+
+# Deploy-Time Parameters
+
+Deploy-time parameters make a single Stacktape configuration work across multiple stages, regions, and deployment contexts. In TypeScript configs, the `defineConfig` callback receives deployment metadata directly. For string values, built-in [directives](/configuration/directives) like `$Stage()`, `$CliArgs()`, and `$Secret()` inject context-dependent values when you run [`stacktape deploy`](/cli/deploy).
+
+## Callback parameters
+
+The `defineConfig` callback receives a parameters object with metadata about the current deployment. Use these for programmatic logic — branching on stage, adjusting resource sizes, or toggling features conditionally.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `stage` | `string` | Target stage name (`production`, `dev`, `pr-42`) |
+| `region` | `string` | AWS region (`eu-west-1`, `us-east-1`) |
+| `projectName` | `string` | Project name for the deployment |
+| `command` | `string` | CLI command being run (`deploy`, `delete`, `dev`) |
+| `awsProfile` | `string` | AWS profile used for authentication |
+| `cliArgs` | `object` | All CLI arguments passed to the command |
+| `user` | `object` | User performing the operation (`id`, `name`, `email`) |
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(({ stage, region }) => {
+  const isProduction = stage === 'production';
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    memory: isProduction ? 2048 : 512,
+    environment: [
+      { name: 'STAGE', value: stage },
+      { name: 'REGION', value: region },
+      { name: 'LOG_LEVEL', value: isProduction ? 'warn' : 'debug' }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+This approach gives you full TypeScript control — conditionals, loops, helper functions, and type safety. It works only in TypeScript configs. For YAML configs or for values that must resolve during CloudFormation stack creation (like [secrets](/configuration/secrets) or [resource references](/configuration/referenceable-parameters)), use directive strings.
+
+## Directive syntax
+
+Directives are string expressions that Stacktape detects and resolves during deployment. They follow the pattern `$DirectiveName(param1, param2)` and can appear as standalone values or embedded in larger strings.
+
+A directive like `$Stage()` can be a standalone property value. You can also embed directives directly in strings — for example, `api-$Stage()-endpoint` is automatically converted to the equivalent `$Format('api-{}-endpoint', '$Stage()')` call. Access nested properties with dot notation after the closing parenthesis: `$File('./config.json').database.host`.
+
+### Resolution phases
+
+Directives resolve in one of two phases, depending on when the value becomes available.
+
+**Config-time directives** resolve during CLI execution, before the CloudFormation template is generated. The directive string is replaced with a concrete value (string, number, or object) baked into the template. Config-time directives include `$Stage`, `$Region`, `$CliArgs`, `$File`, `$FileRaw`, `$Format`, `$GitInfo`, `$AwsAccountId`, `$Profile`, `$StackOutput`, `$Var`, and `$This`.
+
+**CloudFormation-time directives** produce CloudFormation intrinsic functions that AWS resolves during stack creation. Use these for values that depend on resources being created — database endpoints, secrets, or cross-resource references. CloudFormation-time directives include `$Secret`, `$SsmParam`, `$ResourceParam`, `$CfResourceParam`, `$CfFormat`, and `$CfStackOutput`.
+
+For the complete directive reference, see [Directives](/configuration/directives). For reusable variables and config composition, see [Variables and reuse](/configuration/variables-and-reuse).
+
+## Deployment context directives
+
+Stacktape exposes deployment context through four config-time directives. These are the most commonly used deploy-time parameters — they make environment variables, resource names, and other config values stage-aware without conditional logic.
+
+| Directive | Returns | Example value |
+|---|---|---|
+| `$Stage()` | Stage name passed to the CLI | `production`, `dev`, `pr-42` |
+| `$Region()` | Target AWS region | `eu-west-1`, `us-east-1` |
+| `$AwsAccountId()` | AWS account ID | `123456789012` |
+| `$Profile()` | AWS profile name | `my-profile` |
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    environment: [
+      { name: 'STAGE', value: '$Stage()' },
+      { name: 'REGION', value: '$Region()' },
+      { name: 'ACCOUNT_ID', value: '$AwsAccountId()' }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Your application code reads these from `process.env.STAGE`, `process.env.REGION`, etc. The `$Stage()` directive is by far the most common — it lets runtime code adjust logging, feature flags, or service endpoints based on the deployment stage.
+
+## Custom CLI arguments
+
+The `$CliArgs()` directive reads custom values passed at the command line. It accepts two parameters: the argument name and an optional default value. This is the most flexible deploy-time parameter — it lets you change deployment behavior without editing the config file.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    environment: [
+      { name: 'LOG_LEVEL', value: "$CliArgs('logLevel', 'info')" },
+      { name: 'API_VERSION', value: "$CliArgs('apiVersion', 'v1')" }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Pass custom arguments after a `--` separator when running a CLI command.
+
+Deploy with a custom log level:
+
+```bash
+stacktape deploy --stage production --region eu-west-1 -- --logLevel debug
+```
+
+Deploy with all defaults (no custom arguments needed):
+
+```bash
+stacktape deploy --stage dev --region eu-west-1
+```
+
+Custom arguments follow these rules:
+
+- Arguments after `--` must start with `--` (e.g. `--logLevel debug`).
+- A `--` flag followed by a value is captured as a string.
+- A `--` flag with no following value is captured as boolean `true`.
+
+When no matching argument is found and no default is provided, `$CliArgs()` resolves to `undefined`. Always provide a default for values your config depends on.
+
+<Tip>
+
+`$CliArgs()` can also read standard CLI arguments like `stage` and `region`. The dedicated directives (`$Stage()`, `$Region()`) are clearer for standard parameters — reserve `$CliArgs()` for custom arguments.
+
+</Tip>
+
+## External configuration files
+
+The `$File()` directive loads and parses structured data from external files at config-time. It supports JSON, YAML, `.env`, and INI formats. Access nested properties with dot notation after the directive call.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    environment: [
+      { name: 'API_ENDPOINT', value: "$File('./config/settings.json').apiEndpoint" },
+      { name: 'CACHE_TTL', value: "$File('./config/settings.json').cacheTtl" }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+File paths resolve relative to the working directory. If the file format is not one of the supported types (JSON, YAML, `.env`, INI), `$File()` throws an error and suggests using `$FileRaw()` instead.
+
+**`$FileRaw()`** loads a file's raw content as a string without parsing. Use it for plain text, HTML templates, or any format that `$File()` does not support.
+
+## Git metadata
+
+The `$GitInfo()` directive provides metadata from the current Git repository at config-time. Use it to tag deployments with commit hashes or branch names for traceability and debugging.
+
+| Property | Description |
+|---|---|
+| `branch` | Current branch name |
+| `commit` | Full commit SHA |
+| `username` | Git user name |
+| `gitUrl` | Repository URL (HTTPS format) |
+| `hasUncommitedChanges` | Whether the working tree has uncommitted changes |
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    environment: [
+      { name: 'GIT_COMMIT', value: "$GitInfo('commit')" },
+      { name: 'GIT_BRANCH', value: "$GitInfo('branch')" }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+In CI environments where Git commands are unavailable, these values fall back to provider-specific environment variables. Stacktape checks GitHub Actions (`GITHUB_SHA`, `GITHUB_REF_NAME`), GitLab CI (`CI_COMMIT_SHA`, `CI_COMMIT_REF_NAME`), and Bitbucket Pipelines (`BITBUCKET_COMMIT`, `BITBUCKET_BRANCH`) automatically. You can also set `STP_GIT_COMMIT_SHA`, `STP_GIT_BRANCH_NAME`, `STP_GIT_USER_NAME`, and `STP_GIT_URL` explicitly in any CI provider.
+
+If you pass an invalid property name, the error message lists all available properties.
+
+## String composition
+
+When you need to combine multiple values into a single string, use `$Format()` (config-time) or `$CfFormat()` (CloudFormation-time). Both use `{}` as positional placeholders replaced sequentially by the remaining arguments.
+
+### $Format
+
+`$Format()` resolves during config parsing. The result is a static string baked into the CloudFormation template. Use it to compose URLs, database names, or any string that combines deploy-time context.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    environment: [
+      { name: 'APP_DOMAIN', value: "$Format('https://api-{}.example.com', '$Stage()')" },
+      { name: 'DB_NAME', value: "$Format('myapp_{}', '$Stage()')" }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+You can also embed directives directly in strings without explicit `$Format()`. Stacktape detects embedded directives and converts them automatically — `api-$Stage()-endpoint` is equivalent to `$Format('api-{}-endpoint', '$Stage()')`.
+
+### $CfFormat
+
+`$CfFormat()` produces a CloudFormation `Fn::Sub` expression that resolves during stack creation. Use it when composing strings that include CloudFormation-time values like [`$ResourceParam()`](/configuration/referenceable-parameters) references. For config-time values, prefer `$Format()` or the embedded directive syntax — they produce simpler templates.
+
+## Cross-stack references
+
+Two directives read outputs exported from other CloudFormation stacks. Both accept the full stack name, the output name, and an optional region parameter. The referenced output must be exported from the source stack.
+
+### $StackOutput
+
+`$StackOutput()` fetches a stack output at config-time. The value is resolved by the CLI and baked into the template as a static string. Use it when you want a snapshot of the value at deploy time.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    environment: [
+      { name: 'SHARED_API_URL', value: "$StackOutput('shared-infra-production', 'ApiUrl')" }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Stacktape stack names follow the `{projectName}-{stage}` format. For a project named `shared-infra` deployed to the `production` stage, the full stack name is `shared-infra-production`. The referenced stack must be deployed and have the specified output exported.
+
+### $CfStackOutput
+
+`$CfStackOutput()` creates a CloudFormation `Fn::ImportValue` reference that resolves during stack creation. If the source stack's exported output changes, the consuming stack picks up the new value on its next update — unlike `$StackOutput()`, which snapshots the value.
+
+To reference a stack in a different AWS region, pass the region as the third argument to either directive: `$StackOutput('shared-infra-production', 'VpcId', 'us-east-1')`.
+
+## Secrets and SSM parameters
+
+For sensitive values, use CloudFormation-time directives that resolve during stack creation. The actual value never appears in the CloudFormation template in plaintext.
+
+**`$Secret()`** references a value stored in AWS Secrets Manager. For JSON secrets, use dot notation to access specific keys: `$Secret('mySecret.apiKey')`. Create secrets with [`stacktape secret:create`](/cli/secret-create) or in the [Stacktape Console](/stacktape-console/console-overview). See [Secrets](/configuration/secrets) for the full guide.
+
+**`$SsmParam()`** references a value stored in AWS Systems Manager Parameter Store. It supports both plaintext and SecureString parameters.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    environment: [
+      { name: 'DB_PASSWORD', value: "$Secret('dbPassword')" },
+      { name: 'STRIPE_KEY', value: "$Secret('stripeConfig.apiKey')" },
+      { name: 'FEATURE_CONFIG', value: "$SsmParam('/myapp/feature-config')" }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+If a secret does not exist, the `$Secret()` directive throws an error with a hint to create it using [`stacktape secret:create`](/cli/secret-create).
+
+## FAQ
+
+### Can I use directives in any config property?
+
+Config-time directives (like `$Stage()` and `$CliArgs()`) resolve to plain values before the template is built, so they work in any property that accepts the resolved type. CloudFormation-time directives (like `$Secret()` and `$ResourceParam()`) produce intrinsic function references that CloudFormation resolves during stack creation.
+
+### What happens if a $CliArgs argument is not provided?
+
+If the argument is not found in the CLI arguments and no default value is specified, `$CliArgs()` resolves to `undefined`. Always provide a default for values your config depends on: `$CliArgs('myArg', 'fallback')`.
+
+### What is the difference between $Format and $CfFormat?
+
+`$Format()` resolves at config-time — the result is a static string in the CloudFormation template. `$CfFormat()` produces a CloudFormation `Fn::Sub` expression that resolves during stack creation. Use `$CfFormat()` when composing strings that include CloudFormation-time values like [`$ResourceParam()`](/configuration/referenceable-parameters) references. For everything else, prefer `$Format()` or the embedded directive syntax.
+
+### Can I nest directives?
+
+Yes. You can pass one directive as an argument to another. For example, `$Format('https://{}.example.com', '$Stage()')` first resolves `$Stage()`, then passes the result to `$Format()`. Inner directives resolve before outer ones.
+
+### How do I manage different configurations for development and production?
+
+The most common approach is the `defineConfig` callback — destructure `stage` and use TypeScript conditionals to vary memory, timeout, or environment variables by stage. For string-valued properties, embed `$Stage()` directly. For stage-specific external config, use `$File()` to load different settings files. For sensitive values that differ per stage, create separate [secrets](/configuration/secrets) per stage. See [Stages and environments](/configuration/stages-and-environments) for the full guide.
+
+### How do I pass secrets to my application at deploy time?
+
+Use the `$Secret()` directive in environment variables. The secret resolves during CloudFormation stack creation and is injected into your workload's runtime — the plaintext value never appears in the CloudFormation template. Create secrets with [`stacktape secret:create`](/cli/secret-create) or in the [Stacktape Console](/stacktape-console/console-overview). See [Secrets](/configuration/secrets) for setup details.
+
+### Should I use directives or TypeScript conditionals for stage-specific config?
+
+Both work. TypeScript conditionals in `defineConfig` give full programmatic control — branching, loops, type safety — and work for any property type (numbers, objects, arrays). Directives are embedded in string values and work identically in YAML and TypeScript configs. For simple string substitutions, directives are concise. For complex logic (different resource shapes per stage, conditional resources), TypeScript conditionals are clearer. Most real projects use both: callback parameters for structural decisions, directives for string values.
+
+### Can I reference outputs from a stack in a different AWS region?
+
+Yes. Both `$StackOutput()` and `$CfStackOutput()` accept an optional third parameter for the region. If omitted, they look up the stack in the current deployment region. The referenced stack must be deployed and have the specified output exported.
+
+### What Git properties are available with $GitInfo?
+
+`$GitInfo()` provides five properties: `branch` (current branch name), `commit` (full SHA hash), `username` (Git user name), `gitUrl` (repository URL in HTTPS format), and `hasUncommitedChanges` (boolean). In CI environments, these fall back to provider-specific environment variables — GitHub Actions, GitLab CI, and Bitbucket Pipelines are detected automatically. You can also override any value with `STP_GIT_*` environment variables.
+
+### When should I use $File vs $CliArgs for external configuration?
+
+Use `$File()` for structured, version-controlled configuration (JSON, YAML, `.env`) that defines repeatable settings per environment. Use `$CliArgs()` for one-off overrides passed at deploy time — values that change between deploys without file changes. `$File()` gives you structured data with nested property access; `$CliArgs()` gives you simple key-value pairs suitable for CI pipeline parameters and ad-hoc flags.
+
+### How do CloudFormation-time directives behave during local development?
+
+During [`stacktape dev`](/local-development/dev-mode-overview), CloudFormation-time directives like `$Secret()` and `$ResourceParam()` resolve from the deployed stack's outputs and AWS APIs. `$Secret()` fetches the actual secret value from Secrets Manager. `$ResourceParam()` reads from the deployed stack overview. If the referenced resource hasn't been deployed yet, the directive throws an error unless emulation is disabled with the `--disableEmulation` flag.

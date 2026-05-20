@@ -106,46 +106,6 @@ const resourcePage = ({
   };
 };
 
-const choosingPage = ({
-  category,
-  route,
-  order,
-  title,
-  description,
-  slugs
-}: {
-  category: string;
-  route: string;
-  order: number;
-  title: string;
-  description: string;
-  slugs: string[];
-}): PageDefinition => {
-  const sourceFiles = [
-    ...new Set(
-      slugs.flatMap((slug) => {
-        const info = resourceInfo[slug];
-        return info ? [join(stacktapeRoot, 'types', 'stacktape-config', info.fileName)] : [];
-      })
-    ),
-    join(stacktapeRoot, 'types', 'stacktape-config', '__helpers.d.ts'),
-    join(stacktapeRoot, 'types', 'stacktape-config', '_root.d.ts')
-  ];
-  return {
-    id: route.replaceAll('/', '__'),
-    title,
-    route,
-    outputPath: join(docsRoot, 'docs', `${route}.mdx`),
-    order,
-    kind: 'choosing',
-    template: 'choosing',
-    category,
-    shortDescription: description,
-    sourceFiles,
-    notes: ['This is a comparison and decision-support page, not a deep API reference page. Include all resources in this category.']
-  };
-};
-
 type GeneralPageInput = {
   route: string;
   title: string;
@@ -359,12 +319,13 @@ const rawPageDefinitions: PageDefinition[] = [
   generalPage({ route: 'configuration/configuration-files', title: 'Configuration Files', order: 1, kind: 'concept', description: 'YAML vs TypeScript configuration.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', '_root.d.ts'), join(docsRoot, '_curated-docs', 'concepts', 'yaml-config.mdx'), join(docsRoot, '_curated-docs', 'concepts', 'typescript-config.mdx')] }),
   generalPage({ route: 'configuration/resources', title: 'Resources', order: 2, kind: 'concept', description: 'Explain Stacktape resources and how they map to AWS.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', '__helpers.d.ts')] }),
   generalPage({ route: 'configuration/stages-and-environments', title: 'Stages and Environments', order: 3, kind: 'concept', description: 'Explain stage-based deployments.', sourceFiles: [join(docsRoot, '_curated-docs', 'concepts', 'stages-and-environments.mdx'), ...cliDeploy] }),
-  generalPage({ route: 'configuration/connecting-resources', title: 'Connecting Resources', order: 4, kind: 'concept', description: 'Explain connectTo.', sourceFiles: [join(docsRoot, '_curated-docs', 'concepts', 'connecting-resources.mdx'), join(stacktapeRoot, 'types', 'stacktape-config', '__helpers.d.ts')] }),
-  generalPage({ route: 'configuration/directives', title: 'Directives', order: 5, kind: 'concept', description: 'Explain built-in and custom directives.', sourceFiles: [join(docsRoot, '_curated-docs', 'concepts', 'directives.mdx'), join(stacktapeRoot, 'src', 'domain', 'config-manager', 'built-in-directives.ts')] }),
+  generalPage({ route: 'configuration/connecting-resources', title: 'Connecting Resources', order: 4, kind: 'concept', description: 'Explain connectTo and document the environment variables it injects per resource type.', sourceFiles: [join(docsRoot, '_curated-docs', 'concepts', 'connecting-resources.mdx'), join(stacktapeRoot, 'types', 'stacktape-config', '__helpers.d.ts')], notes: ['Cover BOTH the concept of connectTo AND the table of environment variables injected per resource type (formerly /reference/environment-variables-injected-by-connectto). The reference content lives here now — do not link out to a separate page.'] }),
+  generalPage({ route: 'configuration/directives', title: 'Directives', order: 5, kind: 'concept', description: 'Built-in directives like $Secret, $ResourceParam, $File — concept and full reference.', sourceFiles: [join(docsRoot, '_curated-docs', 'concepts', 'directives.mdx'), join(stacktapeRoot, 'src', 'domain', 'config-manager', 'built-in-directives.ts')], notes: ['Cover BOTH the concept (when to use directives) AND the full reference table of every built-in directive (formerly /reference/directives-reference). The reference content lives here now — do not link out to a separate page.'] }),
   generalPage({ route: 'configuration/variables-and-reuse', title: 'Variables and Reuse', order: 6, kind: 'concept', description: 'Reuse values and reduce duplication.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', '_root.d.ts')] }),
   generalPage({ route: 'configuration/hooks-and-scripts', title: 'Hooks and Scripts', order: 7, kind: 'concept', description: 'Lifecycle hooks and scripts.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', '_root.d.ts'), join(stacktapeRoot, 'types', 'scripts.d.ts')] }),
   generalPage({ route: 'configuration/overrides-and-escape-hatches', title: 'Overrides and Escape Hatches', order: 8, kind: 'concept', description: 'Overrides, CDK, and raw CloudFormation.', sourceFiles: [join(docsRoot, '_curated-docs', 'concepts', 'overrides-and-transforms.mdx'), join(docsRoot, '_curated-docs', 'concepts', 'extending-cloudformation.mdx')] }),
   generalPage({ route: 'configuration/secrets', title: 'Secrets', order: 9, kind: 'concept', description: 'Manage secrets with the Stacktape Console and reference them in your config via $Secret().', sourceFiles: [join(consoleRoot, 'src', 'pages', 'SecretsPage', 'SecretsPage.tsx'), join(stacktapeRoot, 'src', 'domain', 'config-manager', 'built-in-directives.ts')], notes: ['Show how to create secrets in the Console, reference them via $Secret(name) in stacktape.ts, and inject them into Lambda/container env vars.'] }),
+  generalPage({ route: 'configuration/referenceable-parameters', title: 'Referenceable Parameters', order: 9.5, kind: 'reference', description: 'Parameters available via $ResourceParam, grouped by resource type.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', '__helpers.d.ts')], notes: ['Pure reference lookup page. List $ResourceParam values per resource type. Use the <ReferenceableParams> component plus a short orientation paragraph.'] }),
 
   // 2.x Triggers (sub-section of Configuration)
   generalPage({ route: 'configuration/triggers/overview', title: 'Triggers Overview', order: 10, kind: 'events', description: 'Overview of event sources and triggers.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'events.d.ts')] }),
@@ -381,32 +342,29 @@ const rawPageDefinitions: PageDefinition[] = [
   generalPage({ route: 'configuration/triggers/kafka-topics', title: 'Kafka Topics', order: 21, kind: 'events', description: 'Trigger on Kafka topics.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'events.d.ts')] }),
 
   // 3. Resources catalogue
-  choosingPage({ category: 'compute', route: 'resources/compute/choosing-compute', order: 1, title: 'Choosing Compute', description: 'Help users choose between the available compute resources.', slugs: ['lambda-function', 'web-service', 'private-service', 'worker-service', 'multi-container-workload', 'batch-job', 'edge-function'] }),
-  resourcePage({ slug: 'lambda-function', route: 'resources/compute/lambda-function', order: 2 }),
-  resourcePage({ slug: 'web-service', route: 'resources/compute/web-service', order: 3 }),
-  resourcePage({ slug: 'private-service', route: 'resources/compute/private-service', order: 4 }),
-  resourcePage({ slug: 'worker-service', route: 'resources/compute/worker-service', order: 5 }),
-  resourcePage({ slug: 'multi-container-workload', route: 'resources/compute/multi-container-workload', order: 6 }),
-  resourcePage({ slug: 'batch-job', route: 'resources/compute/batch-job', order: 7 }),
-  resourcePage({ slug: 'edge-function', route: 'resources/compute/edge-function', order: 8 }),
+  resourcePage({ slug: 'lambda-function', route: 'resources/compute/lambda-function', order: 1 }),
+  resourcePage({ slug: 'web-service', route: 'resources/compute/web-service', order: 2 }),
+  resourcePage({ slug: 'private-service', route: 'resources/compute/private-service', order: 3 }),
+  resourcePage({ slug: 'worker-service', route: 'resources/compute/worker-service', order: 4 }),
+  resourcePage({ slug: 'multi-container-workload', route: 'resources/compute/multi-container-workload', order: 5 }),
+  resourcePage({ slug: 'batch-job', route: 'resources/compute/batch-job', order: 6 }),
+  resourcePage({ slug: 'edge-function', route: 'resources/compute/edge-function', order: 7 }),
 
-  choosingPage({ category: 'frontend', route: 'resources/frontend/choosing-a-frontend-resource', order: 1, title: 'Choosing a Frontend Resource', description: 'Help users choose between static hosting and the SSR frameworks.', slugs: ['static-hosting', 'nextjs', 'astro', 'nuxt', 'sveltekit', 'solidstart', 'tanstack', 'remix'] }),
-  resourcePage({ slug: 'static-hosting', route: 'resources/frontend/static-hosting', order: 2 }),
-  resourcePage({ slug: 'nextjs', route: 'resources/frontend/nextjs', order: 3 }),
-  resourcePage({ slug: 'astro', route: 'resources/frontend/astro', order: 4 }),
-  resourcePage({ slug: 'nuxt', route: 'resources/frontend/nuxt', order: 5 }),
-  resourcePage({ slug: 'sveltekit', route: 'resources/frontend/sveltekit', order: 6 }),
-  resourcePage({ slug: 'solidstart', route: 'resources/frontend/solidstart', order: 7 }),
-  resourcePage({ slug: 'tanstack', route: 'resources/frontend/tanstack-start', order: 8 }),
-  resourcePage({ slug: 'remix', route: 'resources/frontend/remix', order: 9 }),
+  resourcePage({ slug: 'static-hosting', route: 'resources/frontend/static-hosting', order: 1 }),
+  resourcePage({ slug: 'nextjs', route: 'resources/frontend/nextjs', order: 2 }),
+  resourcePage({ slug: 'astro', route: 'resources/frontend/astro', order: 3 }),
+  resourcePage({ slug: 'nuxt', route: 'resources/frontend/nuxt', order: 4 }),
+  resourcePage({ slug: 'sveltekit', route: 'resources/frontend/sveltekit', order: 5 }),
+  resourcePage({ slug: 'solidstart', route: 'resources/frontend/solidstart', order: 6 }),
+  resourcePage({ slug: 'tanstack', route: 'resources/frontend/tanstack-start', order: 7 }),
+  resourcePage({ slug: 'remix', route: 'resources/frontend/remix', order: 8 }),
 
-  choosingPage({ category: 'databases', route: 'resources/databases/choosing-a-database', order: 1, title: 'Choosing a Database', description: 'Help users choose the right data store.', slugs: ['relational-database', 'dynamodb', 'redis', 'mongodb', 'upstash', 'opensearch'] }),
-  resourcePage({ slug: 'relational-database', route: 'resources/databases/relational-database', order: 2 }),
-  resourcePage({ slug: 'dynamodb', route: 'resources/databases/dynamodb', order: 3 }),
-  resourcePage({ slug: 'redis', route: 'resources/databases/redis', order: 4 }),
-  resourcePage({ slug: 'mongodb', route: 'resources/databases/mongodb-atlas', order: 5 }),
-  resourcePage({ slug: 'upstash', route: 'resources/databases/upstash-redis', order: 6 }),
-  resourcePage({ slug: 'opensearch', route: 'resources/databases/opensearch', order: 7 }),
+  resourcePage({ slug: 'relational-database', route: 'resources/databases/relational-database', order: 1 }),
+  resourcePage({ slug: 'dynamodb', route: 'resources/databases/dynamodb', order: 2 }),
+  resourcePage({ slug: 'redis', route: 'resources/databases/redis', order: 3 }),
+  resourcePage({ slug: 'mongodb', route: 'resources/databases/mongodb-atlas', order: 4 }),
+  resourcePage({ slug: 'upstash', route: 'resources/databases/upstash-redis', order: 5 }),
+  resourcePage({ slug: 'opensearch', route: 'resources/databases/opensearch', order: 6 }),
 
   resourcePage({ slug: 'bucket', route: 'resources/storage/s3-bucket', order: 1 }),
   resourcePage({ slug: 'efs', route: 'resources/storage/efs-filesystem', order: 2 }),
@@ -440,7 +398,6 @@ const rawPageDefinitions: PageDefinition[] = [
   // 4.1 packaging/function — Lambda packaging modes
   generalPage({ route: 'packaging/function/stacktape-buildpack', title: 'Stacktape Buildpack for Lambda', order: 2, kind: 'packaging', description: 'Zero-config Lambda packaging. Point to a source file; Stacktape bundles, uploads, and configures the function.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'deployment-artifacts.d.ts'), join(stacktapeRoot, 'types', 'packaging.d.ts')] }),
   generalPage({ route: 'packaging/function/custom-artifact', title: 'Custom Artifact', order: 3, kind: 'packaging', description: 'Provide a pre-built Lambda zip. Stacktape uploads it as-is.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'deployment-artifacts.d.ts')] }),
-  generalPage({ route: 'packaging/function/language-specific-config', title: 'Language-Specific Config', order: 4, kind: 'packaging', description: 'Tune Node, Python, Java, Go, Ruby, PHP, and .NET packaging — runtime versions, bundling, and module format.', sourceFiles: [join(stacktapeRoot, 'types', 'packaging.d.ts')] }),
 
   // 4.2 packaging/containers — ECS/Fargate packaging modes
   generalPage({ route: 'packaging/containers/stacktape-buildpack', title: 'Stacktape Buildpack for Containers', order: 5, kind: 'packaging', description: 'Zero-config container image build. Stacktape produces an OCI image from your source.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'deployment-artifacts.d.ts'), join(stacktapeRoot, 'types', 'packaging.d.ts')] }),
@@ -459,25 +416,30 @@ const rawPageDefinitions: PageDefinition[] = [
   generalPage({ route: 'deployment-and-lifecycle/multi-region-deployments', title: 'Multi-Region Deployments', order: 7, kind: 'deployment', description: 'Run stages in more than one region.', sourceFiles: cliDeploy }),
   generalPage({ route: 'deployment-and-lifecycle/deploy-time-parameters', title: 'Deploy-Time Parameters', order: 8, kind: 'deployment', description: 'Use runtime directives and CLI arguments at deploy time.', sourceFiles: [join(stacktapeRoot, 'src', 'domain', 'config-manager', 'built-in-directives.ts')] }),
 
-  // 7. Operations (merged from monitoring-and-observability + cost-management + governance)
-  generalPage({ route: 'operations/overview', title: 'Operations Overview', order: 1, kind: 'monitoring', description: 'Logs, metrics, alarms, issues, alert channels, costs, budgets, and guardrails — all in one place.', sourceFiles: [join(consoleRoot, 'src', 'Explanations.tsx')] }),
-  generalPage({ route: 'operations/logs', title: 'Logs', order: 2, kind: 'monitoring', description: 'View logs and live tail.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'StageDetails', 'Logs', 'LogsView.tsx'), join(stacktapeRoot, 'src', 'commands', 'debug-logs', 'index.ts')] }),
-  generalPage({ route: 'operations/metrics', title: 'Metrics', order: 3, kind: 'monitoring', description: 'View CloudWatch metrics.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'StageDetails', 'Metrics', 'CombinedMetricsGrid.tsx'), join(stacktapeRoot, 'src', 'commands', 'debug-metrics', 'index.ts')] }),
-  generalPage({ route: 'operations/alarms', title: 'Alarms', order: 4, kind: 'monitoring', description: 'Create and use alarm rules.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AlarmsPage', 'AlarmsRulesPage.tsx'), join(stacktapeRoot, 'types', 'stacktape-config', 'alarms.d.ts')] }),
-  generalPage({ route: 'operations/issues', title: 'Issues', order: 5, kind: 'monitoring', description: 'Track and resolve runtime issues.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'IssuesPage', 'IssuesPage.tsx'), join(stacktapeRoot, 'src', 'commands', 'issues-list', 'index.ts')] }),
-  generalPage({ route: 'operations/alert-channels', title: 'Alert Channels', order: 6, kind: 'monitoring', description: 'Configure Slack, Teams, Email, Discord, and Webhook targets.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AlertChannels', 'AlertChannelsPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
-  generalPage({ route: 'operations/notifications', title: 'Notifications', order: 7, kind: 'monitoring', description: 'Send alerts for deployment and org events.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'Notifications', 'NotificationsPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
-  generalPage({ route: 'operations/alert-history', title: 'Alert History', order: 8, kind: 'monitoring', description: 'Unified history of alerts.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AlertHistoryPage', 'AlertHistoryPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
-  generalPage({ route: 'operations/log-forwarding', title: 'Log Forwarding', order: 9, kind: 'monitoring', description: 'Forward logs to external services.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'log-forwarding.d.ts')] }),
-  generalPage({ route: 'operations/cost-dashboards', title: 'Cost Dashboards', order: 10, kind: 'cost', description: 'Understand AWS spend in Stacktape Console.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'OverviewPage', 'OverviewPage.tsx'), join(consoleRoot, 'src', 'pages', 'CostsAndUsagePage', 'CostsAndUsagePage.tsx')] }),
-  generalPage({ route: 'operations/budgets', title: 'Budgets', order: 11, kind: 'cost', description: 'Set up budget alerts.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'BudgetsPage', 'BudgetsPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
-  generalPage({ route: 'operations/cost-per-project-stage-and-resource', title: 'Cost per Project, Stage, and Resource', order: 12, kind: 'cost', description: 'Break down cost attribution.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'CostsAndUsagePage', 'CostsAndUsagePage.tsx'), join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'StageDetails', 'Costs.tsx')] }),
-  generalPage({ route: 'operations/cost-optimization-tips', title: 'Cost Optimization Tips', order: 13, kind: 'cost', description: 'Practical ways to reduce cost.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'web-services.d.ts'), join(stacktapeRoot, 'types', 'stacktape-config', 'batch-jobs.d.ts')] }),
-  generalPage({ route: 'operations/guardrails-overview', title: 'Guardrails Overview', order: 14, kind: 'governance', description: 'Overview of organization-wide guardrails.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'GuardrailsPage', 'GuardrailsPage.tsx'), join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
-  generalPage({ route: 'operations/deployment-guardrails', title: 'Deployment Guardrails', order: 15, kind: 'governance', description: 'Restrict stages, regions, and commands.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
-  generalPage({ route: 'operations/security-and-data-protection-guardrails', title: 'Security and Data Protection Guardrails', order: 16, kind: 'governance', description: 'Require secure defaults.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
-  generalPage({ route: 'operations/resource-limit-guardrails', title: 'Resource Limit Guardrails', order: 17, kind: 'governance', description: 'Limit function and container sizes.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
-  generalPage({ route: 'operations/database-guardrails', title: 'Database Guardrails', order: 18, kind: 'governance', description: 'Restrict database engines and shapes.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
+  // 7. Observability — split out of the old Operations section.
+  generalPage({ route: 'observability/overview', title: 'Observability Overview', order: 1, kind: 'observability', description: 'Logs, metrics, alarms, issues, alert channels, notifications, log forwarding — all in one place.', sourceFiles: [join(consoleRoot, 'src', 'Explanations.tsx')] }),
+  generalPage({ route: 'observability/logs', title: 'Logs', order: 2, kind: 'observability', description: 'View logs and live tail.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'StageDetails', 'Logs', 'LogsView.tsx'), join(stacktapeRoot, 'src', 'commands', 'debug-logs', 'index.ts')] }),
+  generalPage({ route: 'observability/metrics', title: 'Metrics', order: 3, kind: 'observability', description: 'View CloudWatch metrics.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'StageDetails', 'Metrics', 'CombinedMetricsGrid.tsx'), join(stacktapeRoot, 'src', 'commands', 'debug-metrics', 'index.ts')] }),
+  generalPage({ route: 'observability/alarms', title: 'Alarms', order: 4, kind: 'observability', description: 'Create and use alarm rules.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AlarmsPage', 'AlarmsRulesPage.tsx'), join(stacktapeRoot, 'types', 'stacktape-config', 'alarms.d.ts')] }),
+  generalPage({ route: 'observability/issues', title: 'Issues', order: 5, kind: 'observability', description: 'Track and resolve runtime issues.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'IssuesPage', 'IssuesPage.tsx'), join(stacktapeRoot, 'src', 'commands', 'issues-list', 'index.ts')] }),
+  generalPage({ route: 'observability/alert-channels', title: 'Alert Channels', order: 6, kind: 'observability', description: 'Configure Slack, Teams, Email, Discord, and Webhook targets.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AlertChannels', 'AlertChannelsPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
+  generalPage({ route: 'observability/notifications', title: 'Notifications', order: 7, kind: 'observability', description: 'Send alerts for deployment and org events.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'Notifications', 'NotificationsPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
+  generalPage({ route: 'observability/alert-history', title: 'Alert History', order: 8, kind: 'observability', description: 'Unified history of alerts.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AlertHistoryPage', 'AlertHistoryPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
+  generalPage({ route: 'observability/log-forwarding', title: 'Log Forwarding', order: 9, kind: 'observability', description: 'Forward logs to external services.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'log-forwarding.d.ts')] }),
+
+  // 8. Managing Costs — split out of the old Operations section.
+  generalPage({ route: 'managing-costs/overview', title: 'Managing Costs Overview', order: 1, kind: 'cost', description: 'Understand and control AWS spend in Stacktape: dashboards, budgets, attribution, and optimization.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'OverviewPage', 'OverviewPage.tsx'), join(consoleRoot, 'src', 'pages', 'CostsAndUsagePage', 'CostsAndUsagePage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
+  generalPage({ route: 'managing-costs/dashboards', title: 'Cost Dashboards', order: 2, kind: 'cost', description: 'Understand AWS spend in Stacktape Console.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'OverviewPage', 'OverviewPage.tsx'), join(consoleRoot, 'src', 'pages', 'CostsAndUsagePage', 'CostsAndUsagePage.tsx')] }),
+  generalPage({ route: 'managing-costs/budgets', title: 'Budgets', order: 3, kind: 'cost', description: 'Set up budget alerts.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'BudgetsPage', 'BudgetsPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
+  generalPage({ route: 'managing-costs/per-resource-breakdown', title: 'Per-Resource Cost Breakdown', order: 4, kind: 'cost', description: 'Break down cost by project, stage, and resource.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'CostsAndUsagePage', 'CostsAndUsagePage.tsx'), join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'StageDetails', 'Costs.tsx')] }),
+  generalPage({ route: 'managing-costs/optimization-tips', title: 'Cost Optimization Tips', order: 5, kind: 'cost', description: 'Practical ways to reduce cost.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'web-services.d.ts'), join(stacktapeRoot, 'types', 'stacktape-config', 'batch-jobs.d.ts')] }),
+
+  // 9. Guardrails — promoted to top-level out of the old Operations section.
+  generalPage({ route: 'guardrails/overview', title: 'Guardrails Overview', order: 1, kind: 'governance', description: 'Overview of organization-wide guardrails.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'GuardrailsPage', 'GuardrailsPage.tsx'), join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
+  generalPage({ route: 'guardrails/deployment', title: 'Deployment Guardrails', order: 2, kind: 'governance', description: 'Restrict stages, regions, and commands.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
+  generalPage({ route: 'guardrails/security-and-data-protection', title: 'Security and Data Protection Guardrails', order: 3, kind: 'governance', description: 'Require secure defaults.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
+  generalPage({ route: 'guardrails/resource-limits', title: 'Resource Limit Guardrails', order: 4, kind: 'governance', description: 'Limit function and container sizes.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
+  generalPage({ route: 'guardrails/databases', title: 'Database Guardrails', order: 5, kind: 'governance', description: 'Restrict database engines and shapes.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', 'guardrails.d.ts')] }),
 
   // 8. CI/CD & GitOps
   generalPage({ route: 'ci-cd-and-gitops/overview', title: 'CI/CD and GitOps Overview', order: 1, kind: 'cicd', description: 'Overview of deployment automation options.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'GitOps', 'GitOps.tsx'), join(stacktapeRoot, 'src', 'commands', 'codebuild-deploy', 'index.ts')] }),
@@ -505,35 +467,21 @@ const rawPageDefinitions: PageDefinition[] = [
   // 11. Stacktape Console
   generalPage({ route: 'stacktape-console/console-overview', title: 'Console Overview', order: 1, kind: 'console', template: 'console', description: 'Overview of Stacktape Console.', sourceFiles: consoleNav }),
   generalPage({ route: 'stacktape-console/connecting-your-aws-account', title: 'Connecting Your AWS Account', order: 2, kind: 'console', template: 'console', description: 'Connect AWS accounts to Stacktape.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AwsAccountsPage', 'AwsAccountsPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
+  generalPage({ route: 'stacktape-console/aws-permissions', title: 'AWS Permissions Needed', order: 2.5, kind: 'console', template: 'console', description: 'What AWS permissions Stacktape requires when you connect an AWS account.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AwsAccountsPage', 'AwsAccountsPage.tsx'), join(stacktapeRoot, 'README.md')], notes: ['This is the permission inventory page. List the IAM actions Stacktape needs and why. Link back to /stacktape-console/connecting-your-aws-account for the setup flow.'] }),
   generalPage({ route: 'stacktape-console/organizations-projects-and-stages', title: 'Organizations, Projects, and Stages', order: 3, kind: 'console', template: 'console', description: 'How the Console organizes work.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'ProjectsList.tsx'), join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'ProjectOverview', 'ProjectOverview.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
   generalPage({ route: 'stacktape-console/visual-config-editor', title: 'Visual Config Editor', order: 4, kind: 'console', template: 'console', description: 'Use the Monaco-based config editor.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'ConfigEditorPage', 'ConfigEditorPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
   generalPage({ route: 'stacktape-console/api-keys', title: 'API Keys', order: 5, kind: 'console', template: 'console', description: 'Manage Stacktape API keys.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'ApiKeysPage', 'ApiKeysPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
   generalPage({ route: 'stacktape-console/team-and-access-control', title: 'Team and Access Control', order: 6, kind: 'console', template: 'console', description: 'Invite users and manage permissions.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'UsersPage', 'UsersPage.tsx'), join(consoleRoot, 'src', 'Explanations.tsx')] }),
   generalPage({ route: 'stacktape-console/billing-and-subscription', title: 'Billing and Subscription', order: 7, kind: 'console', template: 'console', description: 'Subscription plans, billing, and invoices.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'BillingPage', 'BillingPage.tsx'), join(consoleRoot, 'src', 'pages', 'SubscriptionPlansPage', 'SubscriptionPlansPage.tsx')] }),
 
-  // 12. Recipes
-  generalPage({ route: 'recipes/rest-api-database', title: 'REST API + Database', order: 1, kind: 'recipe', template: 'recipe', description: 'Build a REST API with a database.', sourceFiles: [join(docsRoot, '_curated-docs', 'recipes', 'rest-api-with-database.mdx')] }),
-  generalPage({ route: 'recipes/graphql-api', title: 'GraphQL API', order: 2, kind: 'recipe', template: 'recipe', description: 'Build a GraphQL API.', sourceFiles: [join(docsRoot, '_curated-docs', 'recipes', 'graphql-api.mdx')] }),
-  generalPage({ route: 'recipes/nextjs-full-stack-app', title: 'Next.js Full-Stack App', order: 3, kind: 'recipe', template: 'recipe', description: 'Build a full-stack Next.js app.', sourceFiles: [join(docsRoot, '_curated-docs', 'recipes', 'nextjs-full-stack.mdx')] }),
-  generalPage({ route: 'recipes/background-job-processing', title: 'Background Job Processing', order: 4, kind: 'recipe', template: 'recipe', description: 'Run asynchronous jobs.', sourceFiles: [join(docsRoot, '_curated-docs', 'recipes', 'background-jobs.mdx')] }),
-  generalPage({ route: 'recipes/scheduled-tasks', title: 'Scheduled Tasks', order: 5, kind: 'recipe', template: 'recipe', description: 'Run cron-like tasks.', sourceFiles: [join(docsRoot, '_curated-docs', 'recipes', 'scheduled-tasks.mdx')] }),
-  generalPage({ route: 'recipes/static-website', title: 'Static Website', order: 6, kind: 'recipe', template: 'recipe', description: 'Host a static website.', sourceFiles: [join(docsRoot, '_curated-docs', 'recipes', 'static-website.mdx')] }),
-  generalPage({ route: 'recipes/monorepo-setup', title: 'Monorepo Setup', order: 7, kind: 'recipe', template: 'recipe', description: 'Set up Stacktape in a monorepo.', sourceFiles: [join(docsRoot, '_curated-docs', 'recipes', 'monorepo-setup.mdx')] }),
-  generalPage({ route: 'recipes/database-migrations', title: 'Database Migrations', order: 8, kind: 'recipe', template: 'recipe', description: 'Run migrations safely.', sourceFiles: [join(docsRoot, '_curated-docs', 'recipes', 'database-migrations.mdx')] }),
-  generalPage({ route: 'recipes/multi-tenant-setup', title: 'Multi-Tenant Setup', order: 9, kind: 'recipe', template: 'recipe', description: 'Model a multi-tenant app with Stacktape.', sourceFiles: [join(stacktapeRoot, 'README.md')], notes: ['There is no curated recipe yet. Ground this page carefully in supported features.'] }),
-  generalPage({ route: 'recipes/pr-preview-environments', title: 'PR Preview Environments', order: 10, kind: 'recipe', template: 'recipe', description: 'Use pull requests to create preview stages.', sourceFiles: [join(consoleRoot, 'server', 'lambdas', 'github-app', 'index.ts'), join(consoleRoot, 'src', 'pages', 'ProjectsPage', 'GitOps', 'GitOps.tsx')] }),
+  // Note: the Recipes section was removed. Resource pages and Getting Started cover the same use cases without a separate recipe catalogue.
 
-  // 13. Reference (with troubleshooting moved here)
-  generalPage({ route: 'reference/configuration-schema', title: 'Configuration Schema', order: 1, kind: 'reference', description: 'Reference entry point for Stacktape config schema.', sourceFiles: [join(stacktapeRoot, '@generated', 'schemas', 'config-schema.json'), join(stacktapeRoot, 'types', 'stacktape-config', '_root.d.ts')] }),
-  generalPage({ route: 'reference/directives-reference', title: 'Directives Reference', order: 2, kind: 'reference', description: 'Reference for built-in directives.', sourceFiles: [join(stacktapeRoot, 'src', 'domain', 'config-manager', 'built-in-directives.ts')] }),
-  generalPage({ route: 'reference/referenceable-parameters', title: 'Referenceable Parameters', order: 3, kind: 'reference', description: 'Parameters available via $ResourceParam.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', '__helpers.d.ts')] }),
-  generalPage({ route: 'reference/environment-variables-injected-by-connectto', title: 'Environment Variables Injected by connectTo', order: 4, kind: 'reference', description: 'Environment variables created by connectTo.', sourceFiles: [join(stacktapeRoot, 'types', 'stacktape-config', '__helpers.d.ts')] }),
-  generalPage({ route: 'reference/aws-permissions-needed', title: 'AWS Permissions Needed', order: 5, kind: 'reference', description: 'What AWS permissions Stacktape requires.', sourceFiles: [join(consoleRoot, 'src', 'pages', 'AwsAccountsPage', 'AwsAccountsPage.tsx'), join(stacktapeRoot, 'README.md')] }),
-  generalPage({ route: 'reference/troubleshooting/common-deployment-errors', title: 'Common Deployment Errors', order: 6, kind: 'troubleshooting', description: 'Diagnose common deployment failures.', sourceFiles: [...cliDeploy, join(stacktapeRoot, 'src', 'config', 'error-messages.ts')] }),
-  generalPage({ route: 'reference/troubleshooting/cloudformation-stack-states', title: 'CloudFormation Stack States', order: 7, kind: 'troubleshooting', description: 'Understand CloudFormation stack states.', sourceFiles: [join(docsRoot, '_curated-docs', 'troubleshooting', 'cloudformation-stack-states.mdx')] }),
-  generalPage({ route: 'reference/troubleshooting/dev-mode-issues', title: 'Dev Mode Issues', order: 8, kind: 'troubleshooting', description: 'Debug dev mode issues.', sourceFiles: cliDev }),
-  generalPage({ route: 'reference/troubleshooting/permission-errors', title: 'Permission Errors', order: 9, kind: 'troubleshooting', description: 'Diagnose permission and AWS auth problems.', sourceFiles: [join(stacktapeRoot, 'src', 'commands', '_utils', 'permission-guards.ts'), ...cliLogin] }),
-  generalPage({ route: 'reference/troubleshooting/getting-help', title: 'Getting Help', order: 10, kind: 'troubleshooting', description: 'Where to get help.', sourceFiles: [join(stacktapeRoot, 'README.md'), join(consoleRoot, 'src', 'components', 'Header', 'HelpMenu.tsx')] }),
+  // Note: the old top-level Reference section has been merged into Configuration.
+  // - reference/configuration-schema — DROPPED (config shape lives in configuration/configuration-files)
+  // - reference/directives-reference — DROPPED (merged into configuration/directives)
+  // - reference/environment-variables-injected-by-connectto — DROPPED (merged into configuration/connecting-resources)
+  // - reference/referenceable-parameters — MOVED to configuration/referenceable-parameters
+  // - reference/aws-permissions-needed — MOVED to stacktape-console/aws-permissions (below)
 
   // CLI reference (auto-generated). Top-level section at /cli/* — separate from the conceptual
   // Reference section so the long per-command list doesn't dilute the lookup-only Reference group.

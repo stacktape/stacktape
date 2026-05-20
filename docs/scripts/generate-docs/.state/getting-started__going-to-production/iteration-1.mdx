@@ -1,0 +1,189 @@
+---
+title: 'Going to Production'
+order: 7
+seoTitle: 'Going to Production Checklist | Stacktape Docs'
+seoDescription: 'Production-readiness checklist for Stacktape: configure alarms, set budget alerts, add custom domains, enable gradual deployments, and enforce guardrails before going live.'
+---
+
+# Going to Production
+
+Your stack is deployed and CI/CD pushes changes automatically. Before real users hit it, harden the deployment with alarms, budgets, custom domains, gradual rollouts, and policy guardrails. This page is a checklist — each section links to its dedicated deep-dive.
+
+<Info>
+Already production-ready? Jump to [Recipes](/recipes) for full-stack patterns, [Resources](/configuration/resources) for resource configuration, or [Observability](/observability/overview) for monitoring setup.
+</Info>
+
+## Alarms
+
+Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. You can define alarms directly on individual resources in your config, or configure global alarms in the [Stacktape Console](/getting-started/using-console-ui) that apply across all matching resources.
+
+Available alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS queue depth. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
+
+Notifications route to Slack, Microsoft Teams, Discord, email, or a custom webhook.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    memory: 1024,
+    timeout: 30,
+    alarms: [
+      {
+        trigger: {
+          type: 'lambda-error-rate',
+          properties: { thresholdPercent: 5 }
+        },
+        evaluation: {
+          period: 60,
+          evaluationPeriods: 3,
+          breachedPeriods: 2
+        }
+      }
+    ]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+This alarm fires when more than 5% of invocations fail in at least 2 out of 3 consecutive 60-second windows — filtering out isolated spikes while catching sustained problems. See [Alarms](/observability/alarms) for trigger types, notification targets, and global alarm configuration.
+
+## Budgets
+
+Budget alerts prevent surprise AWS bills. Configure them in the Stacktape Console with a dollar threshold, one or more percentage triggers (e.g., alert at 50%, 80%, 100%), and notification channels. Budgets can scope to your entire organization or to individual stacks — filter by project and stage to set different limits for production vs. development.
+
+Budget alerts integrate with the same notification channels as alarms (Slack, Teams, Discord, email, webhook). You can also enable forecast-based alerts that fire when projected spend is on track to exceed the threshold, even if actual spend hasn't yet. See [Budgets](/managing-costs/budgets) for setup details.
+
+## Custom domains
+
+Every Stacktape resource with a public URL — web services, Lambda functions with URLs, hosting buckets, SSR frontends — supports custom domains. Provide your domain name, and Stacktape creates DNS records in Route53 and provisions free TLS certificates automatically.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new WebService({
+    containers: [
+      {
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/server.ts'
+        }),
+        environment: [{ name: 'NODE_ENV', value: 'production' }]
+      }
+    ],
+    customDomains: [{ domainName: 'api.example.com' }]
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain:add`](/cli/domain-add) command or add it manually in the AWS Console. If you manage DNS externally (e.g., Cloudflare), set `disableDnsRecordCreation: true` and point your records manually. See [Custom domains](/resources/networking/custom-domains) for the full setup guide.
+
+## Gradual deployments
+
+Instead of switching all traffic to a new version instantly, gradual deployments shift traffic incrementally — catching regressions before they affect all users. Stacktape supports canary and linear strategies for both Lambda functions and container workloads.
+
+**Lambda functions** support nine strategies: canary variants send 10% of traffic first and shift the rest after a wait (5, 10, 15, or 30 minutes), linear variants shift 10% at regular intervals (every 1, 2, 3, or 10 minutes), and all-at-once for instant switches. If alarms fire during the shift, traffic rolls back automatically.
+
+**Container workloads** (web services, private services, worker services) support a similar set — `Canary10Percent5Minutes`, `Canary10Percent15Minutes`, `Linear10PercentEvery1Minutes`, `Linear10PercentEvery3Minutes`, and `AllAtOnce`. Container gradual deployments require `application-load-balancer` load balancing.
+
+Both support optional `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` hooks — Lambda functions that run smoke tests before traffic shifts and validation after.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    deployment: {
+      strategy: 'Canary10Percent5Minutes'
+    }
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Start with `Canary10Percent5Minutes` for most production APIs — it validates with a small traffic slice before committing. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for strategy comparisons and rollback behavior.
+
+## Multi-region deployments
+
+Deploy the same stack to multiple AWS regions for lower latency or regional compliance. Each region gets its own independent stage — deploy with `--region eu-west-1` and `--region us-east-1` as separate commands or CI pipelines. Stacktape doesn't automatically replicate data between regions; you handle cross-region data strategy (DynamoDB global tables, Aurora Global Database, or application-level replication).
+
+Multi-region adds operational complexity and cost. Use it when you have users on multiple continents and latency matters, or when regulations require data residency. For most apps, a single region with a CDN provides good global performance at lower cost. See [Multi-region deployments](/deployment-and-lifecycle/multi-region-deployments) for patterns and tradeoffs.
+
+## Guardrails
+
+Guardrails are organization-wide policy rules that prevent deployments from violating your standards. They run at deploy time — a deployment that violates a guardrail fails before any AWS resources are modified.
+
+Available guardrail types cover four categories:
+
+| Category | Guardrail types |
+|----------|----------------|
+| **Deployment** | Stage restriction, region restriction, command restriction, resource type restriction, resource count limit |
+| **Security** | Require VPC-only databases, require WAF on load balancers, require custom domains on public resources |
+| **Data protection** | Require deletion protection on databases, require dead-letter queues on SQS |
+| **Resource limits** | Function memory limit, function timeout limit, container CPU/memory limit, database engine restriction, database instance size restriction |
+
+Guardrails are configured in the Stacktape Console at the organization level — they apply to all projects and stages under that organization. See [Guardrails](/guardrails/overview) for configuration details and per-type documentation.
+
+## Production checklist summary
+
+Before sending real traffic, confirm:
+
+- **Alarms** are set for error rate, latency, and resource health — with notifications routed to your on-call channel
+- **Budgets** have a threshold that matches your expected spend, with alerts at 80% and 100%
+- **Custom domains** are configured so users see your brand, not an AWS-generated URL
+- **Gradual deployments** are enabled on user-facing services so bad deploys don't take down 100% of traffic
+- **Guardrails** enforce your team's standards — deletion protection, VPC databases, resource limits
+
+## What's next
+
+You've completed the Getting Started guide. Your stack is deployed, monitored, automated, and hardened. From here:
+
+<FlowDiagram steps={[
+  { title: 'Build with Recipes', description: 'Full-stack patterns: REST APIs, Next.js apps, background jobs, and more. Start from a working example.' },
+  { title: 'Customize Resources', description: 'Deep-dive into compute, databases, networking, and storage. Configure each resource type for your exact needs.' },
+  { title: 'Operations Deep-dive', description: 'Log forwarding, cost optimization, advanced alarms, and organizational controls.' }
+]} />
+
+- [Recipes](/recipes) — production-ready starter patterns you can fork and adapt
+- [Resources](/configuration/resources) — the full resource catalogue with configuration guides
+- [Observability](/observability/overview) — logs, metrics, alarms, and alerting in depth
+- [Managing Costs](/managing-costs/overview) — dashboards, budgets, and optimization
+- [Guardrails](/guardrails/overview) — deployment, security, and resource-limit policies

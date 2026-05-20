@@ -1,1077 +1,124 @@
 {
   "pageId": "resources__compute__edge-function",
   "pageRoute": "resources/compute/edge-function",
-  "startedAt": "2026-05-07T13:42:47.919Z",
-  "updatedAt": "2026-05-07T14:22:40.970Z",
+  "startedAt": "2026-05-14T04:47:27.027Z",
+  "updatedAt": "2026-05-14T04:51:25.230Z",
   "iterations": [
     {
       "iteration": 1,
       "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__edge-function\\iteration-1.mdx",
       "reviewerResults": [
         {
-          "reviewerId": "startup-cto",
-          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
-          "modelProvider": "claude",
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.4-mini",
           "scores": {
             "clarity": 8,
-            "scannability": 9,
-            "completeness": 8,
-            "practicalUsefulness": 8,
-            "audienceFit": 8
-          },
-          "strengths": [
-            "Strong 'When to use / Use something else when' section with a concrete alternatives table — exactly what a startup CTO scanning for the right compute type needs.",
-            "Event types table is excellent: maps CDN property names to lifecycle events, limits, and use-case guidance in one glance. High information density.",
-            "The Limitations section is honest and upfront about constraints (no env vars, no VPC, restricted runtimes). Saves the reader from discovering these the hard way mid-project.",
-            "Connecting to resources section clearly explains the IAM-only caveat and lists compatible vs. incompatible resources — avoids a common 'why doesn't my database connection work?' debugging session.",
-            "Logging section correctly warns about regional log distribution, which is a non-obvious operational gotcha that trips up many users.",
-            "All CodeBlock examples are correctly structured: intellisense flag, TypeScript tab, focus markers on the relevant section, imports outside focus range. Consistent with the example page.",
-            "Page rhythm matches the example page well — opens with what/why, moves to decision guidance, basic example, configuration deep-dives, then API reference."
-          ],
-          "problems": [
-            "Runtime version range is factually wrong: the Limitations section states 'Node.js (18.x–22.x)' but the source type definition includes 'nodejs24.x', making the correct range Node.js 18.x–24.x.",
-            "The page has no pricing context line near the top. While no explicit pricing data for edge functions exists in the provided source files, Lambda@Edge pricing is well-known and a brief mention (even 'no additional charge beyond standard Lambda pricing and CloudFront requests') would help the startup CTO evaluate cost.",
-            "The 'onResponse' event description in the source notes it 'Does not run if the origin returned a 400+ error or if onRequest already generated a response' — this behavioral nuance is missing from the Event types section and could cause confusion when users wonder why their response handler isn't firing.",
-            "The basic example references the edge function by string name ('addHeaders') inside the HostingBucket CDN config. While correct, the page doesn't explain the naming convention — that the string must match the key in the returned resources object. A one-sentence clarification would help.",
-            "The page doesn't mention that the `nodejs20.x` runtime is also available, though it falls within the stated range. More importantly, listing the range as 18.x–22.x while the actual options include 24.x is misleading."
-          ],
-          "mandatoryFixes": [
-            "Fix the Node.js runtime range in the Limitations section: change 'Node.js (18.x–22.x)' to 'Node.js (18.x–24.x)' to match the source type definition which includes 'nodejs24.x'.",
-            "Add a note to the Event types section that the `onResponse` handler does not run when the origin returns a 400+ error or when `onRequest` already generated a response — this is documented in the source type JSDoc and is a critical behavioral detail."
-          ],
-          "optionalImprovements": [
-            "Add a one-line pricing context near the top: edge functions use standard Lambda pricing plus CloudFront request charges, with no separate Lambda@Edge surcharge. This helps the cost-conscious startup CTO.",
-            "In the basic example, add a brief note explaining that the string 'addHeaders' in `edgeFunctions.onResponse` must match the resource key name returned from `defineConfig` — e.g., 'The string references the resource by the key name you assign in the returned resources object.'",
-            "Consider adding a short 'How it works' paragraph explaining the deployment model: edge functions are replicated to CloudFront edge locations automatically, and code updates propagate globally within minutes. This grounds the 'edge' concept for readers unfamiliar with CloudFront.",
-            "The `onOriginResponse` event has a useful behavior noted in source: 'Changes are cached as if they came from the origin.' Mentioning this in the Event types section helps users understand that origin-response modifications affect cached content, not just the current response.",
-            "Consider mentioning that the only referenceable parameter is `arn` in the prose before the ReferenceableParams component, so users scanning the page know what to expect."
-          ]
-        },
-        {
-          "reviewerId": "smb-manager",
-          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
-          "modelProvider": "codex",
-          "scores": {
-            "clarity": 6,
             "scannability": 8,
-            "completeness": 5,
-            "practicalUsefulness": 4,
-            "audienceFit": 6
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
           },
           "strengths": [
-            "The page has a strong resource-page shape: definition, decision guidance, basic example, limits, connection behavior, logging, API reference, and referenceable params.",
-            "Stacktape config examples use class-based resources inside <CodeBlock intellisense tabs={[...]}/> rather than fenced TypeScript or YAML.",
-            "Several important constraints are source-backed: no environment variables, no VPC access, connectTo as IAM-only, memory and timeout defaults, viewer/origin limits, x86_64-only architecture, and logs in the execution region."
+            "Clear opening definition and a strong when-to-use / when-not-to-use split.",
+            "The page grounds the core source-backed constraints well: runtime support, memory and timeout ceilings, `connectTo` behavior, and CloudWatch logging region.",
+            "The page follows the required MDX structure cleanly: one `ApiReference`, one `ReferenceableParams`, and an exact 10-question FAQ."
           ],
           "problems": [
-            "Large parts of the CDN attachment guidance are not grounded in the provided source files: HostingBucket usage, cdn.edgeFunctions, onRequest/onResponse/onOriginRequest/onOriginResponse property names, routeRewrites shape, and attaching to web-service/hosting-bucket are not shown in the sources.",
-            "The event table goes beyond the sources. The sources support viewer/origin event limits, but not the four exact event names, cache-lookup timing, every-request behavior, cache-miss behavior, or CDN property mapping.",
-            "The runtime limitation is technically wrong: the source includes nodejs24.x, but the draft says Node.js 18.x-22.x only.",
-            "The warning that Stacktape uses onOriginRequest internally for CDN setups on buckets, web services, and API Gateways is unsupported by the provided sources and could mislead users if wrong.",
-            "Several use cases are invented or over-specific relative to the sources, including geo-based routing, feature flagging, cache-key normalization, and redirect guidance.",
-            "The alternatives table makes claims about Lambda functions, web services, and worker services that are not grounded in the provided source set, such as full runtime support, WebSocket API fit, and background processing fit.",
-            "The CloudFront handler example relies on an AWS event shape that is not present in the provided Stacktape sources. It may be useful, but it is not grounded by the supplied files.",
-            "The connectTo allow/block lists overstate certainty. The edge function source only says IAM permissions only and gives examples such as S3, DynamoDB, and SES; broader resource lists need tighter grounding from the helper types or more cautious wording.",
-            "The logging example that maps Tokyo to ap-northeast-1 is not present in the sources."
+            "The `Runtime limits` guidance mentions cookies, but the provided source only supports headers, URL rewrites, A/B routing, auth checks, and the documented memory/timeout ceilings.",
+            "The basic example does not show the CDN `edgeFunctions` attachment path, so a first-time reader still has to jump to another page before they can wire the resource into traffic.",
+            "Some phrasing is broader than the source and should be narrowed, especially around when to prefer viewer vs origin events."
           ],
           "mandatoryFixes": [
-            "Remove or narrow all CDN attachment examples and routeRewrites examples unless the CDN property source is provided. With the current sources, say only that edge functions are referenced from CDN edgeFunctions config.",
-            "Correct the runtime list to include nodejs24.x, or avoid summarizing the range and let the API reference carry the exact values.",
-            "Rewrite the Event types section so it only states source-backed limits: viewer events are capped at 128 MB and 5 seconds; origin events allow up to 10,240 MB and 30 seconds. Do not claim exact property names or lifecycle timing without source.",
-            "Delete the unsupported onOriginRequest internal-use warning, or replace it with source-backed caution only if a validator or CDN type source confirms it.",
-            "Remove unsupported use cases and alternatives, or rephrase them as narrow examples directly supported by the edge function type comments: headers, URL rewrites, A/B testing, and auth checks.",
-            "Tighten the connectTo section to say IAM-only, no env vars, no VPC access, with examples from the source. Do not present exhaustive supported/unsupported resource lists unless derived directly from source types."
+            "Remove the unsupported `cookies` claim from the runtime guidance and keep the section limited to the event types, headers, URLs, auth checks, and the documented memory/timeout ceilings."
           ],
           "optionalImprovements": [
-            "Add a short Packaging section or sentence pointing out that packaging is required and uses Lambda packaging, since packaging is the only required EdgeLambdaFunctionProps field.",
-            "Keep the first paragraph but remove unsupported wording like worldwide/as close as possible unless another source confirms it.",
-            "Consider a compact limits table with only source-backed fields: runtime, memory default, timeout default, viewer limits, origin limits, connectTo behavior, logging region.",
-            "If the docs system expects the visible config tab label to be TypeScript, change CodeBlock labels from stacktape.ts to TypeScript for consistency with the stated CodeBlock rules."
+            "Add a minimal CDN attachment example or a sharper cross-link in the basic example so readers can see how `EdgeLambdaFunction` is actually hooked into CloudFront `edgeFunctions`.",
+            "Trim the `Runtime limits` prose to a shorter decision rule: viewer events for small request/response logic, origin events only when the documented higher memory or timeout ceiling is required.",
+            "Replace `Lambda@Edge` wording in the FAQ/logging copy with the Stacktape term `edge function` unless you explicitly define the AWS term on the page."
           ]
         },
         {
-          "reviewerId": "developer-low-aws",
-          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
-          "modelProvider": "claude",
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
           "scores": {
             "clarity": 8,
-            "scannability": 9,
-            "completeness": 8,
-            "practicalUsefulness": 8,
-            "audienceFit": 8
-          },
-          "strengths": [
-            "Well-structured 'When to use' / 'Use something else' section with a clear comparison table that helps the reader make a quick decision",
-            "Event types table is excellent — concisely maps each lifecycle hook to its CDN property name, timing, memory limit, and timeout limit in one scannable view",
-            "Limitations section is upfront and actionable — the no-env-vars, no-VPC, and runtime constraints are the most common gotchas and they are clearly surfaced",
-            "The 'Connecting to resources' section correctly explains that connectTo only grants IAM permissions for edge functions, and explicitly lists what works and what doesn't — this is the kind of nuance that prevents wasted debugging time",
-            "Warning about Stacktape's internal use of onOriginRequest is a high-value callout that could save users from a confusing break",
-            "Handler code example is realistic, copyable, and shows the actual CloudFront event shape (event.Records[0].cf.response) — practical for the audience",
-            "Headings are compact and scannable (all under 4 words), following the style guide well"
-          ],
-          "problems": [
-            "Node.js version range is incorrect: the page says 'Node.js (18.x–22.x)' in the Limitations section, but the source type includes 'nodejs24.x', so the correct range is 18.x–24.x",
-            "The page does not mention pricing at all — while the source files don't contain edge-function-specific pricing, the example page (web-service) includes a pricing line even for ancillary costs; a brief note that Lambda@Edge invocations and data transfer are billed could help the reader's cost awareness, but omission is acceptable given the source constraint",
-            "The routeRewrites example shows edgeFunctions inside a route rewrite, which is useful, but the reader may not realize that the edge function resource name string must exactly match the key used in the return object — a brief note could prevent confusion",
-            "The basic example simultaneously introduces two resource types (EdgeLambdaFunction and HostingBucket) which adds cognitive load; the example page's basic example uses only the resource being documented"
-          ],
-          "mandatoryFixes": [
-            "Fix Node.js version range in the Limitations section: change 'Node.js (18.x–22.x)' to 'Node.js (18.x–24.x)' to match the source type which includes 'nodejs24.x'."
-          ],
-          "optionalImprovements": [
-            "Consider simplifying the basic example to focus on just the EdgeLambdaFunction resource definition, then show the CDN attachment (HostingBucket with edgeFunctions) as a separate follow-up example — this matches the example page pattern where the basic example is minimal",
-            "Add a brief note near the connectTo section explaining how to actually get resource identifiers in handler code without env vars (e.g., hard-coding bucket names or reading from an external config), since the audience has limited AWS experience and may not know how to proceed",
-            "Consider adding a one-line pricing note like 'Lambda@Edge pricing follows standard Lambda pricing plus a per-request charge at the CDN layer' — even without exact numbers, this sets cost expectations",
-            "The 'Logging' section could mention that checking logs across multiple regions can be cumbersome and suggest using the Stacktape Console or log forwarding as alternatives, which would be more actionable for the target audience",
-            "In the Event types table, consider adding a 'Common use cases' column (e.g., 'auth, redirects' for viewer request, 'content generation' for origin request) to help readers pick the right event type faster"
-          ]
-        }
-      ],
-      "verifierResults": [
-        {
-          "verifierId": "claude-verifier",
-          "modelProvider": "claude",
-          "issues": [
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "Node.js (18.x–22.x)",
-              "reason": "The draft states supported Node.js runtimes are 18.x–22.x, but the source type definition includes 'nodejs24.x' as a valid runtime. The correct range is 18.x–24.x.",
-              "suggestedFix": "Change 'Node.js (18.x–22.x)' to 'Node.js (18.x–24.x)' in the Limitations section.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "runtime?:\n  | 'nodejs24.x'\n  | 'nodejs22.x'\n  | 'nodejs20.x'\n  | 'nodejs18.x'"
-                }
-              ]
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "const site = new HostingBucket({ cdn: { enabled: true, edgeFunctions: { onResponse: 'addHeaders' } } });",
-              "reason": "The HostingBucket type does NOT have a 'cdn' wrapper object. Unlike web-service (which has 'cdn?: CdnConfiguration'), HostingBucket has 'edgeFunctions' and 'routeRewrites' as direct top-level properties on HostingBucketProps. The CDN is always enabled for hosting buckets by design. The basic example wraps these in 'cdn: { enabled: true, ... }' which does not match the type definition.",
-              "suggestedFix": "Change the HostingBucket instantiation to use top-level properties: new HostingBucket({ uploadDirectoryPath: './dist', edgeFunctions: { onResponse: 'addHeaders' } }). Alternatively, use a WebService with its cdn property if you want to demonstrate the cdn wrapper pattern.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
-                  "quote": "edgeFunctions?: EdgeFunctionsConfig;"
-                },
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
-                  "quote": "interface HostingBucketProps {\n  uploadDirectoryPath: string;"
-                }
-              ]
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "const site = new HostingBucket({ cdn: { enabled: true, routeRewrites: [{ path: '/admin/*', edgeFunctions: { onRequest: 'authCheck' } }] } });",
-              "reason": "Same issue as the basic example — HostingBucket does not have a 'cdn' wrapper. The 'routeRewrites' property is a direct top-level property on HostingBucketProps. Additionally, HostingBucket requires the 'uploadDirectoryPath' property which is missing from this example.",
-              "suggestedFix": "Change to: new HostingBucket({ uploadDirectoryPath: './dist', routeRewrites: [{ path: '/admin/*', edgeFunctions: { onRequest: 'authCheck' } }] }).",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
-                  "quote": "routeRewrites?: CdnRouteRewrite[];"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "missing-caveat",
-              "statement": "Define an edge function as a resource, then reference it from a CDN's edgeFunctions configuration on another resource (such as a hosting bucket or web service).",
-              "reason": "The HostingBucket type has 'edgeFunctions' as a direct top-level property (not under a 'cdn' sub-object), while WebService has it under 'cdn.edgeFunctions'. The draft's phrasing 'a CDN's edgeFunctions configuration' is misleading for hosting buckets, since there is no CDN sub-object there. Hosting buckets always include a CDN — edgeFunctions is a peer property.",
-              "suggestedFix": "Clarify that the attachment point differs by resource: on HostingBucket, edgeFunctions is a top-level property; on WebService, it's nested under the 'cdn' property. Show at least one example with the correct HostingBucket structure.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
-                  "quote": "edgeFunctions?: EdgeFunctionsConfig;"
-                },
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-services.d.ts",
-                  "quote": "cdn?: CdnConfiguration;"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "missing-caveat",
-              "statement": "The basic example HostingBucket is missing the required 'uploadDirectoryPath' property",
-              "reason": "HostingBucketProps requires 'uploadDirectoryPath: string' as a mandatory property. Both CodeBlock examples create a HostingBucket without this property, so they would fail type-checking and are not realistic/copyable.",
-              "suggestedFix": "Add 'uploadDirectoryPath: \"./dist\"' (or similar) to the HostingBucket instantiation in both examples.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
-                  "quote": "uploadDirectoryPath: string;"
-                }
-              ]
-            },
-            {
-              "severity": "low",
-              "type": "ambiguous-claim",
-              "statement": "Resources that do NOT work with connectTo: Relational databases, Redis clusters (require VPC access), and MongoDB Atlas clusters.",
-              "reason": "The parenthetical '(require VPC access)' applies accurately to relational databases and Redis clusters, but MongoDB Atlas clusters do not require VPC access — they are rejected for a different reason (they require special authentication, not security group creation). The code rejects MongoDB separately from VPC resources. Grouping them under one parenthetical is slightly misleading.",
-              "suggestedFix": "Separate the MongoDB mention or remove the parenthetical grouping: 'Relational databases and Redis clusters (require VPC access), and MongoDB Atlas clusters (use external auth, not IAM).'",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Edge Lambda functions **cannot** use environment variables or connect to VPC resources."
-                }
-              ]
-            }
-          ],
-          "positiveFindings": [
-            "Default values for memory (128 MB) and timeout (3 seconds) are correctly stated, matching @default annotations in the source type definition.",
-            "The connectTo behavior for edge functions is accurately described as IAM-only — the source confirms no env vars or VPC access, and the codebase validation (stpErrors.e37) enforces this.",
-            "The event type table correctly maps CloudFront lifecycle events to CDN properties (onRequest, onResponse, onOriginRequest, onOriginResponse) and their memory/timeout limits, matching both the source types and the CDN configuration types.",
-            "The logging region behavior ('in the region where the function executed') is accurately quoted from the source JSDoc.",
-            "Architecture constraint (x86_64 only) is correctly stated, matching the StpEdgeLambdaFunction type which only allows 'x86_64'.",
-            "All CodeBlock examples correctly use the <CodeBlock intellisense> pattern for Stacktape config, and application code uses fenced blocks — no forbidden patterns detected.",
-            "The ApiReference component uses 'EdgeLambdaFunctionProps' which matches the source type definition name.",
-            "The ReferenceableParams component uses 'edge-lambda-function' which matches the source type value.",
-            "The warning about Stacktape using onOriginRequest internally is supported by the CDN type JSDoc: 'Warning: Stacktape uses this trigger internally for bucket/web-service/API Gateway CDN setups.'",
-            "Class names (EdgeLambdaFunction, StacktapeLambdaBuildpackPackaging, HostingBucket, Bucket) are confirmed as valid exports in the defineConfig API class-config.ts.",
-            "Python runtime range (3.8–3.13) is correctly stated."
-          ],
-          "summary": "The draft is well-structured and mostly accurate on edge function behavior, but has three high-severity issues. The most impactful is that both CodeBlock examples use an incorrect HostingBucket structure — wrapping edgeFunctions and routeRewrites inside a 'cdn: { enabled: true, ... }' object that does not exist on HostingBucketProps. The HostingBucket type has these as top-level properties (CDN is always enabled). The examples also omit the required 'uploadDirectoryPath' property. Additionally, the supported Node.js runtime range is stated as 18.x–22.x but should be 18.x–24.x per the type definition. All other claims about defaults, limits, connectTo behavior, logging regions, and architecture constraints are accurately grounded in source."
-        },
-        {
-          "verifierId": "codex-verifier",
-          "modelProvider": "codex",
-          "summary": "The draft is broadly aligned with the EdgeLambdaFunction type for the core resource shape, packaging, runtime family, memory/timeout defaults, connectTo limitations, IAM statements, logging region, and referenceable ARN. The main factual problems are unsupported CDN attachment details, unsupported CloudFront event mapping details, unsupported resource lists for connectTo, and several Stacktape config example style violations.",
-          "issues": [
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "Define an edge function as a resource, then reference it from a CDN's `edgeFunctions` configuration on another resource (such as a hosting bucket or web service).",
-              "reason": "The provided source only says edge functions are referenced from CDN `edgeFunctions` config. It does not provide the CDN property tree for `HostingBucket`, `WebService`, or any other resource, and it does not show that `web-service` exposes this exact attachment path.",
-              "suggestedFix": "Narrow the wording to: “Define an edge function as a resource, then reference it from a CDN `edgeFunctions` configuration on a resource that supports CDN edge functions.” Only name specific resources if their CDN types are included in the source set.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.) to modify headers, rewrite URLs,\n * implement A/B testing, or add auth checks at the edge. Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "The `HostingBucket` example uses `cdn.edgeFunctions.onResponse` and `cdn.routeRewrites[].edgeFunctions.onRequest`.",
-              "reason": "The provided source files do not include the `HostingBucket` or CDN configuration type definitions, so these property names and nesting cannot be verified from the supplied authoritative sources.",
-              "suggestedFix": "Either provide the CDN/hosting bucket source types for verification, or remove the unverified CDN examples and keep only the `EdgeLambdaFunction` resource definition example.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "Edge functions attach to one of four CloudFront lifecycle events. The event type determines when your code runs and what resource limits apply.",
-              "reason": "The source names viewer request and origin request only as examples and says memory/timeout maximums differ for viewer versus origin events. It does not enumerate the four attachable event names or define the CDN property names used in the table.",
-              "suggestedFix": "Write cautiously: “Edge functions run on CloudFront events such as viewer request and origin request. Stacktape’s edge function limits distinguish viewer events from origin events.” Only include the full four-event table if the CDN edge function type source is provided.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.)"
-                },
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "Viewer request runs before cache lookup every request; viewer response runs before returning to client; origin request runs after cache miss; origin response runs after origin responds before caching.",
-              "reason": "These CloudFront lifecycle details are not present in the provided Stacktape source files. They may be true AWS behavior, but the verifier was instructed to ground technical statements in the provided source files.",
-              "suggestedFix": "Remove the “When it runs” column, or replace it with only sourced wording about viewer events and origin events having different limits.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.)"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "Stacktape uses `onOriginRequest` internally for CDN setups on buckets, web services, and API Gateways. Overriding it may break default behavior.",
-              "reason": "No provided source file documents internal use of `onOriginRequest`, CDN setup behavior for buckets/web services/API Gateways, or the breakage warning.",
-              "suggestedFix": "Remove the warning unless the CDN implementation or CDN type source is included. If kept, cite the exact runtime implementation that reserves or uses `onOriginRequest`.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "incorrect-claim",
-              "statement": "Supported runtimes are Node.js (18.x–22.x) and Python (3.8–3.13).",
-              "reason": "The authoritative type includes `nodejs24.x` as a supported runtime. The draft omits it.",
-              "suggestedFix": "Change to: “Supported runtimes are Node.js 18.x, 20.x, 22.x, and 24.x, and Python 3.8 through 3.13.”",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "runtime?:\n  | 'nodejs24.x'\n  | 'nodejs22.x'\n  | 'nodejs20.x'\n  | 'nodejs18.x'\n  | 'python3.13'"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "The runtime is auto-detected from your file extension.",
-              "reason": "The source says runtime is auto-detected from file extension, but does not say detection is based on “your file extension” specifically or define which file's extension is used. This is a small over-specificity issue.",
-              "suggestedFix": "Use the exact source wording: “The runtime is auto-detected from the file extension.”",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "Hard-code configuration values or fetch them from an external source (like S3 or DynamoDB).",
-              "reason": "The source supports that edge functions cannot use environment variables and that `connectTo` can grant IAM permissions such as S3, DynamoDB, and SES. It does not recommend hard-coding configuration or fetching configuration from S3/DynamoDB.",
-              "suggestedFix": "Change to: “Put required configuration in code or retrieve it explicitly from an AWS service your function has permission to access.”",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Edge Lambda functions **cannot** use environment variables or connect to VPC resources.\n   * `connectTo` only sets up IAM permissions (e.g., S3 bucket access, DynamoDB, SES)."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "Resources that work with `connectTo`: Buckets, DynamoDB tables, SQS queues, SNS topics, Lambda functions, event buses, state machines, user auth pools, OpenSearch domains, Kinesis streams, and `aws:ses`.",
-              "reason": "The source for edge functions only gives examples: S3 bucket access, DynamoDB, and SES. The general type `StpResourceScopableByConnectToAffectingRole` includes several resource families but does not include state machines, and `ConnectToAwsServicesMacro` is referenced but not expanded in the supplied source. The draft's exhaustive list is not supported by the provided edge function source.",
-              "suggestedFix": "Avoid an exhaustive list. Say: “`connectTo` can grant IAM permissions such as S3 bucket access, DynamoDB access, and SES. Use the API reference for the accepted resource names/macros.”",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "`connectTo` only sets up IAM permissions (e.g., S3 bucket access, DynamoDB, SES)."
-                },
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
-                  "quote": "type StpResourceScopableByConnectToAffectingRole =\n  | Subtype<StpResource, StpLambdaFunction>\n  | Subtype<StpResource, StpContainerWorkload>\n  | Subtype<StpResource, StpBatchJob>\n  | Subtype<StpResource, StpStateMachine>\n  | Subtype<StpResource, StpEventBus>\n  | Subtype<StpResource, StpBucket>\n  | Subtype<StpResource, StpDynamoTable>\n  | Subtype<StpResource, StpOpenSearchDomain>\n  | Subtype<StpResource, StpUserAuthPool>\n  | Subtype<StpResource, StpSqsQueue>\n  | Subtype<StpResource, StpSnsTopic>\n  | Subtype<StpResource, StpKinesisStream>;"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "Resources that do NOT work with `connectTo`: Relational databases, Redis clusters (require VPC access), and MongoDB Atlas clusters.",
-              "reason": "The source supports that edge functions cannot connect to VPC resources, and the helper source shows relational databases and Redis clusters are security-group-scoped resources. MongoDB Atlas cluster is not shown in the security-group-scoped list, so the draft's MongoDB Atlas exclusion is not grounded in the provided source.",
-              "suggestedFix": "Change to: “Do not use edge functions for VPC-only resources such as relational databases or Redis clusters.” Omit MongoDB Atlas unless an edge-specific validation source confirms it.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Edge Lambda functions **cannot** use environment variables or connect to VPC resources."
-                },
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
-                  "quote": "type StpResourceScopableByConnectToAffectingSecurityGroup =\n  | Subtype<StpResource, StpRelationalDatabase>\n  | Subtype<StpResource, StpRedisCluster>;"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "incorrect-claim",
-              "statement": "All Stacktape config examples use `label: 'stacktape.ts'` for the visible CodeBlock tab.",
-              "reason": "The page requirements specify that Stacktape config examples must use a visible `TypeScript` tab label. The draft uses `stacktape.ts` in every Stacktape config CodeBlock.",
-              "suggestedFix": "Change every Stacktape config CodeBlock tab label to `TypeScript`.",
-              "evidence": [
-                {
-                  "file": "Project prompt: CodeBlock usage rules",
-                  "quote": "Stacktape configuration examples MUST use `<CodeBlock intellisense tabs={[...]} />` with a visible `TypeScript` tab."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "incorrect-claim",
-              "statement": "The second and third Stacktape config examples render visible `import { ... } from 'stacktape'` lines.",
-              "reason": "The project style guide requires imports to be present in the hidden source but hidden from the rendered snippet with focus markers. In the second and third CodeBlocks, focus markers start after the import, so the import is visible.",
-              "suggestedFix": "Move `// [!code focus-start]` before the import or otherwise ensure the rendered snippet hides the import while keeping it in the source for type checking.",
-              "evidence": [
-                {
-                  "file": "Project prompt: Config example canon",
-                  "quote": "The import must be present in the hidden source so the example type-checks and copy produces a working `stacktape.ts`,\nbut it should be hidden from the rendered snippet with focus markers."
-                }
-              ]
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "An edge function runs at CloudFront edge locations worldwide, executing code as close to your users as possible.",
-              "reason": "The provided source says the resource runs at CDN edge locations and on CloudFront events. It does not explicitly say worldwide or “as close to your users as possible.”",
-              "suggestedFix": "Use tighter source-backed wording: “An edge function is a Lambda function that runs on CloudFront events at CDN edge locations for request and response manipulation.”",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "Use an edge function for geo-based routing, cache-key normalization, and better cache hit rates.",
-              "reason": "The source supports request/response manipulation, headers, URL rewrites, A/B testing, and auth checks. It does not mention geo-based routing, cache keys, or cache hit rates.",
-              "suggestedFix": "Remove these examples or qualify them as only possible when implemented through request/response manipulation and supported by the CDN event payload.",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "Use viewer events for authentication, redirects, and header manipulation; use origin events for heavier logic like content generation or complex URL rewrites.",
-              "reason": "The source supports different viewer/origin limits and example use cases, but does not recommend which event type to use for each workload or mention content generation.",
-              "suggestedFix": "Limit the recommendation to sourced limits: “Viewer events have 128 MB and 5 second caps; origin events can use up to 10,240 MB and 30 seconds.”",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "The handler receives a CloudFront event and returns a modified request or response.",
-              "reason": "The source says edge functions run on CloudFront events for request/response manipulation, but it does not document the handler event shape or return contract.",
-              "suggestedFix": "Phrase as an example rather than a documented contract, or add a source file that defines edge handler behavior.",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "If a user in Tokyo triggers your edge function, the logs appear in the `ap-northeast-1` CloudWatch console.",
-              "reason": "The source says logs are sent to CloudWatch in the region where the function executed. It does not map Tokyo to `ap-northeast-1`.",
-              "suggestedFix": "Remove the Tokyo example and keep the sourced rule: “Logs are sent to CloudWatch in the region where the function executed, not your stack region.”",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "missing-caveat",
-              "statement": "The page does not include pricing context near the top.",
-              "reason": "The instructions require pricing context when concrete pricing is present in provided sources. No concrete pricing for edge functions appears in the supplied source files, so omitting pricing is acceptable. This is noted as a non-blocking caveat only because the resource page guidance explicitly asks for pricing when available.",
-              "suggestedFix": "No change needed unless a pricing source is provided.",
-              "evidence": []
-            }
-          ],
-          "positiveFindings": [
-            "The draft correctly uses `EdgeLambdaFunction` as the resource class and `EdgeLambdaFunctionProps` for the API reference definition, matching the provided type name.",
-            "The draft correctly states that `packaging` is required for edge functions.",
-            "The draft correctly states that `memory` defaults to 128 MB and `timeout` defaults to 3 seconds.",
-            "The draft correctly states that viewer events are limited to 128 MB and 5 seconds, and origin events to 10,240 MB and 30 seconds.",
-            "The draft correctly states that edge functions support Node.js and Python only, aside from omitting Node.js 24.x in the detailed runtime range.",
-            "The draft correctly states that edge functions cannot use environment variables or connect to VPC resources.",
-            "The draft correctly explains that `connectTo` grants IAM permissions only for edge functions and does not inject environment variables or open network access.",
-            "The draft correctly states that `iamRoleStatements` can be used for custom IAM policy statements beyond `connectTo`.",
-            "The draft correctly states that edge function logs are sent to CloudWatch in the region where the function executed, not the stack region.",
-            "The draft avoids hand-authored YAML Stacktape config examples and uses `<CodeBlock intellisense ... />` for Stacktape config snippets."
-          ]
-        },
-        {
-          "verifierId": "code-validator",
-          "modelProvider": "deterministic",
-          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
-          "issues": [
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #1 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #2 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #3 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            }
-          ],
-          "positiveFindings": []
-        }
-      ],
-      "seoReviewResult": {
-        "score": 7,
-        "suggestions": [
-          "Add the term \"Lambda@Edge\" explicitly in the opening paragraph (e.g., \"An edge function is a Lambda@Edge function that runs at CloudFront edge locations…\"). This is the primary search term users query — without it in the first sentence, LLMs and search engines may not strongly associate this page with \"Lambda@Edge\" queries.",
-          "Add a short FAQ section (3-5 items) to capture long-tail queries: \"Can Lambda@Edge use environment variables?\", \"What are Lambda@Edge memory and timeout limits?\", \"Where do Lambda@Edge logs appear?\", \"What runtimes does Lambda@Edge support?\", \"What is the difference between viewer and origin events?\" — each already answered on the page but not surfaced in FAQ schema-ready format.",
-          "The defaults line (\"Defaults: memory is 128 MB, timeout is 3 seconds\") is buried at the bottom of the Limitations section as plain text. Move it into a visible callout or info box immediately after the event types table, where readers scanning for defaults will look. This also makes it extractable by AI engines as a standalone fact.",
-          "If the source supports it, add Lambda@Edge deployment package size limits (viewer events: 1 MB, origin events: 50 MB) to the Limitations section or the event types table. Package size is one of the most commonly searched Lambda@Edge constraints and its absence is a gap for answer engines.",
-          "The Logging section is thin for a commonly searched pain point. Expand it to 2-3 sentences: mention that you must check CloudWatch in each edge region individually (or use CloudWatch cross-region log aggregation), and note the log group naming pattern. This is one of the most frustrating Lambda@Edge gotchas and a strong candidate for AI extraction.",
-          "In the \"When to use\" section, the \"Use something else\" table's first row says edge functions \"cannot use environment variables\" — this is important but easy to miss inside a table cell. Consider bolding that phrase or adding a short parenthetical so it stands out in a scan."
-        ]
-      },
-      "passed": false
-    },
-    {
-      "iteration": 2,
-      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__edge-function\\iteration-2.mdx",
-      "reviewerResults": [
-        {
-          "reviewerId": "startup-cto",
-          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
-          "modelProvider": "claude",
-          "scores": {
-            "clarity": 7,
-            "scannability": 7,
+            "scannability": 8,
             "completeness": 7,
             "practicalUsefulness": 7,
             "audienceFit": 8
           },
           "strengths": [
-            "Strong 'When to use / When not to use' section with a concrete alternatives table — a startup CTO can quickly decide whether this is the right resource.",
-            "Event types table is excellent: compact, includes max memory and timeout per event type, and directly actionable for choosing the right hook.",
-            "Limitations section is upfront and clearly written — the no-env-vars and no-VPC constraints are the biggest gotchas and they're called out early.",
-            "The connectTo section correctly explains the IAM-only behavior, which is the single most important difference from standard Lambda functions and would otherwise trip readers up.",
-            "Handler code example is realistic and immediately copyable — adds security headers, which is the most common edge function use case."
+            "Uses the required TypeScript class-based Stacktape config examples inside <CodeBlock intellisense tabs={[...]}/> with the correct TypeScript tab label.",
+            "Keeps the core Lambda@Edge constraints visible: no environment variables, no VPC access, IAM-only connectTo, region-dependent logs, runtime list, memory defaults, and timeout defaults.",
+            "Good early decision guidance: the page clearly distinguishes edge request/response manipulation from general API or database-backed application logic.",
+            "The API reference uses the correct root definitionName, EdgeLambdaFunctionProps, and appears exactly once."
           ],
           "problems": [
-            "FAQ section exists but is explicitly forbidden by the SEO rules ('Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.'). Every FAQ answer restates content already covered in Event types, Limitations, and Logging sections.",
-            "The Warning about `onResponse` not firing on 400+ errors is not grounded in any provided source file. This may be accurate CloudFront behavior but violates the instruction to 'write cautiously and narrow the wording' when source is ambiguous.",
-            "The Warning about Stacktape using `onOriginRequest` internally is not confirmed in the provided source files. The `StpHelperEdgeLambdaFunction` type hints at internal edge functions, but the specific claim about `onOriginRequest` is unverifiable from the given sources.",
-            "The 'Route-scoped edge functions' section references `routeRewrites` on HostingBucket, but the HostingBucket type definition was not provided in the source files — the example cannot be fully verified as grounded.",
-            "The H2 heading 'Route-scoped edge functions' is longer than the 1-5 word guideline for H2s. Could be shortened to 'Route scoping' or 'Per-route functions'."
-          ],
-          "mandatoryFixes": [
-            "Remove the FAQ section entirely. All four answers duplicate content already present in the Event types table, Limitations section, and Logging section. This violates the explicit 'Do NOT add an FAQ section' instruction.",
-            "Trim or remove the redundant FAQ section; do not pad backbones with restated content.",
-            "Either ground the `onResponse` Warning (cite a specific source) or soften it to a general note, e.g., 'CloudFront may skip the viewer-response function in certain error scenarios — consult AWS docs for the exact conditions.'",
-            "Either ground the `onOriginRequest` internal-use Warning in a specific source file reference or remove it. If kept without source, add a qualifier such as 'Stacktape may use this event type internally for CDN routing.'",
-            "Shorten the H2 heading 'Route-scoped edge functions' to 1-5 words, e.g., 'Route scoping'."
-          ],
-          "optionalImprovements": [
-            "Add a one-line pricing context if Lambda@Edge pricing data can be sourced (e.g., '~$0.60/million viewer requests + compute duration'). The example page includes pricing near the top and this audience cares about cost.",
-            "In the basic example, briefly note why `timeout: 5` was chosen (viewer event max) so the reader learns the constraint while copying the example.",
-            "Consider adding a short note about cold starts at edge locations — edge functions can experience higher cold-start rates because each edge location maintains its own pool, which is non-obvious and affects latency-sensitive use cases.",
-            "The 'Connecting to resources' section could include a brief concrete example of how to construct a bucket name in handler code without env vars (e.g., hardcode or use AWS SDK discovery), since that's the immediate follow-up question a reader will have.",
-            "In the 'When to use' table, consider adding a row for CloudFront Functions (if supported by Stacktape) as a lighter-weight alternative for simple header manipulation — this is a common decision point that readers will face."
-          ]
-        },
-        {
-          "reviewerId": "smb-manager",
-          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
-          "modelProvider": "codex",
-          "scores": {
-            "clarity": 7,
-            "scannability": 7,
-            "completeness": 5,
-            "practicalUsefulness": 5,
-            "audienceFit": 6
-          },
-          "strengths": [
-            "The opening paragraph is self-contained, within the requested length, and accurately frames edge functions as Lambda@Edge code for CloudFront request/response manipulation.",
-            "The page gives a useful early decision section with concrete alternatives for general backend logic, always-on servers, and logic needing environment variables or database access.",
-            "The Stacktape configuration examples use class-based `defineConfig` inside `<CodeBlock intellisense tabs={[...]}/>` and avoid forbidden YAML or `StacktapeConfig` style.",
-            "The limitations and `connectTo` sections correctly emphasize source-supported constraints: Node.js/Python only, default memory and timeout, viewer/origin limits, no environment variables, no VPC access, and IAM-only `connectTo`.",
-            "The API reference uses the source-backed definition name `EdgeLambdaFunctionProps`, and `ReferenceableParams` matches the resource type present in the provided source."
-          ],
-          "problems": [
-            "The draft includes an FAQ section even though the instructions explicitly say not to add an FAQ unless SEO reviewer feedback requests it.",
-            "Several technical statements are not grounded in the provided source files: `HostingBucket` usage, top-level `edgeFunctions`, `web-service.cdn.edgeFunctions`, `routeRewrites`, route evaluation order, first-match behavior, unmatched-route fallback, and Stacktape's internal use of `onOriginRequest`.",
-            "The event table maps `onRequest`, `onResponse`, `onOriginRequest`, and `onOriginResponse` to exact CloudFront event semantics, but the provided source only says edge functions run on CloudFront events such as viewer request and origin request. The property names and detailed lifecycle descriptions are not present in the supplied source.",
-            "The warning that `onResponse` does not run for 400+ origin responses or when `onRequest` generated a response is not supported by the provided Stacktape source files.",
-            "The logging section says log retention is configurable with the `logging` property. The source confirms a `logging` property and regional log placement, but does not describe retention for edge functions in the supplied files.",
-            "The basic example may be practically useful, but the supplied source files do not show the class constructor API for `EdgeLambdaFunction`, `HostingBucket`, or the attachment shape, so the example cannot be fully verified from the provided evidence.",
-            "The page has no pricing line, which is acceptable only if no pricing source was provided; however it should avoid silently implying pricing is absent. No concrete pricing appears in the supplied source files."
-          ],
-          "mandatoryFixes": [
-            "Remove the FAQ section. Keep any non-duplicative answers by merging them into existing sections such as `Limitations`, `Event types`, and `Logging`.",
-            "Delete or narrow all unsupported CDN attachment details unless backed by additional source files. Specifically verify or remove claims about `HostingBucket.edgeFunctions`, `web-service.cdn.edgeFunctions`, `routeRewrites`, route evaluation order, default edge-function fallback, and internal `onOriginRequest` behavior.",
-            "Remove or source the `onResponse` warning about 400+ responses and request-generated responses.",
-            "Either provide source support for the `logging` retention claim or narrow it to the sourced statement: logs are sent to CloudWatch in the region where the function executed.",
-            "Verify the config examples against source-backed class APIs and attachment types. If those source files are unavailable, make the example narrower or explicitly rely only on `EdgeLambdaFunctionProps` fields shown in the supplied source."
-          ],
-          "optionalImprovements": [
-            "Rename CodeBlock tab labels to `stacktape.ts` for consistency with the example page, unless the local docs renderer specifically prefers `TypeScript`.",
-            "Add a short note near the top: no pricing data was present in the provided source, so this page should not include concrete cost figures.",
-            "Tighten the first example text to explain the operational goal before the code, for example adding headers at the CDN response stage, while keeping only source-supported claims.",
-            "Replace `event.Records[0].cf.response` handler typing from `any` with a brief note that CloudFront event typing is application code, not Stacktape config, if the repo has a local typing convention.",
-            "Keep the useful comparison to Lambda functions, but avoid saying standard Lambda has `full runtime support`; the supplied edge source only proves edge functions support Node.js and Python, not the full runtime set for Lambda functions."
-          ]
-        },
-        {
-          "reviewerId": "developer-low-aws",
-          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
-          "modelProvider": "claude",
-          "scores": {
-            "clarity": 8,
-            "scannability": 7,
-            "completeness": 6,
-            "practicalUsefulness": 8,
-            "audienceFit": 8
-          },
-          "strengths": [
-            "Clear 'When to use' section with a practical alternatives table that helps the reader decide quickly whether an edge function is the right choice.",
-            "The event types table is high-value — it maps CDN property names to CloudFront events with concrete memory and timeout limits per event type, which is exactly the reference a developer needs.",
-            "The basic example correctly shows the full attachment pattern (edge function defined as a resource, then referenced by name from a hosting bucket), with a realistic security-headers handler — this is the right way to teach a resource that only works in combination with another.",
-            "Limitations section is prominently placed and clearly explains the critical no-environment-variables constraint, which is the #1 gotcha for anyone coming from standard Lambda functions.",
-            "The 'Connecting to resources' section accurately reflects the source types — IAM permissions only, no env var injection, no VPC — and gives concrete guidance on what resources are compatible.",
-            "Both Warning boxes about onResponse behavior and internal onOriginRequest usage are grounded in the source type JSDoc comments (cdn.d.ts lines 123 and 133) and are genuinely useful caveats."
-          ],
-          "problems": [
-            "FAQ section is present despite the explicit rule 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' All four FAQ entries (env vars, memory/timeout, logs, runtimes) repeat information already stated in the Limitations, Event types, and Logging sections.",
-            "The FAQ section is a backbone section padded with restated content — every answer is a near-verbatim repeat of earlier prose, adding no new information.",
-            "No pricing context line near the top. While the source files don't include Lambda@Edge pricing data, the page doesn't acknowledge this gap — the example page includes a pricing line. This is minor since the rule says 'when pricing data is in the provided source files.'",
-            "The CodeBlock tab labels use 'TypeScript' while the example page consistently uses 'stacktape.ts'. This is a structural deviation from the example page's pattern, though the style guide text says 'TypeScript'. The example page should take precedence per the instructions.",
-            "The page doesn't explain the concept of 'viewer request' vs 'origin request' in plain terms before presenting the event types table. A developer with little CDN experience won't know what 'before cache lookup' vs 'after cache miss' means without a brief explanation of how CDN caching works."
-          ],
-          "mandatoryFixes": [
-            "Remove the FAQ section entirely. It violates the explicit 'Do NOT add an FAQ section' rule and every entry restates content already present in Event types, Limitations, and Logging sections. This is also a padded backbone section with restated content.",
-            "Trim or remove the redundant section; do not pad backbones."
-          ],
-          "optionalImprovements": [
-            "Add 1-2 sentences before the event types table explaining the CDN request lifecycle in plain terms: a request comes in (viewer request), the CDN checks its cache, if not cached it forwards to the origin (origin request), the origin responds (origin response), and the response is sent back (viewer response). This would help developers with little CDN experience understand the table.",
-            "Change CodeBlock tab labels from 'TypeScript' to 'stacktape.ts' to match the example page's pattern, which is more informative for the reader (it tells them what file to create).",
-            "Add a brief mention near 'Basic example' that edge functions have no standalone URL — they only run when attached to another resource's CDN via the edgeFunctions property. This is implicit but worth stating explicitly for newcomers.",
-            "Consider adding a second handler example for an onRequest authentication check (the most common edge function use case mentioned in the intro), showing how to return a 401 response directly from the edge.",
-            "In the 'Connecting to resources' section, briefly explain what 'IAM permissions' means in practical terms — e.g., 'your function code is allowed to call that AWS service, but you must know the resource's name or ARN ahead of time and hard-code it.'"
-          ]
-        }
-      ],
-      "verifierResults": [
-        {
-          "verifierId": "claude-verifier",
-          "modelProvider": "claude",
-          "issues": [
-            {
-              "severity": "medium",
-              "type": "incorrect-claim",
-              "statement": "The draft includes an FAQ section with four Q&A entries.",
-              "reason": "The page instructions explicitly state: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' No SEO reviewer feedback was provided requesting an FAQ.",
-              "suggestedFix": "Remove the entire FAQ section. The information it contains is already covered in the Limitations, Event types, and Logging sections above it.",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "ambiguous-claim",
-              "statement": "On a hosting bucket, edgeFunctions is a top-level property — the CDN is always included.",
-              "reason": "The claim that 'the CDN is always included' for hosting buckets is a factual assertion about Stacktape's architecture. While edgeFunctions is confirmed as a top-level property on HostingBucketProps (not nested under cdn), the claim that a CDN is 'always included' for hosting buckets is not directly stated in the provided source types. It is implied by the absence of a separate `cdn` wrapper, but the wording could mislead readers into thinking a CDN distribution is always provisioned regardless of configuration.",
-              "suggestedFix": "Rephrase to something more precise like: 'On a hosting bucket, edgeFunctions is a top-level property (the bucket always serves through a CDN). On a web service, it is nested under the cdn property (cdn.edgeFunctions).'",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
-                  "quote": "edgeFunctions?: EdgeFunctionsConfig;"
-                }
-              ]
-            },
-            {
-              "severity": "low",
-              "type": "missing-caveat",
-              "statement": "The event types table shows onOriginRequest and onOriginResponse with max memory 10,240 MB and max timeout 30s, but the table doesn't mention these are also the values available on HostingBucket's edgeFunctions.",
-              "reason": "The HostingBucket JSDoc for edgeFunctions only mentions onRequest and onResponse ('Before cache lookup and before forwarding to the bucket' / 'Before returning the response to the client'). The origin-level events (onOriginRequest, onOriginResponse) are available in the EdgeFunctionsConfig type, but HostingBucket's JSDoc only highlights two of the four. Readers may try to use all four on a hosting bucket without realizing onOriginRequest may conflict with Stacktape's internal usage.",
-              "suggestedFix": "No change strictly needed — the warning about onOriginRequest internal usage already covers this. Consider adding a brief note in the event types table that hosting buckets typically only use onRequest and onResponse.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
-                  "quote": "- `onRequest`: Before cache lookup and before forwarding to the bucket.\n   * - `onResponse`: Before returning the response to the client."
-                }
-              ]
-            }
-          ],
-          "positiveFindings": [
-            "Memory default (128 MB) and timeout default (3 seconds) are correctly sourced from @default annotations in EdgeLambdaFunctionProps.",
-            "Runtime list is accurate and complete: Node.js 18.x, 20.x, 22.x, 24.x and Python 3.8-3.13 exactly matches the runtime union type.",
-            "connectTo behavior (IAM-only, no env vars, no VPC) is accurately described and matches the JSDoc: 'Grant access to other resources in your stack (IAM permissions only — no env vars or VPC access).'",
-            "Logging behavior (CloudWatch in the execution region, not stack region) matches the source JSDoc exactly.",
-            "x86_64 architecture constraint is correctly derived from StpEdgeLambdaFunction type which only allows 'x86_64'.",
-            "The four CDN property names (onRequest, onResponse, onOriginRequest, onOriginResponse) are verified in cdn.d.ts EdgeFunctionsConfig interface.",
-            "The onResponse warning about 400+ errors is grounded in cdn.d.ts JSDoc: 'Does not run if the origin returned a 400+ error or if onRequest already generated a response.'",
-            "The onOriginRequest internal usage warning is grounded in cdn.d.ts JSDoc: 'Stacktape uses this trigger internally for bucket/web-service/API Gateway CDN setups.'",
-            "edgeFunctions is confirmed as a top-level property on HostingBucketProps and nested under cdn on web-service CdnConfiguration.",
-            "ApiReference definitionName='EdgeLambdaFunctionProps' is confirmed to exist in the generated config schema.",
-            "ReferenceableParams resource='edge-lambda-function' matches the type literal and EdgeLambdaFunctionReferencableParam = 'arn' confirms the resource exposes params.",
-            "The routeRewrites example correctly shows edgeFunctions nested under each route rewrite item, matching CdnRouteRewrite type definition.",
-            "Event type limits (viewer: 128 MB / 5s, origin: 10,240 MB / 30s) match the JSDoc annotations on memory and timeout properties.",
-            "CodeBlock usage follows all rules: Stacktape config uses intellisense tabs, application code (handler) uses fenced code blocks, no hand-authored YAML."
-          ],
-          "summary": "The draft is well-grounded overall. All key technical claims — runtime list, memory/timeout defaults and limits, connectTo IAM-only behavior, logging region behavior, architecture constraints, CDN property names, and the onOriginRequest internal usage warning — are verified against source types. The main structural issue is the inclusion of an FAQ section that violates the explicit 'Do NOT add an FAQ section' instruction. One minor ambiguity exists around the 'CDN is always included' phrasing for hosting buckets. The CodeBlock usage, component references (ApiReference, ReferenceableParams), and example patterns all follow the required conventions correctly."
-        },
-        {
-          "verifierId": "codex-verifier",
-          "modelProvider": "codex",
-          "summary": "Verification complete. The draft is mostly aligned with the edge-lambda-function type source, but it overreaches on attachment behavior, route rewrite semantics, logging retention, AWS runtime/architecture limitations, and unsupported FAQ structure.",
-          "issues": [
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "`Route rewrites are evaluated in order — the first match wins. Unmatched requests use the default edgeFunctions configuration if one is set.`",
-              "reason": "The provided source files do not define `routeRewrites` for hosting buckets or any evaluation-order behavior. The only grounded statement available for edge functions is that they are referenced from CDN `edgeFunctions` config.",
-              "suggestedFix": "Remove the route-order and fallback claims unless source files for `HostingBucket`/CDN route rewrites are provided. Keep only a narrow statement that edge functions are referenced from CDN `edgeFunctions` config.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.) to modify headers, rewrite URLs,\n * implement A/B testing, or add auth checks at the edge. Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "high",
-              "type": "unsupported-claim",
-              "statement": "`On a hosting bucket, edgeFunctions is a top-level property — the CDN is always included. On a web service, it is nested under the cdn property (cdn.edgeFunctions).`",
-              "reason": "The edge function source only says the resource is referenced from CDN `edgeFunctions` config. The provided sources do not include `HostingBucket` or `WebService` property definitions, so the page cannot assert top-level vs nested attachment paths or that hosting bucket always includes a CDN.",
-              "suggestedFix": "Either add the relevant source files for hosting bucket and web service CDN configuration, or narrow this to: `Edge functions are attached from a CDN edgeFunctions configuration on resources that expose one.`",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.) to modify headers, rewrite URLs,\n * implement A/B testing, or add auth checks at the edge. Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "`onResponse does not run if the origin returned a 400+ error or if onRequest already generated a response.`",
-              "reason": "This is CloudFront/Lambda@Edge lifecycle behavior, but none of the provided Stacktape source files document this condition. The provided edge function source only names event categories and high-level use cases.",
-              "suggestedFix": "Remove this warning, or source it from an included authoritative runtime/CloudFront behavior file before publishing.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.) to modify headers, rewrite URLs,\n * implement A/B testing, or add auth checks at the edge. Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "`Stacktape uses onOriginRequest internally for CDN setups on buckets, web services, and API Gateways. Overriding it may break default behavior.`",
-              "reason": "The provided source files do not describe any internal use of `onOriginRequest`, nor do they list CDN setup behavior for buckets, web services, or API Gateways. This is a strong implementation claim without source support.",
-              "suggestedFix": "Remove the warning unless runtime CDN construction source is provided. If kept, scope it to the exact resource types and property paths shown by source code.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.) to modify headers, rewrite URLs,\n * implement A/B testing, or add auth checks at the edge. Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "incorrect-claim",
-              "statement": "`x86_64 architecture only. ARM (Graviton) is not available for edge functions.`",
-              "reason": "The public `EdgeLambdaFunctionProps` interface does not expose an `architecture` property. The internal `StpEdgeLambdaFunction` type marks `architecture?: 'x86_64'`, but that only shows an optional internal field and does not directly support the user-facing ARM/Graviton claim.",
-              "suggestedFix": "Avoid documenting architecture as a configurable limitation unless runtime validation or deployment code confirms it. A narrower source-grounded statement would be: `The public edge function configuration does not expose an architecture option.`",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "interface EdgeLambdaFunctionProps {\n  /**\n   * #### How the function code is packaged and deployed.\n   */\n  packaging: LambdaPackaging;\n  /**\n   * #### Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only.\n   */\n  runtime?:\n  | 'nodejs24.x'\n  | 'nodejs22.x'\n  | 'nodejs20.x'\n  | 'nodejs18.x'\n  | 'python3.13'\n  | 'python3.12'\n  | 'python3.11'\n  | 'python3.10'\n  | 'python3.9'\n  | 'python3.8';\n  /**\n   * #### Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB.\n   * @default 128\n   */\n  memory?: number;\n  /**\n   * #### Max execution time in seconds. Viewer events: max 5s. Origin events: max 30s.\n   * @default 3\n   */\n  timeout?: number;"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "`Configure log retention with the logging property.`",
-              "reason": "The edge function source states that `logging` is a logging config and where logs are sent, but the provided source files do not define `LambdaFunctionLogging` or show that log retention is configurable for edge functions.",
-              "suggestedFix": "Change to: `Use the logging property for the supported logging configuration.` Only mention retention if the `LambdaFunctionLogging` source confirms it.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "/**\n   * #### Logging config. Logs are sent to CloudWatch **in the region where the function executed** (not your stack region).\n   */\n  logging?: LambdaFunctionLogging;"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "`You need to check CloudWatch in each edge region where your function ran.`",
-              "reason": "The source supports that logs are sent to CloudWatch in the region where the function executed, but it does not state the operational requirement to check each edge region. That may be a reasonable inference, but it is not directly grounded in the provided files.",
-              "suggestedFix": "Phrase this as an implication: `Because logs are stored in the execution region, troubleshooting may require checking the CloudWatch region where the request ran.`",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "/**\n   * #### Logging config. Logs are sent to CloudWatch **in the region where the function executed** (not your stack region).\n   */\n  logging?: LambdaFunctionLogging;"
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "incorrect-claim",
-              "statement": "The page includes a `## FAQ` section with repeated Q&A content.",
-              "reason": "The instructions explicitly say not to add an FAQ section unless SEO reviewer feedback requests it. No such feedback is provided, and the FAQ repeats material already covered in the page.",
-              "suggestedFix": "Remove the FAQ section and keep the sourced content in the main sections.",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "`Always-on HTTP server or WebSocket API | Web service`",
-              "reason": "The provided source files do not document web service behavior or WebSocket support. The recommendation may be reasonable, but it is not grounded in the supplied sources.",
-              "suggestedFix": "Remove the WebSocket mention, or add source files for web service capabilities before making this comparison.",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "`Put configuration values in code or retrieve them from an AWS service your function has permission to access.`",
-              "reason": "The source supports that edge functions cannot use environment variables and that `connectTo` grants IAM permissions for examples like S3, DynamoDB, and SES. It does not state that retrieving configuration from an AWS service is a documented pattern.",
-              "suggestedFix": "Use narrower wording: `Because edge functions cannot use environment variables, avoid runtime settings that depend on Stacktape-injected env vars. If you access AWS services directly, grant permissions with connectTo or iamRoleStatements.`",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "`The string 'addHeaders' must match the key used in the resources object.`",
-              "reason": "The provided sources show that `connectTo` uses resource names, and that edge functions are referenced from CDN `edgeFunctions` config, but they do not show the type of `edgeFunctions` values or name-resolution rules for CDN attachments.",
-              "suggestedFix": "Keep the example, but avoid stating the matching rule unless the CDN/hosting bucket source is included.",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "unsupported-claim",
-              "statement": "The basic example and route-scoped example use `HostingBucket` properties `uploadDirectoryPath`, `edgeFunctions`, and `routeRewrites`.",
-              "reason": "The provided source list does not include `HostingBucket` definitions, so these property names cannot be verified from the supplied sources. This is especially important because example configuration must be copyable and type-correct.",
-              "suggestedFix": "Provide the hosting bucket type source, or use an example that only defines the edge function and explains attachment generically. If keeping a hosting bucket example, verify it against `types/stacktape-config/hosting-buckets.d.ts`.",
-              "evidence": []
-            }
-          ],
-          "positiveFindings": [
-            "The opening paragraph is 40-60 words and self-contained.",
-            "The page uses `<CodeBlock intellisense tabs={[...]}>` for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
-            "The page avoids the forbidden `StacktapeConfig` typed plain-object style.",
-            "The runtime list, memory limits, timeout limits, and defaults match `EdgeLambdaFunctionProps`.",
-            "The `connectTo` explanation is mostly aligned with the edge function source: IAM permissions only, no environment variable injection, and no VPC access.",
-            "`<ApiReference definitionName=\"EdgeLambdaFunctionProps\" />` matches a definition present in the provided type source.",
-            "`<ReferenceableParams resource=\"edge-lambda-function\" />` aligns with the resource type shown in the provided type source."
-          ]
-        },
-        {
-          "verifierId": "code-validator",
-          "modelProvider": "deterministic",
-          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
-          "issues": [
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
-              "reason": "Every Stacktape config example must use the supported class-based defineConfig shape so CodeBlock can derive a YAML tab automatically.",
-              "suggestedFix": "Rewrite the example as `export default defineConfig(() => { const resource = new ResourceClass({...}); return { resources: { resource } }; });` without unsupported TypeScript expressions in resource properties."
-            }
-          ],
-          "positiveFindings": []
-        }
-      ],
-      "seoReviewResult": {
-        "score": 8,
-        "suggestions": [
-          "Answer block is strong (≈50 words, self-contained, defines what/where/why). One improvement: lead with 'Lambda@Edge' before 'edge function' since that's the higher-volume search term. E.g., 'A Lambda@Edge edge function runs at CloudFront edge locations…' — this front-loads the keyword AI engines match on.",
-          "The 'Basic example' H2 is invisible to search. Rename to 'Deploy an edge function' or 'Edge function configuration' — someone searching 'how to deploy Lambda@Edge with Stacktape' won't match 'Basic example'.",
-          "Add a 'Pricing' or 'Cost' note — even a single sentence like 'Lambda@Edge is billed per request and per GB-second of compute; there is no free tier beyond the standard Lambda free tier.' This is one of the top search intents for edge functions and currently missing.",
-          "The 'Connecting to resources' heading hides the most important fact (IAM-only, no env vars). Rename to 'Connecting to resources (IAM permissions only)' so the constraint is visible in the heading itself — AI engines often extract heading + first sentence as a unit.",
-          "FAQ is solid but missing the highest-intent question: 'Lambda@Edge vs CloudFront Functions — which should I use?' Add a brief comparison (CloudFront Functions: viewer events only, JS-only, sub-ms, cheaper; Lambda@Edge: all four events, Node+Python, up to 30s, more capable). This is one of the most-searched edge compute comparison queries.",
-          "The 'Logging' section should lead with the critical fact as its own bolded sentence: '**Lambda@Edge logs appear in the region where the function executed, not your stack's region.**' Currently the bold formatting is absent and an AI engine extracting the first sentence would get a weaker version.",
-          "The 'Limitations' section lists supported runtimes including Node.js 24.x — verify this is accurate since AWS Lambda@Edge runtime support can lag behind standard Lambda. If inaccurate, this would be worse than omitting the version list. Same for Python 3.13.",
-          "Consider adding a one-line 'Package size limit' to the Limitations section (e.g., '1 MB for viewer events, 50 MB for origin events' — these are AWS-documented limits). Package size is a common gotcha that developers search for."
-        ]
-      },
-      "passed": false
-    },
-    {
-      "iteration": 3,
-      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__edge-function\\iteration-3.mdx",
-      "reviewerResults": [
-        {
-          "reviewerId": "startup-cto",
-          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
-          "modelProvider": "claude",
-          "scores": {
-            "clarity": 8,
-            "scannability": 9,
-            "completeness": 7,
-            "practicalUsefulness": 8,
-            "audienceFit": 8
-          },
-          "strengths": [
-            "Strong 'When to use' / 'Use something else' section with a clear comparison table — helps a startup CTO decide quickly without reading the whole page.",
-            "The Limitations section is upfront and well-organized. Calling out 'no environment variables' and 'no VPC access' early prevents wasted effort, which is exactly what this audience needs.",
-            "Event types table is excellent — compact, scannable, and maps CDN properties to CloudFront events with concrete limits (memory, timeout). A reader can pick the right event in seconds.",
-            "The basic example realistically shows how edge functions pair with a HostingBucket, which is the most common use case. The explanation that the string reference must match the resource key is a useful gotcha.",
-            "The 'Connecting to resources' section correctly and clearly explains that connectTo only grants IAM permissions for edge functions — this is a critical behavioral difference from other compute resources and the page handles it well.",
-            "Warning about Stacktape's internal use of onOriginRequest is verified in the codebase (validate-config-zod.ts) and is a high-value gotcha that saves debugging time.",
-            "All headings are 1-3 words — very scannable. Section depth matches the resource's complexity without padding."
-          ],
-          "problems": [
-            "The page does not mention that edge functions are x86_64 only. The source type (edge-lambda-functions.d.ts:72) shows `architecture?: 'x86_64'` with no arm64 option, unlike regular Lambda functions which support both. Since the web-service example page highlights ARM/Graviton as a ~20% cost savings, a reader may assume edge functions support it too.",
-            "The page states 'Log retention defaults to 180 days' which is verified correct from the validation schema, but the page doesn't mention that this differs from regular Lambda functions (which default to 90 days). This divergence could confuse readers who manage both resource types.",
-            "The Warning 'onResponse does not run if the origin returned a 400+ error or if onRequest already generated a response' is standard CloudFront behavior but is not grounded in the provided source files. The hard requirements say to ground every technical statement in source or write cautiously.",
-            "The page has no pricing context line. While edge function pricing isn't in the provided source files, even a brief note like 'Edge functions are included in your CloudFront request pricing at no additional per-request Lambda cost for viewer events' or an explicit 'pricing depends on CloudFront usage' would help the cost-conscious CTO.",
-            "The page does not link to packaging options. The basic example uses StacktapeLambdaBuildpackPackaging but doesn't mention that custom-artifact packaging is also available for edge functions, nor does it link to a packaging reference page."
-          ],
-          "mandatoryFixes": [
-            "Add a note in the Limitations section that edge functions only support x86_64 architecture — ARM/Graviton (arm64) is not available. Source: `types/stacktape-config/edge-lambda-functions.d.ts` line 72 shows `architecture?: 'x86_64'` with no arm64 option.",
-            "Either ground the 'onResponse does not run if the origin returned a 400+ error' warning in a source reference, or soften the wording to 'CloudFront may skip the viewer response event in some error scenarios' — the current phrasing states specific conditions not present in the provided source files.",
-            "Add a brief mention or link to packaging options. The basic example uses StacktapeLambdaBuildpackPackaging but the reader has no visibility into alternatives (custom-artifact). A one-line note with a link to the packaging docs is sufficient."
-          ],
-          "optionalImprovements": [
-            "Add a second practical example showing an authentication/authorization check at the edge (viewer request event). This is the most commonly asked-about use case for edge functions and would make the page more immediately actionable for startups adding auth to a CDN-fronted app.",
-            "Note that the 180-day log retention default differs from regular Lambda functions (90 days) to prevent confusion for readers managing both resource types.",
-            "Consider adding a brief 'How it works' paragraph explaining the deployment model: edge functions are deployed to us-east-1 and then replicated globally by CloudFront. This helps explain why logging appears in different regions and why deployments may take longer than regular Lambda functions.",
-            "The 'Route scoping' section could benefit from a brief note about ordering — 'Route rewrites are evaluated in order — the first match wins' is stated but an example showing a catch-all route after specific routes would make this concrete.",
-            "Add a one-line pricing context even if approximate: 'No additional per-invocation cost for viewer events; origin events are billed at standard Lambda rates in us-east-1' — or explicitly note that pricing data is not available in source if that's preferred."
-          ]
-        },
-        {
-          "reviewerId": "smb-manager",
-          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
-          "modelProvider": "codex",
-          "scores": {
-            "clarity": 7,
-            "scannability": 8,
-            "completeness": 6,
-            "practicalUsefulness": 6,
-            "audienceFit": 7
-          },
-          "strengths": [
-            "The page has a strong practical shape: definition, decision guidance, basic example, event limits, constraints, connecting resources, logging, and API reference.",
-            "Stacktape config examples use class-based `defineConfig` inside `<CodeBlock intellisense tabs={[...]} />`, with ordinary fenced TypeScript reserved for handler code.",
-            "The page correctly highlights the most important edge-function constraints from the source: Node.js/Python only, no environment variables, no VPC access, IAM-only `connectTo`, region-specific CloudWatch logs, and `arn` as the referenceable parameter."
-          ],
-          "problems": [
-            "Several technical statements are not grounded in the provided source files, especially attachment syntax on `HostingBucket` and `WebService`, `routeRewrites`, route ordering, caching/forwarding settings, `onResponse` error behavior, Stacktape internal `onOriginRequest` use, and log retention defaults.",
-            "The basic example may be invalid against the provided source set: `StacktapeResourceDefinition` does not list `EdgeLambdaFunction` as a top-level resource, even though edge functions appear as workload definitions and helper nested resources. The page should not state standalone top-level usage unless the class/export and schema confirm it.",
-            "The event table maps Stacktape property names to CloudFront events, but the provided `EdgeLambdaFunctionProps` source only documents resource limits by viewer/origin event type. The `onRequest`, `onResponse`, `onOriginRequest`, and `onOriginResponse` property names need source from CDN/hosting bucket/web-service types.",
-            "The limitations section says runtime is auto-detected from file extension, but the source only says runtime is auto-detected and lists supported runtime values; file-extension detection is not grounded in the provided source.",
-            "The comparison table recommends alternatives using claims about Lambda functions, web services, and worker services that are not supported by the supplied source files for this page.",
-            "The logging section states retention defaults to 180 days and can be disabled with `logging.disabled`, but the provided source only exposes `logging?: LambdaFunctionLogging` and states logs go to CloudWatch in the execution region."
+            "The Basic example defines a standalone EdgeLambdaFunction but does not show a real CDN attachment, even though the page says the function is invoked only when referenced from CDN edgeFunctions. For this audience, that leaves the most important production wiring path incomplete.",
+            "The CDN attachment section is cautious but too thin. It tells readers the attachment shape belongs to the CDN resource, but gives no grounded indication of the CloudFront event choices named in the source comment, such as viewer request and origin request, or how those choices affect the limits discussed next.",
+            "The Packaging section says the Stacktape Lambda buildpack can package Java, Go, Ruby, PHP, and .NET for edge functions, while the edge function runtime type only supports Node.js and Python. Even if the packaging type is broader, the page risks implying those languages are valid edge runtimes.",
+            "The Permissions example uses SES in iamRoleStatements while the source only names SES as an example for connectTo and does not explicitly ground that specific custom IAM example. The general iamRoleStatements feature is supported, but the example would be safer with a neutral AWS action or a source-named connectTo use case.",
+            "Logging mentions stacktape debug:logs, but does not explain the practical consequence that logs may be split across execution regions. It states the fact, but a production reader needs the operational warning more prominently.",
+            "No pricing context appears near the top. This is acceptable if no concrete pricing was provided in source, but the FAQ pricing answer is buried and only says no source price is available."
           ],
           "mandatoryFixes": [],
           "optionalImprovements": [
-            "Remove or narrow every claim that depends on CDN attachment source not included here, or add the relevant `HostingBucket`, `WebService`, and CDN type sources before documenting `edgeFunctions` and `routeRewrites`.",
-            "Verify whether `EdgeLambdaFunction` is a valid top-level class-based resource and whether `EdgeLambdaFunctionProps` is the correct `ApiReference` definition name in the generated config schema.",
-            "Replace unsupported operational warnings with source-grounded wording. For example, keep viewer/origin memory and timeout limits, but remove the `onResponse` 400+ and internal `onOriginRequest` warnings unless runtime validators or CDN source confirm them.",
-            "Add a short packaging section or sentence grounded in `LambdaPackaging` sources: edge functions require Lambda packaging, and runtime choices are limited to the listed Node.js and Python runtimes.",
-            "Use more cautious wording for alternatives: say standard Lambda functions are better for runtime configuration or VPC access only if the Lambda function source is included and confirms those capabilities."
+            "Add a small CDN attachment example if the CDN source is available; if it is not available, explicitly link to the CDN page and say this page only documents the EdgeLambdaFunction resource shape.",
+            "Revise Packaging to say the Lambda packaging types are shared with Lambda functions, but EdgeLambdaFunction runtimes are limited to Node.js and Python by the EdgeLambdaFunctionProps type.",
+            "Replace the SES iamRoleStatements example with a source-grounded IAM-only connectTo example such as Bucket or DynamoDB access, or keep iamRoleStatements prose generic without a concrete service action.",
+            "Add one short warning-style paragraph in Logging: during incidents, check the CloudWatch region where the edge invocation ran, not only the stack's AWS region.",
+            "Consider adding a short handler example for a viewer-request rewrite so readers can connect the Stacktape config to the expected Lambda@Edge programming model without turning the page into an app-code tutorial."
           ]
         },
         {
-          "reviewerId": "developer-low-aws",
-          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
-          "modelProvider": "claude",
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.4-mini",
           "scores": {
             "clarity": 8,
-            "scannability": 9,
+            "scannability": 8,
             "completeness": 8,
             "practicalUsefulness": 8,
             "audienceFit": 8
           },
           "strengths": [
-            "Strong 'when to use / when not to use' section with a concrete alternatives table — lets readers self-select quickly without reading the whole page.",
-            "Event types table with per-event memory and timeout limits is high-value, grounded in the source types, and easy to scan.",
-            "The key limitation (no environment variables, no VPC) is stated early, repeated in context where it matters (connectTo section), and paired with practical workaround guidance (embed values, use IAM-accessible services).",
-            "Basic example shows the full wiring — edge function resource plus the hosting bucket that references it — so readers see the complete picture, not just a fragment.",
-            "Route scoping example demonstrates a realistic auth-check pattern on /admin/*, which is exactly the use case most readers will reach for first."
+            "Strong answer-first opening that explains what the resource is and why it matters without hedging.",
+            "Good decision support around when to use the edge function versus regional compute or CDN configuration.",
+            "The runtime-limits section is concrete and source-backed, with the viewer/origin split called out clearly.",
+            "The page uses a useful packaging comparison table and keeps the config examples copyable.",
+            "The FAQ is well-structured and covers Stacktape-specific, AWS-behavior, and comparison questions in the required mix."
           ],
           "problems": [
-            "The claim 'Log retention defaults to 180 days' is not verifiable from the provided source files. The LambdaFunctionLogging type is referenced but not included in the sources. The example web-service page states 90 days for container logging. This ungrounded default could mislead readers.",
-            "The Warning about `onResponse` not running when the origin returns 400+ or when `onRequest` generates a response is not grounded in any provided source file — it appears to be general Lambda@Edge knowledge injected without attribution.",
-            "The Warning about Stacktape using `onOriginRequest` internally for CDN setups is not grounded in the provided source files. If true it is important, but the instruction set requires grounding technical statements in source.",
-            "Uses `<Info>` component while the example page uses `<Tip>` — if `<Info>` is not a registered MDX component in this docs setup, it will fail to render."
+            "The Runtime limits section adds unsupported detail about 'cookies' and uses mildly marketing phrasing ('cheap, fast'); that paragraph should stay limited to source-backed request inputs and limits.",
+            "A few guidance sentences in the CDN discussion lean on general AWS behavior rather than the provided source; keep those claims clearly framed or trim them if you want stricter source grounding."
           ],
           "mandatoryFixes": [
-            "Remove or qualify the '180 days' log retention default. The source files do not specify this number. Either omit the default ('Adjust retention with `logging.retentionDays`') or verify the correct default from the LambdaFunctionLogging type before publishing.",
-            "Either ground the Warning about `onResponse` not firing on 400+ errors in a cited source, or soften it to 'Consult CloudFront Lambda@Edge documentation for edge cases where viewer-response functions may not execute.'",
-            "Either ground the Warning about Stacktape's internal use of `onOriginRequest` in a cited source, or soften it to a cautionary note rather than a definitive claim.",
-            "Verify that `<Info>` is a valid MDX component in this docs setup. If not, replace with `<Tip>` to match the established pattern in the example page."
+            "Remove the unsupported 'cookies' example and the 'cheap, fast' phrasing from the Runtime limits section; keep the guidance limited to the source-backed CloudFront event limits and runtime choices."
           ],
           "optionalImprovements": [
-            "Add a one-sentence note after the basic example linking to Lambda packaging options (custom-artifact, etc.), since the example only shows the buildpack — readers with pre-built artifacts need the pointer.",
-            "Mention that edge functions are always x86_64 (the source type shows `architecture?: 'x86_64'` with no ARM option) — readers who learned about ARM savings from the web-service page may wonder.",
-            "In the 'Connecting to resources' section, add a brief inline example of how to hardcode a bucket name in handler code, since the page tells readers to do this but doesn't show how.",
-            "Consider adding a short 'Debugging' note about the multi-region log scattering problem — e.g., 'To find logs, check CloudWatch in the region closest to the user who triggered the request.' This would make the logging section more actionable for the target audience.",
-            "The opening paragraph is 56 words — within range but could be tightened by trimming 'such as viewer requests and origin requests' since those terms are defined more fully in the Event types section."
+            "Tighten the Runtime limits prose so the first paragraph names only viewer-request/origin-request limits and the code example values, which will make the section easier to snippet.",
+            "If you want the page to read more consistently with the source, replace any broad CDN behavior claims with shorter, source-safe wording that only states what the edge-function resource itself does and where it is attached."
           ]
         }
       ],
       "verifierResults": [
         {
-          "verifierId": "claude-verifier",
-          "modelProvider": "claude",
-          "issues": [
-            {
-              "severity": "low",
-              "type": "ambiguous-claim",
-              "statement": "onResponse does not run if the origin returned a 400+ error or if onRequest already generated a response.",
-              "reason": "While this claim IS supported by the cdn.d.ts JSDoc comment on the onResponse property, the draft presents it as a standalone Warning block without attribution. This is actually grounded — downgrading to informational. No real issue here.",
-              "suggestedFix": "No change needed — this is verified in cdn.d.ts.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
-                  "quote": "Does not run if the origin returned a 400+ error or if `onRequest` already generated a response."
-                }
-              ]
-            },
-            {
-              "severity": "low",
-              "type": "ambiguous-claim",
-              "statement": "Route rewrites are evaluated in order — the first match wins. Unmatched requests go to the default origin. Each route can also have its own caching and forwarding settings.",
-              "reason": "The first two sentences are grounded in hosting-buckets.d.ts ('Evaluated in order; first match wins. Unmatched requests go to the bucket.'). However, the claim 'Each route can also have its own caching and forwarding settings' is not verifiable without seeing the full CdnRouteRewrite interface properties in the provided source files, though it is likely true given CDN configuration patterns.",
-              "suggestedFix": "Either remove 'Each route can also have its own caching and forwarding settings' or verify against the full CdnRouteRewrite type definition.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\hosting-buckets.d.ts",
-                  "quote": "Evaluated in order; first match wins. Unmatched requests go to the bucket."
-                }
-              ]
-            }
-          ],
-          "positiveFindings": [
-            "Memory default (128 MB) and timeout default (3 seconds) correctly match the @default JSDoc annotations in EdgeLambdaFunctionProps.",
-            "All runtime options accurately enumerate every value from the source type: nodejs24.x, nodejs22.x, nodejs20.x, nodejs18.x, python3.13 through python3.8.",
-            "connectTo behavior (IAM-only, no env vars, no VPC) is accurately described and directly sourced from the EdgeLambdaFunctionProps JSDoc.",
-            "Logging location claim (CloudWatch in execution region, not stack region) matches the JSDoc: 'Logs are sent to CloudWatch **in the region where the function executed** (not your stack region).'",
-            "Log retention default of 180 days and the logging.retentionDays / logging.disabled properties are confirmed by the LambdaFunctionLogging interface in functions.d.ts (@default 180, @default false).",
-            "Event type constraints (viewer: 128 MB/5s max, origin: 10,240 MB/30s max) precisely match the JSDoc in EdgeLambdaFunctionProps.",
-            "The onResponse warning about 400+ errors and onRequest-generated responses is grounded in the onResponse JSDoc in cdn.d.ts EdgeFunctionsConfig.",
-            "The onOriginRequest internal-use warning is grounded in cdn.d.ts JSDoc ('Stacktape uses this trigger internally for bucket/web-service/API Gateway CDN setups') and confirmed in config-manager source code.",
-            "The CDN property names (onRequest, onResponse, onOriginRequest, onOriginResponse) all match the EdgeFunctionsConfig interface in cdn.d.ts.",
-            "edgeFunctions as a top-level property on HostingBucketProps is confirmed in hosting-buckets.d.ts line 88.",
-            "routeRewrites with per-route edgeFunctions is confirmed — CdnRouteRewrite includes edgeFunctions?: EdgeFunctionsConfig.",
-            "CodeBlock usage is correct throughout: Stacktape config uses <CodeBlock intellisense tabs={[...]} />, application code uses fenced blocks. No forbidden YAML config blocks.",
-            "<ApiReference definitionName='EdgeLambdaFunctionProps' /> uses a definition name that matches the source type.",
-            "<ReferenceableParams resource='edge-lambda-function' /> uses the correct resource type matching the source type literal.",
-            "No marketing language or forbidden phrasings detected."
-          ],
-          "summary": "The draft is well-grounded and factually accurate. All major technical claims — memory/timeout defaults, runtime options, event type constraints, connectTo behavior, logging location, CDN property names, and internal onOriginRequest usage — are verified against the source type definitions. The two minor issues flagged are both low severity: one is actually a false alarm (the onResponse warning IS sourced), and the other is a minor claim about route rewrite caching settings that goes slightly beyond the provided source. No high or medium severity issues found. The page correctly follows all formatting requirements (CodeBlock usage, no hand-authored YAML, no forbidden config patterns)."
-        },
-        {
-          "verifierId": "codex-verifier",
+          "verifierId": "factual-accuracy-verifier",
           "modelProvider": "codex",
-          "summary": "The draft is mostly aligned with the EdgeLambdaFunction source for core resource purpose, runtime list, memory/timeout defaults, connectTo limitations, IAM-only access, and execution-region logging. The main problems are unsupported CloudFront lifecycle details, unsupported attachment/route behavior, an invalid connectTo example, and unsupported logging retention properties/defaults.",
+          "modelName": "gpt-5.5",
+          "summary": "The draft is largely grounded in the provided EdgeLambdaFunction source and follows the required resource-page structure. I found no publication-blocking factual issues. The main risks are two unsupported or over-specific operational claims that should be narrowed to match the source exactly.",
           "issues": [
             {
               "severity": "medium",
               "type": "unsupported-claim",
-              "statement": "“Edge functions attach to one of four CloudFront lifecycle events” and the table mapping Stacktape properties `onRequest`, `onResponse`, `onOriginRequest`, and `onOriginResponse` to CloudFront events.",
-              "reason": "The provided EdgeLambdaFunction source only says the function runs on CloudFront events such as viewer request and origin request, and is referenced from CDN `edgeFunctions` config. It does not define the attachment property names or explicitly document all four lifecycle events.",
-              "suggestedFix": "Either cite/include the CDN attachment source that defines these properties, or narrow the wording to the sourced statement: edge functions are referenced from CDN `edgeFunctions` config and run on CloudFront events such as viewer request and origin request. Keep the sourced memory/timeout limits separately.",
+              "statement": "“CloudFront invokes it only after you reference the resource from CDN `edgeFunctions` configuration on a CDN resource.”",
+              "reason": "The source says edge Lambda functions are referenced from CDN `edgeFunctions` config, but it does not support the stronger lifecycle claim that CloudFront invokes the function only after that reference. The wording is directionally likely, but the provided source does not document invocation behavior or whether other attachment paths exist.",
+              "suggestedFix": "Narrow to the sourced claim: “Edge functions are referenced from CDN `edgeFunctions` configuration.” Avoid the “only after” invocation wording unless the CDN type source confirms it.",
               "evidence": [
                 {
                   "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
@@ -1082,188 +129,108 @@
             {
               "severity": "medium",
               "type": "unsupported-claim",
-              "statement": "“CloudFront processes every request through a pipeline: the viewer request fires first (before cache lookup), then on a cache miss the origin request fires before forwarding to your origin. On the way back, the origin response fires after the origin responds, and the viewer response fires before returning the result to the client.”",
-              "reason": "This describes detailed CloudFront event ordering and cache-miss behavior, but the provided Stacktape sources do not document that behavior.",
-              "suggestedFix": "Remove this detailed pipeline explanation unless an authoritative provided source is added. A cautious replacement would say that edge functions run on CloudFront events and that the event type affects the allowed memory and timeout.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.) to modify headers, rewrite URLs,\n * implement A/B testing, or add auth checks at the edge."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "“Origin events run only on cache misses, which allows higher memory and longer execution times.”",
-              "reason": "The source supports higher memory and timeout limits for origin events, but it does not state that origin events run only on cache misses or that the higher limits are because of that behavior.",
-              "suggestedFix": "Change to: “Origin events have higher Stacktape-documented memory and timeout limits than viewer events.”",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB."
-                },
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Max execution time in seconds. Viewer events: max 5s. Origin events: max 30s."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "“`onResponse` does not run if the origin returned a 400+ error or if `onRequest` already generated a response.”",
-              "reason": "The provided Stacktape sources do not document this `onResponse` behavior or the `onResponse`/`onRequest` attachment names.",
-              "suggestedFix": "Remove the warning unless the CDN attachment source or AWS behavior source is included in the verifier source set.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Runs on CloudFront events (viewer request, origin request, etc.) to modify headers, rewrite URLs,\n * implement A/B testing, or add auth checks at the edge. Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "“Stacktape uses `onOriginRequest` internally for CDN setups on buckets, web services, and API Gateways. Overriding it may break default behavior.”",
-              "reason": "The provided sources do not document internal use of `onOriginRequest`, overriding behavior, or this warning. This is a strong operational warning and needs source backing.",
-              "suggestedFix": "Remove this warning unless the runtime/config source that implements this behavior is added. If kept, scope it to the exact resources and property paths proven by source.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "“You can attach edge functions to specific URL patterns using `routeRewrites`, so different paths run different edge logic” and “Route rewrites are evaluated in order — the first match wins. Unmatched requests go to the default origin. Each route can also have its own caching and forwarding settings.”",
-              "reason": "No provided source defines `routeRewrites`, path-scoped edge functions, route evaluation order, default-origin fallback, or route-level caching/forwarding settings.",
-              "suggestedFix": "Remove the Route scoping section or add the relevant resource type source that defines `routeRewrites` and its semantics.",
-              "evidence": [
-                {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Referenced from CDN `edgeFunctions` config."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "incorrect-claim",
-              "statement": "The `connectTo` example uses `connectTo: [\"myBucket\"]` but returns only `{ edgeFn }` in `resources`.",
-              "reason": "The source says `connectTo` grants access to other resources in the stack. The example references `myBucket` without defining a `myBucket` resource, so it is not copyable as a valid resource-connection example.",
-              "suggestedFix": "Add a bucket resource named `myBucket` to the example, or change the prose to make clear the referenced resource is omitted for brevity. Prefer a complete copyable example.",
+              "statement": "“Use `connectTo` for supported IAM access such as S3, DynamoDB, or SES; use `iamRoleStatements` for AWS permissions that are not covered by `connectTo`.”",
+              "reason": "The source supports that `connectTo` sets up IAM permissions and gives S3 bucket access, DynamoDB, and SES as examples. It also supports custom IAM statements for permissions beyond `connectTo`. However, the phrase “supported IAM access” may imply that `connectTo` accepts AWS service macro names such as SES on edge functions, while the EdgeLambdaFunctionProps type only exposes `connectTo?: string[]` and the provided source does not list the accepted edge-function `connectTo` targets.",
+              "suggestedFix": "Keep the examples but make them non-exhaustive and resource-oriented: “Use `connectTo` where Stacktape supports an IAM-only connection for the target resource or service, such as the S3, DynamoDB, and SES examples named in the type docs. Use `iamRoleStatements` for permissions that are not covered by `connectTo`.“",
               "evidence": [
                 {
                   "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
                   "quote": "Grant access to other resources in your stack (IAM permissions only — no env vars or VPC access)."
                 },
                 {
-                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
-                  "quote": "Each entry is a named resource (e.g., `myApi`, `myDatabase`). Stacktape creates and manages\n   * the underlying AWS resources for you."
-                }
-              ]
-            },
-            {
-              "severity": "medium",
-              "type": "unsupported-claim",
-              "statement": "“Log retention defaults to 180 days. Adjust with the `logging.retentionDays` property. Logging can also be disabled entirely with `logging.disabled`. ”",
-              "reason": "The provided EdgeLambdaFunction source only exposes `logging?: LambdaFunctionLogging` and states where logs are sent. It does not define a 180-day default or the `retentionDays` and `disabled` properties.",
-              "suggestedFix": "Keep only the sourced execution-region logging statement, or add the `LambdaFunctionLogging` source before documenting retention defaults and property names.",
-              "evidence": [
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
+                  "quote": "`connectTo` only sets up IAM permissions (e.g., S3 bucket access, DynamoDB, SES)."
+                },
                 {
                   "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
-                  "quote": "Logging config. Logs are sent to CloudWatch **in the region where the function executed** (not your stack region)."
+                  "quote": "Custom IAM policy statements for fine-grained AWS permissions beyond what `connectTo` provides."
                 }
               ]
-            },
-            {
-              "severity": "low",
-              "type": "ambiguous-claim",
-              "statement": "The first two Stacktape config `<CodeBlock>` examples use `label: 'stacktape.ts'` instead of the required visible `TypeScript` tab label.",
-              "reason": "This violates the provided CodeBlock usage rule, but the issue is based on the prompt’s style contract rather than a source file in the supplied source list.",
-              "suggestedFix": "Change every Stacktape config tab label to `label: 'TypeScript'`.",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "ambiguous-claim",
-              "statement": "“On a hosting bucket, `edgeFunctions` is a top-level property … On a web service, edge functions are nested under the `cdn` property (`cdn.edgeFunctions`).”",
-              "reason": "The supplied source set does not include the HostingBucket or WebService property definitions, so these property paths cannot be verified from the provided sources.",
-              "suggestedFix": "Add the relevant HostingBucket and WebService type sources, or remove this statement from the page.",
-              "evidence": []
-            },
-            {
-              "severity": "low",
-              "type": "ambiguous-claim",
-              "statement": "The “Use something else” table says Lambda functions provide “full runtime support, environment variables, VPC access,” and recommends web services and worker services for specific alternatives.",
-              "reason": "The edge-function source supports why edge functions are constrained, but the supplied source set does not include LambdaFunction, WebService, or WorkerService definitions to verify the alternative-resource claims.",
-              "suggestedFix": "Either add the relevant resource sources or narrow the alternatives to sourced edge-function limitations: use another compute resource when you need environment variables, VPC access, or non-Node/Python runtimes.",
-              "evidence": []
             }
           ],
           "positiveFindings": [
-            "The opening paragraph matches the source-supported purpose: an edge Lambda function runs on CloudFront events for request/response manipulation, headers, URL rewrites, A/B testing, and auth checks.",
-            "The runtime list is grounded in `EdgeLambdaFunctionProps`: Node.js 18.x, 20.x, 22.x, 24.x and Python 3.8 through 3.13.",
-            "The memory and timeout defaults are correctly sourced as `memory` default `128` MB and `timeout` default `3` seconds.",
-            "The viewer/origin memory and timeout maximums are correctly sourced: viewer events 128 MB and 5 seconds, origin events 10,240 MB and 30 seconds.",
-            "The `connectTo` explanation is mostly accurate: for edge functions it grants IAM permissions only and does not inject environment variables or provide VPC access.",
-            "The logging region statement is correctly sourced: edge function logs go to CloudWatch in the region where the function executed, not the stack region.",
-            "The API reference target `EdgeLambdaFunctionProps` matches an interface present in the provided type source, and `edge-lambda-function` is the resource type defined for EdgeLambdaFunction."
+            "The API reference uses the correct `EdgeLambdaFunctionProps` definition name.",
+            "The draft correctly separates `## When to use` and `## When NOT to use` as peer H2 sections.",
+            "All Stacktape config examples use `<CodeBlock intellisense>` with a `TypeScript` tab and class-based `defineConfig` style.",
+            "The draft correctly states the sourced runtime list, memory defaults and limits, timeout defaults and limits, environment-variable limitation, VPC limitation, IAM-only `connectTo` behavior, and CloudWatch log-region behavior.",
+            "All markdown cross-links point to routes present in the provided documentation navigation index."
           ]
         },
         {
-          "verifierId": "code-validator",
-          "modelProvider": "deterministic",
-          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "summary": "The draft is mostly source-grounded and follows the required MDX/API reference structure. I found one concrete documentation-quality issue: the packaging section enumerates both Lambda packaging variants but only gives a working example for custom artifact, leaving the recommended buildpack path without equivalent treatment.",
           "issues": [
             {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #1 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #2 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #3 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
-              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
-              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
-            },
-            {
-              "severity": "high",
-              "type": "incorrect-claim",
-              "statement": "<CodeBlock intellisense> #3 (stacktape.ts): cannot generate YAML tab from TypeScript source.",
-              "reason": "Every Stacktape config example must use the supported class-based defineConfig shape so CodeBlock can derive a YAML tab automatically.",
-              "suggestedFix": "Rewrite the example as `export default defineConfig(() => { const resource = new ResourceClass({...}); return { resources: { resource } }; });` without unsupported TypeScript expressions in resource properties."
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Packaging section names both `stacktape-lambda-buildpack` and `custom-artifact`, recommends the buildpack for most teams, but only includes a `<CodeBlock>` example for `CustomArtifactLambdaPackaging`.",
+              "reason": "This violates the per-variant equal-depth requirement for a polymorphic property. The source shows `packaging` is a `LambdaPackaging` union and the draft covers both modes in prose, but the recommended `stacktape-lambda-buildpack` variant does not receive an equivalent example in the Packaging section while `custom-artifact` does.",
+              "suggestedFix": "Add a short buildpack subsection or example in the Packaging section before the custom-artifact example, using `StacktapeLambdaBuildpackPackaging` with `entryfilePath` and optional `handlerFunction`, then keep the custom-artifact example as the alternative for pre-built packages.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts",
+                  "quote": "packaging: LambdaPackaging;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface StpBuildpackLambdaPackaging {\n  type: 'stacktape-lambda-buildpack';\n  properties: StpBuildpackLambdaPackagingProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface CustomArtifactLambdaPackaging {\n  type: 'custom-artifact';\n  properties: CustomArtifactLambdaPackagingProps;\n}"
+                }
+              ]
             }
           ],
-          "positiveFindings": []
+          "positiveFindings": [
+            "`<ApiReference definitionName=\"EdgeLambdaFunctionProps\" />` matches the page metadata/resource type convention and includes the required `Props` suffix.",
+            "The draft avoids hand-authored Stacktape YAML and uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape config examples.",
+            "The runtime list, memory defaults and limits, timeout defaults and limits, `connectTo` IAM-only behavior, no environment variables, no VPC access, and CloudWatch log-region behavior are all directly grounded in `edge-lambda-functions.d.ts`.",
+            "All checked internal links point to routes present in the provided documentation navigation index.",
+            "The page includes exactly 10 FAQ Q&A pairs and keeps `When to use` and `When NOT to use` as peer H2 sections."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "gpt-5.5",
+          "summary": "The draft covers the important EdgeLambdaFunctionProps surface: packaging, runtime, memory, timeout, connectTo, iamRoleStatements, logging, API reference, and referenceable params. I found no API-completeness, union-coverage, or demonstrativeness blockers under the auditor scope.",
+          "issues": [],
+          "positiveFindings": [
+            "Every primary EdgeLambdaFunctionProps property is mentioned in prose or examples, and the page includes the required <ApiReference definitionName=\"EdgeLambdaFunctionProps\" />.",
+            "The documented runtime union names all supported Node.js and Python runtime values from the EdgeLambdaFunctionProps source.",
+            "The Lambda packaging union is acknowledged with both supported modes: stacktape-lambda-buildpack and custom-artifact.",
+            "Each <CodeBlock intellisense> example demonstrates its surrounding section topic: basic resource definition, runtime limits, custom artifact packaging, and IAM permissions."
+          ]
         }
       ],
-      "seoReviewResult": {
-        "score": 7,
-        "suggestions": [
-          "Answer block: Add the approximate number of CloudFront edge locations (200+ as of AWS docs) and a latency benefit claim to the opening paragraph. E.g., 'A Lambda@Edge function runs your code at 200+ CloudFront edge locations worldwide, reducing latency by processing CDN events — viewer requests, origin requests — close to the user.' This makes the snippet more concrete and compelling for AI extraction.",
-          "Heading: Rename 'Route scoping' to 'Route-specific edge functions' or 'Edge functions by URL path'. The current heading is vague to someone scanning search results — 'route scoping' is not a term users search for. 'How to run different edge functions on different URL paths' is the actual question being answered.",
-          "Heading: Rename 'Connecting to resources' to 'IAM permissions (connectTo)'. The current heading sounds like a generic tutorial section. Since the key insight is that connectTo only grants IAM permissions (no env vars, no VPC), leading with that distinction in the heading improves scannability and search alignment.",
-          "Add an FAQ section with 3-5 questions that this page already answers but that users commonly search for: (1) 'Can Lambda@Edge use environment variables?' (2) 'Where do Lambda@Edge logs appear?' (3) 'What is the difference between viewer request and origin request?' (4) 'What are Lambda@Edge memory and timeout limits?' These are high-intent queries that would surface well as FAQ rich results.",
-          "Limitations section: Add a sentence noting that Lambda@Edge functions must be deployed to us-east-1 (an AWS requirement that catches many users off guard). This is a commonly searched constraint and would help the page rank for 'Lambda@Edge region' queries.",
-          "Self-contained paragraphs: The sentence 'The edge function is defined as a standalone resource, then referenced by name from the edgeFunctions property on another resource' is Stacktape-specific context that won't extract well on its own. Prepend it with the general concept: 'In Stacktape, edge functions are standalone resources attached to CDN-fronted resources like hosting buckets or web services.' This makes the paragraph useful even when extracted without surrounding code.",
-          "Event types table: Add a 'Typical use case' column (e.g., viewer request → 'security headers, redirects'; origin request → 'authentication, URL rewriting'). Tables with use-case context are more likely to be extracted by AI engines as complete answers, and they help users who land on just that section via a deep link."
-        ]
-      },
-      "passed": false
+      "status": "passed",
+      "passed": true
     }
   ],
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\compute\\edge-function.mdx"
+  "agentModelAssignments": {
+    "page-writer": "codex:gpt-5.5",
+    "first-time-user-reviewer": "codex:gpt-5.4-mini",
+    "production-engineer-reviewer": "codex:gpt-5.5",
+    "ai-consumer-reviewer": "codex:gpt-5.4-mini",
+    "factual-accuracy-verifier": "codex:gpt-5.5",
+    "source-grounding-verifier": "codex:gpt-5.5",
+    "api-completeness-auditor": "codex:gpt-5.5",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\compute\\edge-function.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-14T04:51:25.230Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\edge-lambda-functions.d.ts": "bb975b5f5997a201883ab00a390ebbbd2ad40120",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\config-ref\\edge-lambda-function.md": "1b7af5d69ee9951c5c7eebea535c55b2e49a4ad5"
+  },
+  "styleGuideHash": "5bfa5b4c6981088376a91bf6595269b227cedc63"
 }

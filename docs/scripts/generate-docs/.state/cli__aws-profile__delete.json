@@ -1,0 +1,211 @@
+{
+  "pageId": "cli__aws-profile__delete",
+  "pageRoute": "cli/aws-profile-delete",
+  "startedAt": "2026-05-17T21:19:13.217Z",
+  "updatedAt": "2026-05-17T21:21:09.734Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__aws-profile__delete\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurate prose — correctly describes the interactive selector (not a text-entry prompt), reads from both credentials and config files, and deduplicates before presenting the list, all matching the source code.",
+            "Exact error message is quoted (`No profile set in global AWS credentials file.`) matching the source `ExpectedError` throw exactly.",
+            "The Warning callout is appropriate and actionable: it tells the reader the impact before they run the command.",
+            "Correct use of `<CliCommandsApiReference>` with `sortedArgs` — no hand-authored flags table.",
+            "Related commands section links the three peer `aws-profile:*` commands, which is exactly what a first-time user needs after landing here.",
+            "Concrete file paths (`~/.aws/credentials`, `~/.aws/config`) in the How it works section add real value over the opening paragraph's summary."
+          ],
+          "problems": [
+            "The first entry in the 'Examples' section (`stacktape aws-profile:delete` with label 'Delete a profile with default log level') is byte-for-byte identical to the 'Usage' block above it. This creates visible repetition with no added information — the reader sees the same one-liner twice on a short page.",
+            "The section instructions specify 'Examples if there are non-obvious patterns.' Neither example on this page is non-obvious: one is the bare command (already shown in Usage) and one adds `--logLevel debug`, which is a universal flag documented in the arguments reference. Neither pattern needs its own dedicated example block.",
+            "The 'How it works' numbered list partially restates the opening paragraph. Steps 1–3 map almost 1:1 to 'reads profiles from both the AWS credentials and config files, presents them in an interactive selector'. The deduplication detail and the specific file paths are genuinely new; the rest is reiteration."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the first 'Examples' entry (`stacktape aws-profile:delete` / 'Delete a profile with default log level'). It is already shown in Usage. Either drop the Examples section entirely (the command has no non-obvious usage patterns) or replace both entries with a genuinely non-trivial scenario — for instance, scripting: show how to check that profiles exist before invoking the command, or explain how `--logLevel debug` helps when the credentials file is malformed and the deletion silently fails.",
+            "Trim the 'How it works' section or fold the unique details (file paths, deduplication) into the opening paragraph so they don't appear in isolation. A short page like this does not need a full numbered walkthrough if the opening paragraph already covers the flow accurately.",
+            "Consider quoting or referencing the success message (`Deleted credentials for AWS profile <name>.`) so the reader knows what a successful run looks like — useful for scripting contexts or when piping output."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurately documents the error condition (`No profile set in global AWS credentials file.`) sourced directly from `src/commands/aws-profile-delete/index.ts`.",
+            "The `<Warning>` callout is well-placed and accurately scoped — alerts the user that deletion affects local AWS tooling system-wide, not just Stacktape.",
+            "`<CliCommandsApiReference>` is correctly used with only `logLevel` in `sortedArgs`, matching the source which exposes no other args for this command.",
+            "Related commands section is complete and correctly linked to all three sibling aws-profile commands.",
+            "The interactive selector behavior (vs. a free-text prompt) is correctly described — aligns with `tuiManager.promptSelect` in the command source, not the slightly misleading command description ('prompted to enter the name')."
+          ],
+          "problems": [
+            "The 'How it works' section substantially restates the intro paragraph. The intro already states: reads from both files, presents an interactive selector, deletes. The section adds only the specific file paths and the deduplication detail — not enough new content to justify a dedicated H2 for a command this simple. This is a backbone section padded with restated content, triggering a completeness penalty.",
+            "The first entry in the 'Examples' section (`stacktape aws-profile:delete` with label 'Delete a profile with default log level') is byte-for-byte identical to the Usage invocation directly above it. Copying the bare command without arguments adds zero information — the user already saw this in the Usage block. This reduces practical usefulness."
+          ],
+          "mandatoryFixes": [
+            "Trim or remove the 'How it works' section. The deduplication detail and file paths can be folded into one sentence in the intro paragraph if worth preserving. A four-step walkthrough is excessive for a command that does one interactive thing. Do not pad a simple CLI page with a restated internal flow section.",
+            "Remove the first example ('Delete a profile with default log level'). It is identical to the Usage block and provides no additional value. The 'Examples' section instruction says to include non-obvious patterns — invoking the command with no flags is already covered by the Usage section. Keep only the `--logLevel debug` variant."
+          ],
+          "optionalImprovements": [
+            "The `commandsNotRequiringApiKey` array in `src/config/cli/commands.ts` does not include `aws-profile:delete`, meaning the command requires a configured Stacktape API key. For users who have just installed Stacktape and are setting up their first AWS profile before running `login`, this is a mild footgun worth a one-sentence note.",
+            "The success message emitted by the command is `Deleted credentials for AWS profile ${profile}.` — quoting it in the prose (or near the Warning) would help users confirm the operation completed, consistent with how other CLI pages document success output."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concise, and explains when to use the command.",
+            "Command examples are copyable and follow the one-command-per-shell-block rule.",
+            "The page uses the required <CliCommandsApiReference command=\"aws-profile:delete\" /> component and does not hand-author the flags table.",
+            "The no-profiles error message matches the runtime source exactly."
+          ],
+          "problems": [
+            "Several H2 sections do not start with self-contained explanatory prose. `Usage` starts with a code block, `Arguments reference` starts with the API component, and `Related commands` starts with a list.",
+            "The claim that Stacktape removes the selected profile from both AWS files is stronger than the provided runtime source proves. The source shows both files are read and `deleteAwsProfile(profile)` is called, but the implementation of `deleteAwsProfile` is not included.",
+            "The page slightly overstates the selector flow by saying the command “presents” profiles in an interactive selector; the runtime source grounds the exact prompt message `Choose a profile to delete:` and selected options, so using that wording would be more precise.",
+            "The `How it works` section is useful, but its placement before the generated argument reference diverges from the CLI page instruction order: usage example, generated reference, examples, related commands.",
+            "The page has no FAQ. For a narrow CLI page this is not a severe gap, but 3-5 practical Q&A pairs would improve answer-engine extraction for common questions like whether flags are required, what files are touched, and what happens when no profiles exist."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Change “Removes the selected profile from both files” to narrower source-grounded wording such as “After you choose a profile, Stacktape calls its AWS profile deletion helper for that profile.” Only mention both files if the `deleteAwsProfile` source confirms both are modified.",
+            "Add a short prose sentence before `Arguments reference`, `Examples`, and `Related commands` so each H2 section can be extracted alone.",
+            "Move `How it works` after the generated CLI reference, or fold the four-step behavior into `Usage` to match the CLI reference-page rhythm.",
+            "Use the exact runtime prompt wording once: `Choose a profile to delete:`.",
+            "Consider adding a compact FAQ with questions about required flags, profile discovery, deletion scope, and the no-profile error."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command source. The main factual risk is that it describes exactly which files are modified and says deletion happens from both AWS files, but the provided command source only shows that both files are read and that a helper is called to delete the selected profile; the helper implementation is not included.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This command modifies your local AWS credentials and config files.” and “Removes the selected profile from both files.”",
+              "reason": "The provided command source proves that Stacktape reads both AWS credentials and config files and passes the selected profile to `deleteAwsProfile(profile)`, but it does not show the implementation of `deleteAwsProfile`. The draft should not assert the exact write targets unless the helper implementation is in the source set.",
+              "suggestedFix": "Narrow the wording to: “This command modifies your local AWS profile configuration by deleting the selected profile.” In the steps, replace “Removes the selected profile from both files” with “Deletes the selected profile by calling Stacktape’s AWS profile deletion helper.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\aws-profile-delete\\index.ts",
+                  "quote": "await deleteAwsProfile(profile);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\aws-profile-delete\\index.ts",
+                  "quote": "const [credsFileContent, configFileContent] = await Promise.all([\n    getIniFileContent(fsPaths.awsCredentialsFilePath()),\n    getIniFileContent(fsPaths.awsConfigFilePath())\n  ]);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The usage command is correct and has no required flags, matching `requiredArgs: []` for `aws-profile:delete`.",
+            "The optional `logLevel` argument is correctly documented as the only command-specific argument visible in `src/config/cli/commands.ts`.",
+            "The no-profiles error message matches the command source exactly: `No profile set in global AWS credentials file.`",
+            "Related command links point to valid routes in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI definition and command implementation. The main factual gap is the stronger claim that Stacktape removes the profile from both AWS files; the provided command source only shows that both files are read and that the selected name is passed to deleteAwsProfile, not the internals of that deletion helper.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft states that aws-profile:delete \"deletes the chosen profile\" from both the AWS credentials and config files, and in How it works says it \"Removes the selected profile from both files.\"",
+              "reason": "The provided implementation proves that Stacktape reads both files, builds a deduplicated list, prompts for a profile, and calls deleteAwsProfile(profile). The source list does not include the deleteAwsProfile implementation, so the exact file mutation behavior is not grounded here. This matters because the draft makes a concrete local-file modification claim beyond the visible command implementation.",
+              "suggestedFix": "Narrow the wording to what the provided source proves: \"Stacktape reads profiles from both files, prompts you to choose one, then passes the selected profile to Stacktape's AWS profile deletion helper.\" Keep the warning as \"This command modifies your local AWS profile configuration\" unless the deleteAwsProfile source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\aws-profile-delete\\index.ts",
+                  "quote": "const [credsFileContent, configFileContent] = await Promise.all([\n    getIniFileContent(fsPaths.awsCredentialsFilePath()),\n    getIniFileContent(fsPaths.awsConfigFilePath())\n  ]);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\aws-profile-delete\\index.ts",
+                  "quote": "await deleteAwsProfile(profile);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The command name, no-required-args behavior, and optional logLevel flag are consistent with src/config/cli/commands.ts.",
+            "The draft correctly describes the implementation reading both AWS credentials and config files, normalizing config profile names by removing the `profile ` prefix, deduplicating with uniq, and prompting with an interactive selector.",
+            "The no-profiles error message matches the ExpectedError message in src/commands/aws-profile-delete/index.ts.",
+            "All related-command links point to routes present in the provided documentation navigation index.",
+            "The draft uses the required <CliCommandsApiReference command=\"aws-profile:delete\" ... /> component and does not contain forbidden Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API completeness, union-variant coverage, or code-example demonstrativeness issues found for the `aws-profile:delete` CLI page. The command has no required arguments, documents its optional `logLevel` argument through the generated CLI reference and an example, and uses command examples that match the documented command shape.",
+          "issues": [],
+          "positiveFindings": [
+            "The page documents exactly one CLI command and includes a realistic invocation with no required flags, matching `requiredArgs: []`.",
+            "The generated `<CliCommandsApiReference command=\"aws-profile:delete\" ... />` includes the only configured argument, `logLevel`, with its alias and allowed values.",
+            "The examples are copyable one-command shell blocks and the debug logging example demonstrates the optional `--logLevel debug` argument."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\aws-profile-delete.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T21:21:09.734Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\aws-profile-delete\\index.ts": "a32e8a2e3017effb55968ba4fa481fcfc3ae1866",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\aws-profile-delete.md": "46a1d922859d0666674d752bbe6a171eece4b882"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

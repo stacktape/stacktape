@@ -5,14 +5,34 @@ import {
   LuPackage,
   LuCloudUpload,
   LuActivity,
+  LuWallet,
+  LuShield,
   LuGitBranch,
   LuLaptop,
   LuBot,
   LuLayoutDashboard,
   LuLightbulb,
-  LuBookOpen,
-  LuTerminal
+  LuTerminal,
+  // Subgroup icons (level-2 virtual nav nodes).
+  LuZap,
+  LuCpu,
+  LuMonitor,
+  LuDatabase,
+  LuHardDrive,
+  LuNetwork,
+  LuMessageSquare,
+  LuWorkflow,
+  LuKeyRound,
+  LuWrench,
+  LuContainer
 } from 'react-icons/lu';
+
+export type SidebarSubgroup = {
+  // Full path of the virtual subgroup node, e.g. '/resources/compute'. The icon is rendered
+  // next to the subgroup label in the sidebar.
+  path: string;
+  icon: any;
+};
 
 export type SidebarGroup = {
   order: number;
@@ -20,6 +40,7 @@ export type SidebarGroup = {
   title: string;
   icon: any;
   defaultOpen?: boolean;
+  subgroups?: SidebarSubgroup[];
 };
 
 export default {
@@ -44,28 +65,60 @@ export default {
       '/resources',
       '/packaging',
       '/deployment-and-lifecycle',
-      '/operations',
+      '/observability',
+      '/managing-costs',
+      '/guardrails',
       '/ci-cd-and-gitops',
       '/local-development',
       '/using-with-ai',
       '/stacktape-console',
-      '/recipes',
-      '/reference',
       '/cli'
     ],
     groups: [
       { order: 1, path: '/getting-started', title: 'Getting Started', icon: LuRocket, defaultOpen: true },
-      { order: 2, path: '/configuration', title: 'Configuration', icon: LuFileCog },
-      { order: 3, path: '/resources', title: 'Resources', icon: LuBoxes, defaultOpen: true },
-      { order: 4, path: '/packaging', title: 'Packaging', icon: LuPackage },
+      {
+        order: 2,
+        path: '/configuration',
+        title: 'Configuration',
+        icon: LuFileCog,
+        subgroups: [{ path: '/configuration/triggers', icon: LuZap }]
+      },
+      {
+        order: 3,
+        path: '/resources',
+        title: 'Resources',
+        icon: LuBoxes,
+        defaultOpen: true,
+        subgroups: [
+          { path: '/resources/compute', icon: LuCpu },
+          { path: '/resources/frontend', icon: LuMonitor },
+          { path: '/resources/databases', icon: LuDatabase },
+          { path: '/resources/storage', icon: LuHardDrive },
+          { path: '/resources/networking', icon: LuNetwork },
+          { path: '/resources/messaging', icon: LuMessageSquare },
+          { path: '/resources/orchestration', icon: LuWorkflow },
+          { path: '/resources/security', icon: LuKeyRound },
+          { path: '/resources/advanced', icon: LuWrench }
+        ]
+      },
+      {
+        order: 4,
+        path: '/packaging',
+        title: 'Packaging',
+        icon: LuPackage,
+        subgroups: [
+          { path: '/packaging/function', icon: LuZap },
+          { path: '/packaging/containers', icon: LuContainer }
+        ]
+      },
       { order: 5, path: '/deployment-and-lifecycle', title: 'Deploying & Lifecycle', icon: LuCloudUpload },
-      { order: 6, path: '/operations', title: 'Operations', icon: LuActivity },
-      { order: 7, path: '/ci-cd-and-gitops', title: 'CI/CD & GitOps', icon: LuGitBranch },
-      { order: 8, path: '/local-development', title: 'Local Development', icon: LuLaptop },
-      { order: 9, path: '/using-with-ai', title: 'Using with AI', icon: LuBot },
-      { order: 10, path: '/stacktape-console', title: 'Stacktape Console', icon: LuLayoutDashboard },
-      { order: 11, path: '/recipes', title: 'Recipes', icon: LuLightbulb },
-      { order: 12, path: '/reference', title: 'Reference', icon: LuBookOpen },
+      { order: 6, path: '/observability', title: 'Observability', icon: LuActivity },
+      { order: 7, path: '/managing-costs', title: 'Managing Costs', icon: LuWallet },
+      { order: 8, path: '/guardrails', title: 'Guardrails', icon: LuShield },
+      { order: 9, path: '/ci-cd-and-gitops', title: 'CI/CD & GitOps', icon: LuGitBranch },
+      { order: 10, path: '/local-development', title: 'Local Development', icon: LuLaptop },
+      { order: 11, path: '/using-with-ai', title: 'Using with AI', icon: LuBot },
+      { order: 12, path: '/stacktape-console', title: 'Stacktape Console', icon: LuLayoutDashboard },
       { order: 13, path: '/cli', title: 'CLI Reference', icon: LuTerminal }
     ] satisfies SidebarGroup[],
     // Subgroup paths (virtual nodes) that should default to expanded when a user first lands on

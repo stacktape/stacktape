@@ -1,0 +1,489 @@
+---
+title: 'OpenSearch'
+order: 50
+seoTitle: 'Deploy OpenSearch on AWS with Stacktape | Stacktape Docs'
+seoDescription: 'Deploy managed OpenSearch domains on AWS with Stacktape. Full-text search, log analytics, cluster sizing, VPC networking, and Cognito Dashboards — configured in TypeScript.'
+---
+
+# OpenSearch
+
+Stacktape OpenSearch provisions a managed AWS OpenSearch Service domain for full-text search, log analytics, and real-time dashboards. The resource handles cluster sizing, storage, networking, and logging — you configure the shape and Stacktape manages the underlying AWS infrastructure. Costs start at ~$50/month for a single small node.
+
+## When to use
+
+An OpenSearch domain is the right choice when your application needs full-text search across documents, centralized log aggregation and analysis, or real-time dashboards over time-series data. Common use cases include product search, application-wide log querying, and metrics visualization.
+
+OpenSearch is Elasticsearch-compatible — most Elasticsearch client libraries and tools work without changes. If you already use the Elasticsearch query DSL or OpenSearch Dashboards (the Kibana fork), this resource gives you a managed cluster without running your own infrastructure.
+
+Choose OpenSearch when:
+
+- You need full-text search with relevance scoring, facets, and aggregations
+- You need log analytics or centralized logging across multiple services
+- You need real-time dashboards or time-series data exploration
+- Your queries involve complex text analysis, fuzzy matching, or geospatial search
+
+## When NOT to use
+
+OpenSearch is not a general-purpose database. For simple key-value lookups, a [DynamoDB table](/resources/databases/dynamodb) is cheaper and faster. For relational data with joins and transactions, use a [relational database](/resources/databases/relational-database). For caching and session storage, use [Redis](/resources/databases/redis).
+
+OpenSearch domains run continuously and cost at least ~$50/month even at idle. If your search volume is very low or intermittent, consider alternatives like DynamoDB with a Global Secondary Index or a relational database with full-text search extensions (PostgreSQL `tsvector`).
+
+| Need | Better fit |
+|------|-----------|
+| Key-value lookups | [DynamoDB](/resources/databases/dynamodb) |
+| Relational queries with joins | [Relational database](/resources/databases/relational-database) |
+| Caching / sessions | [Redis](/resources/databases/redis) |
+| Occasional simple text search | PostgreSQL full-text search |
+
+## Basic example
+
+A minimal OpenSearch domain with explicit cluster sizing and storage. This creates a single-node cluster suitable for development or low-traffic search.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const search = new OpenSearchDomain({
+    clusterConfig: {
+      instanceType: 't3.medium.search',
+      instanceCount: 1
+    },
+    storage: {
+      size: 20
+    }
+  });
+
+  return {
+    resources: { search }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `clusterConfig` property controls cluster topology. If you omit it entirely, the domain defaults to a single `m4.large.search` node. The `storage` property sets EBS volume size per data node — specify it explicitly for EBS-backed instance types.
+
+## Engine version
+
+Stacktape supports OpenSearch versions 1.0 through 2.17. The `version` property pins the engine version for your domain. The default is `2.17`.
+
+Pin the version explicitly to avoid unexpected upgrades when the default changes in a future Stacktape release. Supported values: `2.17`, `2.15`, `2.13`, `2.11`, `2.9`, `2.7`, `2.5`, `2.3`, `1.3`, `1.2`, `1.1`, `1.0`.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const search = new OpenSearchDomain({
+    version: '2.17',
+    clusterConfig: {
+      instanceType: 't3.medium.search',
+      instanceCount: 1
+    },
+    storage: {
+      size: 20
+    }
+  });
+
+  return {
+    resources: { search }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+## Cluster configuration
+
+The `clusterConfig` property controls the number and type of nodes in your OpenSearch cluster. A cluster can include data nodes, dedicated master nodes, and warm (UltraWarm) nodes — each serving a different role.
+
+### Data nodes
+
+Data nodes store your indices and handle search and indexing queries. Set `instanceType` and `instanceCount` to control the size and number of data nodes. For development, a single `t3.medium.search` or `t3.small.search` node is sufficient. For production workloads, use `r6g.large.search` or larger for better memory-to-cost ratio.
+
+### Dedicated master nodes
+
+Dedicated master nodes manage cluster state (shard allocation, index creation, node tracking) without handling data queries. They prevent data-heavy operations from destabilizing the cluster. Add dedicated master nodes when your cluster has 3 or more data nodes to avoid split-brain scenarios.
+
+Use an odd count (3, 5, or 7) for quorum. Three dedicated master nodes is the standard recommendation for most production clusters. Use `m5.large.search` or `m6g.large.search` — master nodes don't need high memory since they don't store data.
+
+### Warm storage
+
+UltraWarm nodes provide cheaper storage for infrequently accessed data. Data on warm nodes is still searchable but with higher query latency. This is useful for retaining old logs or historical time-series data at a fraction of hot-storage cost.
+
+### Production example
+
+A production-ready cluster with 3 data nodes, 3 dedicated masters, and Multi-AZ standby for high availability.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const search = new OpenSearchDomain({
+    version: '2.17',
+    clusterConfig: {
+      instanceType: 'r6g.large.search',
+      instanceCount: 3,
+      dedicatedMasterType: 'm6g.large.search',
+      dedicatedMasterCount: 3,
+      standbyEnabled: true
+    },
+    storage: {
+      size: 100,
+      iops: 5000,
+      throughput: 250
+    }
+  });
+
+  return {
+    resources: { search }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `instanceType` property accepts any valid OpenSearch instance type string — common choices include `t3.small.search` (development), `r6g.large.search` (production, memory-optimized), and `m6g.large.search` (general purpose). The `instanceCount` controls how many data nodes run in the cluster.
+
+### Multi-AZ and standby
+
+When your cluster has 2 or more data nodes, Multi-AZ replication is automatically enabled — distributing nodes across availability zones so the cluster survives an AZ outage. You can disable this with `multiAzDisabled: true`, but this is not recommended for production.
+
+For the highest availability (99.99% SLA), enable `standbyEnabled: true`. This distributes nodes across 3 AZs with one as standby. The standby AZ takes over instantly during failures without re-balancing. Standby mode requires OpenSearch version 1.3 or later, at least 3 dedicated master nodes, at least 3 data nodes, and GP3 or SSD-backed instance types.
+
+## Storage
+
+The `storage` property configures EBS volume size, IOPS, and throughput per data node. Storage only applies to EBS-backed instance types — some instance families (like `i3`) use local NVMe storage instead and do not use EBS.
+
+| Property | Description |
+|----------|-------------|
+| `size` | EBS volume size per data node in GiB. Min/max depends on instance type (typically 10–16,384 GiB). Required when configuring storage. |
+| `iops` | Provisioned IOPS per data node. GP3 volumes only. Default: 3000. |
+| `throughput` | Throughput per data node in MiB/s. GP3 volumes only. Default: 125. |
+
+The `iops` and `throughput` properties only apply to GP3 volumes. Increasing `iops` above 3000 or `throughput` above 125 MiB/s incurs additional AWS cost but improves performance for write-heavy or latency-sensitive workloads.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const search = new OpenSearchDomain({
+    clusterConfig: {
+      instanceType: 'r6g.large.search',
+      instanceCount: 2
+    },
+    storage: {
+      size: 200,
+      iops: 6000,
+      throughput: 400
+    }
+  });
+
+  return {
+    resources: { search }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+## Networking
+
+The `accessibility` property controls how the OpenSearch domain can be reached. Three modes are available, and the choice is permanent — you cannot switch between internet and VPC modes after the domain is created.
+
+<Warning>
+The accessibility mode cannot be changed after creation. Switching between `internet` and `vpc`/`scoping-workloads-in-vpc` requires deleting and recreating the domain, which destroys all data.
+</Warning>
+
+| Mode | Network access | When to use |
+|------|---------------|-------------|
+| `internet` (default) | Public endpoint, IAM required | Development, external access needed |
+| `vpc` | VPC-only, accessible from any resource in the VPC | Production, no external access |
+| `scoping-workloads-in-vpc` | VPC-only, requires security-group access via `connectTo` | Production, strict network isolation |
+
+Even in `internet` mode, all requests require IAM credentials — the domain is not openly accessible. VPC modes add network-level isolation on top of IAM, restricting access to resources inside your VPC.
+
+In `vpc` mode, the domain is accessible from resources inside your VPC — functions with `joinDefaultVpc: true`, containers, and batch jobs. In `scoping-workloads-in-vpc` mode, it is like `vpc`, but also requires security-group access via `connectTo`. This is the most restrictive and recommended mode for production.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  OpenSearchDomain,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const search = new OpenSearchDomain({
+    clusterConfig: {
+      instanceType: 'r6g.large.search',
+      instanceCount: 2
+    },
+    storage: {
+      size: 50
+    },
+    accessibility: {
+      accessibilityMode: 'scoping-workloads-in-vpc'
+    }
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    joinDefaultVpc: true,
+    connectTo: ['search']
+  });
+
+  return {
+    resources: { search, api }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+<Info>
+When using `vpc` or `scoping-workloads-in-vpc` mode, Lambda functions must have `joinDefaultVpc: true` to reach the domain.
+</Info>
+
+## Connecting to other resources
+
+Use `connectTo` to grant your workloads access to the OpenSearch domain. Stacktape adds the IAM permissions required to interact with the domain to the consuming workload's role. In `scoping-workloads-in-vpc` mode, the required security-group access is also configured via `connectTo`.
+
+OpenSearch domains are in the `connectTo` system but do not auto-inject environment variables. Use the [`$ResourceParam` directive](/configuration/directives) to inject the domain endpoint and ARN into your workload's environment:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  OpenSearchDomain,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const search = new OpenSearchDomain({
+    clusterConfig: {
+      instanceType: 't3.medium.search',
+      instanceCount: 1
+    },
+    storage: {
+      size: 20
+    }
+  });
+
+  const indexer = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/indexer.ts'
+    }),
+    connectTo: ['search'],
+    environment: [
+      {
+        name: 'OPENSEARCH_ENDPOINT',
+        value: "$ResourceParam('search', 'domainEndpoint')"
+      }
+    ]
+  });
+
+  return {
+    resources: { search, indexer }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The available referenceable parameters for an OpenSearch domain are `domainEndpoint` (the HTTPS endpoint URL) and `arn` (the domain's ARN). Use `$ResourceParam('resourceName', 'domainEndpoint')` to build the URL your application code needs. Learn more about connecting resources in the [connecting resources guide](/configuration/connecting-resources).
+
+## Logging
+
+Stacktape supports three types of OpenSearch logs sent to CloudWatch: error logs, search slow logs, and index slow logs. Each log type is enabled by default (`disabled` defaults to `false`) with a retention of 14 days.
+
+| Log type | What it captures | Default retention |
+|----------|-----------------|-------------------|
+| Error logs | Script compilation errors, invalid queries, indexing issues, snapshot failures | 14 days |
+| Search slow logs | Queries exceeding thresholds configured in OpenSearch index settings | 14 days |
+| Index slow logs | Indexing operations exceeding thresholds configured in OpenSearch index settings | 14 days |
+
+You can disable individual log types or change their retention period. Retention must be one of the supported CloudWatch retention values: `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, or `3653` days.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const search = new OpenSearchDomain({
+    clusterConfig: {
+      instanceType: 't3.medium.search',
+      instanceCount: 1
+    },
+    storage: {
+      size: 20
+    },
+    logging: {
+      errorLogs: {
+        retentionDays: 90
+      },
+      searchSlowLogs: {
+        retentionDays: 30
+      },
+      indexSlowLogs: {
+        disabled: true
+      }
+    }
+  });
+
+  return {
+    resources: { search }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+<Info>
+Slow logs require additional configuration inside OpenSearch itself — you need to set slow-log thresholds on your index settings (e.g., `index.search.slowlog.threshold.query.warn: 2s`). Stacktape creates the log groups and routes, but the thresholds are configured through the OpenSearch API.
+</Info>
+
+You can view OpenSearch logs using [`stacktape debug:logs`](/cli/debug-logs). For interactive querying, use [`stacktape debug:opensearch`](/cli/debug-opensearch).
+
+## OpenSearch Dashboards with Cognito
+
+The `userPool` property links a [user auth pool](/resources/security/user-auth-pool) resource to the OpenSearch domain, enabling Cognito-based authentication for OpenSearch Dashboards. This lets your team access the built-in visualization and query interface through a browser with user/password login instead of IAM credentials.
+
+Enable this when your team needs a visual query and dashboard interface without writing custom UI. Skip it if all interactions happen programmatically through the OpenSearch API from your application code.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, OpenSearchDomain, UserAuthPool } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const authPool = new UserAuthPool({});
+
+  const search = new OpenSearchDomain({
+    clusterConfig: {
+      instanceType: 't3.medium.search',
+      instanceCount: 1
+    },
+    storage: {
+      size: 20
+    },
+    userPool: 'authPool'
+  });
+
+  return {
+    resources: { authPool, search }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+After deploying, create users in the linked auth pool. Those users can then sign in to OpenSearch Dashboards at the domain's Dashboards URL with their Cognito credentials.
+
+## Overrides
+
+If you need to configure AWS OpenSearch properties that Stacktape doesn't expose directly, use [overrides](/configuration/overrides-and-escape-hatches) to modify the underlying CloudFormation resources.
+
+## Referenceable parameters
+
+<ReferenceableParams resource="open-search-domain" />
+
+## API Reference
+
+<ApiReference definitionName="OpenSearchDomainProps" />
+
+## FAQ
+
+### When should I use OpenSearch instead of a relational database for search?
+
+Use OpenSearch when you need full-text search with relevance scoring, faceted navigation, autocomplete, fuzzy matching, or aggregations across large datasets. Relational databases like PostgreSQL have basic full-text search via `tsvector`, but OpenSearch handles complex text analysis, multi-language support, and high-throughput search queries more effectively. If your search needs are simple (exact match or basic LIKE queries), a [relational database](/resources/databases/relational-database) is simpler and cheaper.
+
+### How is OpenSearch priced on AWS?
+
+AWS OpenSearch Service pricing is based on three components: instance hours (per-node, per-hour charge based on instance type), EBS storage (per-GB charge for provisioned volume size), and data transfer. There is no free tier for OpenSearch Service instances. Smaller instance types like `t3.small.search` are the cheapest entry point, while memory-optimized `r6g` instances cost more but handle larger datasets efficiently. UltraWarm nodes offer lower-cost storage for infrequently queried data.
+
+### Can I scale my cluster after creation?
+
+Yes — you can change instance types, add or remove data nodes, add dedicated master nodes, and resize storage by updating your Stacktape config and redeploying. AWS performs a blue/green deployment during these changes. The only property you cannot change after creation is the accessibility mode (internet vs. VPC).
+
+### What is the difference between OpenSearch and Elasticsearch?
+
+OpenSearch is an open-source fork of Elasticsearch 7.10, maintained by AWS. It is API-compatible with Elasticsearch 7.x clients and supports the same query DSL. OpenSearch adds features like ML-powered search, anomaly detection, and observability plugins. Most Elasticsearch client libraries work with OpenSearch without changes — point them at the OpenSearch endpoint and use AWS Signature V4 for authentication.
+
+### Do I need dedicated master nodes?
+
+For development and small single-node clusters, dedicated master nodes are unnecessary. For production clusters with 3 or more data nodes, dedicated master nodes are recommended to prevent split-brain and ensure cluster stability under heavy indexing or query load. Use 3 master nodes (odd count for quorum) with a smaller instance type like `m5.large.search` or `m6g.large.search` since they only manage cluster state.
+
+### How do I access OpenSearch from a Lambda function?
+
+Add the domain to your Lambda's `connectTo` list — this grants IAM permissions for OpenSearch HTTP operations. Use `$ResourceParam` to inject the domain endpoint as an environment variable. If the domain uses VPC accessibility, set `joinDefaultVpc: true` on the Lambda. In your handler code, sign requests with AWS Signature V4 using the AWS SDK or a library like `@opensearch-project/opensearch` with the AWS connector.
+
+### Can I use OpenSearch for centralized logging?
+
+Yes — OpenSearch is widely used for log aggregation and analysis. You can forward application logs from [Lambda functions](/resources/compute/lambda-function), container workloads, or external systems into OpenSearch indices and query them through OpenSearch Dashboards or the API. Pair with UltraWarm nodes to retain older logs at lower cost while keeping them searchable.
+
+### What happens if an availability zone goes down?
+
+If your cluster has 2 or more data nodes, Multi-AZ replication is automatically enabled, distributing nodes across availability zones. The cluster continues operating if one AZ fails. For the highest availability (99.99% SLA), enable `standbyEnabled` — this uses 3 AZs with an instant-failover standby. Single-node clusters have no AZ redundancy.
+
+### Should I use internet or VPC accessibility mode?
+
+For production, use `vpc` or `scoping-workloads-in-vpc` to add network-level isolation on top of IAM authentication. The `scoping-workloads-in-vpc` mode is the most restrictive — only workloads with explicit `connectTo` can reach the domain. Use `internet` mode only for development or when you need external access (e.g., from a local machine or external service). This choice is permanent and cannot be changed after creation.
+
+### How does OpenSearch compare to DynamoDB for search use cases?
+
+DynamoDB excels at single-item lookups and simple queries by partition key, with single-digit millisecond latency and serverless scaling. OpenSearch excels at complex queries across many documents — full-text search, aggregations, fuzzy matching, and analytics. If you need to search across document content with relevance scoring, OpenSearch is the right tool. If you need fast lookups by known keys with optional secondary indexes, [DynamoDB](/resources/databases/dynamodb) is cheaper and simpler.

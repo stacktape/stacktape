@@ -1,65 +1,183 @@
 ---
 title: 'HTTP API Gateway'
-order: 55
-seoTitle: 'HTTP API Gateway: Serverless API Routing | Stacktape Docs'
-seoDescription: 'Route HTTP requests to Lambda functions with pay-per-request pricing on AWS. Managed CORS, TLS, access logging, authorizers, and custom domains — no servers to manage.'
+order: 53
+seoTitle: 'HTTP API Gateway - Serverless API Routing | Stacktape Docs'
+seoDescription: 'Create serverless HTTP APIs with Stacktape using AWS API Gateway V2. Pay-per-request pricing at ~$1/million requests, automatic TLS, CORS, custom domains, and CDN support.'
 ---
 
 # HTTP API Gateway
 
-An HTTP API Gateway is a serverless entry point that routes HTTP requests to Lambda functions or container workloads. It handles TLS termination, request throttling, CORS, and access logging with no infrastructure to manage. Define routes declaratively in your Stacktape config and pay only for requests processed.
-
-**Pricing**: ~$1/million requests.
+A Stacktape HTTP API Gateway creates a managed, serverless HTTP endpoint that routes requests to [Lambda functions](/resources/compute/lambda-function), containers, or other backends. It uses AWS API Gateway V2 (HTTP API) under the hood — no servers to provision, automatic TLS, built-in throttling, and pay-per-request pricing at ~$1 per million requests.
 
 ## When to use
 
-**Use an HTTP API Gateway when:**
+HTTP API Gateway is the default choice for building serverless APIs on Stacktape. Use it when your backend is one or more Lambda functions that need a public HTTPS URL with path-based routing. The pay-per-request model makes it cost-effective for APIs with variable or low-to-moderate traffic — you pay nothing when no requests arrive.
 
-- You're building an API from [Lambda functions](/resources/compute/lambda-function) and want a shared entry point with path-based routing
-- You want pay-per-request pricing with no running infrastructure to manage
-- You need Stacktape-managed CORS, TLS, and request throttling at the gateway level
-- Each request completes within 29 seconds (the API Gateway integration timeout for Lambda)
+Common patterns that fit well:
 
-**Use something else when:**
+- **REST or RPC APIs** backed by Lambda functions — each route maps to a function
+- **Single-function catch-all** — one Lambda handles all routes (e.g., a Hono, Express, or FastAPI app) with a greedy path like `/{proxy+}`
+- **Mixed backend** — some routes go to Lambda, others to containers through the same API endpoint
+- **Spiky or unpredictable traffic** — pay-per-request scales from zero to thousands of requests per second without capacity planning
 
-| Situation | Better option |
-|-----------|---------------|
-| Always-on container with a public URL | [Web service](/resources/compute/web-service) — can use an HTTP API Gateway as its default load balancer |
-| Routing by headers, query params, or source IPs | [Application Load Balancer](/resources/networking/application-load-balancer) — supports richer routing rules |
-| Non-HTTP protocols (TCP, TLS) | [Network Load Balancer](/resources/networking/network-load-balancer) |
-| Request processing exceeds 29 seconds | [Application Load Balancer](/resources/networking/application-load-balancer) or an async pattern |
+## When NOT to use
+
+- **Container-based services that stay running** — an [Application Load Balancer](/resources/networking/application-load-balancer) is a better fit for [web services](/resources/compute/web-service). ALBs offer richer routing (headers, query params, source IPs) and a flat hourly cost that's cheaper at sustained high throughput.
+- **Sustained high-volume APIs** (roughly above 50–100 million requests/month) — ALB's flat pricing becomes more economical than pay-per-request at that scale.
+- **WebSocket connections** — HTTP API Gateway handles request-response only. For persistent connections, use a container-based approach.
+- **TCP/TLS (non-HTTP) protocols** — use a [Network Load Balancer](/resources/networking/network-load-balancer) instead.
+
+<FeatureComparisonTable
+  columns={["HTTP API Gateway", "Application Load Balancer"]}
+  features={[
+    { name: "Pricing model", values: { "HTTP API Gateway": "~$1/million requests", "Application Load Balancer": "~$16/month + LCU" } },
+    { name: "Best for", values: { "HTTP API Gateway": "Lambda functions", "Application Load Balancer": "Container workloads" } },
+    { name: "Scales to zero cost", values: { "HTTP API Gateway": true, "Application Load Balancer": false } },
+    { name: "Routing options", values: { "HTTP API Gateway": "Method + path", "Application Load Balancer": "Method, path, headers, query params, source IPs" } },
+    { name: "Route-level authorizers", values: { "HTTP API Gateway": true, "Application Load Balancer": false } },
+    { name: "CDN attachable", values: { "HTTP API Gateway": true, "Application Load Balancer": true } }
+  ]}
+/>
 
 ## Basic example
 
-This creates an HTTP API Gateway with a single Lambda function handling all requests:
+An HTTP API Gateway resource on its own is just the entry point — it does not define routes. Routes are defined on the compute resources (Lambda functions or containers) that reference the gateway by name. The simplest setup is a gateway plus one or more Lambda functions with [HTTP triggers](/configuration/triggers/http-triggers).
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, HttpApiGateway, LambdaFunction, StacktapeLambdaBuildpackPackaging, HttpApiIntegration } from 'stacktape';
+      code: `import {
+  defineConfig,
+  HttpApiGateway,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiIntegration
+} from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const gateway = new HttpApiGateway({});
+  const myApi = new HttpApiGateway({});
 
-  const api = new LambdaFunction({
+  const getUsers = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts',
+      entryfilePath: './src/handlers/users.ts'
     }),
     events: [
       new HttpApiIntegration({
-        httpApiGatewayName: 'gateway',
-        method: '*',
-        path: '/{proxy+}',
-      }),
-    ],
+        httpApiGatewayName: 'myApi',
+        method: 'GET',
+        path: '/users'
+      })
+    ]
   });
 
   return {
-    resources: { gateway, api },
+    resources: { myApi, getUsers }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+The gateway `myApi` has no configuration because the defaults are sufficient — TLS is automatic, access logging is enabled, and the API is publicly accessible. The `getUsers` Lambda function registers a `GET /users` route on the gateway through its `HttpApiIntegration` event.
+
+You can reference the deployed gateway URL with `$ResourceParam('myApi', 'url')` in your config or retrieve it via [`stacktape param:get`](/cli/param-get). To surface the URL in terminal output after every deploy, add it to `stackConfig.outputs`.
+
+## Routing
+
+Routes are not defined on the HTTP API Gateway itself. Instead, each compute resource declares which gateway it connects to, which HTTP method to match, and which path pattern to handle. This keeps routing co-located with the code that serves each route.
+
+A single gateway can serve routes from many Lambda functions. Each integration specifies a `method` and a `path`. Supported methods are `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, and `*` (any method). Paths support three patterns:
+
+| Pattern | Example | Behavior |
+|---------|---------|----------|
+| Exact path | `/users` | Matches only `/users` |
+| Path parameter | `/users/{id}` | Matches `/users/123`; `id` available in `event.pathParameters` |
+| Greedy (catch-all) | `/api/{proxy+}` | Matches any path starting with `/api/` |
+
+Routes are matched by specificity — exact paths take priority over wildcard paths. For the full integration API and authorizer options, see [HTTP triggers](/configuration/triggers/http-triggers).
+
+### Catch-all pattern
+
+For frameworks like Hono, Express, or FastAPI that handle routing internally, use a single Lambda with a greedy path:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  HttpApiGateway,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiIntegration
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const myApi = new HttpApiGateway({});
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    events: [
+      new HttpApiIntegration({
+        httpApiGatewayName: 'myApi',
+        method: '*',
+        path: '/{proxy+}'
+      })
+    ]
+  });
+
+  return {
+    resources: { myApi, api }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+This routes every request to a single Lambda. The framework inside the Lambda handles path matching, middleware, and responses. This is the most common pattern for building APIs with Stacktape.
+
+### Route authorization
+
+Each HTTP API integration can optionally define an authorizer. Unauthorized requests are rejected with `401 Unauthorized` before your function code runs. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/configuration/triggers/http-triggers) for the supported authorizer types and configuration details.
+
+## CORS
+
+Cross-Origin Resource Sharing (CORS) controls which browser-based frontends can call your API from a different domain. When CORS is enabled on the gateway, API Gateway handles preflight `OPTIONS` requests automatically — this overrides any CORS headers your application code sets.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, HttpApiGateway } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const myApi = new HttpApiGateway({
+    cors: {
+      enabled: true,
+      allowedOrigins: ['https://myapp.com', 'https://staging.myapp.com'],
+      allowCredentials: true,
+      maxAge: 86400
+    }
+  });
+
+  return {
+    resources: { myApi }
   };
 });
 // [!code focus-end]`
@@ -67,365 +185,222 @@ export default defineConfig(() => {
   ]}
 />
 
-```typescript
-// src/handler.ts
-import { Hono } from 'hono';
-import { handle } from 'hono/aws-lambda';
+When `enabled` is `true` with no other options, the gateway uses permissive defaults: `*` for allowed origins and common headers. The `allowedMethods` are auto-detected from the integrations attached to the gateway, so you typically don't need to set them manually.
 
-const app = new Hono();
-app.get('/', (c) => c.json({ status: 'ok' }));
-app.get('/users', (c) => c.json({ users: [] }));
+Set `allowCredentials: true` if your frontend sends cookies or `Authorization` headers in cross-origin requests — note that this requires listing specific origins rather than using `*`. The `maxAge` property (in seconds) controls how long browsers cache preflight responses; setting it to `86400` (24 hours) reduces preflight overhead for frequently-called APIs.
 
-export const handler = handle(app);
-```
-
-The `httpApiGatewayName` must match the key you assign to the gateway in the `resources` object — here, `'gateway'` matches the key in `{ resources: { gateway, api } }`. This is how Stacktape connects integrations to the correct gateway.
-
-The `method: '*'` and `path: '/{proxy+}'` pattern forwards matching requests to a single Lambda function, letting your framework handle routing internally. This is the most common pattern for APIs with many routes.
-
-The gateway exposes a `url` referenceable parameter after deployment, which you can use to access your API or reference from other resources.
-
-<Warning>Lambda functions behind an HTTP API Gateway have an effective timeout cap of 29 seconds. The API Gateway integration timeout is set to `min(functionTimeout + 0.5, 29)` seconds. Even if your Lambda timeout is higher, the gateway returns a 504 after 29 seconds. For longer processing, use an [Application Load Balancer](/resources/networking/application-load-balancer) or an async pattern.</Warning>
-
-## Routing
-
-Each Lambda function declares which HTTP method and path it handles through `HttpApiIntegration` events. The gateway routes matching requests to the corresponding function.
-
-Three path formats are supported:
-
-- **Exact path**: `/users` — matches only `/users`
-- **Path parameter**: `/users/{id}` — matches `/users/123`, accessible in `event.pathParameters.id`
-- **Greedy path**: `/orders/{proxy+}` — matches any path starting with `/orders/`
-
-Supported methods: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, or `*` (any method).
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'stacktape.ts',
-      lang: 'typescript',
-      code: `import { defineConfig, HttpApiGateway, LambdaFunction, StacktapeLambdaBuildpackPackaging, HttpApiIntegration } from 'stacktape';
-
-export default defineConfig(() => {
-  const gateway = new HttpApiGateway({});
-
-  // [!code focus-start]
-  const usersApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/users.ts',
-    }),
-    events: [
-      new HttpApiIntegration({
-        httpApiGatewayName: 'gateway',
-        method: 'GET',
-        path: '/users',
-      }),
-      new HttpApiIntegration({
-        httpApiGatewayName: 'gateway',
-        method: 'POST',
-        path: '/users',
-      }),
-      new HttpApiIntegration({
-        httpApiGatewayName: 'gateway',
-        method: 'GET',
-        path: '/users/{id}',
-      }),
-    ],
-  });
-
-  const ordersApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/orders.ts',
-    }),
-    events: [
-      new HttpApiIntegration({
-        httpApiGatewayName: 'gateway',
-        method: '*',
-        path: '/orders/{proxy+}',
-      }),
-    ],
-  });
-  // [!code focus-end]
-
-  return {
-    resources: { gateway, usersApi, ordersApi },
-  };
-});`
-    }
-  ]}
-/>
-
-Each method + path combination must be unique across all integrations on the same gateway. Stacktape validates this at deploy time and throws an error if duplicates are detected.
-
-### Authorizers
-
-Each integration supports an `authorizer` property to protect the route. Unauthorized requests are rejected with a `401` response before reaching your Lambda function. Two authorizer types are available:
-
-- **Cognito** (`type: 'cognito'`) — validates JWTs issued by a [`user-auth-pool`](/resources/security/user-auth-pool) resource. Set `userPoolName` to the name of your user pool. This is the simplest option when your users sign in via Cognito.
-- **Lambda** (`type: 'lambda'`) — runs a Lambda function to decide whether a request is allowed. Set `functionName` to the name of your authorizer function. Use this for API keys, database-backed permissions, or non-JWT identity systems.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'stacktape.ts',
-      lang: 'typescript',
-      code: `import { defineConfig, HttpApiGateway, LambdaFunction, StacktapeLambdaBuildpackPackaging, HttpApiIntegration } from 'stacktape';
-
-export default defineConfig(() => {
-  const gateway = new HttpApiGateway({});
-
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts',
-    }),
-    events: [
-      new HttpApiIntegration({
-        httpApiGatewayName: 'gateway',
-        method: '*',
-        path: '/{proxy+}',
-        // [!code focus-start]
-        authorizer: {
-          type: 'cognito',
-          properties: {
-            userPoolName: 'myAuthPool',
-          },
-        },
-        // [!code focus-end]
-      }),
-    ],
-  });
-
-  return {
-    resources: { gateway, api },
-  };
-});`
-    }
-  ]}
-/>
-
-<Info>[Container workloads](/resources/compute/multi-container-workload) can also route through an HTTP API Gateway using `http-api-gateway` integrations. Each container integration requires a `containerPort` property. Note that all integrations on a container workload must target the same container port, and only payload format `1.0` is supported for container integrations.</Info>
-
-## CORS
-
-The `cors` property configures Cross-Origin Resource Sharing on the HTTP API Gateway, overriding any CORS headers set by your application code.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'stacktape.ts',
-      lang: 'typescript',
-      code: `import { defineConfig, HttpApiGateway } from 'stacktape';
-
-export default defineConfig(() => {
-  const gateway = new HttpApiGateway({
-    // [!code focus-start]
-    cors: {
-      enabled: true,
-      allowedOrigins: ['https://myapp.com'],
-      allowCredentials: true,
-    },
-    // [!code focus-end]
-  });
-
-  return {
-    resources: { gateway },
-  };
-});`
-    }
-  ]}
-/>
-
-When `cors.enabled` is `true` with no other options, the gateway uses permissive defaults: `*` origins, common headers, and methods auto-detected from your integrations.
+<Tip>If your API is called only by server-side code, mobile apps, or same-origin frontends, you don't need CORS at all — skip this setting.</Tip>
 
 ## Custom domains
 
-Attach your own domain (e.g., `api.example.com`) to the gateway. Stacktape automatically creates a DNS record and provisions a TLS certificate.
-
-Your domain must have a Route53 hosted zone in your AWS account — this is a DNS configuration that tells AWS how to route traffic for your domain. Your domain registrar's nameservers must point to this hosted zone.
+Stacktape can attach your own domain (e.g., `api.example.com`) to an HTTP API Gateway. Stacktape automatically provisions a free TLS certificate and creates a DNS record in Route53. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account first — use [`stacktape domain:add`](/cli/domain-add) to set one up.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
+// [!code focus-start]
 export default defineConfig(() => {
-  const gateway = new HttpApiGateway({
-    // [!code focus-start]
-    customDomains: [{ domainName: 'api.example.com' }],
-    // [!code focus-end]
+  const myApi = new HttpApiGateway({
+    customDomains: [{ domainName: 'api.example.com' }]
   });
 
   return {
-    resources: { gateway },
+    resources: { myApi }
   };
-});`
+});
+// [!code focus-end]`
     }
   ]}
 />
 
-To use your own TLS certificate (e.g., EV/OV certs), set `customCertificateArn` to an ACM certificate ARN. To manage DNS records yourself (e.g., through Cloudflare), set `disableDnsRecordCreation: true`.
+You can attach multiple domains to a single gateway. Each domain gets its own certificate, managed and auto-renewed by AWS. If you manage DNS outside Route53 (e.g., Cloudflare), set `disableDnsRecordCreation: true`; Stacktape will still provision the TLS certificate but will not create the DNS record. To use your own certificate instead of the auto-provisioned one, provide a `customCertificateArn`.
 
-## CDN (CloudFront)
+For full details on domain management, see [Custom domains](/resources/networking/custom-domains).
 
-Add a CDN (CloudFront) in front of the gateway for edge caching and lower latency worldwide.
+## CDN
 
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'stacktape.ts',
-      lang: 'typescript',
-      code: `import { defineConfig, HttpApiGateway } from 'stacktape';
+The `cdn` property attaches a CDN (CloudFront) configuration to the HTTP API Gateway, placing a global caching and edge-delivery layer in front of your API. This reduces latency for geographically distributed users and offloads repeated requests from your backend.
 
-export default defineConfig(() => {
-  const gateway = new HttpApiGateway({
-    // [!code focus-start]
-    cdn: {
-      enabled: true,
-    },
-    // [!code focus-end]
-  });
+**When to enable CDN:** Your API serves cacheable public data (product catalogs, configuration endpoints, public content), or your users are spread across multiple continents and you need lower global latency. CDN adds a fixed monthly cost for the CloudFront distribution plus data transfer fees.
 
-  return {
-    resources: { gateway },
-  };
-});`
-    }
-  ]}
-/>
+**When to skip CDN:** Most Lambda-backed APIs return dynamic, user-specific data that isn't cacheable. Adding a CDN to a fully dynamic API adds propagation delay on deploys (cache invalidation) and extra cost without meaningful benefit. For APIs serving only authenticated, personalized responses, the default direct API Gateway endpoint is sufficient.
 
-See the [CDN documentation](/resources/networking/cdn) for additional configuration options.
+See [CDN](/resources/networking/cdn) for the full CDN configuration surface, including price classes, custom domains on the CDN itself, and web application firewall attachment.
 
 ## Access logging
 
-Access logs record request metadata — request ID, client IP, HTTP method, status code, protocol, and response length. Logs are viewable with `stacktape logs`.
+HTTP API Gateway logs every request by default. Logs include request ID, client IP, HTTP method, status code, protocol, and response length. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
+// [!code focus-start]
 export default defineConfig(() => {
-  const gateway = new HttpApiGateway({
-    // [!code focus-start]
+  const myApi = new HttpApiGateway({
     logging: {
       format: 'JSON',
-      retentionDays: 90,
-    },
-    // [!code focus-end]
+      retentionDays: 90
+    }
   });
 
   return {
-    resources: { gateway },
+    resources: { myApi }
   };
-});`
+});
+// [!code focus-end]`
     }
   ]}
 />
 
-Defaults: format `JSON`, retention `30` days, logging enabled. Set `disabled: true` to turn off access logging. Supported formats: `CLF`, `JSON`, `XML`, `CSV`.
+The `format` property controls the log output shape — `JSON` (default), `CLF` (Common Log Format), `XML`, or `CSV`. JSON is the most practical for programmatic analysis and integrates well with log forwarding. The `retentionDays` property defaults to `30`. Allowed values are: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, or 3653 days.
+
+To forward logs to an external service like Datadog or Highlight.io, configure `logForwarding` within the logging section. See [Log forwarding](/observability/log-forwarding) for setup details.
+
+To disable access logging entirely (not recommended for production), set `disabled: true`.
 
 ## Payload format
 
-The `payloadFormat` property controls the shape of the event object your Lambda function receives:
+The payload format controls the shape of the event object your Lambda function receives from API Gateway. There are two versions:
 
-- **`1.0`** (default at integration level) — compatible with the API Gateway REST API proxy format
-- **`2.0`** — simpler event structure, recommended for new Lambda integrations unless your framework expects the `1.0` event shape
+| Version | Shape | Best for |
+|---------|-------|----------|
+| `1.0` | Detailed, includes `multiValueHeaders` and `multiValueQueryStringParameters` | Legacy integrations, existing code expecting v1 |
+| `2.0` | Simplified, flat structure with `cookies` array and `rawPath` | New projects — less parsing code |
 
-Set `payloadFormat` on the gateway as the default for all integrations, or set it on a specific `HttpApiIntegration` to override that default. The gateway-level setting applies only when the integration does not specify its own `payloadFormat`.
-
-For details on the structural differences between formats, see the [AWS documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html).
-
-## Alarms
-
-Two alarm types are available for HTTP API Gateways:
-
-- **Error rate** (`http-api-gateway-error-rate`) — fires when 4xx/5xx error rate exceeds a percentage threshold
-- **Latency** (`http-api-gateway-latency`) — fires when request-to-response latency exceeds a millisecond threshold
+The default is `1.0`. You can set the format at the gateway level (applies to all routes) or override it per-route on individual integrations.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'stacktape.ts',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
+// [!code focus-start]
 export default defineConfig(() => {
-  const gateway = new HttpApiGateway({
-    // [!code focus-start]
+  const myApi = new HttpApiGateway({
+    payloadFormat: '2.0'
+  });
+
+  return {
+    resources: { myApi }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+<Tip>For new projects, use `2.0`. The simplified event structure requires less parsing code and is the format AWS recommends going forward. Frameworks like Hono's AWS Lambda adapter handle both formats transparently.</Tip>
+
+## Alarms
+
+Stacktape supports two alarm types for HTTP API Gateway: **error rate** (percentage of 4xx/5xx responses) and **latency** (request-to-response time). Alarm notification targets are configured per-alarm through the shared notification integrations — the source types include Slack, Microsoft Teams, email, Discord, and webhook. Alarms defined on the resource are merged with any global alarms configured in the Stacktape Console.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, HttpApiGateway } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const myApi = new HttpApiGateway({
     alarms: [
       {
         trigger: {
           type: 'http-api-gateway-error-rate',
-          properties: {
-            thresholdPercent: 5,
-          },
-        },
-        notificationTargets: [
-          {
-            type: 'slack',
-            properties: {
-              webhookUrl: '$Secret(slack-webhook-url)',
-            },
-          },
-        ],
+          properties: { thresholdPercent: 5 }
+        }
       },
       {
         trigger: {
           type: 'http-api-gateway-latency',
           properties: {
             thresholdMilliseconds: 3000,
-          },
-        },
-      },
-    ],
-    // [!code focus-end]
+            statistic: 'p95'
+          }
+        }
+      }
+    ]
   });
 
   return {
-    resources: { gateway },
+    resources: { myApi }
   };
-});`
+});
+// [!code focus-end]`
     }
   ]}
 />
 
-Configure resource-level alarms in the `alarms` property. Stacktape merges these with global alarms from the Stacktape Console. Use `disabledGlobalAlarms` to exclude specific global alarms from this gateway.
+The error rate alarm fires when more than 5% of requests return 4xx or 5xx status codes. The latency alarm fires when the p95 request-to-response time exceeds 3 seconds. For the latency alarm, the `statistic` property controls how the metric is aggregated — `avg` (default), `p90`, `p95`, `p99`, `min`, `max`, or `sum`. The error rate alarm does not support `statistic`. Both alarm types support a custom `comparisonOperator` (default: `GreaterThanThreshold`).
 
-Each alarm supports `evaluation` to tune sensitivity — set `evaluationPeriods` and `breachedPeriods` to avoid firing on short spikes. Notification targets include Slack, Microsoft Teams, email, Discord, and webhooks.
+You can fine-tune alarm sensitivity with the `evaluation` property: set the evaluation `period` (default 60 seconds), `evaluationPeriods` (how many recent periods to examine), and `breachedPeriods` (how many must breach to fire). This prevents alarms from firing on brief spikes.
 
-## FAQ
-
-### How much does an HTTP API Gateway cost?
-
-~$1/million requests. You pay only for requests your API processes.
-
-### How do I configure CORS on an HTTP API Gateway?
-
-Set `cors.enabled: true` on the `HttpApiGateway` properties. Without additional options, the gateway uses permissive defaults (`*` origins, common headers, methods auto-detected from integrations). Customize with `allowedOrigins`, `allowedHeaders`, `allowedMethods`, and other CORS properties.
-
-### What payload formats does HTTP API Gateway support?
-
-Two formats: `1.0` (default, compatible with REST API proxy format) and `2.0` (simpler structure, recommended for new projects). Set the format on the gateway as a default, or override per-integration on individual `HttpApiIntegration` events.
-
-### When should I use an HTTP API Gateway vs an Application Load Balancer?
-
-Use an HTTP API Gateway for pay-per-request Lambda APIs with method + path routing. Use an [Application Load Balancer](/resources/networking/application-load-balancer) when you need routing by headers, query parameters, or source IPs, or when your workload runs on always-on containers with features like gradual deployments and web application firewalls.
-
-## API reference
-
-<ApiReference definitionName="HttpApiGatewayProps" />
+To exclude specific global alarms from this gateway, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
 
 ## Referenceable parameters
 
+Use `$ResourceParam('myApi', 'paramName')` in your config to reference gateway values after deployment.
+
 <ReferenceableParams resource="http-api-gateway" />
+
+## API Reference
+
+<ApiReference definitionName="HttpApiGatewayProps" />
+
+## FAQ
+
+### How much does AWS API Gateway HTTP API cost?
+
+AWS API Gateway V2 (HTTP API) costs ~$1 per million requests with no minimum fee or hourly charge. You pay only for the requests your API receives. Data transfer out is billed separately at standard AWS rates. There's a free tier of 1 million requests per month for the first 12 months.
+
+### How do I add routes to my HTTP API Gateway?
+
+Routes are not defined on the gateway resource. Instead, attach `HttpApiIntegration` events to your [Lambda functions](/resources/compute/lambda-function) or container workloads, referencing the gateway by its resource name. Each integration specifies an HTTP method and URL path. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
+
+### Can I use a custom domain with HTTP API Gateway?
+
+Yes. Add a `customDomains` array to your gateway configuration with your domain name. Stacktape provisions a free TLS certificate and creates a DNS record in Route53 automatically. Your domain must have a Route53 hosted zone — set one up with [`stacktape domain:add`](/cli/domain-add). See [Custom domains](/resources/networking/custom-domains) for details.
+
+### What's the difference between HTTP API and REST API on AWS?
+
+AWS offers two API Gateway products: HTTP API (V2) and REST API (V1). HTTP API is cheaper (~$1/M vs ~$3.50/M requests), has lower latency, and supports JWT authorizers natively. REST API offers more features (API keys, usage plans, request validation, WAF integration, private endpoints). Stacktape uses HTTP API because it covers the majority of use cases at lower cost.
+
+### When should I use HTTP API Gateway vs an Application Load Balancer?
+
+Use HTTP API Gateway for Lambda-based APIs with variable traffic — you pay per request and scale to zero. Use an [Application Load Balancer](/resources/networking/application-load-balancer) for container-based [web services](/resources/compute/web-service) with sustained traffic — the flat hourly cost is cheaper above roughly 50–100 million requests per month. ALBs also support richer routing rules (headers, query params, source IPs).
+
+### Does HTTP API Gateway support WebSockets?
+
+No. The HTTP API Gateway resource in Stacktape handles request-response HTTP traffic only. For real-time, bidirectional communication, use a container-based approach with a [web service](/resources/compute/web-service) or [multi-container workload](/resources/compute/multi-container-workload) running a WebSocket server (e.g., Socket.io).
+
+### How do I enable CORS on my API Gateway?
+
+Set `cors: { enabled: true }` on the gateway resource. With no other options, this uses permissive defaults (`*` origins, auto-detected methods). To restrict origins, provide `allowedOrigins` with specific domain URLs. CORS is handled at the gateway level and overrides any CORS headers your application code sets.
+
+### What is the maximum payload size for HTTP API Gateway?
+
+AWS API Gateway V2 (HTTP API) has a maximum payload size of 10 MB for both requests and responses. For larger payloads, use S3 presigned URLs to upload/download files directly, or use an [Application Load Balancer](/resources/networking/application-load-balancer) which does not have this limit.
+
+### Can I protect my API Gateway with a firewall?
+
+Not directly on the HTTP API Gateway resource — AWS WAF does not support API Gateway V2 HTTP APIs natively. However, you can place a [CDN](/resources/networking/cdn) in front of your gateway and attach a [web application firewall](/resources/security/web-application-firewall) to the CDN distribution. This provides rate limiting, IP filtering, geo-blocking, and bot protection at the edge layer.
+
+### How fast does API Gateway cold-start?
+
+API Gateway itself does not cold-start — it's always ready to accept requests. The latency you observe comes from your Lambda function's cold start (typically 100–500ms for Node.js/Python, longer for Java/.NET). API Gateway adds roughly 10–30ms of overhead per request for routing, authorization, and TLS termination. To reduce end-to-end latency, optimize your Lambda's cold start time or use provisioned concurrency.

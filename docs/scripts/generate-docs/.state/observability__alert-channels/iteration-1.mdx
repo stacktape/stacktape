@@ -1,0 +1,253 @@
+---
+title: 'Alert Channels'
+order: 91
+seoTitle: 'Alert Channels – Slack, Teams, Email, Discord & Webhooks | Stacktape Docs'
+seoDescription: 'Configure Slack, Microsoft Teams, Email, Discord, and Webhook alert channels in Stacktape. Reuse channels across alarms, notifications, and budget alerts.'
+---
+
+# Alert Channels
+
+Alert channels are the destinations where Stacktape delivers alerts — a Slack channel, an email inbox, a Discord webhook, or a custom HTTP endpoint. You create channels once in the Stacktape Console, then attach them to [alarm rules](/observability/alarms), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets) so every alert reaches the right people automatically.
+
+Stacktape supports five channel types: **Slack**, **Microsoft Teams**, **Discord**, **Email**, and **Webhook**.
+
+## When to use alert channels
+
+Alert channels are Console-managed, organization-wide destinations. Create them when you want a shared, reusable target that multiple rules can reference by name. Once a channel exists, any alarm rule, notification rule, or budget alert in your organization can send to it — no duplication needed.
+
+If you only need to send alarm notifications from a single resource and prefer to keep the target in code, you can define `notificationTargets` inline in your [alarm configuration](/observability/alarms) instead. Inline targets support the same five channel types (Slack, Teams, Discord, Email, Webhook) and are deployed with your stack. Console-managed channels and inline targets are complementary — use whichever fits your workflow.
+
+## Channel types
+
+Stacktape supports five channel types. Each type requires different configuration properties when you create the channel.
+
+### Slack
+
+Sends alert messages to a Slack channel or DM using the Slack API.
+
+**Required properties:**
+
+| Property | Description |
+|---|---|
+| **Conversation ID** | The Slack channel or DM ID. Open the channel, click its name, and find the ID at the bottom of the **About** tab. |
+| **Access Token** | Bot User OAuth Token for your Slack app. |
+
+**Setup steps:**
+
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps).
+2. Add the `chat:write` OAuth scope under **OAuth & Permissions**.
+3. Install the app to your workspace.
+4. Copy the **Bot User OAuth Token** and paste it into the channel configuration.
+5. Invite the bot to the target channel (`/invite @your-bot-name`).
+
+### Microsoft Teams
+
+Sends alert messages to a Teams channel using an Incoming Webhook connector.
+
+**Required properties:**
+
+| Property | Description |
+|---|---|
+| **Webhook URL** | The Incoming Webhook URL for your Teams channel. |
+
+**Setup steps:**
+
+1. Open the target Teams channel.
+2. Go to channel settings and add an **Incoming Webhook** connector.
+3. Name the webhook (e.g. "Stacktape Alerts"), optionally upload an icon, and click **Create**.
+4. Copy the generated URL and paste it into the channel configuration.
+
+### Discord
+
+Sends alert messages to a Discord channel using a Discord webhook.
+
+**Required properties:**
+
+| Property | Description |
+|---|---|
+| **Webhook URL** | The Discord webhook URL for the channel. |
+
+**Setup steps:**
+
+1. Open the target Discord channel's settings.
+2. Go to **Integrations** then **Webhooks**.
+3. Click **New Webhook**, name it, and click **Copy Webhook URL**.
+4. Paste the URL into the channel configuration.
+
+### Email
+
+Sends alert messages to one or more email addresses.
+
+**Required properties:**
+
+| Property | Description |
+|---|---|
+| **Recipient emails** | Comma-separated list of email addresses. |
+
+No external setup is required — enter the recipient addresses and Stacktape handles delivery.
+
+### Webhook
+
+Sends a signed JSON payload via HTTP POST to any URL you control. This is the most flexible option — use it to integrate with PagerDuty, Opsgenie, custom dashboards, or any system that accepts HTTP callbacks.
+
+**Required properties:**
+
+| Property | Description |
+|---|---|
+| **URL** | The endpoint that receives the POST request. |
+
+**Optional properties:**
+
+| Property | Description |
+|---|---|
+| **Signing secret** | If provided, each request includes an `X-Stacktape-Signature` header with an HMAC-SHA256 signature of the payload. Use this to verify that incoming requests are genuinely from Stacktape. |
+
+<Tip>
+
+Use the signing secret in production webhook integrations. Without it, any client that knows your endpoint URL can send fake alerts.
+
+</Tip>
+
+## Choosing the right channel type
+
+| Channel | Best for | Latency | Setup effort |
+|---|---|---|---|
+| **Slack** | Team-wide visibility, threaded discussion | Near-instant | Medium — requires a Slack app |
+| **Microsoft Teams** | Organizations already on Teams | Near-instant | Low — just an Incoming Webhook |
+| **Discord** | Small teams or open-source projects using Discord | Near-instant | Low — channel webhook |
+| **Email** | Compliance trails, on-call individuals, stakeholders outside your chat platform | Seconds to minutes | None |
+| **Webhook** | Custom integrations (PagerDuty, Opsgenie, custom dashboards, Zapier, incident management) | Near-instant | Low — any HTTP endpoint |
+
+For most teams, start with **Slack** or **Teams** for real-time visibility, and add a **Webhook** channel if you need to integrate with an incident management tool. Use **Email** when you need a paper trail or when recipients aren't in your chat platform.
+
+## Creating a channel in the Console
+
+Alert channels are created and managed in the Stacktape Console under the **Channels** page.
+
+1. Navigate to the **Channels** page in the Console sidebar.
+2. Click the **Alert channel** button in the top right.
+3. Enter a descriptive name (e.g. "Prod Slack alerts" or "Ops webhook").
+4. Select a channel type from the dropdown.
+5. Fill in the type-specific fields (see [Channel types](#channel-types) above).
+6. Submit the form.
+
+The channel is immediately available for use in [alarm rules](/observability/alarms), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets).
+
+<ConsoleScreenshot src="/static/screenshots/console-alert-channels.png" alt="Stacktape Console alert channels page showing a list of configured channels with name, type, and creation date" caption="The Channels page lists all alert channels in your organization." />
+
+## Using channels with alarm rules
+
+[Alarm rules](/observability/alarms) monitor AWS metrics (Lambda error rates, database CPU, API latency) and fire when a threshold is breached. Each alarm rule can send alerts to **multiple** channels.
+
+When creating or editing an alarm rule in the Console, select one or more channels from the dropdown. The alarm fires to all selected channels simultaneously.
+
+## Using channels with notification rules
+
+[Notification rules](/observability/notifications) alert you when deployment events happen — a deploy succeeds, fails, or is canceled. Each notification rule sends to **one** channel.
+
+Pick the channel when creating the notification rule. If you need the same event delivered to multiple destinations, create one rule per channel.
+
+## Using channels with budget alerts
+
+[Budget alerts](/managing-costs/budgets) fire when AWS spending crosses a threshold. Each budget alert can send to **multiple** channels, just like alarm rules.
+
+## Inline notification targets in config
+
+Besides Console-managed channels, you can define notification targets directly in your Stacktape configuration inside the `notificationTargets` array of an alarm definition. Inline targets support the same five types: `slack`, `ms-teams`, `email`, `discord`, and `webhook`.
+
+Inline targets deploy with your stack and don't require Console setup. They're useful when a specific resource needs a dedicated alert destination that lives alongside the code.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    // [!code focus-start]
+    alarms: [
+      {
+        notificationTargets: [
+          {
+            type: 'webhook',
+            properties: {
+              url: 'https://your-endpoint.example.com/alerts',
+              headers: {
+                'X-Source': 'stacktape-alarm'
+              }
+            }
+          }
+        ],
+        trigger: {
+          type: 'lambda-error-rate',
+          properties: {
+            thresholdPercent: 5
+          }
+        }
+      }
+    ]
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api }
+  };
+});
+`
+    }
+  ]}
+/>
+
+The example above configures a Lambda function alarm that sends a webhook POST when the error rate exceeds 5%. The `headers` property adds custom HTTP headers to every request, which is useful for routing or authentication with the receiving system.
+
+For Slack inline targets, provide `conversationId` and `accessToken`. For Microsoft Teams and Discord, provide `webhookUrl`. For Email, provide `sender` and `recipient`. See the [alarm configuration docs](/observability/alarms) for the full inline target reference.
+
+<Info>
+
+Console-managed channels and inline `notificationTargets` serve different workflows. Console channels are organization-wide and reusable across rules. Inline targets are scoped to a single resource's alarm and version-controlled with your code. You can use both in the same project.
+
+</Info>
+
+## Deleting a channel
+
+You can delete a channel from the **Channels** page by clicking the delete button next to it. Stacktape prevents deletion if the channel is still referenced by any notification rule, alarm rule, or budget alert. Remove the channel from all referencing rules first, then delete it.
+
+## FAQ
+
+### Can I use the same channel for alarms, notifications, and budgets?
+
+Yes. A single channel can be attached to any number of alarm rules, notification rules, and budget alerts. Create the channel once and reference it everywhere. This is one of the main advantages of Console-managed channels over inline targets.
+
+### How do I test that my channel is working?
+
+The simplest approach is to create a notification rule for a deployment event (e.g. deploy succeeded) and trigger a deployment. Check the [alert history](/observability/alert-history) page in the Console to confirm delivery. For webhook channels, verify that your endpoint received the POST request and check the response status.
+
+### What happens if a channel's webhook URL becomes invalid?
+
+Stacktape attempts delivery and records the result in [alert history](/observability/alert-history). If the endpoint returns an error or is unreachable, the alert shows a failed delivery status. Fix the URL or endpoint, then check alert history after the next alert fires.
+
+### Can I send alerts to multiple Slack channels?
+
+Create a separate alert channel for each Slack channel you want to target. Then attach all of them to the same alarm rule, notification rule, or budget alert. Alarm rules and budget alerts support multiple channels per rule. Notification rules support one channel per rule, so create one rule per Slack channel.
+
+### Is there a limit on how many alert channels I can create?
+
+The source does not document a hard limit on alert channels per organization. In practice, teams typically maintain 3-10 channels covering their primary communication platforms and incident management tools.
+
+### When should I use inline notification targets instead of Console channels?
+
+Use inline `notificationTargets` when the alert destination is tightly coupled to a specific resource and should live in version control alongside the code. For example, a team that owns a single Lambda function might define its alert webhook directly in the config. Use Console channels when the destination is shared across multiple rules, projects, or stages — or when non-developers need to manage alert routing without touching code.
+
+### How do I verify webhook payloads are from Stacktape?
+
+When you create a Webhook channel with a signing secret, each request includes an `X-Stacktape-Signature` header containing an HMAC-SHA256 signature of the payload. On your server, compute the HMAC-SHA256 of the request body using the same secret and compare it to the header value. If they match, the request is authentic.
+
+### Can I route different alert severities to different channels?
+
+Yes. Create separate alarm rules with different thresholds and attach each to a different channel. For example, a warning-level CPU alarm (threshold 70%) could send to a Slack channel, while a critical-level alarm (threshold 90%) sends to both Slack and a PagerDuty webhook. Each rule independently selects its channels.

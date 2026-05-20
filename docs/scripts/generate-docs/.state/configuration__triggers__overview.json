@@ -1,0 +1,1002 @@
+{
+  "pageId": "configuration__triggers__overview",
+  "pageRoute": "configuration/triggers/overview",
+  "startedAt": "2026-05-17T10:02:11.606Z",
+  "updatedAt": "2026-05-17T10:23:25.587Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__overview\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, logical three-way categorization of trigger types (synchronous/asynchronous/container-internal) immediately orients a first-time reader.",
+            "FeatureComparisonTable for the compatibility matrix is exactly the right component — high scannability and ideal for AI-engine citation.",
+            "The basic example is realistic and shows two trigger types on one function, demonstrating a real-world pattern rather than a toy snippet.",
+            "Batching and retry sections are thorough and source-grounded: correct maximums (10,000 SQS/Kinesis/Kafka, 1,000 DynamoDB, 300 s window), correct property names, and a practical idempotency reminder.",
+            "FAQ mixes all three required question categories (Stacktape-specific, AWS use-case, comparison) and the answers are the right length for Featured Snippet extraction.",
+            "Warning callout for stream-based trigger blocking behavior is operationally important and placed correctly."
+          ],
+          "problems": [
+            "The `IotIntegration` trigger type (type: 'iot') is clearly defined in the source file but is entirely absent from the asynchronous triggers table, the FeatureComparisonTable, and every FAQ answer. A page presenting itself as a comprehensive overview silently omitting a documented trigger type is misleading.",
+            "Kafka default `batchSize` is wrong in the FAQ. The FAQ states 'The default batch size is 10 for SQS, Kinesis, and Kafka' — but the source type definition has `@default 100` for Kafka, not 10.",
+            "The FAQ also adds a condition not in the source: '100 for DynamoDB streams and Kafka (when using maxBatchWindowSeconds)'. The source specifies `@default 100` for both DynamoDB and Kafka unconditionally — the `maxBatchWindowSeconds` condition is invented.",
+            "`DecisionTree` is not a documented Stacktape docs MDX component. The style guide and instructions list valid components (CodeBlock, ApiReference, ReferenceableParams, FeatureComparisonTable, Info, Tip, Warning) and `DecisionTree` appears in none of them. If the component does not exist, the entire 'Choosing the right trigger' section will fail to render, leaving a structural gap.",
+            "'Why triggers exist' and 'How triggers work' share overlapping content — both explain that Stacktape handles IAM, event-source mappings, and routing. The distinction between these two sections is unclear, making the page feel padded in the middle."
+          ],
+          "mandatoryFixes": [
+            "Correct the Kafka default batchSize in the FAQ: the source specifies `@default 100` for Kafka, not 10. The sentence should read 'The default batch size is 10 for SQS and Kinesis; 100 for DynamoDB streams and Kafka.' Also remove the unsupported '(when using maxBatchWindowSeconds)' conditional.",
+            "Add the `iot` trigger type to the asynchronous triggers table and the FeatureComparisonTable (Lambda: true, Batch job: unknown/omit if unsourced, Container workloads: false), or add a prose note explicitly flagging it as an available trigger type. Omitting a trigger type defined in the source from a page titled 'Triggers Overview' is a completeness failure.",
+            "Verify whether `DecisionTree` is a valid Stacktape docs MDX component before publishing. If it is not exported by the docs component library, replace the 'Choosing the right trigger' section with a markdown table (trigger type | best when | skip when) or a short bulleted list. Do not leave an unrenderable component in the page."
+          ],
+          "optionalImprovements": [
+            "Merge or differentiate 'Why triggers exist' and 'How triggers work' more sharply. 'Why' should answer the motivation (idle compute, event-driven architecture); 'How' should add genuinely new detail (poll vs push mechanics, event-source mapping lifecycle). Currently they read as two intros.",
+            "Add the Kafka `maxBatchWindowSeconds` default (0.5 seconds per source) in the Batching section alongside the SQS behavior note — the asymmetry between sources is useful for readers tuning latency.",
+            "The 'Multiple triggers on one resource' section is short and mostly restates what the basic example already demonstrates. Either expand it with a concrete second example (e.g., a function consuming from two S3 buckets with different filter rules) or fold it into the basic example prose and remove the standalone section.",
+            "Consider noting the `consumerArn` / `autoCreateConsumer` distinction for Kinesis in the batching section or a callout — it directly affects throughput and cost and the source highlights it as 'recommended for minimizing latency'."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Trigger type tables are accurate and well-organized — type values, compatibility columns, and dedicated-page links all match the source.",
+            "FeatureComparisonTable is a strong structural choice for this overview page and conveys compatibility at a glance.",
+            "Batching and error-handling sections are grounded in source: batchSize maxima, maximumRetryAttempts, bisectBatchOnFunctionError, and parallelizationFactor are all correctly sourced from events.d.ts.",
+            "The CodeBlock example uses correct class names (HttpApiGateway, HttpApiIntegration, ScheduleIntegration), proper defineConfig structure, and focus markers — no style violations.",
+            "FAQ mixes Stacktape-specific, AWS-general, and comparison questions well, and most answers are accurate and actionable.",
+            "Warning callout on stream blocking behavior is a useful production-level signal that readers who reach production will actually care about."
+          ],
+          "problems": [
+            "IoT trigger omitted entirely: the source exposes IotIntegration with type: 'iot' as a first-class trigger type, but the page never mentions it — not in the trigger category tables, not in the FeatureComparisonTable, not in a note. This violates union-type coverage discipline.",
+            "FAQ contains a factual error: it states the Kafka default batchSize is 10 (grouped with SQS and Kinesis), but the source marks @default 100 for KafkaTopicIntegrationProps.batchSize. The '(when using maxBatchWindowSeconds)' qualifier on the Kafka 100 figure is invented — the source is unconditional.",
+            "DecisionTree is used as an MDX component but is not listed in the style guide's component palette. If it is not implemented in the MDX runtime, this section will render as broken markup rather than a useful decision aid.",
+            "Batch job trigger compatibility is asserted throughout (HTTP API Gateway, ALB, Schedule, S3, SQS, SNS, DynamoDB, Kinesis, EventBridge, CloudWatch Logs) but the provided source file (events.d.ts) does not enumerate which integration types are valid for batch jobs versus Lambda — these claims are ungrounded in the supplied source."
+          ],
+          "mandatoryFixes": [
+            "Fix Kafka default batchSize in the FAQ: change '10 for SQS, Kinesis, and Kafka' to '10 for SQS and Kinesis, 100 for DynamoDB streams and Kafka'. Remove the unsupported '(when using maxBatchWindowSeconds)' qualifier — the source shows Kafka @default 100 unconditionally.",
+            "Add the iot trigger type to the page. Source shows IotIntegration { type: 'iot' } with sql and sqlVersion properties. At minimum add a row to the asynchronous triggers table and a corresponding row in the FeatureComparisonTable. If the resource compatibility is not known from available source, state 'Lambda' and add a note that batch job support is unconfirmed.",
+            "Replace or verify the DecisionTree component. If it is not a runtime-supported MDX component, replace it with a markdown table (e.g. 'Choose by event source' with columns: Event source | Recommended trigger | Why) or prose paragraphs. Do not leave a potentially non-rendering component on the page."
+          ],
+          "optionalImprovements": [
+            "Add a one-line note in the Batching section about Kafka's maxBatchWindowSeconds default of 0.5 seconds (sourced from KafkaTopicIntegrationProps @default 0.5) — it is much lower than the SQS/Kinesis/DynamoDB pattern and will surprise users who leave it unset.",
+            "Add a callout or inline note under the CloudWatch Logs row (or in the dedicated trigger page link) that the event payload is base64-encoded and gzipped — the source JSDoc calls this out explicitly and it is a common gotcha for first-time users.",
+            "The 'How triggers work' section mentions S3 and SNS are 'push-based' but also lists EventBridge and schedules, which use different mechanics (EventBridge rules vs. Lambda invoke permissions). Consider splitting into three categories — HTTP, poll-based, and push/event-based — to avoid conflating scheduling with SNS push delivery.",
+            "The FeatureComparisonTable entry for CloudWatch Logs shows Batch job = true, but this is not verifiable from the provided source. Add a prose caveat or verify against the batch job type definitions before publication."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is 55 words, self-contained, and directly answers 'what is this and why does it matter' — strong AEO target.",
+            "The `<FeatureComparisonTable>` for resource compatibility is a high-value addition: concrete, scannable, and citation-friendly compared to prose.",
+            "The two-tier categorization table (synchronous vs asynchronous) with type values, 'works with' columns, and linked dedicated pages gives readers a complete map of the trigger surface in one scan.",
+            "The code example uses `<CodeBlock intellisense tabs={[...]} />` correctly: imports are outside the focus markers (hidden in rendered output), `defineConfig` and class-based resources are present, and `label: 'TypeScript'` is exact.",
+            "Batching and error-handling sections are well-grounded in source properties (`batchSize`, `maxBatchWindowSeconds`, `maximumRetryAttempts`, `bisectBatchOnFunctionError`, `parallelizationFactor`, `onFailure`) and contain the key gotcha about stream-based triggers retrying the entire batch.",
+            "The `<Warning>` callout for stream shard stalling is a practical, grounded note that readers need before configuring Kinesis or DynamoDB triggers in production.",
+            "FAQ spans all three required question categories: Stacktape-specific (#1, #4, #7), AWS-use-case (#2, #5, #8), and choosing/comparison (#3, #6) — 9 Q&A pairs covers the topic well."
+          ],
+          "problems": [
+            "**Factual error — Kafka default batchSize:** The FAQ answer for 'What is the maximum batch size for event-source triggers?' states 'The default batch size is 10 for SQS, Kinesis, and Kafka'. The source (`KafkaTopicIntegrationProps`) has `@default 100` for Kafka's `batchSize`. Stating 10 for Kafka is wrong and contradicts the type definition.",
+            "**Internal inconsistency — CloudWatch Logs resource compatibility:** The 'Asynchronous triggers' category table lists CloudWatch Logs as 'Works with: Lambda'. The `<FeatureComparisonTable>` shows `'Batch job': true` for the CloudWatch Logs row. One of these is wrong; the source does not resolve the discrepancy — pick the conservative claim (Lambda only) or verify and correct the other.",
+            "**Missing trigger type — IoT:** The source file (`IotIntegration`) defines `type: 'iot'` with `sql` and `sqlVersion` properties. This trigger type is completely absent from both the category table and the `<FeatureComparisonTable>`. Under union-type coverage discipline, all variants must be named somewhere on the page.",
+            "**`<DecisionTree>` is not a documented MDX component:** The 'Choosing the right trigger' section uses `<DecisionTree nodes={[...]} />` which does not appear anywhere in the MDX component palette guidance (the documented components are `<CodeBlock>`, `<ApiReference>`, `<ReferenceableParams>`, `<FeatureComparisonTable>`, `<Info>`, `<Warning>`, `<Tip>`). If this component does not exist in the rendering pipeline, the entire section will fail silently or throw a render error, leaving readers with a broken page."
+          ],
+          "mandatoryFixes": [
+            "**Fix Kafka default batchSize in FAQ:** The FAQ states '10 for SQS, Kinesis, and Kafka'. The source (`KafkaTopicIntegrationProps.batchSize`) has `@default 100`. Change the FAQ to '10 for SQS and Kinesis, 100 for DynamoDB streams and Kafka'.",
+            "**Resolve CloudWatch Logs compatibility inconsistency:** The category table says CloudWatch Logs works with 'Lambda' only. The `<FeatureComparisonTable>` has `'Batch job': true` for that row. Update one to match the other (source is silent, so default to the conservative position: Lambda only).",
+            "**Replace `<DecisionTree>` with a documented component:** `<DecisionTree>` is not listed in the Stacktape MDX component palette and may not render. Replace the 'Choosing the right trigger' section with a markdown table (event source | use when | links) or a prose decision guide. A compact table works well here and is citation-friendly."
+          ],
+          "optionalImprovements": [
+            "Add the IoT trigger (`type: 'iot'`) to the asynchronous triggers table and the `<FeatureComparisonTable>`. It can be a one-liner with 'Works with: Lambda' and note that it uses an IoT topic rule SQL statement, linking to a dedicated page when one exists.",
+            "The 'Why triggers exist' H2 section overlaps significantly with the opening paragraph — both explain that triggers bind event sources to compute and that Stacktape auto-provisions IAM. Consider collapsing this into the intro and removing the H2 section to save vertical space and reduce repetition.",
+            "In the Kafka trigger row of the category table, note the two authentication modes (SASL and MTLS) since Kafka is the only trigger requiring credentials configuration — this is a non-obvious requirement that often surprises readers.",
+            "The S3 trigger row should mention that `s3EventType` is a required property (unlike most other triggers where batching options are optional knobs) — it catches readers who assume S3 triggers fire on all events by default.",
+            "The 'Multiple triggers on one resource' section would benefit from a one-line note clarifying that the `events` array has no documented maximum length, and that triggers of the same type (e.g. two SQS queues) are supported as separate entries."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The draft is well-structured and mostly accurate. Trigger type values, batch size maximums, error handling properties, and filtering capabilities all check out against the source. Two factual issues need attention: an incorrect default batch size claim for Kafka in the FAQ, and an internal contradiction about CloudWatch Logs + Batch Job compatibility between the prose table and the FeatureComparisonTable.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The default batch size is 10 for SQS, Kinesis, and Kafka; 100 for DynamoDB streams and Kafka (when using `maxBatchWindowSeconds`).",
+              "reason": "The source defines Kafka's default batchSize as 100, not 10. The sentence also contradicts itself by listing Kafka under both the '10' group and the '100' group. SQS and Kinesis default to 10, DynamoDB defaults to 100, and Kafka defaults to 100 — no conditional 'when using maxBatchWindowSeconds' applies.",
+              "suggestedFix": "Rewrite as: 'The default batch size is 10 for SQS and Kinesis, 100 for DynamoDB streams and Kafka.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The maximum number of records to process in a single batch.\n   *\n   * ---\n   *\n   * The function will be invoked with up to this many records. Maximum is 10,000.\n   *\n   * @default 100\n   */\n  batchSize?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Asynchronous triggers table says 'CloudWatch Logs | cloudwatch-log | Lambda' but the FeatureComparisonTable sets CloudWatch Logs → Batch job: true.",
+              "reason": "The draft contradicts itself. The prose table in 'Asynchronous triggers' limits CloudWatch Logs to Lambda only, but the FeatureComparisonTable marks Batch job as true. Readers will get different answers depending on which section they read. The source file shows a single CloudwatchLogIntegration interface without distinguishing resource types, so the provided source cannot resolve the contradiction — but the draft must be internally consistent.",
+              "suggestedFix": "Determine the correct compatibility (check the batch job type definitions) and make both tables agree. If batch jobs do not support CloudWatch Log triggers, set the FeatureComparisonTable value to false. If they do, update the async triggers table to say 'Lambda, batch jobs'.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface CloudwatchLogIntegration {\n  type: 'cloudwatch-log';\n  properties: CloudwatchLogIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The trigger categories section lists all trigger types but omits the IoT trigger type present in source.",
+              "reason": "The source includes an IotIntegration interface with type 'iot' (accepting an SQL statement for IoT topic rules). It does not appear in the trigger tables or FAQ. This may be intentionally excluded (deprecated or internal), but if it is publicly available, the page's claim of comprehensiveness is incomplete.",
+              "suggestedFix": "If the IoT trigger is publicly supported, add it to the tables. If it is deprecated or internal-only, no change needed — but consider adding a brief note that some specialized triggers exist beyond those listed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface IotIntegration {\n  type: 'iot';\n  properties: IotIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Container-internal triggers section lists 'Container workloads (web services, private services, multi-container workloads)' while the FAQ says 'Container workloads (web services, private services, worker services)'.",
+              "reason": "The parenthetical lists of container workload subtypes are inconsistent across the page. Worker services are missing from the first mention; multi-container workloads are missing from the FAQ. Both are valid container workload types. The inconsistency may confuse readers about which resource types support container-internal triggers.",
+              "suggestedFix": "Use a consistent enumeration in both places. The full list of container workload types is: web services, private services, worker services, and multi-container workloads. Either list all four or link to a dedicated page for the full list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadInternalIntegration {\n  type: 'workload-internal';\n  properties: ContainerWorkloadInternalIntegrationProps;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All 15 trigger type values (http-api-gateway, application-load-balancer, network-load-balancer, schedule, s3, sqs, sns, dynamo-db-stream, kinesis-stream, event-bus, cloudwatch-log, cloudwatch-alarm, kafka-topic, workload-internal, service-connect) exactly match the source interfaces.",
+            "Batch size maximums are correctly stated for all sources: 10,000 for SQS, Kinesis, and Kafka; 1,000 for DynamoDB streams. All sourced from the JSDoc comments.",
+            "maxBatchWindowSeconds cap of 300 seconds is correctly stated and applies to all poll-based sources per source.",
+            "Error handling properties (maximumRetryAttempts, onFailure, bisectBatchOnFunctionError, parallelizationFactor) are correctly named and described, matching the Kinesis and DynamoDB interfaces.",
+            "The code example uses correct property names: httpApiGatewayName, method, path for HttpApiIntegration; scheduleRate for ScheduleIntegration — all match source interface definitions.",
+            "S3 filter capabilities (prefix and suffix on object keys) correctly match the S3FilterRule interface.",
+            "The onDeliveryFailure claim for SNS and EventBridge is correctly grounded — both SnsIntegrationProps and EventBusIntegrationProps expose this property routing to SQS queues.",
+            "SNS filterPolicy, EventBridge eventPattern, and CloudWatch Logs filter properties are all correctly identified as the filtering mechanism for their respective triggers.",
+            "SQS behavior description ('If omitted, the function fires as soon as messages are available') matches the source JSDoc: 'If not set, the function is invoked as soon as messages are available.'"
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific compatibility and behavior claims that are broader than the provided event type source supports. The most important fixes are around batch-job trigger support, container trigger terminology, filtering support, and batch/retry semantics.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says HTTP API Gateway and Application Load Balancer triggers work with batch jobs in both trigger category tables and the compatibility table.",
+              "reason": "The provided source defines HTTP API Gateway and Application Load Balancer integrations as function integrations and separately defines container variants. It does not show batch-job support for these HTTP/load-balancer trigger types, so documenting batch jobs as supported would change what readers try to configure.",
+              "suggestedFix": "Remove batch jobs from HTTP API Gateway and Application Load Balancer compatibility unless another authoritative source explicitly shows batch-job support for those integrations.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a function when an HTTP API Gateway receives a matching request."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a container when an HTTP API Gateway receives a matching request."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a function when an Application Load Balancer receives a matching HTTP request."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a container when a request matches the specified conditions on an Application Load Balancer."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The compatibility table says CloudWatch Logs triggers work with batch jobs.",
+              "reason": "The source defines CloudWatch Logs integration as a function trigger. No batch-job variant is shown. This is likely to mislead readers into configuring an unsupported batch-job trigger.",
+              "suggestedFix": "Mark CloudWatch Logs as Lambda-only unless a batch-job source type explicitly supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a function when new log records appear in a CloudWatch log group."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says triggers are configured in the `events` property of Lambda functions, batch jobs, and container workloads.",
+              "reason": "The provided source defines integration interfaces and their properties, but it does not define the resource-level `events` property for Lambda functions, batch jobs, or container workloads. The page can still use `events` in the example, but this broad resource-level statement is not grounded in the supplied source file.",
+              "suggestedFix": "Narrow the statement to the source-backed concept: Stacktape trigger integrations are represented as event entries such as `HttpApiIntegration` and `ScheduleIntegration`; avoid making broad resource-level support claims unless the relevant resource props are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface HttpApiIntegration {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The draft describes Workload Internal and Service Connect as trigger types for intra-workload and intra-stack communication, including the phrase “Container-internal triggers.”",
+              "reason": "The source defines these as integrations that open container ports, not triggers that cause execution. Calling them triggers can mislead readers because they do not start work the way HTTP, SQS, S3, or schedule integrations do.",
+              "suggestedFix": "Rename the section to something like “Container networking integrations” and describe `workload-internal` and `service-connect` as port-opening/service-discovery integrations rather than event triggers.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Opens a container port for connections from other containers within the same workload."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Opens a container port for connections from other compute resources in the same stack."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Stacktape handles “all underlying IAM permissions” and “all necessary permissions” for every trigger automatically.",
+              "reason": "The event source file documents integration shapes and event behavior, but it does not state that Stacktape automatically configures IAM permissions for all trigger types. This is a broad Stacktape behavior claim that affects user expectations around security configuration.",
+              "suggestedFix": "Either cite a higher-priority source that documents automatic IAM permission wiring, or narrow the wording to say Stacktape declares the integration and provisions the corresponding AWS trigger resources without claiming every IAM permission is handled automatically.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationProps {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The FAQ says “Most trigger types support filtering” and specifically says “For SQS and Kinesis, filtering happens in your handler code — all messages are delivered and you discard irrelevant ones.”",
+              "reason": "The source shows filter-like properties for S3, SNS, EventBridge, and CloudWatch Logs, but it does not show filtering properties for SQS or Kinesis. It also does not state that all SQS/Kinesis records are delivered or that filtering must happen in handler code. The “most trigger types” wording is overstated relative to the provided source.",
+              "suggestedFix": "Say only the source-backed trigger filters: S3 has `filterRule`, SNS has `filterPolicy`, EventBridge has `eventPattern`, and CloudWatch Logs has `filter`. Avoid claiming behavior for SQS or Kinesis filtering unless source supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "filterRule?: S3FilterRule;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "filterPolicy?: any;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "eventPattern: EventBusIntegrationPattern;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "filter?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The FAQ says “The default batch size is 10 for SQS, Kinesis, and Kafka; 100 for DynamoDB streams and Kafka (when using `maxBatchWindowSeconds`).”",
+              "reason": "This sentence contradicts the source for Kafka and is internally inconsistent by listing Kafka twice. The source says Kafka `batchSize` defaults to 100, SQS defaults to 10, Kinesis defaults to 10, and DynamoDB defaults to 100. No source states that Kafka's default changes when using `maxBatchWindowSeconds`.",
+              "suggestedFix": "Write: “Default batch size is 10 for SQS and Kinesis, and 100 for DynamoDB streams and Kafka.” Remove the `maxBatchWindowSeconds` qualifier unless another source supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "@default 100"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "@default 10"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "@default 100"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says “For push-based triggers (SNS, EventBridge), you can configure `onDeliveryFailure` to route undeliverable events to an SQS queue.”",
+              "reason": "The source supports `onDeliveryFailure` for SNS and EventBus integrations, but it does not support the broader “push-based triggers” framing because other push-style integrations in the draft, such as S3, schedules, CloudWatch Logs, and alarms, do not show `onDeliveryFailure` in their props.",
+              "suggestedFix": "Narrow the sentence to “SNS and EventBus integrations support `onDeliveryFailure`, which can send failed deliveries to an SQS queue.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "onDeliveryFailure?: SnsOnDeliveryFailure;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "onDeliveryFailure?: EventBusOnDeliveryFailure;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface S3IntegrationProps {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegrationProps {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration example uses `<CodeBlock intellisense>` with a `TypeScript` tab, `defineConfig`, and class-based resources rather than forbidden YAML or `StacktapeConfig` object style.",
+            "The draft correctly identifies several source-backed trigger type values, including `http-api-gateway`, `schedule`, `s3`, `sqs`, `sns`, `dynamo-db-stream`, `kinesis-stream`, `event-bus`, `cloudwatch-log`, `cloudwatch-alarm`, and `kafka-topic`.",
+            "The draft correctly notes source-backed batch controls for SQS, Kinesis, DynamoDB streams, and Kafka, including the 300-second maximum batch window and the documented maximum batch sizes."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the main trigger landscape and uses the required CodeBlock style for Stacktape configuration, but it has several API completeness and demonstrativeness issues. The biggest risks are an omitted `iot` trigger variant, an incorrect CloudWatch Logs compatibility row, and examples/sections that make broad trigger claims without showing or naming the relevant source-backed properties.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The trigger overview enumerates trigger categories but omits the `iot` trigger type entirely.",
+              "reason": "The source defines an `IotIntegration` with `type: 'iot'`. On an overview page that lists trigger type values, omitting a supported type makes the trigger inventory incomplete.",
+              "suggestedFix": "Add IoT to the asynchronous trigger table, compatibility table if applicable, and decision guidance. Use cautious wording if the supported compute target is not visible from this source file.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface IotIntegration {\n  type: 'iot';\n  properties: IotIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface IotIntegrationProps {\n  /**\n   * #### The SQL statement for the IoT topic rule.\n   */\n  sql: string;\n  /**\n   * #### The version of the IoT SQL rules engine to use.\n   */\n  sqlVersion?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The compatibility table says CloudWatch Logs triggers work with batch jobs.",
+              "reason": "The source describes `CloudwatchLogIntegration` as triggering a function when log records appear. The draft’s earlier asynchronous trigger table says CloudWatch Logs is Lambda-only, while the later compatibility table marks Batch job as supported, creating a concrete contradiction and an unsupported compatibility claim.",
+              "suggestedFix": "Change the CloudWatch Logs compatibility row to Batch job: false unless another source explicitly proves batch job support.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface CloudwatchLogIntegration {\n  type: 'cloudwatch-log';\n  properties: CloudwatchLogIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new log records appear in a CloudWatch log group."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape handles all underlying IAM permissions, event-source mappings, and routing rules automatically.”",
+              "reason": "The provided source file defines trigger interfaces and property shapes, but it does not document automatic IAM permission creation for every trigger category. This broad operational claim is important and should be grounded in runtime/resource sources, not inferred from type definitions.",
+              "suggestedFix": "Narrow the wording to what the source proves, or cite runtime/resource sources that implement IAM permissions and event-source mappings. For example: “The trigger type determines which AWS integration Stacktape configures during deployment” if that is supported elsewhere.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegration {\n  type: 'sqs';\n  properties: SqsIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface HttpApiIntegration {\n  type: 'http-api-gateway';\n  properties: HttpApiIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape creates a helper Lambda function behind the scenes that starts the batch job when the schedule fires.”",
+              "reason": "The source defines `ScheduleIntegration` as a schedule trigger and mentions Lambda functions and batch jobs in comments elsewhere, but it does not describe an implementation detail involving a helper Lambda. This is a specific Stacktape behavior claim that needs runtime source evidence.",
+              "suggestedFix": "Remove the helper-Lambda implementation detail unless runtime source is included. Keep the answer at the documented level: batch jobs support schedule triggers if that support is grounded by the relevant resource type source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration {\n  type: 'schedule';\n  properties: ScheduleIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function on a recurring schedule (cron jobs, periodic tasks)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The “Basic example” section claims to show “event-binding” broadly but only demonstrates HTTP API Gateway and schedule triggers.",
+              "reason": "For a conceptual overview this is acceptable as a short example, but the surrounding prose says Stacktape provisions API Gateway integrations, SQS mappings, S3 notifications, EventBridge rules, and load balancer rules. The example does not demonstrate the poll-based or push-based event-source properties discussed later, so it underserves the section’s broader trigger model.",
+              "suggestedFix": "Keep one short canonical example, but add a sentence before the example saying it demonstrates the `events` array shape rather than every trigger category. Then link each trigger family to its dedicated page for concrete examples.",
+              "evidence": [
+                {
+                  "file": "Draft page",
+                  "quote": "A Lambda function with an HTTP API Gateway trigger and a schedule trigger."
+                },
+                {
+                  "file": "Draft page",
+                  "quote": "You configure triggers once in your `events` array, and Stacktape provisions the AWS plumbing: API Gateway integrations, SQS event-source mappings, S3 notification configurations, EventBridge rules, or load balancer listener rules depending on the trigger type."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“For SQS and Kinesis, filtering happens in your handler code — all messages are delivered and you discard irrelevant ones.”",
+              "reason": "The source file is silent on SQS and Kinesis event filtering. Because the auditor prompt warns against unsupported negative claims, this should not be asserted from the provided source.",
+              "suggestedFix": "Remove the negative SQS/Kinesis filtering sentence, or rewrite cautiously: “The provided trigger properties shown here do not include a Stacktape-level filter property for SQS or Kinesis.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources.\n   */\n  sqsQueueName?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KinesisIntegrationProps {\n  /**\n   * #### The name of a Kinesis stream defined in your stack's resources.\n   */\n  kinesisStreamName?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The default batch size is 10 for SQS, Kinesis, and Kafka; 100 for DynamoDB streams and Kafka (when using `maxBatchWindowSeconds`).”",
+              "reason": "The sentence contradicts the source for Kafka. The source says Kafka `batchSize` defaults to 100, not 10. It also makes an unclear duplicate Kafka claim.",
+              "suggestedFix": "Rewrite as: “Defaults in the source are 10 for SQS and Kinesis, 100 for DynamoDB streams, and 100 for Kafka.” Keep `maxBatchWindowSeconds` separate: Kafka defaults to 0.5 seconds; SQS invokes as soon as messages are available if unset.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The maximum number of records to process in a single batch.\n   *\n   * ---\n   *\n   * The function will be invoked with up to this many records. Maximum is 10,000.\n   *\n   * @default 100\n   */\n  batchSize?: number;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The maximum number of records to process in a single batch.\n   *\n   * ---\n   *\n   * Maximum is 1,000.\n   *\n   * @default 100\n   */\n  batchSize?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The overview discusses Service Connect but does not mention its `alias` and `protocol` options.",
+              "reason": "Service Connect is one of only two container-internal trigger types listed on the overview page. The source documents `alias` and `protocol` as meaningful configuration knobs for service discovery and protocol-specific metrics, so the overview should at least name them when introducing Service Connect.",
+              "suggestedFix": "Add one sentence under Container-internal triggers: “Service Connect can use an optional `alias` for the service-discovery name and an optional `protocol` of `http`, `http2`, or `grpc` so AWS can capture protocol-specific metrics.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadServiceConnectIntegrationProps {\n  /**\n   * #### The container port to open for service-to-service communication.\n   */\n  containerPort: number;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "alias?: string;\n  /**\n   * #### The protocol used for service-to-service communication.\n   *\n   * ---\n   *\n   * Specifying the protocol allows AWS to capture protocol-specific metrics, such as the number of HTTP 5xx errors.\n   */\n  protocol?: 'http' | 'http2' | 'grpc';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration example uses `<CodeBlock intellisense>` with a `TypeScript` tab and does not hand-author YAML.",
+            "The page correctly names most event integration type values from the source, including HTTP API Gateway, load balancer, schedule, S3, SQS, SNS, DynamoDB stream, Kinesis, EventBridge event bus, CloudWatch Logs, CloudWatch Alarm, Kafka, workload-internal, and service-connect.",
+            "The batching section includes source-backed limits for SQS, Kinesis, DynamoDB streams, Kafka, and the 300-second maximum batch window."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__overview\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive trigger catalog with precise categorization into synchronous vs. asynchronous, directly grounded in the events.d.ts source interfaces.",
+            "Batch size defaults and maximums are correctly pulled from source JSDoc (@default 10 for SQS/Kinesis, 100 for DynamoDB/Kafka; maximums 10,000 / 1,000 respectively) — a first-time reader gets the exact numbers they need.",
+            "The <FeatureComparisonTable> for resource-trigger compatibility is the single most useful element on the page for an overview: it gives a first-time reader a clear map before diving into individual trigger pages.",
+            "Code example correctly uses <CodeBlock intellisense tabs={[...]}> with TypeScript class-based imports (LambdaFunction, StacktapeLambdaBuildpackPackaging, HttpApiIntegration, ScheduleIntegration, HttpApiGateway) — no YAML blocks, no StacktapeConfig type violations.",
+            "Error handling section is source-grounded with the four stream-specific properties (maximumRetryAttempts, onFailure, bisectBatchOnFunctionError, parallelizationFactor) exactly as they appear in KinesisIntegrationProps and DynamoDbIntegrationProps.",
+            "Event filtering table correctly distinguishes which trigger types have built-in server-side filtering vs. those requiring handler-level logic, and matches source property names (filterRule, filterPolicy, eventPattern, filter).",
+            "SNS onDeliveryFailure and EventBus onDeliveryFailure are both correctly noted and grounded in the SnsOnDeliveryFailure and EventBusOnDeliveryFailure interfaces in source.",
+            "FAQ spans all three required categories: Stacktape-specific ('Can a single function have multiple triggers?'), AWS service behavior ('What happens if my function fails during batch processing?'), and comparison questions ('When should I use HTTP API Gateway vs ALB?')."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION: The <DecisionTree nodes={[...]} /> component used in the 'Choosing the right trigger' section is not a documented Stacktape MDX component. It does not appear in the style guide, system instructions, or any enumerated component palette (<FeatureComparisonTable>, <ApiReference>, <ReferenceableParams>, <Info>, <Tip>, <Warning> are listed; <DecisionTree> is not). If this component does not exist in the Stacktape docs renderer, the entire section will fail silently or throw a build error.",
+            "The compatibility table claims (e.g., batch jobs support Schedule, S3, SQS, SNS, DynamoDB stream, Kinesis, EventBridge, CloudWatch Logs but NOT CloudWatch Alarm or Kafka) cannot be verified from the provided source file (events.d.ts only). batch-jobs.d.ts was not provided and is not in the source list.",
+            "The claim 'Batch jobs use a helper Lambda function behind the scenes to receive events and start the job container' appears twice (in the compatibility section and FAQ) but has no grounding in the provided events.d.ts source. It may be accurate but reads as an assertion about internal mechanics that require a different source file to verify.",
+            "The 'Which resources support which triggers' H2 heading is 7 words — it is a full sentence rather than a short label, inconsistent with the style guide's 1–5 word noun-form H2 guidance."
+          ],
+          "mandatoryFixes": [
+            "Replace <DecisionTree nodes={[...]} /> with a documented MDX component or plain prose. The simplest replacement is a markdown table with columns 'Event source', 'Recommended trigger', and a brief 'Notes' column — or convert to a prose list of 'If X, use Y' paragraphs. The <DecisionTree> component is not in the Stacktape MDX component palette and using it is an MDX component style violation that must be removed."
+          ],
+          "optionalImprovements": [
+            "Shorten the H2 'Which resources support which triggers' to 'Compatibility' or 'Trigger compatibility' (2 words) to match the style guide's 1–5 word noun-form heading guidance.",
+            "Soften or caveat the 'helper Lambda function' batch-job claim ('Stacktape typically provisions a helper Lambda function...') until batch-jobs.d.ts can be consulted to confirm the mechanism, or add a note that this is an internal implementation detail subject to change.",
+            "The 'Why triggers exist' H2 is a slightly unusual noun-phrase heading for this style guide (it reads more like an explainer-article subheading than a scannable doc label). Consider renaming to 'How triggers work' and collapsing the current 'How triggers work' (which covers polling vs. push mechanics) into it, or rename the existing mechanics section to 'Push vs. poll mechanics'.",
+            "The Kafka integration source shows a `@default 0.5` for `maxBatchWindowSeconds` (sub-second!). The batching section discusses this parameter but doesn't mention the Kafka-specific 0.5-second default, which is meaningfully different from the other sources. Adding one sentence ('Kafka defaults to a 0.5-second batch window, meaning records accumulate for at most half a second before firing') would make the section more precise.",
+            "The S3 event filtering row in the table says 'Filter property: filterRule' but the source's filterRule object contains prefix and suffix sub-properties. Adding a 'What it filters' note like 'Object key prefix and/or suffix (via filterRule.prefix / filterRule.suffix)' would prevent confusion about whether filterRule is a string or an object.",
+            "The IoT <Info> callout is accurate but adds cognitive overhead for most readers who will never use IoT. Consider moving it to a footnote-style sentence at the bottom of the asynchronous triggers table rather than a standalone callout block."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Batch size defaults and maximums are sourced accurately from types: SQS/Kinesis default 10, DynamoDB/Kafka default 100; SQS/Kinesis/Kafka max 10,000, DynamoDB max 1,000. These concrete numbers make the batching section actionable.",
+            "Container workload compatibility is correctly limited to HTTP and networking integrations, matching the ContainerWorkload* interfaces in the source.",
+            "Code example uses verified class names (HttpApiIntegration, ScheduleIntegration, LambdaFunction, StacktapeLambdaBuildpackPackaging, HttpApiGateway) with correct properties (httpApiGatewayName, method, path, scheduleRate) that type-check against source.",
+            "Error handling section accurately covers maximumRetryAttempts, onFailure, bisectBatchOnFunctionError, and parallelizationFactor — all sourced from KinesisIntegrationProps and DynamoDbIntegrationProps.",
+            "Event filtering table is source-accurate: S3 filterRule (prefix/suffix), SNS filterPolicy, EventBridge eventPattern, CloudWatch filter pattern — all match the source types.",
+            "IoT integration is correctly noted as defined in the type system but not wired to any compute resource's events property — a rare and accurate handling of a source ambiguity.",
+            "FAQ covers all three required categories well: Stacktape-specific behavior, AWS service mechanics (batch failure behavior, pricing model comparisons), and choosing/comparison questions (HTTP API Gateway vs ALB, SQS vs SNS vs EventBridge)."
+          ],
+          "problems": [
+            "The `<DecisionTree>` component is not documented in the Stacktape MDX component palette (only `<FeatureComparisonTable>`, `<ApiReference>`, `<Info>`, `<Tip>`, `<Warning>`, `<CodeBlock>`, `<ReferenceableParams>` are documented). If this component does not exist in the rendering system, the entire 'Choosing the right trigger' section will fail to render.",
+            "S3 trigger has a required `s3EventType` property with ~16 enum values (`s3:ObjectCreated:*`, `s3:ObjectRemoved:*`, `s3:ObjectRestore:*`, etc.) — the page mentions S3 filtering (prefix/suffix via filterRule) but never mentions that callers must also specify the event type. A user following this page to set up an S3 trigger will hit a type error on a required field.",
+            "DynamoDB stream trigger: the source JSDoc explicitly states 'You must enable streams on the DynamoDB table first (set `streaming` in your `dynamoDbTables` config).' This prerequisite is absent from the page. Omitting it will cause deployment failures for users who add the trigger without enabling streams.",
+            "Kafka trigger requires authentication — `authentication` is a required field on `CustomKafkaEventSource` (SASL or mTLS). The page lists Kafka as a supported trigger type but nowhere mentions this authentication requirement. Users who attempt to configure a Kafka trigger will hit a required-field error.",
+            "SQS source JSDoc explicitly lists a third batch trigger condition alongside batchSize and maxBatchWindowSeconds: the '6 MB payload limit'. The batching section describes only batchSize and maxBatchWindowSeconds, omitting this limit that can surprise users with large message payloads."
+          ],
+          "mandatoryFixes": [
+            "Replace `<DecisionTree nodes={[...]} />` with a prose decision guide or a markdown table — the component is not part of the documented Stacktape MDX palette and will likely fail to render. A simple 'When to use which trigger' markdown table (event source | recommended trigger | reason) conveys the same decision guidance without depending on an unverified component.",
+            "Add the required `s3EventType` property to the S3 trigger description. The S3 row in the trigger categories table should note that callers must specify one of the `s3EventType` enum values (e.g., `s3:ObjectCreated:*`, `s3:ObjectRemoved:*`) in addition to the optional filterRule. Without this, users face a type error on a required field.",
+            "Add the DynamoDB stream prerequisite to the DynamoDB stream row or to a note in the 'Batching and throughput' / 'How triggers work' sections: streaming must be enabled on the DynamoDB table (via the `streaming` property in `dynamoDbTables` config) before the trigger can be configured. This is explicitly stated in the source JSDoc and its absence causes deployment failures.",
+            "Add the Kafka authentication requirement to the Kafka trigger row or to a dedicated note: the `authentication` field on `customKafkaConfiguration` is required and accepts either SASL (BASIC_AUTH, SASL_SCRAM_256_AUTH, SASL_SCRAM_512_AUTH) or mTLS. Omitting this leaves users with a type error on a required field that is not optional."
+          ],
+          "optionalImprovements": [
+            "Mention SQS 6 MB payload limit in the 'Batching and throughput' section alongside batchSize and maxBatchWindowSeconds — the source JSDoc calls it out as a third trigger condition and it affects how large batches users can safely configure.",
+            "Add a one-line mention of Kinesis `autoCreateConsumer` (dedicated stream consumer for lower latency and higher throughput) in the poll-based triggers or Kinesis row — the source documents this as the recommended option for latency-sensitive workloads but the overview page doesn't surface it at all.",
+            "The 'Synchronous vs asynchronous' framing in the trigger categories section is useful but worth noting that SNS and EventBridge delivery also have a 'fire-and-forget' quality from the publisher's perspective while still having delivery semantics. A one-sentence clarification would prevent readers from equating 'asynchronous' with 'unreliable'.",
+            "The FAQ entry on batch failure behavior for SQS ('individual failed messages return to the queue after the visibility timeout; successfully processed messages are deleted') is accurate but would benefit from one sentence noting that this requires the handler to explicitly delete messages it successfully processes — this is a common SQS gotcha.",
+            "Consider adding a short note that schedule trigger payloads can be customized via `input`, `inputPath`, or `inputTransformer` on `ScheduleIntegrationProps` — useful for users who need to parameterize scheduled runs and would otherwise have to discover this in the dedicated schedule triggers page."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive trigger type coverage — all integration types visible in the source (HttpApiIntegration, ScheduleIntegration, SqsIntegration, SnsIntegration, KinesisIntegration, DynamoDbIntegration, S3Integration, EventBusIntegration, CloudwatchLogIntegration, AlarmIntegration, KafkaTopicIntegration, IotIntegration, plus all five container integration types) are present and correctly categorized.",
+            "Batch size defaults are source-grounded and accurate: 10 for SQS and Kinesis, 100 for DynamoDB streams and Kafka, with correct maximum caps (10,000 for SQS/Kinesis/Kafka, 1,000 for DynamoDB).",
+            "FeatureComparisonTable for cross-resource compatibility is exactly the right component for this density of information and surfaces the Lambda-only (CloudWatch Alarm, Kafka) and container-only (NLB, workload-internal, service-connect) constraints clearly.",
+            "Error handling section names specific integration properties (maximumRetryAttempts, onFailure, bisectBatchOnFunctionError, parallelizationFactor) and explains their purpose accurately relative to the source.",
+            "Event filtering table correctly attributes filter mechanisms per trigger type (S3 filterRule prefix/suffix, SNS filterPolicy, EventBridge eventPattern, CloudWatch Logs filter pattern) and explicitly tells readers what to do for trigger types without built-in filtering.",
+            "FAQ spans all three required categories: Stacktape-specific (multiple triggers, batch job schedules), AWS-service-use-case (SQS vs SNS vs EventBridge, batch retry behavior, default batch sizes), and comparison/choosing (HTTP API Gateway vs ALB). Ten well-differentiated questions with concrete 2-4 sentence answers.",
+            "The IoT integration note is handled carefully — the page acknowledges it exists in the type system without overstating its availability, which is appropriately conservative.",
+            "Opening paragraph is self-contained, under 75 words, and directly answers 'what is this and why does it matter' with a concrete cost-motivation ('A Lambda function sitting idle costs nothing')."
+          ],
+          "problems": [
+            "**Unknown MDX component `<DecisionTree>`**: The 'Choosing the right trigger' section uses `<DecisionTree nodes={[...]} />`, which is not listed among the valid/documented MDX components in the writer guidelines (CodeBlock, ApiReference, FeatureComparisonTable, Info, Tip, Warning, ReferenceableParams). If this component does not exist in the Stacktape docs system, the entire 'Choosing the right trigger' section renders as nothing, removing key decision-support content from the page.",
+            "Several H2 headings exceed the recommended 1–5 word label form: 'Which resources support which triggers' (6 words, reads like a sentence fragment), 'Multiple triggers on one resource' (5 words, borderline), 'Container networking integrations' (3 words, fine). The first should be shortened to 'Compatibility' or 'Resource compatibility'.",
+            "The page has no `<ApiReference>` block. While this is an overview page rather than a single-resource page, the style guide's 'exactly one ApiReference' expectation is not met. If there is no suitable root type, this is acceptable, but the absence should be a conscious omission noted by the author — not an oversight.",
+            "The sync/async trigger table under '### Synchronous triggers' includes HTTP API Gateway, ALB, and NLB as separate rows but the async table is substantially longer. The asymmetry creates a visual expectation that sync triggers are only three types — which is accurate — but the initial framing 'Two broad categories' makes async seem like a complement when it's actually the dominant category (10 vs 3). Minor framing issue."
+          ],
+          "mandatoryFixes": [
+            "Replace `<DecisionTree nodes={[...]} />` in the 'Choosing the right trigger' section with a supported component or prose. The recommended replacement is either: (a) a markdown table with columns 'When this starts the work' / 'Use this trigger' / 'Dedicated page', or (b) a short bulleted decision list using plain prose under sub-headings. The `<DecisionTree>` component is not recognized by the Stacktape docs MDX renderer. Using it risks silently dropping the section's content, and it cannot be validated by the code-block-validator. Penalizes clarity (−2) and practicalUsefulness (−1)."
+          ],
+          "optionalImprovements": [
+            "Shorten H2 'Which resources support which triggers' to 'Compatibility' — the FeatureComparisonTable immediately below makes the heading's intent obvious without the long noun phrase.",
+            "The 'Why triggers exist' H2 could be folded into the introduction or renamed 'How triggers are declared' — the current name is slightly philosophical for a scan target. Alternatively keep it but tighten the first paragraph since it partially restates the intro.",
+            "The note about `maxBatchWindowSeconds` default for Kafka (0.5 seconds, per the source JSDoc) is mentioned in the source but not surfaced in the Batching section, which only says 'up to 300 for all sources'. Clarify that Kafka's default window is 0.5 s while SQS has no default window (fires immediately when messages are available).",
+            "The Service Connect section mentions protocol-aware metrics ('AWS can capture protocol-specific metrics such as HTTP 5xx error counts') but doesn't say these are CloudWatch Container Insights metrics. Adding one sentence naming the monitoring surface helps readers decide whether the complexity is worth enabling.",
+            "Add a short mention that `startingPosition` defaults to `TRIM_HORIZON` for both Kinesis and DynamoDB stream integrations, meaning new integrations will process all existing records by default — this is a common operational surprise worth calling out near the batching section or in the FAQ."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The draft is very well-grounded in the source. All trigger type values, default batch sizes, maximum batch sizes, error handling properties, event filtering capabilities, and container networking integration details accurately match the source interfaces and JSDoc. Cross-links all point to valid documentation routes. The CodeBlock example uses correct class names and property names. Two minor issues identified: one missing caveat about an SQS-specific batch trigger condition, and one unverifiable MDX component.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Two properties control batch behavior: batchSize — maximum records per invocation ... maxBatchWindowSeconds — maximum seconds to wait before invoking ... The function fires when either threshold is reached, whichever comes first.",
+              "reason": "The SQS integration JSDoc explicitly lists a third trigger condition — the 6 MB payload limit — that is omitted from the batching section. The source says: 'The function fires when batchSize is reached, maxBatchWindowSeconds expires, or the 6 MB payload limit is hit.' Since the batching section frames these two properties as the complete set of thresholds ('when either threshold is reached, whichever comes first'), readers who hit the 6 MB limit on large SQS messages will see unexpected early invocations they can't explain from the docs.",
+              "suggestedFix": "Add a note to the SQS row or a parenthetical in the batching section: 'For SQS, the function also fires when the accumulated payload reaches 6 MB, whichever of the three thresholds is reached first.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Messages are processed in batches. The function fires when `batchSize` is reached, `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<DecisionTree nodes={[...]} />",
+              "reason": "The DecisionTree MDX component is used in the draft but is not listed among the MDX components explicitly mentioned in the instructions (CodeBlock, FeatureComparisonTable, ApiReference, ReferenceableParams, CliCommandsApiReference, Info, Tip, Warning). Unable to confirm its existence in the component registry from the provided sources. If it does not exist, the page will render a build error or raw markup.",
+              "suggestedFix": "Verify that DecisionTree is a registered MDX component in the docs site. If not, replace with a markdown table or a series of short paragraphs with bold scenario labels.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All 15 trigger type values (http-api-gateway, application-load-balancer, network-load-balancer, schedule, s3, sqs, sns, dynamo-db-stream, kinesis-stream, event-bus, cloudwatch-log, cloudwatch-alarm, kafka-topic, workload-internal, service-connect) exactly match the source interface type literals.",
+            "Default batch sizes are accurately stated with source backing: SQS @default 10, Kinesis @default 10, DynamoDB @default 100, Kafka @default 100.",
+            "Maximum batch sizes correctly sourced: SQS/Kinesis/Kafka max 10,000; DynamoDB max 1,000; maxBatchWindowSeconds max 300 for all.",
+            "Container networking integration properties (service-connect alias, protocol options http/http2/grpc, workload-internal containerPort) accurately reflect the source interfaces.",
+            "Event filtering capabilities per trigger type align with source: S3 filterRule (prefix/suffix), SNS filterPolicy, EventBridge eventPattern, CloudWatch Logs filter — and correctly notes SQS/Kinesis/DynamoDB/Kafka lack built-in filtering.",
+            "Error handling properties (maximumRetryAttempts, onFailure with DestinationOnFailure arn+type, bisectBatchOnFunctionError, parallelizationFactor) are accurately described and correctly scoped to Kinesis and DynamoDB stream triggers.",
+            "SNS and EventBus onDeliveryFailure routing to SQS queues accurately reflects source: both SnsOnDeliveryFailure and EventBusOnDeliveryFailure support sqsQueueArn and sqsQueueName.",
+            "CodeBlock example uses valid class names (HttpApiIntegration, ScheduleIntegration, HttpApiGateway, LambdaFunction) with correct property names (httpApiGatewayName, method, path, scheduleRate) matching source interface props.",
+            "IoT integration type correctly noted as defined in the source (with sql and sqlVersion properties) but not included in any compute resource events array.",
+            "All 21+ cross-links verified against the documentation pages navigation index — no invented routes.",
+            "NLB correctly identified as container-only — the source defines only ContainerWorkloadNetworkLoadBalancerIntegration with no standalone Lambda version, unlike HTTP API Gateway and ALB which have both standalone and container-prefixed variants.",
+            "The compatibility table's container workload column is confirmed by the source: only http-api-gateway, application-load-balancer, network-load-balancer, workload-internal, and service-connect have ContainerWorkload-prefixed integration types."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally grounded in the provided `events.d.ts` source, but it overstates several Stacktape-specific behaviors and contains a few concrete inaccuracies around event delivery, batch-job/container compatibility, SQS failure behavior, and unsupported filtering details.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape supports trigger integrations across Lambda functions, batch jobs, and container workloads.” and the compatibility tables claim batch jobs support HTTP API Gateway, Application Load Balancer, S3, SQS, SNS, DynamoDB streams, Kinesis, CloudWatch Logs, and EventBridge triggers.",
+              "reason": "The provided source file defines trigger integration shapes, but it does not define the `events` property for Lambda functions, batch jobs, or container workloads. The only batch-job-specific wording in `events.d.ts` appears on `EventBusIntegration`; the rest of the batch-job compatibility table is not grounded in the provided source list.",
+              "suggestedFix": "Narrow the overview to trigger integration types defined in `events.d.ts`, or remove the batch-job compatibility matrix unless the page source list includes the resource type definitions that prove batch-job `events` unions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegration {\n  type: 'event-bus';\n  properties: EventBusIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a batch job when an event matching a specified pattern is received by an event bus."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Asynchronous triggers fire-and-forget: the event source delivers a payload and moves on without waiting for your function to finish.”",
+              "reason": "The draft groups SQS, Kinesis, DynamoDB streams, and Kafka under this fire-and-forget description, but the source describes those integrations as batch/poll-based sources. Kinesis explicitly has a direct polling mode, so saying the event source delivers and moves on is misleading for poll-based integrations.",
+              "suggestedFix": "Split asynchronous triggers into push-based and poll-based categories before describing delivery semantics. Say S3, SNS, schedules, EventBridge, CloudWatch Logs, and alarms push events, while SQS, Kinesis, DynamoDB streams, and Kafka are consumed through batch/event-source mappings.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. Two consumption modes:\n * - **Direct**: Polls each shard ~1/sec, throughput shared with other consumers."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Messages are processed in batches. The function fires when `batchSize` is reached,\n * `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“For SQS, individual failed messages return to the queue after the visibility timeout; successfully processed messages are deleted.”",
+              "reason": "The SQS integration source documents batching thresholds and the one-consumer recommendation, but it does not document partial batch failure behavior, visibility timeout behavior, or successful-message deletion behavior. This is a specific runtime behavior claim that could change how readers implement handlers.",
+              "suggestedFix": "Remove this SQS failure-behavior sentence from this overview, or rephrase as general AWS SQS background only if the dedicated SQS source page includes support. Keep the source-grounded point that SQS records are processed in batches and the function fires when batch size, batch window, or the 6 MB payload limit is reached.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Messages are processed in batches. The function fires when `batchSize` is reached,\n * `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "**Important:** A single SQS queue should only have one consumer function. For fan-out (multiple\n * consumers for the same message), use an SNS topic or EventBridge event bus instead."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For stream-based sources (Kinesis, DynamoDB), if processing fails, the entire batch — including successfully processed records — is retried.”",
+              "reason": "The source explicitly says this for Kinesis and DynamoDB failure properties, but the statement is placed under “Batching and throughput” and contrasts “stream-based sources” with other poll-based sources. Kafka is also a stream-like trigger in the page’s poll-based list, but its source definition does not expose retry controls or the same whole-batch retry warning.",
+              "suggestedFix": "Name the exact integrations: “For Kinesis and DynamoDB stream integrations, the source warns that a failed batch is retried as a whole.” Avoid implying the same retry semantics for Kafka unless a Kafka source file documents it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "> **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface KafkaTopicIntegrationProps {\n  /**\n   * #### The details of your Kafka cluster."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without `maximumRetryAttempts`, retries continue indefinitely and block the shard.”",
+              "reason": "The source defines `maximumRetryAttempts` as the number of times to retry a failed batch, but it does not state the default behavior when omitted or that retries continue indefinitely. It also does not say the shard is blocked until retries are exhausted.",
+              "suggestedFix": "Ground the wording in the source: “`maximumRetryAttempts` sets how many times Stacktape retries a failed Kinesis or DynamoDB batch.” If you want to discuss indefinite retries or shard blocking, cite a source file that states it or frame it as AWS stream-processing background with caution.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The number of times to retry a failed batch of records."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“EventBridge patterns support nested matching, prefix/suffix comparisons, and numeric ranges on any event field.”",
+              "reason": "The source only states nested matching, prefix/suffix, and numeric comparisons for the `detail` field, not for any event field. Other top-level pattern fields are individually listed without this capability statement.",
+              "suggestedFix": "Scope the claim to `detail`: “The `detail` field supports nested matching, prefix/suffix, and numeric comparisons.” Avoid saying “on any event field.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Filter by event payload content. Supports nested matching, prefix/suffix, numeric comparisons."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationPattern {\n  /**\n   * #### Filter by event version."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“SNS and EventBus integrations support `onDeliveryFailure`, which can route undeliverable events to an SQS queue. This covers rare cases where the source service cannot deliver an event to your function — for example, if the function cannot scale fast enough to keep up.”",
+              "reason": "The example about the function not scaling fast enough is grounded for SNS, but the EventBus source only says “in rare cases” and does not include the scale example. The combined sentence makes the SNS-specific example appear to apply equally to EventBus.",
+              "suggestedFix": "Separate the two integrations: SNS documents the scale-fast-enough example; EventBus documents an SQS destination for rare delivery failures without naming that cause.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "In rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "In rare cases, an event might fail to be delivered. This property specifies an SQS queue where failed events will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The Stacktape type system also defines an `iot` integration type … This integration type is not currently included in the `events` property of any compute resource.”",
+              "reason": "The source file defines `IotIntegration`, but the provided source list does not include compute resource `events` property unions. The negative claim may be true, but it cannot be verified from the supplied source.",
+              "suggestedFix": "Either remove the negative sentence or write more narrowly: “`events.d.ts` defines an `iot` integration shape, but this overview only covers the trigger types documented on the dedicated trigger pages.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids forbidden hand-authored YAML Stacktape configuration examples and uses `<CodeBlock intellisense>` for the Stacktape config example.",
+            "The draft correctly uses the documented route `/cli/debug-logs` nowhere incorrectly and does not invent `stacktape logs`.",
+            "The draft correctly grounds several integration property names from `events.d.ts`, including `batchSize`, `maxBatchWindowSeconds`, `filterRule`, `filterPolicy`, `eventPattern`, `onFailure`, `bisectBatchOnFunctionError`, `parallelizationFactor`, and `onDeliveryFailure`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly useful and covers the major trigger variants visible in events.d.ts, but it makes several compatibility and behavior claims that are not grounded in the provided source. The highest-impact problems are unsupported resource compatibility tables, unsupported batch-job internals, and a few AWS behavior statements presented as Stacktape facts without source support.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Not every trigger type works with every compute resource. The table below summarizes compatibility as defined in the Stacktape resource type definitions (`functions.d.ts`, `batch-jobs.d.ts`, `multi-container-workloads.d.ts`).\"",
+              "reason": "The provided source list contains only events.d.ts. The cited files are not provided, so compatibility for Lambda functions, batch jobs, and container workloads cannot be audited from the available source. Several compatibility rows, especially batch job support, depend on missing files.",
+              "suggestedFix": "Either provide and cite the compute resource type files, or narrow the table to integration interfaces visible in events.d.ts, such as function-style integrations and container workload integrations. Avoid saying compatibility is defined in files not included in the source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadHttpApiIntegration { type: 'http-api-gateway'; properties: ContainerWorkloadHttpApiIntegrationProps; }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface HttpApiIntegration { type: 'http-api-gateway'; properties: HttpApiIntegrationProps; }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Batch jobs use a helper Lambda function behind the scenes to receive events and start the job container. This is transparent — you configure the trigger the same way as for a Lambda function.\"",
+              "reason": "events.d.ts does not describe batch job trigger implementation or a helper Lambda. This may be true elsewhere, but it is not grounded in the provided source files.",
+              "suggestedFix": "Remove the implementation detail unless batch job source is available. Safer wording: \"Batch job trigger support is documented on the batch job and trigger-specific pages.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration { type: 'schedule'; properties: ScheduleIntegrationProps; }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegration { type: 'event-bus'; properties: EventBusIntegrationProps; }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The Stacktape type system also defines an `iot` integration type ... This integration type is not currently included in the `events` property of any compute resource.\"",
+              "reason": "The source supports that IotIntegration exists, but not the negative claim that no compute resource includes it in `events`. Negative compatibility claims require the compute resource type definitions, which are not provided.",
+              "suggestedFix": "Keep only the grounded part: \"events.d.ts defines an `iot` integration type with `sql` and optional `sqlVersion`; this overview does not cover a dedicated IoT trigger page.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface IotIntegration { type: 'iot'; properties: IotIntegrationProps; }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface IotIntegrationProps { /** #### The SQL statement for the IoT topic rule. */ sql: string; /** #### The version of the IoT SQL rules engine to use. */ sqlVersion?: string; }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Every compute resource in Stacktape needs at least one reason to run. Without a trigger, a Lambda function has no way to receive traffic, and a batch job has no way to start.\"",
+              "reason": "The source defines trigger integration types, but it does not establish that every compute resource needs a trigger, nor that batch jobs cannot be started without one. This is especially risky because batch jobs often have manual or script-driven execution paths in platforms.",
+              "suggestedFix": "Narrow the claim: \"Event-driven compute resources use triggers when you want external events, schedules, queues, or streams to start work.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegration { type: 'schedule'; properties: ScheduleIntegrationProps; }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegration { type: 'sqs'; properties: SqsIntegrationProps; }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "\"Poll-based triggers (SQS, Kinesis, DynamoDB streams, Kafka) create AWS Lambda event-source mappings that continuously poll the source and invoke your function with batches of records.\"",
+              "reason": "The provided source states batching behavior for these integrations, but only Kinesis explicitly describes polling modes. SQS says messages are processed in batches, DynamoDB says records are processed in batches, and Kafka says new messages are available; the shared implementation claim about Lambda event-source mappings and continuous polling is not stated for all four.",
+              "suggestedFix": "Split the statement into sourced behavior: \"SQS, Kinesis, DynamoDB streams, and Kafka deliver batches to the function. Kinesis explicitly supports direct polling and stream-consumer modes. The trigger-specific pages cover the AWS delivery mechanism where it matters.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. Two consumption modes: - **Direct**: Polls each shard ~1/sec, throughput shared with other consumers. - **Stream Consumer** (`autoCreateConsumer`): Dedicated connection per shard"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Messages are processed in batches. The function fires when `batchSize` is reached, `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"Push-based triggers (S3, SNS, CloudWatch Logs, schedules, EventBridge, alarms) configure the source service to invoke your function directly when an event occurs.\"",
+              "reason": "The source supports these as integrations, but EventBridge-style schedule and event bus integrations also expose `input`, `inputPath`, and `inputTransformer`; CloudWatch alarm exposes only `alarmName`. The broad \"source service invokes directly\" implementation wording is not in the provided source and may overstate a uniform mechanism across different AWS services.",
+              "suggestedFix": "Describe the shared Stacktape-level behavior without asserting a single AWS mechanism: \"These integrations do not expose batch polling controls in Stacktape. They fire from the configured source or rule when matching events occur.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ScheduleIntegrationProps { /** #### The schedule rate or cron expression. */ scheduleRate: string; ... input?: any; inputPath?: string; inputTransformer?: EventInputTransformer; }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface AlarmIntegrationProps { /** #### The name of the alarm (defined in the `alarms` section) that will trigger the function. */ alarmName: string; }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "\"EventBridge patterns support nested matching, prefix/suffix comparisons, and numeric ranges on any event field.\"",
+              "reason": "The source says EventBusIntegrationPattern.detail supports nested matching, prefix/suffix, and numeric comparisons, but it does not say these comparisons apply to any event field. The draft broadens a detail-field statement into all fields.",
+              "suggestedFix": "Scope the sentence to the sourced field: \"The `detail` field supports nested matching, prefix/suffix comparisons, and numeric comparisons.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationPattern { ... /** #### Filter by event payload content. Supports nested matching, prefix/suffix, numeric comparisons. */ detail?: any; }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "\"SQS and SNS are simpler to set up; EventBridge is more flexible but requires defining event patterns.\"",
+              "reason": "EventBridge requires `eventPattern`, but the source also shows SNS and SQS require either a resource name or ARN, and SNS may use `filterPolicy`. The \"simpler\" comparison is subjective and not grounded in the provided API source.",
+              "suggestedFix": "Replace with a concrete API comparison: \"SQS consumes from a queue, SNS subscribes to a topic and can filter by message attributes, and EventBridge requires an `eventPattern` for matching event fields.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface EventBusIntegrationProps { ... eventPattern: EventBusIntegrationPattern; }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps { snsTopicName?: string; snsTopicArn?: string; filterPolicy?: any; onDeliveryFailure?: SnsOnDeliveryFailure; }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft names all trigger/integration `type` values visible in events.d.ts, including `http-api-gateway`, `application-load-balancer`, `network-load-balancer`, `schedule`, `s3`, `sqs`, `sns`, `dynamo-db-stream`, `kinesis-stream`, `event-bus`, `cloudwatch-log`, `cloudwatch-alarm`, `kafka-topic`, `workload-internal`, `service-connect`, and `iot`.",
+            "The Stacktape configuration example uses `<CodeBlock intellisense>` with a `TypeScript` tab and focuses an `events` array, which satisfies the canonical event-binding example requirement.",
+            "The batching section covers the important batch controls from the source: `batchSize`, `maxBatchWindowSeconds`, defaults, and maximums for SQS, Kinesis, DynamoDB streams, and Kafka.",
+            "The draft correctly distinguishes `workload-internal` and `service-connect` as container networking integrations rather than event-driven triggers."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\overview.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.6, hard blockers 3, advisory high 2, verifier medium 11"
+}

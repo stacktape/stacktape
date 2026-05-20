@@ -1,0 +1,893 @@
+{
+  "pageId": "cli__defaults__configure",
+  "pageRoute": "cli/defaults-configure",
+  "startedAt": "2026-05-17T22:53:42.836Z",
+  "updatedAt": "2026-05-17T23:03:19.219Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__defaults__configure\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, pragmatic lead paragraph that immediately explains what the command does and why it matters",
+            "Correct use of <CliCommandsApiReference> for the flags table, matching the empty args:{} in source",
+            "Interactive UX is well-documented: blank=keep, space=unset, password masking",
+            "Related commands section is tightly scoped and useful",
+            "No forbidden style violations: no YAML Stacktape config, no StacktapeConfig type, no fenced TypeScript with defineConfig",
+            "Info callout confirming the command works before login is a helpful, grounded fact (confirmed in commandsNotRequiringApiKey list)"
+          ],
+          "problems": [
+            "Factual error: the CLI argument defaults table lists the property as `profile` but the source (commands.ts description) names it `awsProfile`. These are different strings and the docs should match the source.",
+            "Ungrounded default value: the table claims `profile` has a 'Default if unset' of `default`. No source file enumerates this default for awsProfile. This is an invented fact.",
+            "The 'Other defaults' property names (apiKey, executablePython, executableJavascript) are not visible in the provided source files. They are plausible inferences from the command description but are not directly grounded and should be stated with appropriate caution or omitted until sourced.",
+            "Storage path `~/.stacktape/persisted-state.json` is stated with confidence, but the source only shows `fsPaths.persistedStateFilePath()` — the resolution is not shown in the provided files. The claim may be correct but is not strictly grounded.",
+            "FAQ has only 5 entries; style guide recommends 8-10 for reference pages, with questions spanning Stacktape-specific, AWS-service-level, and comparison categories. The current FAQ is entirely Stacktape-specific with no comparison or AWS-background questions."
+          ],
+          "mandatoryFixes": [
+            "Rename `profile` to `awsProfile` in the CLI argument defaults table — the source (commands.ts) names this property `awsProfile`, not `profile`. Using the wrong key name misdirects users trying to set this value.",
+            "Remove the 'Default if unset: `default`' claim for the awsProfile row. No provided source file enumerates this default value; it is an invented fact. Either ground it from the actual config source or omit the Default column entry."
+          ],
+          "optionalImprovements": [
+            "Add a caveat on the 'Other defaults' table noting these property names are sourced from the command description; if the actual source (configurableGlobalDefaultOtherProps in @config) becomes available, verify the names match exactly.",
+            "Soften or note the storage path (`~/.stacktape/persisted-state.json`) as 'typically' or add a pointer to the `defaults:list` output which will print the actual path, since the source uses `fsPaths.persistedStateFilePath()` which could vary by platform.",
+            "Expand FAQ to 8+ entries by adding at least one AWS-context question (e.g., 'What is an AWS profile and where are profiles stored?') and one comparison question (e.g., 'When should I use defaults vs environment variables vs shell aliases?') — these are common searches that land users on this page.",
+            "Consider noting that since args:{} is empty (no flags), the Flags reference section will render an empty table — a one-sentence explanation prevents confusion ('This command takes no CLI flags; all configuration happens interactively.')"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear interactive-prompt flow description (blank = keep, space = unset) that maps directly to the source implementation in defaults-configure/index.ts.",
+            "Correctly notes the command does not require an API key, sourced from commandsNotRequiringApiKey in commands.ts.",
+            "FAQ mixes Stacktape-specific, behavior, and storage questions well for a utility command of this scope.",
+            "Tables are well-structured and improve scannability for what is otherwise a prose-heavy page.",
+            "Single-command-per-fenced-block rule followed correctly throughout; no multi-command blocks."
+          ],
+          "problems": [
+            "Factual inaccuracy: the configurable property is named `awsProfile` in the command description source (`src/config/cli/commands.ts`), but the page's table labels it `profile`. A user trying to reference or script against this property name will be misled.",
+            "Unsupported claim: `executablePython` (a Python executable setting) is listed as a configurable default. The only source reference to executables (`src/config/cli/commands.ts` command description) says 'default executables for resolving Node.js directives' — no Python executable is mentioned. The `@config` source file defining `configurableGlobalDefaultOtherProps` was not provided, so this claim is ungrounded and potentially invented.",
+            "File path `~/.stacktape/persisted-state.json` is inferred from `fsPaths.persistedStateFilePath()` but that function's implementation is not in the provided source. The path is stated as a fact without direct source grounding; should be phrased cautiously or omitted.",
+            "Examples section is thin and redundant: it re-shows `stacktape defaults:configure` (already shown in Usage) without new information, then pivots to `stacktape defaults:list` which belongs in Related Commands rather than as a usage example. The section does not add value beyond what Usage already covers."
+          ],
+          "mandatoryFixes": [
+            "Correct the property name in the CLI argument defaults table: replace `profile` with `awsProfile` to match the source command description in src/config/cli/commands.ts.",
+            "Remove or clearly qualify `executablePython` from the Other defaults table. The provided source (commands.ts description) only mentions 'Node.js directives' for executable defaults. Either drop the Python row or add a caveat like 'if applicable' and explicitly name `executableJavascript` as the sourced property. Do not assert the Python executable setting exists until the @config source confirms it.",
+            "Qualify the persisted-state file path: `~/.stacktape/persisted-state.json` is not directly verified by the provided source files. Replace with 'a local file in your home directory (path printed after saving)' or add inline sourcing context so readers are not misled if the path differs on their system."
+          ],
+          "optionalImprovements": [
+            "Replace the thin Examples section with a genuinely new scenario — for example, showing how pre-configuring region and stage shortens a real deploy invocation (before/after comparison). The current section just repeats the Usage block.",
+            "The Info callout about not needing an API key is correct but placed mid-page after 'Where defaults are stored'. It would be more useful immediately after the opening paragraph, since developers often check this before doing anything else.",
+            "Consider noting that defaults set here are consumed by all Stacktape commands on the machine — not project-scoped — in the opening paragraph rather than only in the FAQ. This is the most common gotcha for teams using multiple projects."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page is concise and easy to scan, with a clear Usage section, examples, related commands, and an FAQ.",
+            "Shell examples follow the copy-button rule: one command per fenced bash block and no explanatory comments inside command blocks.",
+            "The page uses the required <CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} /> component and does not hand-author a flags table."
+          ],
+          "problems": [
+            "The opening paragraph is under the 40-75 word target, which weakens answer-engine extractability even though it generally answers what the command does.",
+            "Several specific defaults are not grounded in the provided source files: `profile` defaulting to `default`, `executablePython` defaulting to `python`, `executableJavascript` defaulting to `node`, and `apiKey` being configurable through this command are not visible in the supplied sources.",
+            "The configurable CLI argument name appears wrong or at least inconsistent with the authoritative command definition: the source lists `awsProfile`, while the draft documents `profile`.",
+            "The page claims defaults apply to every command that accepts them, but the supplied source only says the command sets system-wide default arguments for Stacktape commands. The wording should be narrowed unless the default-resolution behavior is sourced elsewhere.",
+            "The \"Where defaults are stored\" section gives a concrete path and says the file is not checked into version control. The save path is grounded through `fsPaths.persistedStateFilePath()`, but the exact `~/.stacktape/persisted-state.json` path and version-control claim are not proven by the provided source.",
+            "The page order drifts from the CLI page instruction: the auto-generated reference should come immediately after the usage example, before deeper examples and related commands.",
+            "The FAQ repeats points already covered in the main body and has only Stacktape-specific questions. For a CLI reference page this is not fatal, but the answers could be more compact and less duplicative."
+          ],
+          "mandatoryFixes": [
+            "Correct `profile` to the source-grounded `awsProfile`, or cite/read the source that proves the persisted default property is actually named `profile`.",
+            "Remove or narrow unsupported default-value claims for `profile`, `executablePython`, `executableJavascript`, and `apiKey` unless the relevant `configurableGlobalDefaultCliArgs` and `configurableGlobalDefaultOtherProps` source is provided.",
+            "Move `<CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} />` directly after the Usage section to match the CLI page structure.",
+            "Revise the first paragraph to 40-75 words and keep it self-contained: what `defaults:configure` does, that it is interactive, and why a developer would use it."
+          ],
+          "optionalImprovements": [
+            "Replace \"every command that accepts them\" with more cautious wording such as \"commands that read global CLI defaults\" unless default precedence is explicitly sourced.",
+            "Clarify that entering whitespace to unset is only offered when a current value exists, matching the prompt description logic in `src/commands/defaults-configure/index.ts`.",
+            "Consider trimming the FAQ to the few questions not already answered directly above, or make the FAQ more search-oriented around global vs project defaults, precedence, clearing values, and API key handling.",
+            "If the exact persisted-state file path is important, include or verify the `fsPaths.persistedStateFilePath()` source before documenting the literal `~/.stacktape/persisted-state.json` path."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command and implementation sources, but it overstates a few implementation details that are either unsupported by the provided source or contradicted by the command implementation.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The configurable CLI argument defaults table lists `profile` as the property and says it corresponds to AWS profile.",
+              "reason": "The command definition and generated CLI reference name the configurable default as `awsProfile`, not `profile`. Documenting `profile` would mislead readers about the default property name used by this command.",
+              "suggestedFix": "Change the table row from `profile` to `awsProfile`. If you mention the CLI flag separately, keep that wording distinct from the persisted/configurable property name.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can set defaults for:\n- `region`\n- `stage`\n- `awsProfile`\n- `projectName`\n- `awsAccount`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\defaults-configure.md",
+                  "quote": "You can set defaults for:\n- `region`\n- `stage`\n- `awsProfile`\n- `projectName`\n- `awsAccount`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says `defaults:configure` can configure `executablePython` and that the executable settings control Python and Node.js runtime binaries.",
+              "reason": "The provided command definition only says the command can configure default executables for resolving Node.js directives. The provided sources do not mention `executablePython`, Python directives, or a configurable Python executable for this command.",
+              "suggestedFix": "Remove the `executablePython` row and narrow the prose to the sourced claim: `defaults:configure` can configure default executables for resolving Node.js directives. Keep `executableJavascript` only if another provided source grounds that exact property name.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can also configure default executables for resolving Node.js directives."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\defaults-configure.md",
+                  "quote": "You can also configure default executables for resolving Node.js directives."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says unset values are shown as `<< not-set >>`.",
+              "reason": "The implementation only substitutes `<< not-set >>` when the current redacted value is exactly `null`; it does not show that string for `undefined` or every possible unset state. The provided source does not support the broader statement that all unset values display as `<< not-set >>`.",
+              "suggestedFix": "Write more narrowly, for example: \"The prompt shows the current value and displays `<< not-set >>` when the stored/current value is `null`.\" Alternatively omit the exact sentinel if the user does not need it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const redactedValueToPrint = currentValueRedacted === null ? '<< not-set >>' : currentValueRedacted;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Defaults are persisted to `~/.stacktape/persisted-state.json`.",
+              "reason": "The command prints the path returned by `fsPaths.persistedStateFilePath()`, but the provided sources do not define that helper or show the concrete path. The exact path is not grounded by the provided source files.",
+              "suggestedFix": "Use implementation-grounded wording: \"The command saves defaults through Stacktape's global state manager and prints the resolved file path after saving.\" Only include `~/.stacktape/persisted-state.json` if a provided source defines `fsPaths.persistedStateFilePath()` as that path.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The API key is stored in `~/.stacktape/persisted-state.json` as plain text and is not encrypted at rest.",
+              "reason": "The provided source shows sensitive prompt values are masked when displayed, but it does not show the persisted file format or whether values are encrypted, encoded, or stored as plain text. This is a security-sensitive storage claim and needs direct source support.",
+              "suggestedFix": "Keep the sourced part: \"The prompt masks sensitive current values while displaying them.\" Remove the plain-text and encryption-at-rest claims unless a provided persistence source grounds them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const currentValueRedacted = prop.isSensitive ? maskString(currentValue) : currentValue;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The file is local to your machine and is not checked into version control.",
+              "reason": "The provided source only shows the command saves defaults through the global state manager and prints a resolved file path. It does not state version-control behavior or whether the path is inside or outside a repository.",
+              "suggestedFix": "Remove the version-control claim or replace it with the sourced behavior that the command saves defaults and prints the destination path.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly uses the documented command invocation `stacktape defaults:configure` and shows it as a single command per shell block.",
+            "The `<CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} />` component matches the command name and the source command definition has no args.",
+            "The draft correctly states that `defaults:configure` has no required arguments and does not require an API key; `commandsNotRequiringApiKey` includes `defaults:configure`.",
+            "The draft correctly describes the interactive blank input behavior and single-space unset behavior at a high level, matching the prompt implementation."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation, but it contains several unsupported or mismatched details about configurable property names, Python executable support, storage/security specifics, and command behavior scope.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft lists the configurable CLI argument default as `profile` and says its default if unset is `default`.",
+              "reason": "The command source names the configurable AWS profile default as `awsProfile`, not `profile`. The provided sources do not support a built-in default value of `default` for this setting.",
+              "suggestedFix": "Change the property name to `awsProfile` and avoid claiming a specific default unless the source file defining `configurableGlobalDefaultCliArgs` is included and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can set defaults for:\n- `region`\n- `stage`\n- `awsProfile`\n- `projectName`\n- `awsAccount`"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says `executablePython` is configurable, defaults to `python`, and controls Python script directive resolution.",
+              "reason": "The command definition only says the command can configure default executables for resolving Node.js directives. The provided sources do not list `executablePython`, a Python default, or Python directive behavior for this command.",
+              "suggestedFix": "Remove `executablePython` and Python-specific behavior, or narrow the text to the sourced Node.js executable behavior only.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can also configure default executables for resolving Node.js directives."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\defaults-configure.md",
+                  "quote": "You can also configure default executables for resolving Node.js directives."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft states defaults are persisted to `~/.stacktape/persisted-state.json` and that the command prints the full path after saving.",
+              "reason": "The implementation saves to `fsPaths.persistedStateFilePath()` and prints a prettified file path, but the provided source does not reveal the concrete path or prove it is `~/.stacktape/persisted-state.json`.",
+              "suggestedFix": "Say the command saves defaults to Stacktape's persisted state file and prints the saved path, unless the source defining `fsPaths.persistedStateFilePath()` is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says the API key is stored as plain text in `~/.stacktape/persisted-state.json` and is not encrypted at rest.",
+              "reason": "The provided implementation confirms sensitive values are masked in prompts, but it does not show the persisted file format, encryption behavior, or concrete storage path. This is a security-sensitive claim that needs direct source backing.",
+              "suggestedFix": "Keep the sourced masking behavior, and either remove the plaintext/encryption claim or ground it in the global state manager / persisted state source file.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const currentValueRedacted = prop.isSensitive ? maskString(currentValue) : currentValue;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says configured defaults apply to every command that accepts them and gives `stacktape deploy` as an example of using configured `region` and `stage` unless overridden.",
+              "reason": "The command definition confirms the command sets system-wide default arguments, but the provided sources do not show the argument resolution logic proving that every accepting command consumes these defaults or that explicit flags take precedence.",
+              "suggestedFix": "Narrow the claim to the sourced behavior: `defaults:configure` sets system-wide default arguments for Stacktape commands. If retaining precedence language, include the CLI argument resolution source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "description: `Sets system-wide default arguments for Stacktape commands."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says defaults are machine-wide, apply to all projects on your machine, and cannot be set per project.",
+              "reason": "The source supports system-wide defaults, but it does not explicitly document absence of project-specific defaults. Negative support claims should be grounded in argument resolution or configuration source, not inferred.",
+              "suggestedFix": "Say `defaults:configure` sets system-wide defaults. Avoid the stronger `No per-project defaults` claim unless backed by the relevant defaults resolution code.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Sets system-wide default arguments for Stacktape commands."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says unset values are shown as `<< not-set >>`.",
+              "reason": "The implementation prints `<< not-set >>` only when the redacted current value is `null`; the provided sources do not show whether all unset configurable defaults use `null` rather than `undefined`.",
+              "suggestedFix": "Narrow the wording to `the prompt shows the current value, and may show << not-set >> for an unset value` unless the configurable defaults source confirms the sentinel value.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says `apiKey` and `executableJavascript` are configurable defaults, with `executableJavascript` defaulting to `node`.",
+              "reason": "The implementation imports `configurableGlobalDefaultOtherProps`, but the provided sources do not include that object. The command prose supports a Node.js executable default in general, but not the exact property name or default value.",
+              "suggestedFix": "Avoid exact property names and default values for other defaults unless the source file defining `configurableGlobalDefaultOtherProps` is included.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The usage block is correct: `defaults:configure` has no CLI arguments and no required flags in `src/config/cli/commands.ts`.",
+            "The draft correctly states that `defaults:configure` does not require an API key; `src/config/cli/commands.ts` includes it in `commandsNotRequiringApiKey`.",
+            "The draft correctly describes the interactive blank-input and single-space unset behavior shown in `src/commands/defaults-configure/index.ts`.",
+            "The page uses the required `<CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} />` component and does not hand-author unsupported Stacktape configuration examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly structurally aligned for a CLI command page: it documents one command, uses one-command shell blocks, includes the generated CLI reference component, and links the closest sibling command. The main problems are source-grounding gaps around configurable property names, default values, and storage/security behavior that are not supported by the provided files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The configurable CLI argument defaults table lists `profile` as the AWS profile property.",
+              "reason": "The command definition names the configurable AWS profile default as `awsProfile`, not `profile`. Using `profile` would send readers looking for the wrong persisted/default property name.",
+              "suggestedFix": "Change `profile` to `awsProfile` wherever the configurable default is named. If you want to mention the corresponding command-line flag, phrase it separately and only if supported by the relevant option source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can set defaults for:\n- `region`\n- `stage`\n- `awsProfile`\n- `projectName`\n- `awsAccount`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft gives concrete default-if-unset values, including `profile` = `default`, `executablePython` = `python`, and `executableJavascript` = `node`.",
+              "reason": "The provided sources show that defaults can exist through `prop.default`, but they do not provide the concrete default values for each configurable property. The draft should not state exact defaults unless the file defining `configurableGlobalDefaultCliArgs` and `configurableGlobalDefaultOtherProps` is included.",
+              "suggestedFix": "Remove the `Default if unset` column or narrow it to sourced behavior: leaving a value unset uses that property's configured built-in default when one exists. Do not name concrete default values unless the constants source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const currentValue = persistedData[propName] || prop.default;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "result[propName] = prop.default;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says `defaults:configure` can configure `apiKey`, `executablePython`, and `executableJavascript`.",
+              "reason": "The command definition only enumerates `region`, `stage`, `awsProfile`, `projectName`, `awsAccount`, and says it can configure default executables for resolving Node.js directives. The implementation imports `configurableGlobalDefaultOtherProps`, but the provided source does not enumerate its keys. `apiKey`, Python, and the exact executable property names are therefore not grounded in the supplied files.",
+              "suggestedFix": "Keep the sourced statement that the command can configure default executables for resolving Node.js directives. Remove `apiKey`, `executablePython`, and `executableJavascript` unless the constants file that defines `configurableGlobalDefaultOtherProps` is added as source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can also configure default executables for resolving Node.js directives."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "configurableGlobalDefaultOtherProps"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Defaults are persisted to `~/.stacktape/persisted-state.json`.",
+              "reason": "The implementation prints the path returned by `fsPaths.persistedStateFilePath()`, but the provided sources do not define that path. The exact `~/.stacktape/persisted-state.json` location is not grounded by the included files.",
+              "suggestedFix": "Write that Stacktape saves defaults to the persisted state file path printed by the command after saving, or include the `fsPaths` source before naming the exact path.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The API key is stored in `~/.stacktape/persisted-state.json` as plain text and is not encrypted.",
+              "reason": "The provided sources show sensitive prompt values are masked when displayed, but they do not show that `apiKey` is configurable by this command or how persisted state is serialized at rest. The plaintext and encryption claims are not supported by the supplied files.",
+              "suggestedFix": "Replace the FAQ answer with the sourced behavior: sensitive values are entered through a password prompt and masked when the current value is shown. Avoid storage security claims unless the global state manager or persisted state source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const currentValueRedacted = prop.isSensitive ? maskString(currentValue) : currentValue;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "isPassword: prop.isSensitive"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The executable settings control which runtime binary Stacktape uses when resolving directives that invoke Node.js or Python scripts.",
+              "reason": "The command definition only mentions default executables for resolving Node.js directives. Python directive behavior is not present in the provided command source.",
+              "suggestedFix": "Narrow the sentence to Node.js directives, or include the source that documents Python executable defaults before mentioning Python.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can also configure default executables for resolving Node.js directives."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says setting a default `region` and `stage` saves typing those flags on every deploy, delete, or debug command.",
+              "reason": "The command source supports system-wide defaults for Stacktape commands, but `delete` does not require `stage` in the provided command definitions. The example overstates the usefulness of `stage` for `delete`.",
+              "suggestedFix": "Use commands that require both `region` and `stage`, such as `deploy`, `dev`, `compile-template`, or `debug:logs`, or say that each command uses only the defaults for arguments it accepts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "delete: {\n    description: `Deletes your stack from AWS."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "requiredArgs: ['region'] as const"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly documents `defaults:configure` as a no-argument command and uses `<CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} />`, which matches the command definition's empty `args` object.",
+            "The shell examples follow the one-command-per-block rule.",
+            "The draft correctly states that `defaults:configure` does not require an API key; the command appears in `commandsNotRequiringApiKey`.",
+            "The interactive prompt behavior for leaving input blank and using a single space to unset is grounded in the command implementation."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__defaults__configure\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Interactive prompt behavior is explained with concrete detail that matches the source code (blank = keep, space = unset, sensitive values masked) — first-time readers will know exactly what to expect before running the command.",
+            "FAQ covers all three required categories: Stacktape-specific questions, CI/CD usage (a high-value real-world concern), and choosing-between-approaches (defaults vs. shell aliases). Nine entries, all distinct and useful.",
+            "The 'How defaults interact with CLI flags' section directly answers the most common follow-up question without burying it deep in the page.",
+            "Related commands section and cross-links to defaults:list and login are well placed and save the reader a search.",
+            "No forbidden patterns: no YAML config blocks, no StacktapeConfig imports, no fenced TypeScript with defineConfig, no marketing language, and each bash block contains exactly one command.",
+            "The Tip callout correctly identifies the 80% use case (region, stage, awsProfile) and tells readers to skip the rest — good audience fit for low-AWS-experience developers."
+          ],
+          "problems": [
+            "The 'Where defaults are stored' section claims the file path is `~/.stacktape/persisted-state.json`. The source code references `fsPaths.persistedStateFilePath()` imported from `@shared/naming/fs-paths`, which is not in the provided source files. The path cannot be verified from the supplied sources and may be wrong or platform-dependent.",
+            "The 'Other defaults' table claims the command prompts for 'API key' and 'Executable paths'. The source code references `configurableGlobalDefaultOtherProps` from `@config`, which is not in the provided source files. Presenting these as grounded facts is overreaching — the source only says 'You can also configure default executables for resolving Node.js directives' (no mention of API key in the command description).",
+            "The FAQ mentions `STP_API_KEY` as an environment variable alternative to storing the API key on disk. This env var is not present in the provided source files. It may be correct, but it reads as an unsupported claim from the provided source.",
+            "The 'Examples' section partially duplicates the 'Usage' section — both give the same `stacktape defaults:configure` invocation and describe the same prompts. The Examples section adds little new value for this particular command, which has no flags to demonstrate."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Qualify the `~/.stacktape/persisted-state.json` path claim with a note like 'the exact path is printed by the command after saving' rather than stating it as a hard fact, since the source only shows `fsPaths.persistedStateFilePath()` without exposing the resolved string.",
+            "Remove or narrow the 'Other defaults' table row for 'API key' unless `configurableGlobalDefaultOtherProps` can be verified. The source's command description only explicitly names executables, not the API key. If the API key row is kept, source it from the login/logout command relationship rather than presenting it as an 'Other defaults' table fact.",
+            "Either verify `STP_API_KEY` in the source before including it in the FAQ answer, or soften the claim to 'you can typically pass the API key as an environment variable — check your platform docs or the Stacktape Console for the exact variable name'.",
+            "Collapse or trim the 'Examples' section since this command takes no flags and the interactive walkthrough is already fully explained in 'Usage'. The section currently re-states the same command and prompt flow. One or two sentences pointing to defaults:list as the complement is sufficient — the rest is padding for a zero-arg command."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The interactive UX mechanics (blank = keep, space = unset, new value = update) are explained precisely and are directly grounded in the command source code's promptText/maskString logic.",
+            "Correct use of `<CliCommandsApiReference command='defaults:configure' sortedArgs={[]} />` for a command with no flags — the empty array matches `args: {}` in commands.ts exactly.",
+            "The 'no API key required' claim is correctly sourced from the `commandsNotRequiringApiKey` array in commands.ts.",
+            "The FAQ spans all three required categories (Stacktape-specific, AWS/CI behavior, comparison/choosing) and is genuinely useful rather than padded.",
+            "Single-command-per-bash-block discipline is maintained throughout with no explanatory `#` comments inside code blocks.",
+            "The post-save 'prints the path' behavior is source-grounded in the `tuiManager.success(...)` call in the command implementation."
+          ],
+          "problems": [
+            "The hardcoded storage path `~/.stacktape/persisted-state.json` is not confirmed by any provided source file. The implementation calls `fsPaths.persistedStateFilePath()` whose definition is not in scope — this path could vary by platform or configuration, making the claim potentially misleading for Windows or custom installs.",
+            "The `STP_API_KEY` environment variable name (mentioned in the FAQ security answer) is not present in any provided source file. Claiming this as a supported escape hatch could mislead users if the actual env var name differs.",
+            "The executables description says 'resolving Node.js directives and other script invocations' — the source command description says only 'resolving Node.js directives'. The 'other script invocations' extension is unsupported.",
+            "The FAQ states the API key is configurable via `defaults:configure`, but the command's description in commands.ts lists only `region`, `stage`, `awsProfile`, `projectName`, `awsAccount` explicitly. The API key claim is inferred from the code behavior (isSensitive masking) but not from the source description — worth flagging as a moderate source-grounding gap."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace the hardcoded `~/.stacktape/persisted-state.json` path with 'the path is printed to the terminal after saving' — this is the source-confirmed behavior (`tuiManager.success(...)` prints it) and remains accurate regardless of OS or install layout.",
+            "Remove the `STP_API_KEY` env var reference from the FAQ security answer. Instead describe the API-key escape hatch as 'pass `--apiKey` on the command line or configure it interactively via `defaults:configure`' — both are confirmed by source.",
+            "Tighten the executables row description to match source exactly: 'for resolving Node.js directives' — drop 'and other script invocations'.",
+            "The 'Configurable defaults' section could note that the full list printed at runtime may differ from the table if Stacktape adds new defaults — a one-line 'run the command to see the authoritative current list' hedges against docs drift without weakening the table's usefulness.",
+            "Consider moving the `<CliCommandsApiReference>` block before the 'Examples' section rather than after — for a no-args command the reference table is very short and reads better as a quick confirmation before the examples rather than as a trailing section."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page opens with a self-contained answer-first paragraph that explains what `defaults:configure` does and why a developer would use it.",
+            "The Usage section is practical and correctly shows the command with no flags, matching the source definition with `args: {}` and no required arguments.",
+            "The page uses the required `<CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} />` component and does not hand-author a flags table.",
+            "The structure is easy to scan: usage, configurable defaults, precedence, storage, examples, reference, related commands, FAQ."
+          ],
+          "problems": [
+            "Several operational details are not grounded in the provided source. The exact storage path `~/.stacktape/persisted-state.json`, version-control advice, file encryption claim, `STP_API_KEY` environment variable guidance, and shell-alias recommendation are not supported by the listed files.",
+            "The draft says prompts display `<< not-set >>` when no value has been set, but the implementation only maps `null` to `<< not-set >>`; an `undefined` current value would be printed as `undefined` from the shown code.",
+            "The draft says entering a space resets a value to its built-in default or clears it entirely. The implementation sets the result to `prop.default`; the source does not establish the broader clearing behavior.",
+            "The draft claims defaults for `deploy`, `delete`, and `debug:logs` in ways that are partly too broad. `delete` requires `region` but not `stage`; `debug:logs` requires `stage`, `region`, and `resourceName`. The page should be more precise about which configured defaults can apply to each command.",
+            "The `Other defaults` table says API key is prompted by `defaults:configure`, but the command definition only mentions default executables. The runtime source imports `configurableGlobalDefaultOtherProps` but does not enumerate its contents in the provided files, so API-key configuration is ambiguous from the supplied source.",
+            "The FAQ includes useful but unsupported claims about CI/CD behavior, project-specific defaults, ignored defaults for unsupported flags, and API key storage/security. These may be reasonable, but they are not grounded in the provided source set.",
+            "The page has a `<Tip>` and `<Warning>` callout without example-page guidance. This is not automatically wrong, but the warning contains unsupported security details and should be narrowed or sourced."
+          ],
+          "mandatoryFixes": [
+            "Remove or source the exact persisted-state path claim. The provided runtime only shows that the success message prints `fsPaths.persistedStateFilePath()`, not the literal `~/.stacktape/persisted-state.json` path.",
+            "Correct the prompt-display wording: say the implementation prints the current value from persisted defaults or the configured default, masks sensitive values, and uses `<< not-set >>` only when the redacted value is `null`, unless another source proves undefined values are rendered that way.",
+            "Narrow the unset behavior to the source: entering a single space sets that property to `prop.default`; do not claim it clears entirely unless the save/default implementation is provided and proves that behavior.",
+            "Remove or qualify unsupported API-key storage/security guidance, including the local file encryption claim and `STP_API_KEY` environment variable recommendation, unless source files for those behaviors are added.",
+            "Revise the command-interaction examples so each statement is exact: `deploy` can use default `region`, `stage`, and `projectName`; `delete` can use default `region`; `debug:logs` can use default `region` and `stage` but still requires `resourceName`."
+          ],
+          "optionalImprovements": [
+            "Move the flags reference before extended examples to match the human-maintained CLI-page rhythm exactly: short intro, usage example, auto-generated reference, examples, related commands.",
+            "Add a short note that `defaults:configure` has no command-line flags, which explains why `sortedArgs={[]}` renders an empty or minimal reference.",
+            "Keep the FAQ, but trim it to questions directly supported by the source: login requirement, no flags, configurable default names, explicit flag precedence if supported elsewhere, and relationship to `defaults:list`.",
+            "If additional source files are available, include `configurableGlobalDefaultCliArgs`, `configurableGlobalDefaultOtherProps`, `global-state-manager`, and `fsPaths` so storage location, API key behavior, descriptions, and default clearing can be documented confidently."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the available CLI command definition and implementation, but it makes several specific claims that are not grounded in the provided sources, especially around API key handling and the exact persisted-state path.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says `defaults:configure` prompts for an API key, masks that API key, stores it in the defaults file, can be used instead of `login` to configure the API key, and supports `STP_API_KEY` as an alternative.",
+              "reason": "The provided `defaults:configure` command description lists configurable CLI defaults and default executables only. The implementation uses generic `otherDefaults`, but the provided source does not identify an API key as one of those defaults. The provided `login` command, not `defaults:configure`, is the source-backed command for configuring the Stacktape API key.",
+              "suggestedFix": "Remove API-key-specific claims from this page unless the source list includes `configurableGlobalDefaultOtherProps` showing an API-key entry. Keep the supported claim that `defaults:configure` does not require an API key, and refer to `login` for API key configuration.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "  'defaults:configure': {\n    description: `Sets system-wide default arguments for Stacktape commands.\n\nYou can set defaults for:\n- `region`\n- `stage`\n- `awsProfile`\n- `projectName`\n- `awsAccount`\n\nYou can also configure default executables for resolving Node.js directives.`,"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "  login: {\n    description: `Configures your Stacktape API key for the current system.\n\nAll subsequent operations will be associated with the user and organization linked to this API key. You can get your API key from the [Stacktape console](https://console.stacktape.com/api-keys). You can provide the key with the `--apiKey` option or enter it interactively.`,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Defaults are saved to `~/.stacktape/persisted-state.json`.",
+              "reason": "The command prints the path returned by `fsPaths.persistedStateFilePath()`, but the provided sources do not define that helper or prove the literal `~/.stacktape/persisted-state.json` path. Hard-coding the path is more specific than the available source supports.",
+              "suggestedFix": "Say that after saving, `defaults:configure` prints the local persisted-state file path. Only name the exact path if `fsPaths.persistedStateFilePath()` is included in the source list and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "  tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "When no value has been set, the prompt displays `<< not-set >>`.",
+              "reason": "The implementation displays `<< not-set >>` only when `currentValueRedacted === null`. The provided source does not show that every unset default is represented as `null`; if a value is `undefined`, this code path would not produce the placeholder.",
+              "suggestedFix": "Narrow the wording to the source-backed behavior: the prompt includes the current value, and values represented as `null` are displayed as `<< not-set >>`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "    const currentValue = persistedData[propName] || prop.default;\n    const hasValue = currentValue !== undefined && currentValue !== null;\n    const currentValueRedacted = prop.isSensitive ? maskString(currentValue) : currentValue;\n    const redactedValueToPrint = currentValueRedacted === null ? '<< not-set >>' : currentValueRedacted;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "Sensitive values are masked, showing only the last four characters.",
+              "reason": "The masking helper returns strings of length four or less unchanged. The claim is directionally right for longer sensitive values, but the exact behavior has an exception.",
+              "suggestedFix": "Write that sensitive values longer than four characters are masked with only the last four characters visible.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const maskString = (input: string): string => {\n  if (input.length <= 4) {\n    return input;\n  }\n\n  const maskedPart = '*'.repeat(input.length - 4);\n  const visiblePart = input.slice(-4);\n\n  return maskedPart + visiblePart;\n};"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The basic usage command `stacktape defaults:configure` is correct and the command has no required arguments.",
+            "The draft correctly states that `defaults:configure` does not require an API key; the command is listed in `commandsNotRequiringApiKey`.",
+            "The configurable CLI argument defaults listed in the draft match the command description: `region`, `stage`, `awsProfile`, `projectName`, and `awsAccount`.",
+            "The page uses the required `<CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} />` component, which matches the command's empty args object."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided command definition and implementation, but it contains several unsupported details about API-key handling, exact persisted-state storage, and environment-variable behavior that are not grounded in the supplied sources. The core command name, no-arg usage, configurable CLI argument names, interactive prompting, whitespace unset behavior, and API-reference component are supported.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly says `defaults:configure` configures and stores the Stacktape API key, including: “The command does not require an API key…”, “API key | Your Stacktape API key…”, “login — configure your Stacktape API key (can also be set via `defaults:configure`)”, and the FAQ sections about API-key storage and `STP_API_KEY`.",
+              "reason": "The provided `defaults:configure` command description lists CLI defaults and executable defaults, but it does not list API key as configurable. The implementation imports `configurableGlobalDefaultOtherProps`, but the supplied sources do not show which properties are in that object. Treating API key as a configurable default is therefore not grounded in the provided sources.",
+              "suggestedFix": "Remove claims that `defaults:configure` sets or stores the API key unless the source list includes `configurableGlobalDefaultOtherProps` showing an API-key property. Keep the supported statement that the command does not require an API key.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'defaults:configure': {\n    description: `Sets system-wide default arguments for Stacktape commands.\n\nYou can set defaults for:\n- `region`\n- `stage`\n- `awsProfile`\n- `projectName`\n- `awsAccount`\n\nYou can also configure default executables for resolving Node.js directives.`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "configurableGlobalDefaultOtherProps"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Defaults are saved to `~/.stacktape/persisted-state.json`.”",
+              "reason": "The implementation prints the result of `fsPaths.persistedStateFilePath()`, but the provided sources do not define that helper or show the literal path. The exact filepath is not grounded in the supplied source files.",
+              "suggestedFix": "Narrow the wording to: “After saving, Stacktape prints the path to the persisted-state file where defaults were saved.” Do not name the exact path unless `fsPaths.persistedStateFilePath()` is included in the source list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“When no value has been set, the prompt displays `<< not-set >>`.”",
+              "reason": "The code only prints `<< not-set >>` when the redacted current value is exactly `null`. When no persisted value exists, `currentValue` is `persistedData[propName] || prop.default`; if `prop.default` is `undefined`, the displayed current value would not be `<< not-set >>` according to the shown code.",
+              "suggestedFix": "Write more narrowly: “The prompt shows the current stored value or the property default when one is defined.” If you mention `<< not-set >>`, limit it to cases where the current value is `null`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const currentValue = persistedData[propName] || prop.default;\n    const hasValue = currentValue !== undefined && currentValue !== null;\n    const currentValueRedacted = prop.isSensitive ? maskString(currentValue) : currentValue;\n    const redactedValueToPrint = currentValueRedacted === null ? '<< not-set >>' : currentValueRedacted;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Enter a space character to unset the value, resetting it to its built-in default (if one exists) or clearing it entirely.”",
+              "reason": "The implementation sets the result to `prop.default` when the input is exactly one space. It does not explicitly clear the value entirely; whether saving `undefined` clears a value depends on `saveDefaults`, which is not included in the supplied sources.",
+              "suggestedFix": "Say: “Enter a single space to reset that property to its configured default value.” Avoid claiming it clears the value entirely unless `saveDefaults` behavior is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const shouldUnset = inputValue === ' ';\n    if (!isEmptyString) {\n      result[propName] = inputValue;\n    }\n    if (shouldUnset) {\n      result[propName] = prop.default;\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Explicit CLI flags always take precedence over configured defaults.”",
+              "reason": "The supplied sources show that defaults are saved, but they do not show the argument-resolution logic that merges persisted defaults with explicit CLI arguments. The precedence behavior may be true, but it is not grounded in the provided source list.",
+              "suggestedFix": "Either include the CLI argument resolution source in the evidence set or phrase this cautiously: “Configured defaults are intended to fill in values when you do not pass the corresponding CLI flag.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Sets system-wide default arguments for Stacktape commands."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The default is simply ignored for that command. For example, if you set a default `stage`, commands that don't accept `--stage` (like `help` or `version`) are unaffected.”",
+              "reason": "The provided sources show that `help` and `version` have no `stage` argument, but they do not show the default-application code path or confirm that unknown defaults are ignored for commands that do not accept the corresponding arg.",
+              "suggestedFix": "Keep the concrete supported part: “`help` and `version` do not define a `stage` argument.” Remove or soften the behavior claim unless the argument resolution source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "help: {\n    description: `Displays help information for commands and their options.`,\n    args: {\n      command: command.optional()\n    },\n    requiredArgs: [] as const\n  },\n\n  version: {\n    description: `Prints the current version of Stacktape.`,\n    args: {},\n    requiredArgs: [] as const\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“This shows both CLI argument defaults (region, stage, profile) and other stored settings.”",
+              "reason": "The `defaults:list` source is not provided. `commands.ts` only says the command prints all configured system-wide Stacktape defaults; it does not confirm the exact grouping or displayed fields.",
+              "suggestedFix": "Use the sourced wording: “`defaults:list` prints all configured system-wide Stacktape defaults.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says executable paths are “default executables for resolving Node.js directives and other script invocations” and that they matter when binaries are outside `PATH`.",
+              "reason": "The command description supports “default executables for resolving Node.js directives,” but the supplied sources do not mention “other script invocations” or the `PATH`/version-manager scenario.",
+              "suggestedFix": "Limit this to the supported wording: “default executables for resolving Node.js directives.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The no-argument usage example `stacktape defaults:configure` is supported because the command has `args: {}` and `requiredArgs: []`.",
+            "The listed configurable CLI argument defaults `region`, `stage`, `awsProfile`, `projectName`, and `awsAccount` match the command description in `src/config/cli/commands.ts`.",
+            "The statement that `defaults:configure` does not require an API key is supported by `commandsNotRequiringApiKey` including `defaults:configure`.",
+            "The interactive prompt behavior, blank input keeping values unchanged, single-space reset behavior, sensitive masking, and final success message are broadly supported by `src/commands/defaults-configure/index.ts`.",
+            "The page uses `<CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} />`, which matches the command name and the fact that the command defines no CLI args."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page is mostly complete for a no-argument CLI command: it includes usage, the required auto-generated reference component, and related commands. The main problems are unsupported specificity around “other defaults” and storage details, plus one example command that omits required flags for `deploy`.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The command prompts for an API key as an “Other default,” masks it, and stores it via `defaults:configure`.",
+              "reason": "The provided authoritative command definition only says `defaults:configure` can configure default executables for resolving Node.js directives in addition to the listed CLI defaults. The runtime source supports sensitive masking generically, but the provided sources do not identify API key as one of `configurableGlobalDefaultOtherProps`.",
+              "suggestedFix": "Remove API-key-specific claims from the configurable defaults section, FAQ, and warning unless a source for `configurableGlobalDefaultOtherProps` is provided. Keep the grounded statement that the command can configure default executables for resolving Node.js directives.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can also configure default executables for resolving Node.js directives."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "configurableGlobalDefaultOtherProps"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Defaults are saved to `~/.stacktape/persisted-state.json`.",
+              "reason": "The runtime prints `fsPaths.persistedStateFilePath()`, but the provided sources do not define that path. The draft gives a concrete filesystem path that is not grounded in the supplied source files.",
+              "suggestedFix": "Say the command prints the defaults file path after saving. Only name `~/.stacktape/persisted-state.json` if the `fsPaths.persistedStateFilePath()` source is included and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "When no value has been set, the prompt displays `<< not-set >>`.",
+              "reason": "The runtime displays `<< not-set >>` only when `currentValueRedacted === null`. If the current value is `undefined`, the provided code does not show that placeholder. The draft broadens the behavior to all unset values.",
+              "suggestedFix": "Narrow the wording: “The prompt includes the current value when available; null values are shown as `<< not-set >>`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts",
+                  "quote": "const redactedValueToPrint = currentValueRedacted === null ? '<< not-set >>' : currentValueRedacted;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The example says commands like `stacktape deploy` use configured `region` and `stage` automatically after setting defaults.",
+              "reason": "`deploy` requires both `stage` and `region`, but it also commonly needs a project/config context. More importantly for the CLI page instruction, realistic invocations should show required flags when they are not the command being documented. The draft’s bare `stacktape deploy` example can be misleading without explaining the config-derived or defaulted requirements.",
+              "suggestedFix": "Either avoid the bare deploy invocation, or write a concrete override example such as `stacktape deploy --region eu-west-1 --stage production` and explain that defaults can supply required args when configured.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "deploy: {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "requiredArgs: ['stage', 'region'] as const"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "If you need tighter control, consider setting the API key via environment variable (`STP_API_KEY`) instead, which avoids writing it to disk.",
+              "reason": "The provided sources do not document `STP_API_KEY` or environment-variable API key behavior for this command. The `login` command source only states that an API key can be provided with `--apiKey` or entered interactively.",
+              "suggestedFix": "Remove the `STP_API_KEY` recommendation unless a source file documenting that environment variable is included. Link to `/cli/login` or `/stacktape-console/api-keys` for API key management instead.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "You can provide the key with the `--apiKey` option or enter it interactively."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly uses one documented command, `stacktape defaults:configure`, and the command has no required or optional CLI args in the source.",
+            "The page includes `<CliCommandsApiReference command=\"defaults:configure\" sortedArgs={[]} />`, which matches the command’s empty `args` object.",
+            "The page names all CLI argument defaults listed in the command definition: `region`, `stage`, `awsProfile`, `projectName`, and `awsAccount`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\defaults-configure.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T23:03:19.219Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\defaults-configure\\index.ts": "817b726062cc561def85c2a27dd53117030cdce8",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\defaults-configure.md": "1ee3d7c6fdf04ed9040c0ff0a6fc95c6ad078676"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

@@ -1,0 +1,265 @@
+---
+title: 'EFS Filesystem'
+order: 2
+seoTitle: 'EFS Filesystem — Shared File Storage | Stacktape Docs'
+seoDescription: 'Create shared file storage on AWS with Stacktape. Mount EFS volumes to containers for persistent data that survives restarts and scales automatically.'
+---
+
+# EFS Filesystem
+
+A Stacktape EfsFilesystem creates an Amazon Elastic File System — shared, persistent file storage that multiple containers can read and write simultaneously. EFS volumes grow and shrink automatically with no capacity planning. Mount a volume to your containers to share uploads, CMS media, ML model files, or any data that must survive container restarts.
+
+EFS Standard storage costs ~$0.30/GB/month with no minimum commitment — you pay only for storage used.
+
+## When to use
+
+Use an EfsFilesystem when multiple workloads need to read and write the same files through a standard POSIX filesystem interface — a mounted directory where `fs.readFile`, `open()`, and other standard file I/O calls work without changes. EFS handles concurrent access across containers and availability zones.
+
+Common EFS use cases:
+
+- **Shared uploads** — user-uploaded files accessed by multiple container replicas
+- **CMS media directories** — WordPress, Strapi, or other CMS platforms that write to a local `/uploads` path
+- **ML model files** — large model weights shared across inference containers
+- **Configuration and state** — shared config files or application state across workloads
+- **Persistent caches** — data that should survive container replacements, such as build artifacts or processing state
+
+## When NOT to use
+
+EFS is not the right fit for every storage need. Consider these alternatives:
+
+| Use case | Better option |
+|---|---|
+| Storing files accessed via API (uploads, backups, exports) | [Bucket (S3)](/resources/storage/s3-bucket) — cheaper per GB, higher durability, SDK-based access |
+| Hosting a static website or SPA | [HostingBucket](/resources/frontend/static-hosting) — includes CDN, routing, and caching |
+| Structured or queryable data | [RelationalDatabase](/resources/databases/relational-database) or [DynamoDbTable](/resources/databases/dynamodb) |
+
+**Cost comparison:** EFS at ~$0.30/GB/month is roughly 10x more expensive than S3 Standard (~$0.023/GB/month). Use EFS only when you need a mounted filesystem — for object storage patterns (upload, download, list via SDK), an [S3 Bucket](/resources/storage/s3-bucket) is more cost-effective.
+
+## Basic example
+
+An EfsFilesystem can be created with no properties — it defaults to elastic throughput mode. If you set `throughputMode: 'provisioned'`, you must also set `provisionedThroughputInMibps`.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const sharedStorage = new EfsFilesystem({});
+
+  return {
+    resources: { sharedStorage }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+This creates an EFS filesystem with elastic throughput that auto-scales with demand. To use it, mount it to a workload via the `volumeMounts` property — see [Mounting to workloads](#mounting-to-workloads) below.
+
+## Throughput modes
+
+The `throughputMode` property controls how EFS scales read/write performance. Stacktape supports three modes:
+
+| Mode | How throughput scales | Cost model | Best for | Default |
+|---|---|---|---|---|
+| `elastic` | Auto-scales up and down with demand | Pay per GiB transferred | Spiky or unpredictable workloads | Yes |
+| `provisioned` | Fixed throughput you configure | Pay for provisioned MiB/s + storage | Steady high-throughput workloads | No |
+| `bursting` | Scales with storage size (50 KiB/s per GiB stored) | Included in storage price | Large filesystems with low throughput needs | No |
+
+### Elastic (default)
+
+Elastic throughput is the recommended mode for most workloads. EFS automatically scales throughput when your workloads are actively reading or writing, and scales down during idle periods. You pay per GiB of data transferred rather than for provisioned capacity, so costs track actual usage.
+
+Most teams should keep the default. Elastic mode handles traffic spikes without running out of burst credits and requires no capacity planning. Switch away only if you have a specific, measurable throughput requirement that elastic mode cannot meet.
+
+### Provisioned
+
+Provisioned throughput guarantees a fixed MiB/s rate regardless of how much data is stored. Set it with `provisionedThroughputInMibps`. This mode is appropriate when your workload needs consistent, high throughput — for example, a video processing pipeline that continuously reads and writes large files, or a data analytics workload scanning large datasets.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const videoStorage = new EfsFilesystem({
+    throughputMode: 'provisioned',
+    provisionedThroughputInMibps: 100
+  });
+
+  return {
+    resources: { videoStorage }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `provisionedThroughputInMibps` value sets guaranteed throughput — `100` means 100 MiB/s. You can adjust this value on subsequent deployments without replacing the filesystem. Additional per-MiB/s fees apply on top of storage costs.
+
+<Warning>
+Provisioned throughput incurs additional fees based on the amount provisioned, regardless of actual usage. Only use this mode when elastic throughput cannot meet your performance requirements.
+</Warning>
+
+### Bursting
+
+Bursting mode ties throughput to storage volume — 50 KiB/s per GiB of stored data, with the ability to burst higher for short periods using burst credits. This mode can work for large filesystems (hundreds of GBs or more) with infrequent access patterns.
+
+For small filesystems, burst credits deplete quickly, causing throughput to drop to the baseline. **For most workloads, elastic mode is a better choice** because it doesn't depend on storage size for throughput and doesn't use burst credits.
+
+## Backups
+
+Set `backupEnabled: true` to enable daily automatic backups with 35-day retention. AWS Backup handles these automatically. Backups are incremental — only changes since the last backup are copied, keeping costs proportional to the rate of change rather than total filesystem size.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const sharedStorage = new EfsFilesystem({
+    backupEnabled: true
+  });
+
+  return {
+    resources: { sharedStorage }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+**When to enable:** Enable backups for any EFS filesystem storing data you cannot regenerate — user uploads, CMS media, application state. **When to skip:** Skip backups for ephemeral data like temporary processing files or ML model weights that can be re-downloaded from their source. **Tradeoff:** AWS Backup charges for the storage consumed by backup copies, but incremental backups keep this cost low for filesystems that don't change rapidly.
+
+`EfsFilesystemProps` does not expose schedule or retention controls beyond the daily/35-day default. If you need custom backup policies (different schedules, longer retention, or cross-region replication), configure AWS Backup separately outside of the EFS resource configuration.
+
+## Mounting to workloads
+
+EFS filesystems are accessible from any container in your stack through the `volumeMounts` property. The volume appears as a standard directory — your application reads and writes files using normal filesystem calls. Data stored in EFS volumes persists even when containers are replaced, and all data is encrypted in transit automatically.
+
+Container workload types such as [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), and [multi-container workload](/resources/compute/multi-container-workload) expose the `volumeMounts` property. Consult each resource's API reference for the full set of volume mount options.
+
+Each `volumeMounts` entry specifies the EFS resource name and a mount path inside the container:
+
+- **`efsFilesystemName`** — the name of the EfsFilesystem resource in your config (must match the key in `resources`)
+- **`mountPath`** — the absolute path inside the container where the volume appears (e.g., `/data`, `/mnt/uploads`)
+- **`rootDirectory`** — (optional) a subdirectory within the EFS filesystem to mount, restricting the container's view to that directory (defaults to `/`, the entire filesystem)
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  EfsFilesystem,
+  WebService,
+  StacktapeImageBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const sharedStorage = new EfsFilesystem({
+    backupEnabled: true
+  });
+
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    },
+    volumeMounts: [
+      {
+        type: 'efs',
+        properties: {
+          efsFilesystemName: 'sharedStorage',
+          mountPath: '/mnt/uploads'
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { sharedStorage, api }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `api` web service mounts the `sharedStorage` EFS filesystem at `/mnt/uploads`. The application can then read and write files to that path using standard filesystem operations. Multiple containers can mount the same EFS volume and share files through it — EFS handles concurrent reads and writes using standard POSIX file-locking semantics.
+
+<Tip>
+Use `rootDirectory` to isolate workloads that share a single EFS filesystem. For example, one service can mount `/uploads` while another mounts `/cache`, each seeing only its own subdirectory.
+</Tip>
+
+<Info>
+[Lambda functions](/resources/compute/lambda-function) also support EFS mounts through a separate `LambdaEfsMount` configuration. Lambda EFS mounts require the function to join a VPC (`joinDefaultVpc: true`) and mount paths must start with `/mnt/` (e.g., `/mnt/data`). See the [Lambda function page](/resources/compute/lambda-function) for details.
+</Info>
+
+## API Reference
+
+<ApiReference definitionName="EfsFilesystemProps" />
+
+## FAQ
+
+### How do I mount an EFS volume to a workload?
+
+Define an `EfsFilesystem` resource in your config, then add it to the `volumeMounts` array on a container workload. Each mount entry specifies the EFS resource name and a `mountPath`. Your application accesses the mounted volume using standard file I/O — no SDK required. All data is encrypted in transit automatically.
+
+### How much does Amazon EFS cost?
+
+EFS Standard storage costs ~$0.30/GB/month with no upfront commitment. You pay only for the storage you use — the filesystem grows and shrinks automatically. Additional costs depend on throughput mode: elastic charges per GiB transferred, provisioned charges per MiB/s configured. See [Managing Costs](/managing-costs/overview) for tips on monitoring AWS spend.
+
+### Can multiple containers access the same EFS filesystem?
+
+Yes. EFS is designed for shared access — multiple container replicas, and even containers from different workloads in the same stack, can mount the same filesystem simultaneously. EFS uses standard POSIX file-locking semantics to handle concurrent reads and writes. This makes it practical for CMS platforms, shared upload directories, and any workload where multiple containers need access to the same files.
+
+### EFS vs S3 — when should I use each?
+
+Use EFS when your application needs to read and write files using standard filesystem calls (`fs.readFile`, `open()`), especially when multiple workloads need shared access to the same directory. Use an [S3 Bucket](/resources/storage/s3-bucket) when you interact with files through an API (upload, download, list) — S3 is cheaper per GB (~$0.023/GB/month vs ~$0.30/GB/month), offers higher durability, and scales without limits. Most web applications should default to S3 and only use EFS when they genuinely need a mounted filesystem.
+
+### What throughput mode should I choose?
+
+Start with `elastic` (the default) — it auto-scales with demand and requires no capacity planning. Switch to `provisioned` only if you have a steady, high-throughput workload (video processing, large data pipelines) where you need guaranteed MiB/s and are willing to pay for it regardless of usage. Avoid `bursting` for small filesystems because throughput is tied to storage size and burst credits can deplete quickly. Most teams never need to change from `elastic`.
+
+### Does EFS have a storage limit?
+
+Amazon EFS has no practical storage limit — filesystems can scale to petabytes automatically. You don't need to provision capacity in advance; the filesystem grows as you write data and shrinks as you delete it. There are no minimum storage charges beyond what you actually use.
+
+### How do I back up an EFS filesystem?
+
+Set `backupEnabled: true` in your EfsFilesystem config to enable daily automatic backups through AWS Backup with 35-day retention. Backups are incremental, so only changes since the last backup are copied. `EfsFilesystemProps` does not expose schedule or retention controls; for custom backup policies, configure AWS Backup separately.
+
+### Can I use EFS with Lambda functions?
+
+Yes. Stacktape Lambda functions support EFS mounts through the `LambdaEfsMount` type. Lambda EFS mounts require the function to join a VPC (`joinDefaultVpc: true`) and mount paths must start with `/mnt/`. This is useful for functions that need access to large datasets or shared files that exceed Lambda's `/tmp` storage. See the [Lambda function page](/resources/compute/lambda-function) for configuration details.
+
+### Does EFS encrypt data?
+
+EFS encrypts all data in transit between your workloads and the filesystem automatically — no configuration needed. For at-rest encryption, `EfsFilesystemProps` does not expose a dedicated setting. AWS EFS supports at-rest encryption using AWS KMS keys at the service level — consult [overrides](/configuration/overrides-and-escape-hatches) if you need to configure the underlying CloudFormation encryption properties.
+
+### EFS vs EBS — what's the difference?
+
+Amazon EFS is a shared network filesystem — multiple containers across availability zones can mount it simultaneously. Amazon EBS is block storage attached to a single compute instance with lower latency and higher IOPS, but accessible by only one instance at a time. In Stacktape, EFS is the built-in shared storage option via `EfsFilesystem` and `volumeMounts`. EBS is not listed as a Stacktape resource type — for single-instance, high-IOPS workloads, consider whether EFS in provisioned throughput mode meets your requirements.

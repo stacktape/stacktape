@@ -1,0 +1,957 @@
+{
+  "pageId": "configuration__triggers__dynamodb-streams",
+  "pageRoute": "configuration/triggers/dynamodb-streams",
+  "startedAt": "2026-05-17T10:58:35.832Z",
+  "updatedAt": "2026-05-17T11:14:23.844Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__dynamodb-streams\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with TypeScript class-based `defineConfig` — no YAML Stacktape configs, no plain-object style, no fenced TS blocks wrapping Stacktape resources.",
+            "Strong, self-contained opening paragraph that names the resource, the mechanism (change stream batches), and concrete use cases — suitable for AI Overview extraction.",
+            "Well-paired 'When to use' / 'When NOT to use' H2 sections with concrete alternatives (Kinesis for fan-out, EventBridge for routing) rather than circular logic.",
+            "The `streamType` prerequisite table (KEYS_ONLY / NEW_IMAGE / OLD_IMAGE / NEW_AND_OLD_IMAGES) with an opinionated recommendation ('NEW_AND_OLD_IMAGES is the right choice for most use cases') gives a first-timer a clear decision path before they touch any code.",
+            "All eight `DynamoDbIntegrationProps` properties from the source (streamArn, batchSize, maxBatchWindowSeconds, startingPosition, maximumRetryAttempts, bisectBatchOnFunctionError, onFailure, parallelizationFactor) are covered and explained.",
+            "The retry/failure section pairs property explanations with a concrete DLQ example and a well-placed `<Warning>` about idempotency — the most common production gotcha for stream consumers.",
+            "Handler code example in a regular fenced TypeScript block (correct for application code) covers all three `eventName` cases and points to `@aws-sdk/util-dynamodb` for unmarshalling — directly actionable.",
+            "FAQ has 9 entries spanning Stacktape-specific questions, AWS use-case questions (retention, cost, throughput limits), and choosing/comparison questions (DynamoDB Streams vs Kinesis Data Streams) — good AEO coverage."
+          ],
+          "problems": [
+            "The FAQ answer for 'Can I use DynamoDB stream triggers with batch jobs?' claims 'Batch jobs accept `DynamoDbIntegration` events alongside Lambda functions' — this claim is not grounded in the provided source file (events.d.ts). The source only frames DynamoDbIntegration in a Lambda context. Asserting that BatchJob accepts it without a source reference may produce a source-grounding failure.",
+            "The `maxBatchWindowSeconds` batching table shows the default as '*(immediate)*' — the source JSDoc for this property in DynamoDbIntegrationProps carries no `@default` tag. The default is not documented in the provided source, so presenting a specific default risks being flagged as an invented claim.",
+            "The `streamType` property values on `DynamoDbTable` and the `streamArn` referenceable parameter are not present in the provided source file (events.d.ts only). While logically correct and necessary context, these facts are unverifiable from inline source and may surface as source-grounding high-severity issues in the pipeline.",
+            "Four separate `<CodeBlock intellisense>` examples is on the heavy side for a trigger-focused page. The section instructions say 'Use a single short example per concept.' The batching example largely duplicates the basic example structure with two changed properties — it adds page length without proportionate new information."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or hedge the batch job FAQ claim. Replace with: 'DynamoDB stream triggers are supported on Lambda functions. Check the [Batch job](/resources/compute/batch-job) page for its supported trigger sources.' Do not assert batch job support without a source-grounded reference.",
+            "Replace the '*(immediate)*' default cell in the batching table with '—' (not set) or a prose note: 'If omitted, the function is invoked as soon as records are available — the source does not document a specific default.' This removes the unsupported numeric claim while preserving the behavior explanation.",
+            "Consolidate the basic example and the batching example into one example that shows `batchSize` and `maxBatchWindowSeconds` alongside `startingPosition`. Use focus markers on the batching properties and cover both in surrounding prose. This reduces page length without losing coverage.",
+            "The handler code uses `export default handler` — most Lambda runtimes and Stacktape examples use named exports (`export const handler = async ...`). Aligning with the conventional pattern avoids confusion for first-timers copying the snippet.",
+            "Add a one-sentence note near the `startingPosition` property explanation that the source-documented default is `TRIM_HORIZON` — the example intentionally overrides it to `LATEST` for a real-time trigger, but a reader who omits the property should know what they get.",
+            "The external table section's `<Warning>` says 'Stacktape handles [IAM permissions] automatically for tables defined within the same stack' — this is a useful claim but isn't grounded in the provided source file. Consider softening to 'When the table is in the same stack, Stacktape configures the required permissions automatically via `connectTo`' if supported, or remove and keep only the positive instruction."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All eight properties from DynamoDbIntegrationProps (streamArn, batchSize, maxBatchWindowSeconds, startingPosition, maximumRetryAttempts, onFailure, parallelizationFactor, bisectBatchOnFunctionError) are covered with accurate source-grounded defaults and maximums.",
+            "The table of streamType values (KEYS_ONLY, NEW_IMAGE, OLD_IMAGE, NEW_AND_OLD_IMAGES) is practical and gives clear guidance on when to choose each — the recommendation of NEW_AND_OLD_IMAGES as the default for most use cases is opinionated and correct.",
+            "The retry and failure handling section is production-ready: explains why idempotency is required, correctly pairs maximumRetryAttempts with onFailure, and describes bisectBatchOnFunctionError's poison-record isolation behavior.",
+            "The handler code example is realistic and includes the important note about DynamoDB attribute value format and the unmarshall utility — this is a common stumbling block.",
+            "The FAQ spans all three required categories (Stacktape-specific, AWS service behavior, comparison) and 9 entries is appropriate for the scope of this resource. The DynamoDB Streams vs Kinesis comparison FAQ entry is particularly useful for decision-making."
+          ],
+          "problems": [
+            "The FAQ entry 'Can I use DynamoDB stream triggers with batch jobs?' claims 'Batch jobs accept DynamoDbIntegration events alongside Lambda functions' — this Stacktape-specific claim is not supported by the provided source file (events.d.ts). The source defines DynamoDbIntegration as an interface with no indication of which compute resource types support it beyond the Lambda context implied by the JSDoc. This is a Stacktape-specific behavioral claim that requires source grounding.",
+            "The startingPosition default (TRIM_HORIZON per source JSDoc '@default TRIM_HORIZON') is not called out in prose. The basic example explicitly sets startingPosition: 'LATEST', which is fine, but the surrounding explanation doesn't inform the reader what happens if they omit the property — a reader who omits it gets TRIM_HORIZON, which replays up to 24 hours of history on redeploy, a potential surprise in production.",
+            "The page contains three full Stacktape config CodeBlock examples (basic, batching, retry). The human-maintained section instruction for trigger pages says 'Use a single short example per concept, not multiple variants.' Each example does cover a distinct concern, but they share substantial boilerplate. The retry example in particular largely repeats the basic setup with added properties — it could instead be shown as a focused diff or a single consolidated example."
+          ],
+          "mandatoryFixes": [
+            "Remove or hedge the batch job FAQ claim. The statement 'Batch jobs accept DynamoDbIntegration events alongside Lambda functions' is a Stacktape-specific behavioral claim not grounded in the provided source (events.d.ts only documents the integration shape, not which compute resource types support it). Either remove the FAQ entry, restrict it to 'Lambda functions (the most common consumer)' and link to the batch job docs for confirmation, or qualify it as 'check the batch job documentation for supported trigger types.'"
+          ],
+          "optionalImprovements": [
+            "In the startingPosition prose (after the basic example), explicitly state that TRIM_HORIZON is the default when the property is omitted, and warn that this means a redeployment or new trigger attachment will replay up to 24 hours of historical records — a common production surprise.",
+            "Consolidate the three Stacktape config CodeBlock examples into one or two. The retry example (productsTable + dlq + processor) is the most complete and could serve as the single canonical example, with the batching properties shown as a focused variant (using focus markers to highlight only the events array). This aligns with the section instruction to use a single short example per concept and reduces redundant boilerplate.",
+            "In the Batching and throughput table, add a row for parallelizationFactor (range 1–10) so the table captures all throughput-related tunables in one place, rather than splitting it into a separate H3.",
+            "The 'Processing stream records' TypeScript handler defines StreamRecord as a local type with generic `Record<string, any>` for NewImage/OldImage. Add a brief note that the actual attribute value format is a DynamoDB marshalled map (AttributeValue), and that AWS provides @aws-sdk/util-dynamodb's unmarshall for conversion — the handler already mentions this in prose but the type stub could mislead readers into expecting plain objects."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and likely extractable.",
+            "The page uses TypeScript class-based Stacktape config inside <CodeBlock intellisense> and avoids forbidden hand-authored YAML config.",
+            "Batching, retry, failure handling, and idempotency are covered with practical examples and tables.",
+            "FAQ has a useful mix of Stacktape-specific, AWS-service, and comparison questions."
+          ],
+          "problems": [
+            "Major source-grounding gap: the provided source only defines DynamoDbIntegrationProps. The draft makes many unsupported Stacktape-specific claims about DynamoDbTable.streamType values, streamArn referenceable parameters, table stream enablement behavior, batch jobs accepting DynamoDbIntegration, external-table IAM handling, and Stacktape enabling streams without downtime.",
+            "The \"When NOT to use\" H2 starts directly with bullets instead of a self-contained paragraph, weakening extractability for AI answer engines.",
+            "Several concrete limits and AWS-side behaviors are not grounded in the provided source: 24-hour retention, 2 readers per shard, 5 reads per second per shard, ordering guarantees, automatic stream sharding, IteratorAge monitoring, DynamoDB Streams being free, and Kinesis retention/pricing comparisons.",
+            "The page says `startingPosition` defaults to `TRIM_HORIZON` in the source table only indirectly through prose, but the example sets `LATEST` and presents it as appropriate for most cases without clearly explaining the source default.",
+            "The `Processing stream records` section documents a payload shape that is mostly AWS-derived and not present in the provided Stacktape source. The section instruction says to document payload shape only when non-obvious or differs from AWS default; this should be narrowed or sourced externally.",
+            "The warning for external table streams claims Stacktape automatically handles permissions for tables in the same stack, but DynamoDbIntegrationProps only exposes `streamArn`; the provided source does not document same-stack permission behavior.",
+            "The FAQ answer claiming batch jobs accept `DynamoDbIntegration` is unsupported by the provided source, which describes DynamoDbIntegration as triggering a function.",
+            "Some paragraphs begin with weak antecedents or generic phrasing, such as \"This waits up to 30 seconds\" and \"Once `streamType` is set\", which are less extractable than explicit entity naming."
+          ],
+          "mandatoryFixes": [
+            "Remove or re-ground all DynamoDbTable `streamType` and `streamArn` claims unless the DynamoDB table source is added. If kept, cite only facts visible in the provided source or revise to cautious wording.",
+            "Replace the unsupported batch-job FAQ claim with a source-grounded statement, or omit it. The provided source only supports DynamoDbIntegration as a function trigger.",
+            "Add a self-contained opening paragraph under `## When NOT to use` before the bullet list.",
+            "Narrow or remove unsupported AWS numeric limits and pricing claims unless those sources are added. Keep only `batchSize` default 100, maximum 1,000, `maxBatchWindowSeconds` maximum 300 seconds, `startingPosition` values, retry/onFailure/parallelization/bisect behavior, all of which are present in DynamoDbIntegrationProps.",
+            "Correct the external-table permissions warning so it does not claim Stacktape automatically grants permissions for same-stack tables unless a source file documents that behavior.",
+            "Re-read every Stacktape config example after source edits and ensure each `<CodeBlock intellisense>` still has `label: 'TypeScript'`, valid imports, `defineConfig`, class-based resources, and balanced focus markers."
+          ],
+          "optionalImprovements": [
+            "Turn `When to use` and `When NOT to use` into short decision tables for faster scanning.",
+            "Make the `startingPosition` discussion explicitly state the source default: `TRIM_HORIZON`, then explain why an example might choose `LATEST`.",
+            "Shorten or split the FAQ if unsupported AWS background cannot be sourced; fewer grounded FAQ entries are better than many risky ones.",
+            "Use more explicit entity names in follow-on paragraphs, for example \"The DynamoDB stream trigger waits up to 30 seconds...\" instead of \"This waits...\""
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the DynamoDbIntegration type for batching, retries, failure destinations, and concurrency, but it contains several Stacktape-specific configuration claims that are not supported by the provided source. The highest-risk issues are around enabling streams with `streamType`, claiming automatic permissions for external vs same-stack streams, and saying batch jobs accept DynamoDB stream events.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Before attaching a DynamoDB stream trigger, you must enable streaming on the table by setting the `streamType` property. This controls which item data appears in each stream record: `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, `NEW_AND_OLD_IMAGES`.",
+              "reason": "The provided source for DynamoDB stream integration says streams must be enabled, but it does not define a `streamType` property or the supported stream view values. The only source wording refers to setting `streaming` in `dynamoDbTables` config, so the draft's class-based `streamType` configuration and value table are not grounded in the supplied source.",
+              "suggestedFix": "Narrow this section to the sourced requirement: the DynamoDB table stream must be enabled before using `DynamoDbIntegration`. Only document `streamType` and its values if the DynamoDB table type source is included and confirms the property name and enum values.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Can I use DynamoDB stream triggers with batch jobs? Yes. Batch jobs accept `DynamoDbIntegration` events alongside Lambda functions.",
+              "reason": "The provided DynamoDbIntegration source documents that the integration triggers a function. Unlike the EventBusIntegration comment, which explicitly mentions batch jobs, DynamoDbIntegration does not state that batch jobs accept this event source.",
+              "suggestedFix": "Remove the batch-job FAQ or rewrite it cautiously only if a BatchJob source file confirms that `DynamoDbIntegration` is accepted in batch job events.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when items are created, updated, or deleted in a DynamoDB table."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegration {\n  type: 'dynamo-db-stream';\n  properties: DynamoDbIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "When using an external table stream, ensure the Lambda function's execution role has permissions to read from the stream. Stacktape handles this automatically for tables defined within the same stack.",
+              "reason": "The source confirms that `streamArn` is the ARN of the DynamoDB table stream, but it does not document IAM permission behavior for same-stack streams or external streams. This Stacktape-specific behavior would affect whether users need to configure permissions, so it needs source backing.",
+              "suggestedFix": "Keep the external ARN example if desired, but remove the automatic-permissions claim unless a runtime or IAM source confirms it. A safer wording is: `streamArn` accepts the ARN of the DynamoDB table stream; check the consuming function's permissions when referencing streams outside the stack.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Once `streamType` is set, the table exposes a `streamArn` referenceable parameter that you pass to the trigger configuration.",
+              "reason": "The provided source shows that `DynamoDbIntegrationProps.streamArn` requires a stream ARN, but it does not document DynamoDB table referenceable parameters or prove that a table exposes `streamArn` after enabling streams.",
+              "suggestedFix": "Say only that `DynamoDbIntegration` needs the DynamoDB stream ARN. If referenceable-parameter sources are added, use them to document `$ResourceParam('ordersTable', 'streamArn')`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`startingPosition` supports `LATEST` and `TRIM_HORIZON`; `LATEST` processes only new changes and `TRIM_HORIZON` processes all records still available in the stream. The default is implied as `TRIM_HORIZON`.",
+              "reason": "The source describes `LATEST` and `TRIM_HORIZON` in prose and documents `@default TRIM_HORIZON`, but the TypeScript type for `DynamoDbIntegrationProps.startingPosition` is `string`, not a literal union. The draft should avoid implying these are the only accepted values unless runtime validation or schema source confirms it.",
+              "suggestedFix": "Phrase the values as documented options rather than an exhaustive type: `The documented starting positions are LATEST and TRIM_HORIZON; the source documents TRIM_HORIZON as the default.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "startingPosition?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "- `LATEST`: Read only new records.\n   * - `TRIM_HORIZON`: Read all available records from the beginning of the stream.\n   *\n   * @default TRIM_HORIZON"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`maximumRetryAttempts`: Without this, retries continue until the record expires from the stream (24 hours).",
+              "reason": "The source confirms that `maximumRetryAttempts` is the number of times to retry a failed batch and warns that the entire batch is retried. It does not state the behavior when the property is omitted or that retries continue until stream record expiration.",
+              "suggestedFix": "Ground the table entry in the source: `maximumRetryAttempts` sets the number of retry attempts for a failed batch. Avoid documenting omitted-property behavior unless another source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The number of times to retry a failed batch of records.\n   *\n   * ---\n   *\n   * > **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this.\n   */\n  maximumRetryAttempts?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Without a retry cap, a single bad record blocks its shard for up to 24 hours. Without a failure destination, you lose visibility into what failed and why.",
+              "reason": "The source supports the existence of `maximumRetryAttempts`, `onFailure`, and whole-batch retry behavior, but it does not document shard blocking duration or visibility semantics when `onFailure` is omitted. This is stronger than the provided Stacktape source supports.",
+              "suggestedFix": "Keep the recommendation but narrow the factual basis: `Set maximumRetryAttempts with onFailure when you want failed batches sent to SQS or SNS after retries instead of retrying indefinitely according to AWS event source behavior.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts.\n   */\n  onFailure?: DestinationOnFailure;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The number of times to retry a failed batch of records."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "DynamoDB Streams is included at no extra cost and DynamoDB Streams read requests are free — you pay only for the Lambda invocations that process the records.",
+              "reason": "The source files contain no pricing information for DynamoDB Streams or Lambda. The pricing rules say to include pricing only when concrete pricing is present in the provided source files and never invent or estimate AWS list prices not present in source.",
+              "suggestedFix": "Remove concrete pricing claims from this page, or replace them with a non-price tradeoff such as batching reducing the number of Lambda invocations. Add pricing only if a provided pricing source supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML configuration.",
+            "The API reference uses the correct `DynamoDbIntegrationProps` definition name for the page's integration type.",
+            "The batching properties `batchSize` default 100, maximum 1,000, and `maxBatchWindowSeconds` maximum 300 seconds are grounded in the provided integration type.",
+            "The failure-handling properties `maximumRetryAttempts`, `bisectBatchOnFunctionError`, and `onFailure` are real `DynamoDbIntegrationProps` properties, and `onFailure.type` correctly uses `sns` or `sqs`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft has several source-grounding problems around table stream enablement and Stacktape-specific behavior that is not supported by the provided source. The DynamoDbIntegration property coverage is mostly accurate, but a few operational claims go beyond the source and would change how readers configure the trigger.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Before attaching a DynamoDB stream trigger, you must enable streaming on the table by setting the `streamType` property.” The examples also configure `new DynamoDbTable({ ..., streamType: 'NEW_AND_OLD_IMAGES' })`.",
+              "reason": "The provided authoritative source for the DynamoDB integration says streams are enabled by setting `streaming` in the DynamoDB table config, not `streamType`. No provided source file defines a `streamType` property or the listed stream type values for `DynamoDbTable`. This affects copyable configuration and the core setup flow.",
+              "suggestedFix": "Replace `streamType` claims and examples with the property name supported by the provided source, or narrow the wording if the DynamoDbTable source is not available. Explicitly align the enabling-streams section with the source-backed `streaming` property rather than `streamType`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config)."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Once `streamType` is set, the table exposes a `streamArn` referenceable parameter that you pass to the trigger configuration.”",
+              "reason": "The provided source confirms that `DynamoDbIntegrationProps.streamArn` is required, but it does not document any DynamoDB table referenceable parameter named `streamArn` or when that parameter becomes available. The claim is Stacktape-specific and would change how readers wire resources together.",
+              "suggestedFix": "Keep the source-grounded fact that `DynamoDbIntegrationProps` requires `streamArn`. If a table-managed `streamArn` referenceable parameter is intended, cite or add the DynamoDbTable/referenceable-params source to the page source list before making that claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape handles this automatically for tables defined within the same stack” in the external table warning.",
+              "reason": "The source only says `streamArn` is the ARN of the DynamoDB table stream. It does not state that Stacktape automatically grants Lambda stream-read permissions for same-stack tables, nor does it describe permission behavior for external stream ARNs. This is a Stacktape-specific behavior claim that affects IAM configuration decisions.",
+              "suggestedFix": "Remove the automatic-permissions sentence or narrow it to the source-backed requirement to provide a stream ARN. If automatic IAM grants are real, add the runtime permission source to the grounding set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without `maxBatchWindowSeconds`, the function is invoked as soon as records are available” and the batching table lists `maxBatchWindowSeconds` default as “immediate”.",
+              "reason": "The DynamoDB integration source documents only that `maxBatchWindowSeconds` has a maximum of 300 seconds. Unlike the SQS integration JSDoc in the same file, it does not state an immediate/default behavior for DynamoDB stream integrations. The draft presents an unsourced Stacktape/AWS default as a fact.",
+              "suggestedFix": "State only that `maxBatchWindowSeconds` can wait up to 300 seconds before invoking with a batch, and omit the default/immediate claim unless another source documents it for DynamoDB integrations.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The maximum time (in seconds) to wait before invoking the function with a batch of records.\n   *\n   * ---\n   *\n   * Maximum is 300 seconds.\n   */\n  maxBatchWindowSeconds?: number; // maximum 300 seconds"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `parallelizationFactor` (1–10) to process multiple batches from the same shard concurrently.” The FAQ repeats “set `parallelizationFactor` (up to 10)”.",
+              "reason": "The provided source documents the purpose of `parallelizationFactor` but does not give a supported range or maximum. The numeric range is a configuration constraint and should be source-backed.",
+              "suggestedFix": "Remove the numeric range and say `parallelizationFactor` controls how many batches are processed concurrently from the same shard, or add a source that documents the supported range.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The number of batches to process concurrently from the same shard.\n   */\n  parallelizationFactor?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without this, retries continue until the record expires from the stream (24 hours)” for `maximumRetryAttempts`.",
+              "reason": "The source says `maximumRetryAttempts` is the number of times to retry a failed batch, but it does not document the default retry behavior when the property is omitted. The 24-hour retention is a general DynamoDB Streams fact, but the default Lambda event source mapping retry behavior is not present in the provided Stacktape source.",
+              "suggestedFix": "Keep the source-backed statement that `maximumRetryAttempts` controls failed-batch retries. Avoid stating what happens when it is omitted unless a Lambda event source mapping/runtime source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The number of times to retry a failed batch of records.\n   *\n   * ---\n   *\n   * > **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this.\n   */\n  maximumRetryAttempts?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I use DynamoDB stream triggers with batch jobs? Yes. Batch jobs accept `DynamoDbIntegration` events alongside Lambda functions.”",
+              "reason": "The provided source documents `DynamoDbIntegration` as triggering a function, not a batch job. The EventBus integration explicitly mentions batch jobs elsewhere in the same file, which makes the DynamoDB batch-job claim unsupported by the available source.",
+              "suggestedFix": "Remove the batch-job FAQ entry or replace it with a source-backed statement that DynamoDB stream integrations trigger functions. Add batch job event type sources before documenting batch job support.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when items are created, updated, or deleted in a DynamoDB table."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a batch job when an event matching a specified pattern is received by an event bus."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The “Processing stream records” section defines a custom `StreamRecord` payload shape and says each record includes `eventName` and `dynamodb` with keys/images based on `streamType`.",
+              "reason": "The provided Stacktape source does not document the DynamoDB stream event payload shape. The page instructions allow payload documentation when non-obvious, but the verifier requires technical statements to be grounded in the provided source files unless they are general AWS context. This section is presented as handler contract documentation and also depends on the unsupported `streamType` property name.",
+              "suggestedFix": "Either remove the custom payload type and link to AWS DynamoDB Streams event documentation as general AWS context, or include a source file that documents the Lambda event payload shape used by Stacktape examples. Also align image availability wording with the source-backed table streaming property name.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when items are created, updated, or deleted in a DynamoDB table.\n *\n * ---\n *\n * Records are processed in batches. You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config).\n */\ninterface DynamoDbIntegration {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML.",
+            "The `<ApiReference definitionName=\"DynamoDbIntegrationProps\" />` value matches the integration props type present in the provided source.",
+            "The draft correctly documents the source-backed DynamoDbIntegration properties `streamArn`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "The draft correctly states the source-backed `batchSize` default of 100 and maximum of 1,000, and the `maxBatchWindowSeconds` maximum of 300 seconds.",
+            "The draft correctly describes `onFailure` as accepting SQS or SNS destinations with `arn` and `type`, matching `DestinationOnFailure`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the main DynamoDbIntegrationProps properties and most examples demonstrate the intended trigger settings. The main completeness problem is that the page documents table stream enablement through `streamType`, but the provided source only grounds the integration side and says streams must be enabled via `streaming`; the DynamoDbTable API is not present in the source list.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Before attaching a DynamoDB stream trigger, you must enable streaming on the table by setting the `streamType` property.” The examples also configure `new DynamoDbTable({ ..., streamType: 'NEW_AND_OLD_IMAGES' })`.",
+              "reason": "The provided source for DynamoDB stream integrations says streams must be enabled on the DynamoDB table first by setting `streaming` in the DynamoDB table config. No provided source defines or supports a `streamType` property, and the page uses `streamType` as the central enablement API.",
+              "suggestedFix": "Replace `streamType` with the source-grounded table streaming property name, or narrow the wording if the DynamoDbTable source is missing. For example: “Enable DynamoDB Streams on the table before attaching the trigger. The integration source documents this as the table `streaming` setting.” Then update examples to the verified class-based property once the DynamoDbTable type source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Once `streamType` is set, the table exposes a `streamArn` referenceable parameter that you pass to the trigger configuration.”",
+              "reason": "The integration source requires `streamArn`, but the provided source does not define DynamoDbTable referenceable parameters or state that enabling table streaming exposes `streamArn`. This may be true elsewhere, but it is not grounded in the configured source files for this page.",
+              "suggestedFix": "Keep the grounded integration requirement and avoid the table referenceable-parameter claim unless the DynamoDbTable referenceable-parameter source is added. For example: “The DynamoDB stream trigger requires a `streamArn`; when the table is managed in the same stack, pass the table stream ARN into the integration.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I use DynamoDB stream triggers with batch jobs? Yes. Batch jobs accept `DynamoDbIntegration` events alongside Lambda functions.”",
+              "reason": "The provided DynamoDbIntegration source describes triggering a function, not a batch job. Since no BatchJob event type source is provided, this claim is not supported by the available API source for the page.",
+              "suggestedFix": "Remove the batch job FAQ or rewrite it cautiously only after adding BatchJob source that proves `DynamoDbIntegration` is accepted there. A safe replacement is to link readers to the Lambda function trigger example and omit BatchJob support claims.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when items are created, updated, or deleted in a DynamoDB table."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`startingPosition` controls where the trigger begins reading. `LATEST` processes only new changes… `TRIM_HORIZON` processes all records still available in the stream (up to 24 hours of history).”",
+              "reason": "The source documents `LATEST` and `TRIM_HORIZON` meanings and the default, but the `startingPosition` property type is `string`, not a literal union. The page reads as if only these two values are valid; the source does not provide that constraint for DynamoDbIntegrationProps.",
+              "suggestedFix": "Phrase this as documented/common values rather than an exhaustive value set. For example: “The integration docs describe `LATEST` and `TRIM_HORIZON`: `LATEST` reads new records, while `TRIM_HORIZON` reads from the beginning of the available stream. The source types the property as `string`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "startingPosition?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "- `LATEST`: Read only new records.\n   * - `TRIM_HORIZON`: Read all available records from the beginning of the stream.\n   *\n   * @default TRIM_HORIZON"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `parallelizationFactor` (1–10) to process multiple batches from the same shard concurrently.”",
+              "reason": "The source states what `parallelizationFactor` does, but it does not specify the 1–10 range. The numeric constraint is not grounded in the provided source files.",
+              "suggestedFix": "Remove the numeric range or add a source that proves it. Use: “Set `parallelizationFactor` to process multiple batches concurrently from the same shard.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The number of batches to process concurrently from the same shard.\n   */\n  parallelizationFactor?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without `maximumRetryAttempts`, retries continue until the record expires from the stream (24 hours).”",
+              "reason": "The source documents that `maximumRetryAttempts` is the number of times to retry a failed batch, but it does not state the default retry behavior when omitted. The 24-hour expiry is AWS background, but this specific Stacktape configuration behavior is not present in the provided source.",
+              "suggestedFix": "Limit the table row to the grounded behavior: “Number of times to retry a failed batch of records.” If keeping the expiry behavior, add an AWS or runtime source that documents Lambda event source mapping retries for DynamoDB Streams.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The number of times to retry a failed batch of records.\n   *\n   * ---\n   *\n   * > **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this.\n   */\n  maximumRetryAttempts?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape handles this automatically for tables defined within the same stack.”",
+              "reason": "The provided source says `streamArn` is required, but it does not document automatic IAM permission grants for DynamoDB stream triggers. This may be implemented elsewhere, but it is not grounded in the configured source files.",
+              "suggestedFix": "Narrow the warning to the supported fact: external streams require an ARN and the function must have permissions to read it. Only mention Stacktape-managed IAM if a runtime validator or deployment source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft mentions every important DynamoDbIntegrationProps field from the source: `streamArn`, `maxBatchWindowSeconds`, `batchSize`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "The batching, retry, and external-stream CodeBlock examples are demonstrative: each focused example sets the specific integration properties discussed in its section.",
+            "The API reference uses the correct source type name, `<ApiReference definitionName=\"DynamoDbIntegrationProps\" />`.",
+            "The page follows the required TypeScript CodeBlock pattern for Stacktape configuration examples and does not hand-author YAML Stacktape config."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__dynamodb-streams\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong self-contained intro paragraph that answers 'what is this and why' in under 75 words — good AEO target.",
+            "The `streamType` table (KEYS_ONLY / NEW_IMAGE / OLD_IMAGE / NEW_AND_OLD_IMAGES) with a 'what the record contains' column and an explicit recommendation is exactly what a first-time user needs before seeing any code.",
+            "Every `<CodeBlock>` uses `[!code focus-start]` / `[!code focus-end]` markers correctly so the trigger property is visually highlighted rather than buried in boilerplate.",
+            "The fenced TypeScript handler example showing `eventName` switch and DynamoDB attribute format is high-signal content that saves a new user 20 minutes of Googling.",
+            "The retry/failure-handling section combines a code example, a three-row property table, a `<Warning>` for idempotency, and a `<Tip>` pairing `maximumRetryAttempts` + `onFailure` — this is the kind of opinionated, actionable guidance the style guide calls for.",
+            "The 'Using an external table stream' section covers the direct ARN path without padding — useful and concise.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service mechanics, and comparison/choosing questions) with appropriately-sized 2-4 sentence answers.",
+            "No mandatory style violations: all Stacktape config is in `<CodeBlock intellisense>`, no fenced YAML, no plain-object StacktapeConfig pattern, single `<ApiReference>`, and no shell command grouping issues."
+          ],
+          "problems": [
+            "Potential factual error in code examples: the events.d.ts JSDoc says 'You must enable streams on the DynamoDB table first (set `streaming` in your `dynamoDbTables` config).' The page uses `streamType: 'NEW_AND_OLD_IMAGES'` on `DynamoDbTable`. If the actual property is named `streaming` (not `streamType`), every code example that creates a `DynamoDbTable` is wrong. The provided source files do not include the DynamoDB table type definition to confirm, so this is unverified against authoritative source.",
+            "The 'Enabling streams on the table' section states the table 'exposes a `streamArn` referenceable parameter' once `streamType` is set — but the `streamArn` referenceable param is not documented in the provided source files (only events.d.ts is provided). This is plausible but ungrounded for this page's source list.",
+            "The 'When NOT to use' section claims 'DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 read calls per second per shard.' This is a well-known AWS limit but is not present in the provided source files. Per style guide rules, AWS facts in main body prose (not FAQ) should either be clearly framed as 'AWS limits…' or cited carefully — the current phrasing reads as authoritative assertion rather than AWS background.",
+            "Four separate full `<CodeBlock intellisense>` examples on a conceptual/triggers page exceeds the section instruction 'Use a single short example per concept, not multiple variants.' The batching example is functionally a superset of the basic example with only `batchSize` and `maxBatchWindowSeconds` changed — these could be merged or the batching section could use a focused snippet instead of a full re-declaration of the table and function."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify `streamType` property name against the DynamoDB table type definition (types/stacktape-config/dynamodb-table.d.ts or equivalent). If the actual property is `streaming`, rename it throughout all four code examples and the 'Enabling streams on the table' prose.",
+            "Replace the standalone batching `<CodeBlock>` example with a focused diff-style snippet showing only the changed `events` array (using focus markers on an abridged block) rather than re-declaring the full `defineConfig(() => { ... })` boilerplate. This reduces page weight and matches the section instruction for 'a single short example per concept'.",
+            "Frame the '2 readers per shard / 5 read calls per second' AWS limit in 'When NOT to use' explicitly as an AWS limit: 'AWS limits DynamoDB Streams to 2 simultaneous readers per shard…' rather than presenting it as implied Stacktape behavior.",
+            "The `startingPosition` property in the basic example is typed as `string` in source (not `'LATEST' | 'TRIM_HORIZON'` union). The prose correctly documents both values, but a one-line note that the source type is open-string would help advanced users who wonder if other values are accepted.",
+            "Consider adding a one-sentence note in the 'Processing stream records' section pointing readers to `@aws-sdk/util-dynamodb` `unmarshall` function earlier — it's mentioned at the very end of the section but is the single most useful tip for a new user encountering `{ S: 'hello' }` attribute format for the first time.",
+            "The `<Warning>` about external table IAM permissions is long (two sentences plus a parenthetical). Split into two short bullets or trim — the key point (verify permissions for external tables, not needed for same-stack tables) is buried in the parenthetical."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No forbidden patterns: all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} />, no YAML blocks, no StacktapeConfig type import.",
+            "Accurate numeric defaults and limits sourced from DynamoDbIntegrationProps: batchSize default 100 / max 1,000, maxBatchWindowSeconds max 300 s, startingPosition default TRIM_HORIZON — all match the source JSDoc.",
+            "Failure handling section is thorough: bisectBatchOnFunctionError, maximumRetryAttempts, and onFailure are shown together with a realistic DLQ example, and the idempotency warning is correctly placed and grounded in source behavior.",
+            "The streamType comparison table (KEYS_ONLY / NEW_IMAGE / OLD_IMAGE / NEW_AND_OLD_IMAGES) is an effective decision-support tool positioned before the first code example.",
+            "FAQ spans all three required categories: Stacktape-specific (how to enable streams, how to handle poison records), underlying AWS service (retention period, shard reader limits, cost), and comparison (DynamoDB Streams vs Kinesis Data Streams).",
+            "External table stream section correctly distinguishes $ResourceParam usage (same-stack table) from direct ARN string (external table), and the warning about manual IAM permissions is actionable.",
+            "Processing payload section gives a realistic TypeScript handler skeleton with switch on eventName and a concrete tip about unmarshall — practical for the target audience.",
+            "When NOT to use section is concrete and names specific alternatives with links, rather than vague anti-patterns."
+          ],
+          "problems": [
+            "The batching section has a second full CodeBlock that reconstructs a new table + function from scratch (eventsTable + batchProcessor) just to highlight two properties. Section instructions say 'Use a single short example per concept, not multiple variants.' This is borderline: the second example duplicates ~70% of the boilerplate from the basic example when focus markers on the first block would suffice.",
+            "The 'Enabling streams on the table' section references a `streamType` property on DynamoDbTable, but the provided source file (events.d.ts) covers only the integration side — the DynamoDB table type definition is not in the supplied source. The claim is plausible and probably accurate, but it is not grounded in the provided source files, which the instructions require.",
+            "The `maxBatchWindowSeconds` row in the batching table shows '—' for the default and says 'the batching behavior depends on the underlying AWS event source mapping defaults' — this is vague. The source has no @default for this property, which is fine to say, but 'AWS event source mapping defaults' without further precision leaves a production engineer guessing whether the effective default is 0 s (invoke immediately) or something else.",
+            "In the batching code example the `startingPosition` property is omitted, meaning it silently defaults to TRIM_HORIZON. Nearby prose doesn't mention this; a first-time user deploying this exact snippet to a high-write table might be surprised when the function backfills 24 hours of history on startup.",
+            "The page has four separate <CodeBlock> examples (basic, batching, failure handling, external). While each covers a distinct scenario, the section instructions for trigger pages call for a canonical example with focused markers rather than multiple full stack reconstructions. The duplication of defineConfig, table, and packaging boilerplate across examples increases cognitive load without proportional informational gain."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Collapse the batching CodeBlock into the basic example by extending it with batchSize and maxBatchWindowSeconds focus markers. Remove the standalone eventsTable + batchProcessor reconstruction — it adds boilerplate noise without new information.",
+            "Add a one-sentence note in the batching example prose explaining that omitting startingPosition defaults to TRIM_HORIZON, which will backfill up to 24 hours of existing records on first deployment — a common gotcha for high-write tables.",
+            "Tighten the maxBatchWindowSeconds default description: the source has no @default, which means AWS uses 0 s (invoke as soon as records are available). If that is correct, say it explicitly ('when omitted, the function is invoked as soon as records arrive, with no added delay') rather than deferring to 'AWS defaults'.",
+            "Add a brief qualifier to the 'Enabling streams on the table' section noting that the `streamType` property lives on the DynamoDB table resource config — it would help readers who haven't read the DynamoDB table page understand where to set it without cross-page hunting.",
+            "The external table section's warning lists four IAM actions as a flat sentence. A short code block showing the minimal IAM policy JSON would be more copy-paste useful for engineers who need to attach it to an existing execution role."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and within the target length.",
+            "The page uses short, descriptive H2 headings and a useful FAQ with Stacktape, AWS-service, and comparison questions.",
+            "The Stacktape configuration examples use <CodeBlock intellisense> with a TypeScript tab and avoid forbidden hand-authored YAML.",
+            "Batching, retry, failure destination, and starting-position controls are easy to find and mostly tied to properties visible in DynamoDbIntegrationProps."
+          ],
+          "problems": [
+            "Major source-grounding gap: the provided source only defines DynamoDbIntegrationProps; it does not define DynamoDbTable, primaryKey, streamType, streamArn referenceable parameters, or $ResourceParam behavior. The page repeatedly presents those as Stacktape facts.",
+            "The source comment says DynamoDB streams must be enabled by setting `streaming` in `dynamoDbTables` config, while the draft says to set `streamType`. With the provided source set, that is contradictory or at least unverified.",
+            "Several AWS-specific claims are not grounded in the provided source, including 24-hour retention, 2 readers per shard, 5 read calls per second per shard, stream read pricing, ordering by partition key, IteratorAge monitoring, and Kinesis retention/cost details.",
+            "The Basic example and table-enabling section depend on unsupported table configuration details, so the most important copyable path may be invalid under the provided source set.",
+            "The page overstates external-stream permissions: the source only requires `streamArn`; it does not document IAM permissions or what Stacktape automatically wires for same-stack streams.",
+            "Some tunable guidance is invented beyond the source, especially recommended ranges like `batchSize` 200-1,000 and `maxBatchWindowSeconds` 5-60 seconds for high-write tables.",
+            "The handler event payload section is useful, but the source does not document the DynamoDB stream payload shape. The page should either cite AWS-default behavior cautiously or keep it narrower."
+          ],
+          "mandatoryFixes": [
+            "Replace or qualify the `streamType` table-enabling guidance using only sourced facts. With the current source set, say the integration requires a DynamoDB table stream ARN and avoid documenting `DynamoDbTable.streamType` unless the DynamoDB table source file is added.",
+            "Remove or source-ground every Stacktape-specific claim about `streamArn` referenceable parameters and `$ResourceParam('ordersTable', 'streamArn')`. If kept, the corresponding DynamoDB table/referenceable-parameter source must be provided.",
+            "Revise all copyable Stacktape config examples so every Stacktape property shown is grounded in the provided source files, or request/add the missing DynamoDbTable source before publishing.",
+            "Remove unsupported AWS numeric claims or clearly limit them to sourced AWS-background facts only where the review rules allow it. The current hard requirement says every technical statement must be grounded in the provided source files.",
+            "Delete or soften the external-table IAM warning unless a source file documents those exact permissions and Stacktape's automatic integration behavior for same-stack tables."
+          ],
+          "optionalImprovements": [
+            "Keep one canonical event-binding example focused on `events: [new DynamoDbIntegration(...)]`; move table-stream setup to a short prerequisite paragraph if the table source remains unavailable.",
+            "Add a compact table for DynamoDbIntegration properties that are actually in source: `streamArn`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "Shorten the FAQ answers that rely heavily on external AWS behavior, or link them to broader DynamoDB/Kinesis concept pages once those pages have grounded sources.",
+            "In the retry section, distinguish what Stacktape config exposes from what AWS Lambda event source mappings do underneath, so unsupported AWS behavior does not read as Stacktape-specific behavior."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the DynamoDbIntegration properties in the provided source, but it makes several Stacktape-specific claims about DynamoDbTable stream configuration, referenceable parameters, external permissions, and AWS integration behavior that are not grounded in the provided source file. The most important fixes are to narrow table-stream setup wording, remove or qualify unsupported Stacktape automation claims, and avoid unsupported numeric or ordering claims where the source is silent.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly says DynamoDB table streams are enabled with a `streamType` property, lists `streamType` values, and uses `streamType` in every `DynamoDbTable` example.",
+              "reason": "The provided source for this page only says streams must be enabled on the DynamoDB table first and refers to setting `streaming` in the DynamoDB table config. It does not define a `streamType` property or the four stream view values shown in the draft. Because this affects the actual Stacktape configuration users copy, it is a high-impact unsupported configuration claim.",
+              "suggestedFix": "Replace the definitive `streamType` configuration guidance with wording grounded in the available source: DynamoDB streams must be enabled on the table before attaching `DynamoDbIntegration`. If keeping `streamType` examples, the page needs the DynamoDbTable source that proves the property and supported values.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config)."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Once `streamType` is set, the DynamoDB table exposes a `streamArn` referenceable parameter that you pass to the trigger configuration using the `$ResourceParam` directive.”",
+              "reason": "The source confirms that `DynamoDbIntegrationProps.streamArn` is required, but it does not document DynamoDbTable referenceable parameters or prove that enabling table streaming exposes `streamArn` through `$ResourceParam`. This is Stacktape-specific behavior and would change how users configure the integration.",
+              "suggestedFix": "Keep the grounded part: `DynamoDbIntegration` needs a DynamoDB table stream ARN. If the page has no referenceable-parameter source, phrase the `$ResourceParam` example as an example only and avoid claiming the table exposes that parameter as a documented fact.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“For tables defined within the same stack, use `$ResourceParam` to reference the `streamArn` — Stacktape resolves the ARN and wires up the integration automatically.”",
+              "reason": "The source only defines the `streamArn` property and other event source mapping options. It does not state that Stacktape automatically adds IAM permissions, resolves same-stack stream ARNs, or otherwise wires up permissions for internal DynamoDB streams.",
+              "suggestedFix": "Limit the warning to what is sourced: `DynamoDbIntegration` accepts a stream ARN. Remove “wires up the integration automatically” unless another source file proves the IAM and wiring behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When referencing a stream from an external table, verify that the consuming Lambda function's execution role has `dynamodb:GetRecords`, `dynamodb:GetShardIterator`, `dynamodb:DescribeStream`, and `dynamodb:ListStreams` permissions on the stream ARN.”",
+              "reason": "The provided Stacktape source does not document IAM permission requirements for external DynamoDB stream ARNs. The permissions may be generally correct AWS context, but the statement is presented as Stacktape-specific setup guidance and is not grounded in the provided source.",
+              "suggestedFix": "Either remove the explicit permission list or reframe it as general AWS context: consuming an external stream may require you to ensure the Lambda execution role can read the stream. Avoid naming exact actions unless a source file supports them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, each shard in the DynamoDB stream is processed sequentially — one batch at a time.” and “Setting `parallelizationFactor` greater than 1 allows concurrent processing within the same shard, which can cause out-of-order processing.”",
+              "reason": "The source documents `parallelizationFactor` only as the number of batches to process concurrently from the same shard. It does not state the default processing mode, default value, or ordering consequences. These are operational claims that should be narrowed or sourced elsewhere.",
+              "suggestedFix": "Say only that `parallelizationFactor` controls how many batches are processed concurrently from the same shard. If discussing ordering, frame it cautiously as a tradeoff of concurrent processing rather than a documented Stacktape behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The number of batches to process concurrently from the same shard.\n   */\n  parallelizationFactor?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This example waits up to 30 seconds to fill a batch of 500 records. If 500 records arrive in 5 seconds, the function fires immediately with the full batch.”",
+              "reason": "The source confirms `maxBatchWindowSeconds` is the maximum time to wait and `batchSize` is the maximum records per batch, but it does not explicitly state the trigger fires immediately when `batchSize` is reached for DynamoDB streams. That behavior is documented for SQS in this file, not for DynamoDB.",
+              "suggestedFix": "Narrow the wording to: `maxBatchWindowSeconds` can wait up to the configured number of seconds before invoking with a batch, and `batchSize` caps the number of records in one invocation.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The maximum time (in seconds) to wait before invoking the function with a batch of records.\n   *\n   * ---\n   *\n   * Maximum is 300 seconds.\n   */\n  maxBatchWindowSeconds?: number; // maximum 300 seconds"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The maximum number of records to process in a single batch.\n   *\n   * ---\n   *\n   * Maximum is 1,000.\n   *\n   * @default 100\n   */\n  batchSize?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For high-write tables (hundreds of writes per second), set `batchSize` to 200–1,000 and `maxBatchWindowSeconds` to 5–60 seconds to reduce invocation count and cost.”",
+              "reason": "The source provides maximums and the `batchSize` default, but it does not provide recommended ranges based on write throughput. This recommendation may be reasonable guidance, but the concrete numeric ranges are not grounded in the supplied source.",
+              "suggestedFix": "Keep the cost/tradeoff guidance without precise unsupported ranges, or state the sourced limits only: `batchSize` can be up to 1,000 and `maxBatchWindowSeconds` can be up to 300 seconds.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Maximum is 300 seconds."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Maximum is 1,000.\n   *\n   * @default 100"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“`LATEST` processes only new changes” and “`TRIM_HORIZON` processes all records still available in the stream.”",
+              "reason": "The source defines these descriptions for `startingPosition`, but the type is `string`, not a literal union. The draft treats the accepted values as the complete supported set, which is likely intended but not strictly enforced by the provided type.",
+              "suggestedFix": "Keep the two documented values, but avoid implying the type system restricts `startingPosition` to only those literals unless another schema source proves the enum.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a visible `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML Stacktape configuration.",
+            "The draft correctly documents sourced `DynamoDbIntegrationProps` fields including `streamArn`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "The API reference uses `<ApiReference definitionName=\"DynamoDbIntegrationProps\" />`, which matches the provided type name.",
+            "The draft correctly states the sourced defaults and limits for `batchSize` (`100`, max `1,000`), `maxBatchWindowSeconds` (max `300` seconds), and `startingPosition` default (`TRIM_HORIZON`)."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is practical and mostly aligned with DynamoDbIntegrationProps, but it makes several Stacktape-specific claims that are not grounded in the provided source. The biggest risk is table stream enabling/configuration: the draft repeatedly documents `streamType`, while the only provided source says to enable streams by setting `streaming`.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Before attaching a DynamoDB stream trigger, you must enable streaming on your DynamoDB table by setting the `streamType` property.” The examples also instantiate `new DynamoDbTable({ ..., streamType: 'NEW_AND_OLD_IMAGES' })`.",
+              "reason": "The provided source for DynamoDB stream integrations says streams must be enabled by setting `streaming` in the DynamoDB table config, not `streamType`. No provided source file supports `streamType` as a Stacktape table property.",
+              "suggestedFix": "Replace `streamType` with the source-grounded property name, or narrow the wording if the table source is unavailable. For example: “Enable streams on the DynamoDB table first; the integration source describes this as setting `streaming` on the table config.” Update all examples accordingly after checking the DynamoDbTableProps source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config)."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `streamType` value controls which item data appears in each stream record” followed by the four-value table `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, and `NEW_AND_OLD_IMAGES`.",
+              "reason": "The provided source does not define a `streamType` property or enumerate these values for Stacktape configuration. The values are plausible AWS DynamoDB stream view types, but the draft presents them as Stacktape config values without source backing.",
+              "suggestedFix": "Only document the stream-view values if the DynamoDbTableProps source is available and shows them. Otherwise state cautiously that the table must have streams enabled and avoid enumerating unsupported Stacktape property values on this page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Once `streamType` is set, the DynamoDB table exposes a `streamArn` referenceable parameter that you pass to the trigger configuration using the `$ResourceParam` directive.”",
+              "reason": "The provided source confirms only that `DynamoDbIntegrationProps.streamArn` is required. It does not document DynamoDbTable referenceable parameters or prove that `streamArn` becomes available after enabling streams.",
+              "suggestedFix": "Narrow the claim to what the source proves: `DynamoDbIntegration` requires a stream ARN. If separate referenceable-parameter source is available, cite/use it; otherwise avoid promising that the table exposes `streamArn`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For tables defined within the same stack, use `$ResourceParam` to reference the `streamArn` — Stacktape resolves the ARN and wires up the integration automatically.”",
+              "reason": "The source only defines `streamArn` as a string property and `onFailure` as a destination. It does not document automatic IAM permission wiring or any special behavior for same-stack tables.",
+              "suggestedFix": "Say “For tables defined in the same stack, pass the table stream ARN into `streamArn`” only if referenceable parameters are supported by another provided source. Remove or narrow “wires up the integration automatically” unless runtime/permission source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The `startingPosition` prose says only `LATEST` and `TRIM_HORIZON` are valid choices.",
+              "reason": "Unlike `KinesisIntegrationProps`, the DynamoDB source types `startingPosition` as plain `string`, even though its JSDoc lists `LATEST` and `TRIM_HORIZON`. The draft should avoid implying the TypeScript type is restricted to a two-value union.",
+              "suggestedFix": "Phrase this as “The source documents `LATEST` and `TRIM_HORIZON` for `startingPosition`” rather than “the choices are only...”. Keep the default `TRIM_HORIZON` claim, which is supported by JSDoc.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "startingPosition?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* - `LATEST`: Read only new records.\n   * - `TRIM_HORIZON`: Read all available records from the beginning of the stream.\n   *\n   * @default TRIM_HORIZON"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When a batch fails ... the entire batch is retried” is applied broadly, including when `bisectBatchOnFunctionError: true` is enabled.",
+              "reason": "The source confirms the initial retry behavior, but it also says `bisectBatchOnFunctionError` splits a failed batch in two before retrying. The draft’s broad wording could mislead readers after the split option is enabled.",
+              "suggestedFix": "Clarify that by default a failed batch is retried as a batch, and with `bisectBatchOnFunctionError`, Stacktape configures the event source mapping to split the failed batch before retrying.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "> **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Splits a failed batch in two before retrying."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When referencing a stream from an external table, verify that the consuming Lambda function's execution role has `dynamodb:GetRecords`, `dynamodb:GetShardIterator`, `dynamodb:DescribeStream`, and `dynamodb:ListStreams` permissions on the stream ARN.”",
+              "reason": "The provided Stacktape source does not document external-stream IAM requirements or how Stacktape handles permissions for string ARNs. This is likely AWS background knowledge, but the draft presents it as required Stacktape integration guidance.",
+              "suggestedFix": "Frame this as AWS IAM context rather than a Stacktape-specific guarantee, or cite runtime/IAM source if available. Example: “For external stream ARNs, make sure the Lambda execution role can read the stream; the AWS actions commonly involved include...”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft documents detailed payload shape, DynamoDB attribute value examples, shard ordering, retention, consumer limits, and pricing.",
+              "reason": "These are AWS DynamoDB Streams facts, not Stacktape-specific claims, so they may be acceptable as general AWS context. However, the provided Stacktape source does not contain these details, so any wording that implies Stacktape-specific behavior should be kept clearly AWS-scoped.",
+              "suggestedFix": "Keep the AWS-context sections, but consistently introduce them as AWS DynamoDB Streams behavior. Avoid implying Stacktape changes or guarantees these behaviors.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML.",
+            "`DynamoDbIntegrationProps` is the correct API reference name for the provided type.",
+            "The draft correctly documents the supported `DynamoDbIntegrationProps` knobs present in the source: `streamArn`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "The documented `batchSize` default of 100, maximum of 1,000, `maxBatchWindowSeconds` maximum of 300 seconds, and `startingPosition` default of `TRIM_HORIZON` match the provided JSDoc."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the main DynamoDbIntegrationProps surface well: streamArn, batchSize, maxBatchWindowSeconds, startingPosition, retries, onFailure, parallelizationFactor, and bisectBatchOnFunctionError are all mentioned. The main completeness risk is around statements that go beyond the provided DynamoDB integration type, especially table stream configuration and some behavioral guidance that is not grounded in the supplied source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Before attaching a DynamoDB stream trigger, you must enable streaming on your DynamoDB table by setting the `streamType` property. The draft then enumerates `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, and `NEW_AND_OLD_IMAGES`.",
+              "reason": "The provided source for DynamoDbIntegration only says streams must be enabled first and refers to setting `streaming`; it does not define `streamType` or the four allowed stream view values. This may be true in another source file, but it is not grounded in the supplied source list for this page.",
+              "suggestedFix": "Either add the DynamoDbTable source file to the page sources and ground the `streamType` values there, or narrow the wording to the supplied source: state that the DynamoDB table stream must be enabled before using `DynamoDbIntegration`, without documenting unprovided table properties.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Records are processed in batches. You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The `startingPosition` discussion says `LATEST` and `TRIM_HORIZON` are the supported choices.",
+              "reason": "The source prose documents those two values, but the TypeScript property is typed as `string`, not a literal union. The page can recommend those documented values, but should avoid implying the type system restricts the property to only those two strings.",
+              "suggestedFix": "Phrase this as: \"The documented values are `LATEST` and `TRIM_HORIZON`; the source documents `TRIM_HORIZON` as the default.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "startingPosition?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "- `LATEST`: Read only new records.\n   * - `TRIM_HORIZON`: Read all available records from the beginning of the stream.\n   *\n   * @default TRIM_HORIZON"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The external table stream section says Stacktape wires up the integration automatically for tables defined within the same stack.",
+              "reason": "The source confirms `streamArn` is required, but it does not document automatic IAM permission wiring for DynamoDB stream event source mappings or contrast internal and external stream permissions. This is an important operational caveat, but the current wording overstates behavior not visible in the provided source.",
+              "suggestedFix": "Keep the practical guidance but narrow the Stacktape-specific claim: \"For tables defined in the same stack, use `$ResourceParam` to pass the table stream ARN.\" Omit the automatic permission-wiring claim unless another source file is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Parallelization section documents `parallelizationFactor` but gives no focused configuration example showing the property.",
+              "reason": "The page's examples demonstrate batching and failure handling well, but the section that discusses concurrent shard processing does not show `parallelizationFactor` in a focused `DynamoDbIntegration` snippet. Because parallelization is a throughput-related property explicitly present in the source, readers would benefit from seeing the exact trigger property placement.",
+              "suggestedFix": "Add `parallelizationFactor` to the batching example or add a short focused example in the Parallelization subsection. Explain that the property controls the number of batches processed concurrently from the same shard, matching the source wording.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n   * #### The number of batches to process concurrently from the same shard.\n   */\n  parallelizationFactor?: number;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft mentions every property on `DynamoDbIntegrationProps`: `streamArn`, `maxBatchWindowSeconds`, `batchSize`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "The batching example is demonstrative: the `Batching and throughput` section sets both `batchSize` and `maxBatchWindowSeconds`.",
+            "The retry example is demonstrative: the `Retry and failure handling` section sets `maximumRetryAttempts`, `bisectBatchOnFunctionError`, and `onFailure`.",
+            "The `onFailure` union is covered accurately at the page level by naming both supported destination types, `sqs` and `sns`.",
+            "The API reference uses the correct definition name for the documented integration props: `DynamoDbIntegrationProps`."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\dynamodb-streams.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 6, advisory high 0, verifier medium 12"
+}

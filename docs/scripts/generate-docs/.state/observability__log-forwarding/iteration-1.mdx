@@ -1,0 +1,300 @@
+---
+title: 'Log Forwarding'
+order: 94
+seoTitle: 'Log Forwarding to Datadog, Highlight.io & HTTP Endpoints | Stacktape Docs'
+seoDescription: 'Forward CloudWatch logs from Lambda functions, containers, databases, and APIs to Datadog, Highlight.io, or any HTTPS endpoint using Kinesis Data Firehose. ~$0.03/GB.'
+---
+
+# Log Forwarding
+
+Stacktape can forward CloudWatch logs from your resources to external observability services — Datadog, Highlight.io, or any HTTPS endpoint. Underneath, Stacktape provisions an AWS Kinesis Data Firehose delivery stream that subscribes to your resource's CloudWatch log group, batches log records, and delivers them over HTTPS. Cost is ~$0.03/GB ingested by Firehose.
+
+## When to use log forwarding
+
+Use log forwarding when your team already relies on an external observability platform (Datadog, Highlight.io, Grafana Cloud, Splunk, New Relic, etc.) and you want all logs centralized there. Forwarding lets you correlate Stacktape resource logs with logs from other systems, use the external platform's query language and alerting, and retain logs beyond CloudWatch's configured retention window.
+
+## When NOT to use log forwarding
+
+If you only need to view and search logs, Stacktape's built-in [log viewing](/observability/logs) — via [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console — is sufficient and adds no extra cost beyond CloudWatch storage. Log forwarding adds Firehose ingestion cost (~$0.03/GB) and a backup S3 bucket for failed deliveries. Skip it unless you have a specific destination in mind.
+
+## Supported destinations
+
+Stacktape supports three log forwarding destination types. Each is configured via the `logForwarding` property inside a resource's `logging` configuration.
+
+| Destination | Class | Required property | Auth mechanism |
+|---|---|---|---|
+| Any HTTPS endpoint | `HttpEndpointLogForwarding` | `endpointUrl` | Optional `accessKey` in `X-Amz-Firehose-Access-Key` header |
+| Datadog | `DatadogLogForwarding` | `apiKey` | API key sent as Firehose endpoint access key |
+| Highlight.io | `HighlightLogForwarding` | `projectId` | Project ID sent as `x-highlight-project` attribute |
+
+## Supported resources
+
+Log forwarding is available on every resource type that writes to CloudWatch Logs:
+
+- [Lambda functions](/resources/compute/lambda-function) — via `logging.logForwarding`
+- [Web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service) — via container `logging.logForwarding`
+- [Multi-container workloads](/resources/compute/multi-container-workload) — via per-container `logging.logForwarding`
+- [Batch jobs](/resources/compute/batch-job) — via `logging.logForwarding`
+- [HTTP API gateways](/resources/networking/http-api-gateway) — via `accessLogs.logForwarding`
+- [Relational databases](/resources/databases/relational-database) — via `logging.logForwarding`
+- [Redis clusters](/resources/databases/redis) — via `logging.logForwarding`
+- [Bastion hosts](/resources/security/bastion-host) — via `logging.logForwarding`
+
+The configuration shape is identical across all resources — only the nesting path to `logForwarding` varies.
+
+## Forwarding to Datadog
+
+Datadog is the most common external log destination for AWS workloads. Stacktape's `DatadogLogForwarding` configures a Firehose delivery stream pointed at the Datadog HTTP intake endpoint and passes your API key as the endpoint access key.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  DatadogLogForwarding
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    logging: {
+      logForwarding: new DatadogLogForwarding({
+        apiKey: '$Secret(datadog-api-key)'
+      })
+    }
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+The `apiKey` property is your Datadog API key. Store it as a [secret](/configuration/secrets) using the `$Secret()` directive — never hardcode API keys in your config.
+
+The default endpoint is `https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input`, which targets Datadog's US region. If your Datadog account is in the EU region, override `endpointUrl` with the EU intake URL.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  WebService,
+  StacktapeImageBuildpackPackaging,
+  DatadogLogForwarding
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const app = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/app.ts'
+    }),
+    resources: { cpu: 0.25, memory: 512 },
+    logging: {
+      logForwarding: new DatadogLogForwarding({
+        apiKey: '$Secret(datadog-api-key)',
+        endpointUrl: 'https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input'
+      })
+    }
+  });
+
+  return { resources: { app } };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+Datadog Firehose delivery uses GZIP compression and a 4 MB buffer with 60-second flush intervals. The retry duration before sending failed logs to the backup S3 bucket is 60 seconds.
+
+## Forwarding to Highlight.io
+
+Highlight.io is an open-source observability platform. Stacktape's `HighlightLogForwarding` sends logs to Highlight's Firehose intake endpoint with your project ID attached as request metadata.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HighlightLogForwarding
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    logging: {
+      logForwarding: new HighlightLogForwarding({
+        projectId: '4d7k2qg0'
+      })
+    }
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+The `projectId` is found in your Highlight.io console. The default endpoint is `https://pub.highlight.io/v1/logs/firehose`. Override `endpointUrl` if you run a self-hosted Highlight instance.
+
+Highlight delivery uses GZIP compression, a 1 MB buffer with 60-second flush intervals, and a 300-second retry duration.
+
+## Forwarding to a custom HTTP endpoint
+
+The `HttpEndpointLogForwarding` type supports any service that accepts logs over HTTPS — Grafana Cloud, Splunk, New Relic, Mezmo, or your own ingestion API. This is the most flexible option and the one to use when your destination isn't Datadog or Highlight.io.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpEndpointLogForwarding
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    logging: {
+      logForwarding: new HttpEndpointLogForwarding({
+        endpointUrl: 'https://logs.example.com/v1/ingest',
+        accessKey: '$Secret(log-ingest-api-key)',
+        gzipEncodingEnabled: true,
+        retryDuration: 120,
+        parameters: {
+          'x-source': 'stacktape',
+          'x-environment': 'production'
+        }
+      })
+    }
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+### Configuration properties
+
+- **`endpointUrl`** (required) — the HTTPS URL where Firehose delivers log batches. Must use HTTPS.
+- **`accessKey`** — an authentication credential sent in the `X-Amz-Firehose-Access-Key` HTTP header. Store it as a `$Secret()`.
+- **`gzipEncodingEnabled`** — compress the request body with GZIP. Defaults to `false`. Enable this to reduce transfer costs when your endpoint accepts GZIP-encoded payloads.
+- **`retryDuration`** — total time in seconds that Firehose retries failed deliveries before routing logs to the backup S3 bucket. Defaults to `300` (5 minutes). Lower values reduce delivery latency for failures; higher values give transient outages more time to recover.
+- **`parameters`** — key-value pairs sent as extra metadata in the `X-Amz-Firehose-Common-Attributes` header. Use these to tag logs with environment, team, or service identifiers at the transport layer.
+
+Custom HTTP endpoint delivery uses a 1 MB buffer with 60-second flush intervals.
+
+## How it works
+
+Stacktape creates four AWS resources per forwarded log group when you enable `logForwarding`:
+
+<FlowDiagram steps={[
+  { title: 'CloudWatch Log Group', description: 'Your resource writes logs to CloudWatch as usual.' },
+  { title: 'Subscription Filter', description: 'A CloudWatch subscription filter streams all log events to Firehose in real time.' },
+  { title: 'Kinesis Data Firehose', description: 'Firehose buffers logs (1-4 MB, 60-second intervals) and delivers them over HTTPS to your destination.' },
+  { title: 'Destination or S3 backup', description: 'Logs arrive at your endpoint. Failed deliveries go to an encrypted S3 backup bucket.' }
+]} />
+
+Stacktape provisions the following for each forwarded log group:
+
+1. **Kinesis Data Firehose delivery stream** — receives log events from CloudWatch and delivers them to the configured HTTPS endpoint.
+2. **CloudWatch subscription filter** — subscribes to the log group with an empty filter pattern (all log events) and routes them to the Firehose stream.
+3. **S3 backup bucket** — stores logs that Firehose could not deliver after exhausting retries. The bucket uses AES-256 server-side encryption.
+4. **IAM roles** — two roles: one allowing CloudWatch to write to Firehose (`firehose:PutRecord`), and one allowing Firehose to write failed deliveries to S3.
+
+When a resource has multiple log groups (for example, a [bastion host](/resources/security/bastion-host) emits audit, secure, and messages logs), each log group gets its own subscription filter and delivery stream, but they share the same S3 backup bucket and Firehose-to-S3 IAM role.
+
+### Buffering and delivery timing
+
+Firehose buffers log records and flushes to your endpoint every 60 seconds or when the buffer reaches its size limit (1 MB for HTTP endpoint and Highlight, 4 MB for Datadog) — whichever comes first. This means logs appear in your external platform with a delay of up to 60 seconds beyond CloudWatch ingestion.
+
+### Failure handling
+
+When Firehose cannot deliver logs to your endpoint (network errors, 4xx/5xx responses), it retries for the configured `retryDuration` (default 300 seconds for HTTP endpoint and Highlight, 60 seconds for Datadog). After retries are exhausted, failed log batches are written to the backup S3 bucket in your AWS account. The S3 backup uses `FailedDataOnly` mode — successfully delivered logs are not duplicated to S3.
+
+<Tip>Check the backup S3 bucket periodically if you suspect log delivery failures. The bucket is named `{stackName}-{resourceName}-logs-{hash}` and is visible in the AWS S3 console.</Tip>
+
+## Costs
+
+Log forwarding adds cost on top of standard CloudWatch log storage:
+
+| Component | Cost |
+|---|---|
+| Kinesis Data Firehose ingestion | ~$0.03/GB |
+| S3 storage for failed deliveries | Standard S3 rates (only if deliveries fail) |
+| Data transfer to endpoint | Included in Firehose pricing for AWS-external endpoints |
+
+For a Lambda function producing 10 GB/month of logs, forwarding adds roughly $0.30/month in Firehose costs. CloudWatch log storage costs remain unchanged — forwarding does not replace CloudWatch, it supplements it.
+
+## FAQ
+
+### Can I forward logs to multiple destinations at once?
+
+No. Each resource's `logForwarding` property accepts a single destination. If you need to send logs to both Datadog and a custom endpoint, configure one destination in Stacktape and set up a secondary forwarding rule in the destination platform itself, or use a fan-out architecture with an intermediary HTTP endpoint.
+
+### Do forwarded logs still appear in CloudWatch?
+
+Yes. Log forwarding does not replace CloudWatch logging — it adds a parallel delivery path. Your logs remain in CloudWatch with the configured retention period and are viewable via [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console.
+
+### What format are the forwarded logs in?
+
+Firehose delivers logs in the CloudWatch Logs subscription filter format — each record contains the log group name, log stream name, and the raw log event message. Datadog and Highlight.io parse this format natively. For custom HTTP endpoints, your ingestion service needs to handle the [CloudWatch Logs Firehose format](https://docs.aws.amazon.com/firehose/latest/dev/writing-with-cloudwatch-logs.html).
+
+### How much delay should I expect?
+
+Firehose buffers log records for up to 60 seconds before flushing to the destination. Combined with CloudWatch's own ingestion latency, expect logs to appear in your external platform within 1-2 minutes of the original log event.
+
+### What happens if my endpoint is down?
+
+Firehose retries delivery for the configured retry duration (default 300 seconds for HTTP endpoint and Highlight, 60 seconds for Datadog). After retries are exhausted, failed batches are stored in an encrypted S3 backup bucket in your AWS account. Logs are not lost — they can be retrieved from S3 and replayed.
+
+### Can I filter which logs get forwarded?
+
+Not currently. Stacktape creates the CloudWatch subscription filter with an empty filter pattern, which forwards all log events from the resource's log group. If you need to filter logs before they reach your destination, implement filtering in your ingestion endpoint or use the destination platform's log pipeline features.
+
+### How much does Kinesis Data Firehose cost?
+
+AWS Kinesis Data Firehose charges ~$0.03 per GB of data ingested (pricing varies by region). There is no charge for the delivery stream itself — you pay only for the volume of log data processed. For most applications, this adds less than a few dollars per month. See [AWS Kinesis Data Firehose pricing](https://aws.amazon.com/kinesis/data-firehose/pricing/) for exact regional rates.
+
+### Can I use log forwarding with container workloads?
+
+Yes. [Web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload) all support `logging.logForwarding` on each container. Each container's log group gets its own Firehose delivery stream.
+
+### Does log forwarding work with database audit logs?
+
+Yes. [Relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis) support log forwarding on their `logging` property. This forwards database engine logs (slow query logs, error logs, audit logs) to your external platform alongside application logs.

@@ -1,0 +1,695 @@
+{
+  "pageId": "configuration__triggers__sqs-events",
+  "pageRoute": "configuration/triggers/sqs-events",
+  "startedAt": "2026-05-17T10:30:28.963Z",
+  "updatedAt": "2026-05-17T10:54:32.992Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__sqs-events\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening paragraph is tight, self-contained, and answers 'what is this and why does it matter' without any meta-framing — citation-ready.",
+            "When to use / When NOT to use are correctly structured as peer H2s with concrete, scenario-grounded guidance rather than circular definitions.",
+            "The batching table cleanly captures batchSize and maxBatchWindowSeconds with defaults and maximums that directly match the source type definitions.",
+            "Failure handling section correctly identifies that retry/DLQ configuration lives on the SQS queue resource rather than the SqsIntegration — a non-obvious distinction that is properly grounded in source (SqsIntegrationProps has no onFailure or maximumRetryAttempts, unlike KinesisIntegrationProps).",
+            "The external queue section is practical and includes an appropriate Warning callout about manual IAM configuration, which a first-time user would otherwise miss.",
+            "Handler code is presented as a plain fenced TypeScript block (application code, not config) — correct use of the component palette.",
+            "FAQ covers all three required categories: Stacktape-specific questions, underlying AWS service questions, and comparison/choosing questions."
+          ],
+          "problems": [
+            "The 'SQS triggers with batch jobs' section claims SqsIntegration works with BatchJob, but the provided source (events.d.ts) describes SqsIntegration as triggering 'a function' — not a batch job. No BatchJob type is in the provided source to confirm the events property accepts SqsIntegration. This claim is ungrounded and risks sending the reader toward a pattern that may not exist.",
+            "The FIFO FAQ entry references `fifoHighThroughput` as a named property on the SQS queue resource. This property name does not appear anywhere in the provided source files. If it is invented or incorrectly named, readers who try to use it will hit a schema validation error.",
+            "The FIFO FAQ entry claims 'FIFO queues support up to ~300 messages/second without batching or ~3,000 with batching; enable `fifoHighThroughput` on the SQS queue resource for up to ~70,000 messages/second.' The throughput figures are well-known AWS facts and acceptable, but tying them to a specific Stacktape property name that is not in source elevates a plausible AWS statement into a potentially wrong Stacktape-specific claim.",
+            "No `<ApiReference>` component is present. For event/trigger pages categorized as 'conceptual, not reference,' this may be intentional per the human-maintained instructions, but if the site convention expects one for all pages it is absent."
+          ],
+          "mandatoryFixes": [
+            "Remove or heavily qualify the 'SQS triggers with batch jobs' section. The source file describes SqsIntegration as triggering 'a function' only. If BatchJob support is confirmed in the BatchJob type definition (not in the provided source), add a note citing that. If unconfirmed, remove the section entirely rather than risk sending the reader toward an unsupported pattern.",
+            "In the FIFO FAQ entry, remove the `fifoHighThroughput` property name claim. Replace it with a link to the SQS queue resource page where FIFO configuration options are documented, or remove the property reference entirely. Do not invent or retain an ungrounded Stacktape property name in docs."
+          ],
+          "optionalImprovements": [
+            "Add `<ApiReference definitionName=\"SqsIntegrationProps\" />` if the site convention expects one on event pages — it would give readers a quick drill-down for the two remaining properties (sqsQueueName, sqsQueueArn, batchSize, maxBatchWindowSeconds) without requiring prose coverage.",
+            "The 'Processing SQS messages' handler example uses an inline anonymous type annotation. Consider referencing the `@types/aws-lambda` package's `SQSEvent` type (one sentence) so TypeScript users know the idiomatic import path.",
+            "The Tip callout in 'Batching and throughput' gives concrete guidance (100–1,000 batchSize, 5–30s window) for high-throughput queues — this is good, but the surrounding prose never explains what 'high-throughput' means in absolute terms (messages per second). A one-sentence qualifier like 'queues receiving hundreds of messages per second or more' would anchor the recommendation for first-time users.",
+            "The 'Handling failures' section mentions idempotency in an Info callout. For a first-time audience, one concrete example of what makes a handler non-idempotent (e.g., inserting a row without checking for a duplicate) would make the guidance actionable rather than abstract."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurate source-grounded batching parameters: batchSize default 10, max 10,000; maxBatchWindowSeconds max 300 s — all confirmed by SqsIntegrationProps JSDoc.",
+            "The observation that SQS triggers lack maximumRetryAttempts and onFailure on the integration (unlike Kinesis and DynamoDB) is directly verifiable in the source and is a genuinely useful production-critical distinction.",
+            "Fan-out anti-pattern warning ('a single SQS queue should only have one consumer function') matches the source JSDoc verbatim — correct and well-placed.",
+            "Idempotency guidance with messageId deduplication is actionable and production-relevant without being padding.",
+            "Batching table is well-structured and carries concrete defaults/limits — extractable by AI engines.",
+            "The 'When NOT to use' section is genuinely opinionated and concrete (fan-out, ordering, request-response) rather than generic hedge text.",
+            "Handler code example is minimal and realistic; parsing record.body and explaining the Records array shape is directly useful."
+          ],
+          "problems": [
+            "Missing <ApiReference> entirely. The default backbone rhythm requires exactly one <ApiReference definitionName=\"SqsIntegrationProps\" /> on the page. Its absence is an empty backbone slot for readers looking up the full property list.",
+            "The 'SQS triggers with batch jobs' section is not grounded in the provided source file (events.d.ts). The source defines SqsIntegration without specifying which resource types accept it. The BatchJob code example's API shape (container: { packaging }, resources: { cpu, memory }) cannot be verified from the provided source and may mislead readers if the API differs.",
+            "FIFO throughput numbers in the FAQ (~300/~3,000/~70,000 messages/second) and the fifoHighThroughput property reference are not present in the provided source files. These are stated as Stacktape-grounded facts but are unverifiable in this page's source set.",
+            "The batch job example imports CustomDockerfilePackaging, which is a valid class, but the BatchJob API shape used (container: {packaging}, resources: {cpu, memory}, events: [...]) is entirely unverifiable from events.d.ts. If the BatchJob API is different (e.g., containers array instead of container), the example would silently mislead readers."
+          ],
+          "mandatoryFixes": [
+            "Add <ApiReference definitionName=\"SqsIntegrationProps\" /> to the page — place it at the bottom or after the 'Handling failures' section. The backbone requires exactly one ApiReference; its absence means readers cannot look up optional properties like batchSize or maxBatchWindowSeconds from the page itself.",
+            "Either remove the 'SQS triggers with batch jobs' section entirely, or explicitly note that it requires verification against BatchJob source types before publication. The section presents a full code example (with BatchJob API shape: container, resources.cpu, resources.memory) that cannot be verified from the provided source files. Publishing an incorrect BatchJob API shape would cause copy-paste failures for readers."
+          ],
+          "optionalImprovements": [
+            "Soften or remove the concrete FIFO throughput numbers (300/3,000/70,000 msg/s) and fifoHighThroughput property reference in the FAQ — they're plausible AWS facts but not in the provided source. Replace with a link to the SQS queue resource page where FIFO configuration is documented.",
+            "The handler example could type the event parameter as SQSEvent from @types/aws-lambda instead of an inline anonymous type — this is how most production Lambda TypeScript handlers are written and readers benefit from seeing the canonical import.",
+            "The '6x your Lambda function's timeout' visibility timeout rule of thumb is a well-known AWS recommendation but stated as a hard prescription. Softening to 'AWS recommends at least 6× your function's maximum timeout' would be more accurate and less likely to confuse readers with edge cases.",
+            "The table in 'Batching and throughput' renders *(immediate)* for the maxBatchWindowSeconds default — consider adding a brief inline note that the property is optional and omitting it entirely means immediate invocation, to match the source JSDoc wording precisely."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and within the target length.",
+            "Stacktape configuration examples use <CodeBlock intellisense> with a TypeScript tab and class-based resources, with no forbidden YAML or StacktapeConfig style.",
+            "The page covers the core SQS trigger knobs present in the source: sqsQueueName, sqsQueueArn, batchSize, and maxBatchWindowSeconds.",
+            "The batching table is scannable and includes sourced defaults and limits."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source file, especially that SQS integrations trigger batch jobs, that Stacktape submits a batch job per SQS message arrival, and that Stacktape automatically grants read/delete permissions for same-stack queues.",
+            "The draft includes concrete AWS pricing and FIFO throughput numbers that are not present in the source. The FAQ says standard queues cost roughly $0.40/million, FIFO queues roughly $0.50/million, and FIFO high throughput reaches ~70,000 messages/second; those figures are unsupported by the provided source and likely drift.",
+            "The page claims or implies SQS queue features not present in the provided source, including delivery delays up to 15 minutes, redrivePolicy, visibility timeout guidance, fifoHighThroughput, FIFO exactly-once delivery, S3 large-payload patterns, and specific external queue IAM actions.",
+            "The Handling failures section makes detailed AWS retry and dead-letter queue claims, but the provided SqsIntegration source only states batching behavior and the one-consumer warning. It does not document visibility timeout, redrive policy, or whole-batch retry behavior for SQS.",
+            "Several H2 sections start with a list or a context-dependent sentence rather than a self-contained first paragraph, especially When NOT to use and FAQ.",
+            "The FAQ is broad and useful, but too much of it depends on unsourced AWS details or properties outside the supplied source. For this task's hard requirements, breadth is coming at the cost of grounding.",
+            "The Batch jobs section is especially risky because the only provided SqsIntegration JSDoc says it triggers a function, while the draft presents batch jobs as supported."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-correct the SQS triggers with batch jobs section. With only the provided events.d.ts source, write SQS integrations as function triggers, not batch-job triggers.",
+            "Delete concrete pricing and FIFO throughput numbers unless the source list includes pricing or SQS queue type definitions that support them. Replace with cautious, non-numeric AWS pricing-model language if needed.",
+            "Remove or narrow unsupported SQS queue-resource claims: delivery delay limits, visibility timeout 6x guidance, redrivePolicy, fifoHighThroughput, FIFO throughput limits, exactly-once wording, S3 large-payload workaround, and specific IAM actions unless those facts are added to the source set.",
+            "Revise failure handling to the sourced facts only: SqsIntegration has no maximumRetryAttempts or onFailure properties, and batch behavior is controlled by batchSize and maxBatchWindowSeconds. Do not describe queue dead-letter behavior unless the SQS queue source is provided.",
+            "Add self-contained introductory paragraphs under H2 sections that currently begin with bullets or depend on prior context, especially When NOT to use and FAQ.",
+            "Keep the canonical TypeScript event-binding example, but re-check every CodeBlock after prose edits so imports, class names, defineConfig, and focus markers remain valid."
+          ],
+          "optionalImprovements": [
+            "Tighten the Basic example prose by saying sqsQueueName references a queue resource name; avoid claiming permission behavior unless source-backed.",
+            "Replace the Tip callout's specific recommended ranges with a less prescriptive explanation, or source the recommendation from implementation/docs before keeping it.",
+            "Consider trimming the FAQ to fewer, fully grounded questions if the source set remains this thin. A shorter FAQ is better than a broad FAQ with unsupported specifics.",
+            "Add a short sentence near batchSize explaining that 10 is the default and 10,000 is the maximum, directly matching the source wording."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "FIFO queues support up to ~300 messages/second without batching or ~3,000 with batching; enable `fifoHighThroughput` on the SQS queue resource for up to ~70,000 messages/second.",
+              "reason": "The specific throughput numbers (~300, ~3,000, ~70,000) are stated in the FAQ answer as fact. While the `fifoHighThroughput` property and the ~70,000 figure ARE grounded in the SQS queue type source (`sqs-queues.d.ts`), the ~300 and ~3,000 figures come from the `fifoEnabled` JSDoc which says '~300 msg/s without batching, ~3,000 with'. These are grounded in the provided source — but they appear in a different file than this page's configured source list (`events.d.ts`). Since the page links to the SQS queue resource page, these numbers should be sourced from there rather than restated. The verifier can confirm these ARE in the codebase's type files, so downgrading impact — but the writer should either cite the queue page or ensure the numbers match the queue source exactly.",
+              "suggestedFix": "Keep the `fifoHighThroughput` mention and the ~70,000 figure (both grounded in `sqs-queues.d.ts`). For the ~300 and ~3,000 figures, either link to the SQS queue resource page for details or keep them since they match the source JSDoc verbatim. No factual change needed — the numbers are accurate.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "FIFO queues have lower throughput (~300 msg/s without batching, ~3,000 with) compared to standard queues."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "Enables high-throughput mode for FIFO queues (up to ~70,000 msg/s per queue)."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "batchSize default (10) and maximum (10,000) correctly match source JSDoc `@default 10` and 'Maximum is 10,000'",
+            "maxBatchWindowSeconds maximum (300s) and default behavior ('invoked as soon as messages are available') match source exactly",
+            "6 MB payload limit correctly sourced from SqsIntegration JSDoc",
+            "sqsQueueName/sqsQueueArn mutual exclusivity correctly documented — both properties are optional with JSDoc saying 'You must specify either sqsQueueName or sqsQueueArn'",
+            "Single-consumer recommendation matches source JSDoc: 'A single SQS queue should only have one consumer function'",
+            "Correctly distinguishes SQS failure handling from Kinesis/DynamoDB — SqsIntegrationProps lacks maximumRetryAttempts and onFailure, while KinesisIntegrationProps and DynamoDbIntegrationProps have both",
+            "Batch job + SQS claim verified: BatchJob events union in batch-jobs.d.ts includes SqsIntegration",
+            "fifoHighThroughput property exists in sqs-queues.d.ts with matching ~70,000 msg/s figure",
+            "Page structure correct — 'When to use' and 'When NOT to use' are peer H2 sections",
+            "All CodeBlock examples use proper intellisense format with label: 'TypeScript'",
+            "All 8 cross-links verified against the navigation index (lambda-function, batch-job, sqs-queue, sns-events, event-bus-events, kinesis-events, http-triggers, s3-bucket)",
+            "FAQ spans all three required categories: Stacktape-specific (external queue, multiple consumers), AWS service (failure handling, FIFO, message size, pricing), and comparison (SQS vs SNS, SQS vs EventBridge)",
+            "No forbidden patterns detected — no hand-authored YAML, no StacktapeConfig type, no fenced TypeScript for config examples"
+          ],
+          "summary": "The draft is well-grounded and factually accurate against the provided source files. All SqsIntegrationProps properties (batchSize default 10, max 10,000; maxBatchWindowSeconds max 300s; sqsQueueName/sqsQueueArn exclusivity) match the events.d.ts source verbatim. The batch job support claim was verified against batch-jobs.d.ts where SqsIntegration appears in the events union. The fifoHighThroughput property and its throughput figures were verified against sqs-queues.d.ts. The failure-handling distinction (SQS lacks maximumRetryAttempts/onFailure unlike Kinesis/DynamoDB) is correctly sourced. Page structure, CodeBlock formatting, cross-links, and FAQ coverage all meet requirements. Only one minor issue found: FIFO throughput numbers in the FAQ reference data from the SQS queue type file rather than the page's primary events.d.ts source, but the numbers are factually correct."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft mostly follows the documented SqsIntegration shape and uses valid documentation routes, but it makes several Stacktape-specific claims that are not supported by the provided source. The highest-impact problem is documenting SQS triggers for BatchJob, while the source only describes SQS integrations as function triggers.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“An SQS event trigger invokes a Lambda function or batch job…” and the “SQS triggers with batch jobs” section, including the BatchJob + SqsIntegration example.",
+              "reason": "The provided source defines SqsIntegration as triggering a function when SQS messages are available. It does not document SqsIntegration as a batch job trigger or say Stacktape submits batch jobs from SQS messages.",
+              "suggestedFix": "Remove the batch job claim and BatchJob example unless additional authoritative source files prove BatchJob supports SqsIntegration. Keep the page scoped to Lambda functions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new messages are available in an SQS queue."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegration {\n  type: 'sqs';\n  properties: SqsIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically grants the Lambda function permissions to read from and delete messages in the referenced queue.” and “Stacktape can only configure these permissions automatically for queues defined within the same stack.”",
+              "reason": "The source confirms that sqsQueueName references a queue in the stack and sqsQueueArn consumes from an existing queue, but it does not document IAM permission behavior or the limitation for external queue policies.",
+              "suggestedFix": "Narrow the wording to sourced behavior: `sqsQueueName` references a queue defined in the Stacktape configuration, while `sqsQueueArn` consumes from an existing queue. If permissions need to be discussed, cite an authoritative IAM/runtime source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The name of an SQS queue defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Use this to consume messages from a queue that is not managed by your stack."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If your producer sends JSON, parse record.body in the handler. If it sends plain text, use the string directly. The number of records in event.Records is bounded by your batchSize setting.”",
+              "reason": "The source documents SQS batch delivery and the `batchSize` property, but it does not document the Lambda event payload shape, `Records`, `body`, or `messageId`. The page guidance says payload shape should be documented when sourced or non-obvious; this source file does not provide that shape.",
+              "suggestedFix": "Either remove the payload-shape section or frame it as the AWS Lambda SQS event shape with a link to AWS docs if external AWS documentation is allowed for payloads.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Messages are processed in batches. The function fires when `batchSize` is reached,\n * `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The maximum number of records to process in a single batch."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This differs from Kinesis and DynamoDB stream triggers, which have maximumRetryAttempts and onFailure properties on the integration itself.”",
+              "reason": "The source supports that KinesisIntegration and DynamoDbIntegration have `maximumRetryAttempts` and `onFailure`, and SqsIntegration does not. However, the source does not document SQS failure behavior, retry behavior, or dead-letter behavior being configured on the SQS queue resource.",
+              "suggestedFix": "Keep the narrow comparison that SqsIntegration has no `maximumRetryAttempts` or `onFailure` property. Remove or qualify the SQS queue dead-letter and visibility-timeout guidance unless the SQS queue resource source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "maximumRetryAttempts?: number;\n  /**\n   * #### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts.\n   */\n  onFailure?: DestinationOnFailure;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Visibility timeout — controls how long a message stays hidden from other consumers after delivery. Set this to at least 6× your Lambda function's timeout…” and “Redrive policy — after a configurable maxReceiveCount…”",
+              "reason": "These are useful AWS SQS concepts, but the provided Stacktape source for this page does not include SqsQueue properties such as visibility timeout, redrive policy, or maxReceiveCount. Because the claims are presented as Stacktape queue-resource configuration guidance, they need the SQS queue resource source.",
+              "suggestedFix": "Either remove the specific Stacktape queue configuration claims or add the SQS queue resource source and ground the property names and behavior there.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“FIFO queues support up to ~300 messages/second without batching or ~3,000 with batching; enable fifoHighThroughput on the SQS queue resource for up to ~70,000 messages/second.”",
+              "reason": "General FIFO throughput numbers may be AWS background knowledge, but `fifoHighThroughput` is a Stacktape-specific SQS queue property claim. The provided source does not include the SQS queue resource type or a `fifoHighThroughput` property.",
+              "suggestedFix": "Remove the `fifoHighThroughput` Stacktape property claim unless the SQS queue resource source is available. Keep FIFO behavior as general AWS context if needed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The FAQ says an external queue policy must grant `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:GetQueueAttributes`.",
+              "reason": "The source confirms `sqsQueueArn` can consume from an existing queue, but it does not list required IAM actions. This may be correct AWS guidance, but it is not grounded in the provided Stacktape source.",
+              "suggestedFix": "Qualify as AWS-side setup guidance or remove the exact action list unless an IAM integration source is provided.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape config examples use `<CodeBlock intellisense>` with a `TypeScript` tab and do not hand-author YAML.",
+            "The core SqsIntegration properties `sqsQueueName`, `sqsQueueArn`, `batchSize`, and `maxBatchWindowSeconds` match the provided source file.",
+            "The draft correctly states the sourced batching triggers: `batchSize`, `maxBatchWindowSeconds`, and the 6 MB payload limit.",
+            "The draft correctly states `batchSize` default 10, maximum 10,000, and `maxBatchWindowSeconds` maximum 300 seconds.",
+            "All checked internal documentation links are present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking gaps for the SQS integration properties. The draft covers the important SqsIntegrationProps surface and the examples generally demonstrate the sections they appear in. One medium issue remains: the batch job support claim and example are not grounded in the provided SQS integration source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“SQS integrations also work with batch jobs. When messages arrive in the queue, Stacktape submits a batch job for processing.”",
+              "reason": "The provided source defines SqsIntegration as triggering a function when SQS messages are available. It does not document SQS integrations for BatchJob targets, so this section is not grounded in the supplied source files for this audit.",
+              "suggestedFix": "Remove the “SQS triggers with batch jobs” section unless a BatchJob source file explicitly shows SqsIntegration in BatchJob events. If that source is added, ground the wording in that type and keep the example focused on the SQS event binding.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegration {\n  type: 'sqs';\n  properties: SqsIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new messages are available in an SQS queue."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft covers every important SqsIntegrationProps field: sqsQueueName, sqsQueueArn, batchSize, and maxBatchWindowSeconds.",
+            "The basic TypeScript example includes the canonical SQS event-binding shape and focuses the trigger configuration.",
+            "The batching example actually demonstrates batchSize and maxBatchWindowSeconds, so the code matches the section topic.",
+            "The external queue example uses sqsQueueArn and explains the sqsQueueName versus sqsQueueArn choice documented in the source.",
+            "No hand-authored Stacktape YAML, plain-object StacktapeConfig style, or fenced Stacktape TypeScript config examples were found."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__sqs-events\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Source fidelity is excellent — every claim about batchSize (default 10, max 10,000), maxBatchWindowSeconds (max 300 s), the 6 MB payload trigger, and the absence of onFailure/maximumRetryAttempts on the SQS integration is grounded in the provided events.d.ts.",
+            "The 'Handling failures' section correctly contrasts SQS with Kinesis and DynamoDB stream integrations by pointing out missing retry/onFailure props on the SQS side, backed by direct source comparison. This is non-obvious and practically important.",
+            "When to use / When NOT to use are peer H2 sections as required, and both give concrete, opinionated signals rather than circular definitions.",
+            "Focus markers are used correctly across all three CodeBlock examples — the first hides imports by placing focus-start after them; the second and third focus specifically on the events block.",
+            "The FAQ spans all three required categories: Stacktape-specific (external queues, multiple consumers), AWS use-case (FIFO, cost, message size, monitoring), and comparison (SQS vs SNS, SQS vs EventBridge). Answer length is appropriate for Featured Snippet extraction.",
+            "The handler code example uses a fenced typescript block (not a CodeBlock), which is correct for application code. The event shape is briefly documented and linked to AWS docs.",
+            "ApiReference uses 'SqsIntegrationProps' which matches the Props-type naming convention and the interface name in the source. Only one ApiReference on the page.",
+            "The Batching and throughput table neatly summarises property/default/max/effect in a single scannable view, well-cited from the @default and maximum JSDoc annotations."
+          ],
+          "problems": [
+            "The FAQ entry 'Can I use SQS triggers with batch jobs?' states 'Batch jobs accept SqsIntegration events alongside Lambda functions' — the provided source file (events.d.ts) does not confirm which resource types accept SqsIntegration. No BatchJob-related source was supplied. This is a weakly grounded Stacktape-specific claim that a source-grounding verifier will flag.",
+            "The 'Batching and throughput' section contains two full CodeBlock examples. The section instructions for trigger pages read 'Use a single short example per concept, not multiple variants.' The second example (batchSize: 100, maxBatchWindowSeconds: 30) covers the same concept as the first but with different values; it would be cleaner to fold the batching window explanation and the table into the first example's prose rather than duplicating the full defineConfig scaffold.",
+            "The opening intro paragraph says 'SQS triggers decouple producers from consumers and absorb traffic spikes between services.' 'Decouple' and 'absorb traffic spikes' are marketing-adjacent generics. The source JSDoc says nothing about decoupling as a feature; this framing is fine as context but reads slightly hand-wavy compared to the rest of the page's precision.",
+            "In the Batching and throughput table, the 'Default' cell for maxBatchWindowSeconds reads '*(immediate)*' — italicised prose inside a table cell hurts scannability and is inconsistent with the numeric cells. The source JSDoc says 'If not set, the function is invoked as soon as messages are available' — that prose reads better as a caption sentence under the table than as a table cell value."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Qualify or remove the batch jobs FAQ claim: change 'Yes. Batch jobs accept SqsIntegration events alongside Lambda functions' to 'Lambda functions are the primary supported consumer. For longer-running tasks, check whether your version of Stacktape supports SqsIntegration on BatchJob resources — see the batch job resource page.' This makes the claim safe without removing the useful pointer.",
+            "Collapse the Batching section to a single CodeBlock (use the higher-value batchSize: 100, maxBatchWindowSeconds: 30 example) and fold the immediate-vs-window explanation into the surrounding prose above the table. This follows the 'single short example per concept' trigger-page instruction and removes the redundant full defineConfig scaffold.",
+            "Replace '*(immediate)*' in the table with a dash or 'not set' and add one prose sentence below the table: 'When maxBatchWindowSeconds is omitted, Lambda invokes the function as soon as messages become available.'",
+            "The intro paragraph's 'decouple producers from consumers' phrase could be replaced with a concrete behaviour statement: 'SQS buffers messages when consumers are unavailable or slower than producers, preventing data loss during downstream failures or traffic spikes.' This grounds the value claim in mechanism rather than pattern-name."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear when-to-use / when-NOT-to-use pairing with concrete alternatives (SNS for fan-out, Kinesis for ordered streaming, HTTP for request-response) — exactly what a production engineer needs to land on the right tool.",
+            "Batching table accurately documents both `batchSize` (default 10, max 10,000) and `maxBatchWindowSeconds` (max 300 s, absent = immediate) against the source interface.",
+            "Failure handling section correctly identifies that retry and DLQ config live on the SQS queue resource, not on `SqsIntegrationProps` — this is grounded in the source (no `maximumRetryAttempts` or `onFailure` in `SqsIntegrationProps`), and the comparison to Kinesis/DynamoDB is accurate.",
+            "External queue section clearly distinguishes `sqsQueueName` vs `sqsQueueArn` and notes Stacktape auto-wires IAM for in-stack queues — practical and accurate.",
+            "FAQ covers all three required categories: Stacktape-specific, AWS use-case (FIFO ordering, message size), and comparison (SQS vs SNS, SQS vs EventBridge). Good breadth.",
+            "No forbidden YAML blocks, no `StacktapeConfig` type usage, no fenced TypeScript with `defineConfig`. All Stacktape config examples use `<CodeBlock intellisense tabs={[...]} />` correctly.",
+            "Handler code example is realistic, correctly shows iterating `event.Records`, and parses `record.body` — the most common real usage pattern."
+          ],
+          "problems": [
+            "**Invented pricing in FAQ (pricing rules violation):** The \"How much does SQS cost?\" FAQ answer quotes \"~$0.40 per million requests\" for standard queues and \"~$0.50 per million requests\" for FIFO. These specific dollar amounts do not appear in any provided source file. The pricing rules state: \"Never invent or estimate AWS list prices that are not present in the provided source.\" Specific prices in docs go stale and erode trust when wrong.",
+            "**Ungrounded batch job claim in FAQ:** The FAQ entry \"Can I use SQS triggers with batch jobs?\" asserts that `BatchJob` resources accept `SqsIntegration` events. The provided source (`events.d.ts`) does not document which resource types each integration type is valid for, and the batch job types are not in scope. This claim is unverified against source.",
+            "**Lambda concurrency scaling not mentioned:** SQS triggers automatically scale Lambda concurrency as queue depth grows, up to the account/function concurrency limit. Hitting the concurrency limit causes messages to remain in the queue (visible after the visibility timeout) rather than being processed. This is a critical production concern — a common source of unexpected backpressure — and the page has no mention of it.",
+            "`batchSize: 5` in the basic example is below the default of 10 with no explanation. A reader following the example will configure a lower-than-default batch size without knowing why, and the surrounding prose says \"For low-volume queues the default is fine\" — which implies no change is needed. The unexplained non-default value in the entry-level example creates confusion.",
+            "**Visibility timeout / Lambda timeout interaction omitted:** The failure handling section mentions that messages return to the queue on failure, but does not note that the SQS visibility timeout must exceed the Lambda function's timeout. If the timeout is shorter, messages become visible again while the Lambda is still running, causing duplicate deliveries. This is the most common misconfiguration for SQS+Lambda setups."
+          ],
+          "mandatoryFixes": [
+            "**Remove or replace invented SQS pricing in the FAQ.** The specific figures ($0.40/$0.50 per million) are not in the provided source files and violate the \"never invent prices\" rule. Replace the specific amounts with a general description of the pricing model (request-based, standard cheaper than FIFO, 256 KB per request) and link to the AWS SQS pricing page for current rates. Do not include dollar amounts that are not sourced.",
+            "**Remove or caveat the batch job FAQ entry.** The claim that `BatchJob` resources accept `SqsIntegration` alongside Lambda functions is not grounded in the provided source files. Either remove the FAQ entry or qualify it clearly as \"check the batch job documentation\" with a link, without asserting that the integration exists."
+          ],
+          "optionalImprovements": [
+            "Add a short note in the batching or failure handling section about Lambda concurrency scaling: SQS triggers scale Lambda concurrency with queue depth; hitting the function's reserved or account concurrency limit stops scaling and leaves messages in the queue until the visibility timeout expires. Suggest setting reserved concurrency and a DLQ to bound behavior.",
+            "Add a one-sentence callout in the failure handling section: visibility timeout on the queue must be at least as long as the Lambda function's timeout (and ideally 6× the timeout per AWS recommendation). If the visibility timeout is shorter than the actual processing time, SQS will re-deliver the message before processing finishes, causing duplicates.",
+            "Change `batchSize: 5` in the basic example to `batchSize: 10` (the default) or to a value larger than the default (e.g. 50) with a sentence explaining why. Having the first example configure a value below the default with no explanation teaches the reader a non-idiomatic pattern.",
+            "Expand the handler type annotation or add a one-sentence note that the `{ messageId, body }` shape is simplified — the full SQS record also includes `attributes`, `messageAttributes`, `awsRegion`, and `eventSource`. Link to the AWS docs already cited at the bottom of that section."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and uses concrete trigger behavior from the SqsIntegration source.",
+            "Core happy path is clear: queue plus Lambda function, focused `SqsIntegration` example, batching properties, and API reference with the correct `SqsIntegrationProps` definition name.",
+            "The page gives useful decision support for when to use SQS versus SNS, EventBridge, Kinesis, and HTTP triggers.",
+            "Stacktape config examples use `defineConfig`, class-based resources, and `<CodeBlock intellisense tabs={[...]}/>` with a proper `TypeScript` tab."
+          ],
+          "problems": [
+            "Several concrete AWS/SQS claims are not grounded in the provided source files, especially SQS pricing, Free Tier amounts, 256 KB message size, FIFO exactly-once behavior, FIFO concurrency by message group, delivery delays up to 15 minutes, EventBridge throughput limits, and standard SQS near-unlimited throughput.",
+            "The FAQ says `Batch jobs accept SqsIntegration events`, but the provided source only documents SqsIntegration as triggering a function and does not show batch job event support for SQS.",
+            "The handler example contains a placeholder-style comment, `// your processing logic here`, which weakens copy-paste completeness.",
+            "The external-queue warning claims Stacktape automatically adds IAM permissions for same-stack queues. That may be true, but it is not stated in the provided SqsIntegration source; write more cautiously unless another source supports it.",
+            "The page includes strong operational guidance in the Tip (`batchSize` 100-1,000, `maxBatchWindowSeconds` 5-30 seconds) that is not supported by the source. The source only supports the default, maximums, and invocation conditions.",
+            "Some section first paragraphs are shorter than the requested 40-75 word self-contained snippet target, especially `Using an external queue`, `Handling failures`, and `Processing SQS messages`.",
+            "The page explains failure handling partly from AWS behavior, but the provided SqsIntegration source does not document visibility timeout, redrive policy, or whole-batch retry behavior for SQS. If retained, these need a source file from the SQS queue resource or AWS behavior should be framed more cautiously."
+          ],
+          "mandatoryFixes": [
+            "Remove or source the concrete SQS pricing claims. The provided source does not contain Free Tier, `$0.40`, `$0.50`, 256 KB billing chunks, or regional pricing details, and the pricing rules forbid invented concrete pricing.",
+            "Remove or source the unsupported `Batch jobs accept SqsIntegration events` FAQ claim. With the current source list, describe SQS events only as function triggers.",
+            "Replace the placeholder comment in the Lambda handler example with complete minimal behavior or remove it. Example bodies should not contain `your processing logic here` placeholders.",
+            "Remove or qualify unsupported tuning recommendations such as `batchSize` 100-1,000 and `maxBatchWindowSeconds` 5-30 seconds. Keep only sourced defaults and limits unless another source supports the recommendation.",
+            "Revise unsupported concrete AWS/SQS facts or add the relevant source files: FIFO exactly-once behavior, FIFO concurrency, 15-minute delivery delays, 256 KB message size, EventBridge throughput limits, and standard SQS near-unlimited throughput."
+          ],
+          "optionalImprovements": [
+            "Make each H2 opening paragraph self-contained and closer to the 40-75 word target by naming `SQS event triggers` or `SqsIntegration` directly in the first sentence.",
+            "Convert the SQS/SNS/EventBridge/Kinesis decision guidance into a compact comparison table for better extractability.",
+            "Add a short note near the batching table that `maxBatchWindowSeconds` has no documented default in the provided type source; the source only says that when unset, invocation happens as soon as messages are available.",
+            "Tighten `Using an external queue` by explicitly contrasting `sqsQueueName` and `sqsQueueArn` in prose before the code example.",
+            "Keep FAQ answers focused on claims supported by the source list, or clearly limit AWS-background statements to broad mechanics without exact unsupported numbers."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided SqsIntegration source for batch size, batch window, queue name/ARN selection, and the 6 MB Lambda payload trigger condition. The main risks are Stacktape-specific claims that go beyond the supplied source, especially batch-job support and automatic IAM/resource-policy behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Batch jobs accept `SqsIntegration` events alongside Lambda functions.”",
+              "reason": "The provided source defines SqsIntegration as triggering a function, and no supplied source shows BatchJob accepting SqsIntegration events. This is a Stacktape-specific capability claim that would change what readers configure.",
+              "suggestedFix": "Remove the FAQ entry or narrow it to what the source supports: SQS integrations trigger functions. Do not claim batch-job support unless a BatchJob event type source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new messages are available in an SQS queue."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegration {\n  type: 'sqs';\n  properties: SqsIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When you reference a queue by `sqsQueueName`, Stacktape wires up the connection between the Lambda function and the queue, including the required IAM permissions.”",
+              "reason": "The source supports that `sqsQueueName` references a queue defined in the stack's resources, but it does not state that Stacktape automatically grants IAM permissions for the Lambda execution role.",
+              "suggestedFix": "Say that `sqsQueueName` references an SQS queue defined in the same Stacktape configuration and creates the SQS event trigger. Omit the IAM-permissions claim unless a source for that behavior is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The name of an SQS queue defined in your stack's resources.\n   *\n   * ---\n   *\n   * You must specify either `sqsQueueName` or `sqsQueueArn`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When using an external queue, ensure the queue's resource policy grants your Lambda function's execution role the permissions needed to receive and delete messages. Stacktape handles this automatically for queues defined within the same stack using `sqsQueueName`.”",
+              "reason": "The source supports using `sqsQueueArn` for an existing queue not managed by the stack, but it does not describe external queue resource policies or automatic permission handling for same-stack queues.",
+              "suggestedFix": "Keep the external ARN explanation, but phrase permissions cautiously as AWS setup the user may need to handle outside Stacktape. Remove the claim that Stacktape handles same-stack permissions automatically unless another source is supplied.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The ARN of an existing SQS queue.\n   *\n   * ---\n   *\n   * Use this to consume messages from a queue that is not managed by your stack.\n   * You must specify either `sqsQueueName` or `sqsQueueArn`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The SQS integration has no retry or dead-letter configuration on the trigger itself. Instead, retry and dead-letter behavior for SQS is configured on the SQS queue resource.”",
+              "reason": "The provided SqsIntegrationProps source does support that retry/dead-letter properties are not present on the integration, but it does not support the second sentence about those features being configured on the SQS queue resource. No SqsQueue resource source was provided.",
+              "suggestedFix": "State only the source-grounded trigger fact: SqsIntegration exposes `sqsQueueName`, `sqsQueueArn`, `batchSize`, and `maxBatchWindowSeconds`; retry/dead-letter properties are not part of this trigger interface. Link to the SQS queue page without asserting specific queue properties unless the queue source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "maxBatchWindowSeconds?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Reference a FIFO queue by `sqsQueueName` or `sqsQueueArn` the same way as a standard queue. See the SQS queue resource page for FIFO configuration options including high-throughput mode.”",
+              "reason": "FIFO queue behavior is general AWS knowledge, but the Stacktape-specific claim that Stacktape's SQS queue resource exposes FIFO configuration and high-throughput mode is not grounded in the provided source.",
+              "suggestedFix": "Keep general AWS FIFO behavior if useful, but remove or soften the Stacktape-specific FIFO/high-throughput configuration claim unless SqsQueue source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "sqsQueueArn?: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The `<ApiReference definitionName=\"SqsIntegrationProps\" />` value matches the relevant Props interface in the provided source.",
+            "The core batching facts are grounded: `batchSize` defaults to 10, has maximum 10,000, `maxBatchWindowSeconds` has maximum 300 seconds, and missing `maxBatchWindowSeconds` means invocation as soon as messages are available.",
+            "The draft correctly distinguishes `sqsQueueName` for a queue defined in stack resources from `sqsQueueArn` for an existing queue not managed by the stack."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided SqsIntegration source for batching, queue references, and the absence of SQS-specific retry/dead-letter trigger properties. The main issues are unsupported Stacktape-specific claims about IAM wiring, unsupported compute-target scope beyond Lambda functions, and a few concrete AWS/Stacktape behavior claims that go beyond the supplied source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“When you reference a queue by `sqsQueueName`, Stacktape wires up the connection between the Lambda function and the queue, including the required IAM permissions.” Also: “Stacktape handles this automatically for queues defined within the same stack using `sqsQueueName`.”",
+              "reason": "The provided SqsIntegration source supports referencing an SQS queue defined in the stack, but it does not state that Stacktape automatically grants IAM permissions for the Lambda execution role. This is a Stacktape-specific behavior claim that would change what readers expect to configure.",
+              "suggestedFix": "Narrow the claim to what the source supports: `sqsQueueName` references an SQS queue defined in the same Stacktape configuration. If IAM automation is documented in another authoritative source, add that source before making the stronger claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The name of an SQS queue defined in your stack's resources.\n   *\n   * ---\n   *\n   * You must specify either `sqsQueueName` or `sqsQueueArn`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The ARN of an existing SQS queue.\n   *\n   * ---\n   *\n   * Use this to consume messages from a queue that is not managed by your stack.\n   * You must specify either `sqsQueueName` or `sqsQueueArn`."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Batch jobs accept `SqsIntegration` events alongside Lambda functions.”",
+              "reason": "The supplied SqsIntegration source repeatedly describes SQS as triggering a function. It does not state that SqsIntegration can trigger BatchJob resources. This claim expands the supported target types beyond the provided source.",
+              "suggestedFix": "Remove the Batch jobs FAQ entry unless a BatchJob source file is provided that explicitly includes SqsIntegration events. Keep the page scoped to Lambda functions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when new messages are available in an SQS queue."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegration {\n  type: 'sqs';\n  properties: SqsIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You must specify exactly one of `sqsQueueName` or `sqsQueueArn` — not both.”",
+              "reason": "The SqsIntegration property comments say “either” but do not explicitly say “exactly one” or “not both.” Other integration types in the same source use stricter wording such as “only one of,” so this stronger exclusivity wording is not grounded in the provided SQS source.",
+              "suggestedFix": "Use the source wording: “Specify either `sqsQueueName` or `sqsQueueArn`.” Avoid “exactly one” unless a validator or schema source is supplied.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You must specify either `sqsQueueName` or `sqsQueueArn`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Unlike Kinesis and DynamoDB stream triggers — which expose `maximumRetryAttempts` and `onFailure` properties directly on the integration — the SQS integration has no retry or dead-letter configuration on the trigger itself. Instead, retry and dead-letter behavior for SQS is configured on the SQS queue resource.”",
+              "reason": "The source supports that Kinesis and DynamoDB integrations expose `maximumRetryAttempts` and `onFailure`, and that SqsIntegrationProps does not include those properties. However, the source file does not document SQS queue redrive/dead-letter configuration or say retry/dead-letter behavior is configured on the SQS queue resource.",
+              "suggestedFix": "Keep the supported contrast, but narrow the second sentence: “SqsIntegrationProps does not define retry or onFailure properties. Configure SQS retry/dead-letter behavior on the queue resource if those options are available on the SQS queue page.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "maximumRetryAttempts?: number;\n  /**\n   * #### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts.\n   */\n  onFailure?: DestinationOnFailure;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When your Lambda function throws an error while processing an SQS batch, AWS returns the entire batch of messages to the queue for reprocessing.”",
+              "reason": "The SQS source states that messages are processed in batches, but it does not describe failure semantics for SQS Lambda event source mappings. This is AWS behavior, but it is not present in the provided source and is operationally important enough to need grounding if presented as part of Stacktape trigger behavior.",
+              "suggestedFix": "Either cite/link AWS Lambda SQS behavior as background or phrase more cautiously: “For AWS Lambda SQS event sources, a failed batch can be retried, so handlers should be idempotent.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Messages are processed in batches. The function fires when `batchSize` is reached,\n * `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“FIFO queues guarantee ordering and exactly-once delivery… See the SQS queue resource page for FIFO configuration options including high-throughput mode.”",
+              "reason": "The provided SQS trigger source does not mention FIFO queues, exactly-once delivery, message group ordering, or high-throughput FIFO mode. These may be AWS/SQS-resource facts, but they are not grounded in the supplied source files for this page.",
+              "suggestedFix": "Remove or shorten the FIFO FAQ unless SqsQueue source is provided. A safe version is: “SqsIntegration can reference a queue by `sqsQueueName` or `sqsQueueArn`; queue-specific FIFO settings belong on the SQS queue resource page.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The number of records in `event.Records` is bounded by your `batchSize` setting.”",
+              "reason": "The source says `batchSize` is the maximum number of records to process in a single batch, so the claim is broadly consistent. However, the first paragraph also notes the 6 MB payload limit, meaning actual record count may be lower even before `batchSize` is reached. The wording is acceptable but could be more precise.",
+              "suggestedFix": "Change to: “The number of records in `event.Records` is at most your `batchSize` setting and can be lower when the batch window expires or the 6 MB payload limit is reached.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A single SQS queue should have only one consumer.” and “Each standard SQS queue should have exactly one consumer.”",
+              "reason": "The source says a single SQS queue should only have one consumer function. The draft broadens that to one consumer generally and uses “exactly one,” which could be read as prohibiting non-Lambda consumers or implying a hard validation rule.",
+              "suggestedFix": "Use the source scope: “A single SQS queue should only have one consumer function in this trigger pattern. For fan-out, publish to SNS or EventBridge and route into separate queues.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML configuration.",
+            "The draft correctly documents the sourced SQS trigger conditions: `batchSize`, `maxBatchWindowSeconds`, and the 6 MB payload limit.",
+            "The draft correctly sets `<ApiReference definitionName=\"SqsIntegrationProps\" />`, matching the source type name.",
+            "The internal documentation links used in the draft match routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the complete SqsIntegrationProps surface that matters for this conceptual trigger page: queue reference by name or ARN, batch size, and maximum batch window. The examples are demonstrative for the sections they appear in, and no union-variant coverage gaps are present in the provided SQS integration type.",
+          "issues": [],
+          "positiveFindings": [
+            "The page documents both queue attachment paths from SqsIntegrationProps: sqsQueueName for stack-managed queues and sqsQueueArn for external queues.",
+            "The batching section covers both throughput-related properties in SqsIntegrationProps: batchSize and maxBatchWindowSeconds, including sourced defaults and limits.",
+            "The Basic example includes the canonical event binding through new SqsIntegration({ sqsQueueName, batchSize }) inside a LambdaFunction events array.",
+            "The external queue example demonstrates the specific feature discussed by using sqsQueueArn instead of repeating the managed-queue scaffold.",
+            "The API reference uses the correct props type for this page: SqsIntegrationProps."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\sqs-events.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 3, advisory high 0, verifier medium 8"
+}

@@ -1,0 +1,162 @@
+---
+title: 'Guardrails Overview'
+order: 101
+seoTitle: 'Organization Guardrails Overview | Stacktape Docs'
+seoDescription: 'Configure organization-wide guardrails in Stacktape to enforce security, cost, and compliance policies. Block non-compliant deployments before they reach AWS with preventive rules for stages, regions, resource limits, and databases.'
+---
+
+# Guardrails Overview
+
+Stacktape guardrails are organization-wide preventive rules that block deployments violating your team's security, cost, or compliance standards. Unlike [alarms](/observability/alarms) which react to problems after they occur, guardrails enforce policy at deploy time — a deployment that violates any active guardrail fails immediately with a clear error message.
+
+## Guardrails vs alarms
+
+Guardrails and alarms serve fundamentally different purposes:
+
+| | Guardrails | Alarms |
+|---|---|---|
+| **When** | Before deployment completes | After deployment, at runtime |
+| **Action** | Blocks the deployment | Sends a notification |
+| **Scope** | Organization-wide, all projects | Per-resource, per-stack |
+| **Purpose** | Prevent policy violations | Detect runtime issues |
+| **Managed in** | Stacktape Console (organization settings) | Stacktape config or Console |
+
+Guardrails prevent mistakes from reaching AWS. Alarms tell you when something goes wrong in production. Use both — guardrails for policy, alarms for operations.
+
+## How guardrails work
+
+Guardrails are evaluated during every deployment command (`deploy`, `codebuild:deploy`, `delete`, `preview-changes`). The CLI fetches your organization's active guardrails and validates the current operation against each one. If any guardrail is violated, the command fails with a `GUARDRAIL` error before any AWS resources are created or modified.
+
+The enforcement sequence:
+
+1. CLI loads the Stacktape configuration
+2. Organization guardrails are retrieved from the Stacktape Console
+3. Each guardrail is checked against the current command, stage, region, and resource configuration
+4. If a violation is found, the deployment halts with an explicit error naming the guardrail and the offending resource
+
+<Info>
+Guardrails are enforced regardless of whether deployments are triggered from the CLI, GitOps, or the Console. Every deployment path runs the same validation logic.
+</Info>
+
+## Guardrail categories
+
+Stacktape organizes guardrails into four categories, each targeting a different governance concern.
+
+### Deployment restrictions
+
+Deployment restriction guardrails control where and how your team can deploy. They operate at the command level — before any configuration is parsed.
+
+- **Stage restriction** — Only allow deployments to specific stages (e.g., `production`, `staging`). All other stage names are blocked.
+- **Region restriction** — Only allow deployments to specific AWS regions (e.g., `eu-west-1`, `us-east-1`). All other regions are blocked.
+- **Command restriction** — Block specific CLI commands entirely. Available commands to block: `deploy`, `delete`, `codebuild:deploy`, `rollback`, `cf:rollback`, `dev`, `preview-changes`.
+
+These guardrails are useful for preventing accidental production deletions, restricting deployments to approved regions for data residency, or ensuring that only safe commands are available to certain workflows.
+
+For full details on configuring each, see [Deployment guardrails](/guardrails/deployment).
+
+### Security and data protection
+
+Security guardrails enforce best practices that protect data and reduce attack surface. Each is a simple toggle — enabled or disabled.
+
+- **Require VPC for databases** — All [relational databases](/resources/databases/relational-database) and [OpenSearch domains](/resources/databases/opensearch) must use VPC-only accessibility. Blocks public internet access to databases.
+- **Require deletion protection** — All relational databases must have `deletionProtection` enabled. Prevents accidental data loss from a `stacktape delete` or CloudFormation drift.
+- **Require dead-letter queue** — All [SQS queues](/resources/messaging/sqs-queue) must have a `redrivePolicy` configured. Ensures failed messages are captured rather than silently lost.
+- **Require WAF on load balancers** — All [application load balancers](/resources/networking/application-load-balancer) must have a [web application firewall](/resources/security/web-application-firewall) attached via `useFirewall`.
+- **Require custom domain** — All [web services](/resources/compute/web-service) and [static hosting buckets](/resources/frontend/static-hosting) must have a [custom domain](/resources/networking/custom-domains) configured. Prevents auto-generated AWS URLs from leaking into production.
+
+For full details, see [Security and data protection guardrails](/guardrails/security-and-data-protection).
+
+### Resource limits
+
+Resource limit guardrails cap compute usage to control costs and prevent over-provisioned resources.
+
+- **Function memory limit** — Set a maximum memory allocation (in MB, range 128–10,240) for all [Lambda functions](/resources/compute/lambda-function) and [edge functions](/resources/compute/edge-function).
+- **Function timeout limit** — Set a maximum timeout (in seconds, range 1–900) for all Lambda functions and edge functions.
+- **Container resource limit** — Set maximum vCPU and memory (in MB) for all container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload)).
+- **Resource count limit** — Limit the total number of resources per stack. Prevents stack sprawl that makes infrastructure hard to manage and expensive to maintain.
+
+For full details, see [Resource limit guardrails](/guardrails/resource-limits).
+
+### Database restrictions
+
+Database guardrails standardize which database engines and instance sizes your team can use.
+
+- **Allowed database engines** — Only allow specific engine types. Supported engines include `postgres`, `mysql`, `mariadb`, `aurora-postgresql`, `aurora-mysql`, `aurora-postgresql-serverless`, `aurora-mysql-serverless`, `aurora-postgresql-serverless-v2`, `aurora-mysql-serverless-v2`, `oracle-ee`, `oracle-se2`, `sqlserver-ee`, `sqlserver-ex`, `sqlserver-se`, `sqlserver-web`.
+- **Blocked instance sizes** — Block specific RDS instance sizes (e.g., `db.r5.4xlarge`, `db.r6g.8xlarge`). Prevents teams from provisioning expensive instances without approval.
+- **Blocked resource types** — Block entire resource types from being used (e.g., `open-search-domain`, `redis-cluster`). Prevents teams from provisioning unapproved AWS services.
+
+<Tip>
+Aurora Serverless engines (v1 and v2) are not checked for instance sizes since they auto-scale and don't use fixed instance classes.
+</Tip>
+
+For full details, see [Database guardrails](/guardrails/databases).
+
+## Managing guardrails
+
+Guardrails are managed in the [Stacktape Console](/stacktape-console/console-overview) at the organization level. Only users with the **Owner** or **Admin** role can create, modify, or remove guardrails. Developers and Viewers cannot change guardrails but are subject to their enforcement.
+
+To configure guardrails:
+1. Open the Stacktape Console and navigate to the Guardrails page in your organization settings
+2. Toggle on simple guardrails (like Require VPC for databases) or expand value-based guardrails to configure their parameters
+3. Save — the guardrail takes effect on the next deployment across all projects in the organization
+
+<Warning>
+Guardrails apply to all projects and stages within the organization. There is no per-project or per-stage override. Plan your guardrail values to accommodate all environments — or use stage restrictions to separate environments into different organizations.
+</Warning>
+
+## When to use guardrails
+
+Guardrails are most valuable when:
+
+- **Multiple developers deploy independently** — guardrails prevent one team from accidentally exposing a database or using an unapproved region.
+- **You need compliance boundaries** — data residency (region restriction), encryption-at-rest enforcement (VPC databases), or audit requirements (deletion protection).
+- **Cost control is important** — resource limits prevent an intern from deploying a 10 GB Lambda or a `db.r6g.16xlarge` instance.
+- **You want consistent production standards** — require custom domains and WAF for all public-facing services without relying on code review to catch it.
+
+## When NOT to use guardrails
+
+- **Solo developers or tiny teams** — guardrails add governance overhead. If you trust everyone on the team, code review may be sufficient.
+- **Experimentation stages** — if you want developers to freely experiment in `dev` stages, restrictive guardrails slow them down. Consider setting guardrails only for production-like environments, or use separate organizations with different guardrail policies.
+- **Gradual enforcement** — guardrails are all-or-nothing per organization. If you need a grace period for existing non-compliant stacks, fix existing stacks first before enabling a guardrail. An enabled guardrail blocks all non-compliant deployments immediately.
+
+## FAQ
+
+### What happens when a guardrail is violated?
+
+The deployment fails immediately with a `GUARDRAIL` error that names the specific violation and the resource that triggered it. No AWS resources are created or modified. The error message includes both the violated constraint and the current value, making it clear what needs to change.
+
+### Do guardrails apply to dev mode?
+
+Yes. The `dev` command can be blocked via the command restriction guardrail. Resource-level guardrails (memory limits, VPC requirements, etc.) are evaluated against the Stacktape configuration regardless of which command is running.
+
+### Can I set different guardrails for production vs development?
+
+Not directly. Guardrails apply to all stages within an organization. To achieve different policies, use separate organizations — one for production with strict guardrails, another for development with relaxed settings. Alternatively, set resource limits high enough for development needs while still preventing egregious over-provisioning.
+
+### Who can manage guardrails?
+
+Only organization **Owners** and **Admins** can create, modify, or remove guardrails. Developers and Viewers are subject to guardrail enforcement but cannot change the rules.
+
+### Are guardrails enforced in CI/CD pipelines?
+
+Yes. Guardrails are evaluated on every deployment regardless of the trigger source — CLI, [GitOps](/ci-cd-and-gitops/gitops-with-console), [CodeBuild deploy](/cli/codebuild-deploy), or custom CI/CD pipelines. Any deployment that violates a guardrail will fail.
+
+### How do guardrails differ from AWS Service Control Policies?
+
+AWS Service Control Policies (SCPs) operate at the AWS Organizations level and restrict which AWS API calls can be made. Stacktape guardrails operate at the Stacktape configuration level and validate resource definitions before any AWS calls happen. Guardrails are faster to configure (no IAM policy language), specific to Stacktape concepts (stages, resource types, packaging), and provide clearer error messages. SCPs are broader and can restrict actions Stacktape doesn't control. Use both for defense-in-depth.
+
+### Can I block specific resource types entirely?
+
+Yes. The resource type restriction guardrail lets you block any Stacktape resource type. For example, block `open-search-domain` if your organization hasn't approved OpenSearch, or block `bastion` to prevent SSH tunneling into private subnets.
+
+### Do guardrails check existing deployed stacks?
+
+No. Guardrails are evaluated only during deployment commands. Existing stacks that were deployed before a guardrail was enabled continue running. However, the next deployment to a non-compliant stack will fail — forcing the team to fix the violation before any further changes can be made.
+
+### Can guardrails prevent stack deletion?
+
+Yes. Use the command restriction guardrail to block the `delete` command. This prevents any team member from running `stacktape delete` across the organization. Combine with the stage restriction guardrail to ensure only approved stages exist.
+
+### Is there a cost for using guardrails?
+
+No. Guardrails are a built-in Stacktape feature included in all subscription plans. There is no additional AWS cost since guardrails operate entirely within the Stacktape deployment pipeline before any AWS resources are provisioned.

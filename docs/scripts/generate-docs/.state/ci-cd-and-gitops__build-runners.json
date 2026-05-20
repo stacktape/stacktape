@@ -1,0 +1,824 @@
+{
+  "pageId": "ci-cd-and-gitops__build-runners",
+  "pageRoute": "ci-cd-and-gitops/build-runners",
+  "startedAt": "2026-05-17T18:31:16.466Z",
+  "updatedAt": "2026-05-17T18:45:14.290Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\ci-cd-and-gitops__build-runners\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong comparison table leads the page and surfaces all the key differentiators (caching, speed, cost model, scope) in one scannable view — exactly what this audience needs to make a decision without reading the full page.",
+            "Pricing is directly grounded in the console source: ~$3/month EBS, per-instance-type compute rates, and ~$0.02/min CodeBuild are all confirmed in RunnerConfigModal.tsx and DeployNewProjectFromGit.tsx tooltips.",
+            "The per-project (EC2) vs. global (CodeBuild) scope distinction is clearly stated and correctly sourced from the RunnerConfigModal's inline note.",
+            "The 'Build runners and CI/CD' section with the deployment-method table is genuinely useful for developers who are unsure whether their CLI usage goes through the Console runner at all.",
+            "FAQ mixes Stacktape-specific, AWS-cost, and comparison questions well, and most answers are concise enough to function as Featured Snippets.",
+            "No mandatory style violations: no YAML Stacktape config, no StacktapeConfig type pattern, no fenced TypeScript with defineConfig, no marketing language, no multiple-command bash blocks."
+          ],
+          "problems": [
+            "The entire 'CodeBuild configuration' subsection — compute types table (BUILD_GENERAL1_SMALL through BUILD_GENERAL1_2XLARGE), base Docker image override, and additional install commands — is not visible in either provided source file. The console source only exposes runner type selection and EC2 instance type; no CodeBuild-specific settings UI is present. Describing these as available options may lead users to look for settings that don't exist.",
+            "The 'AMI updates' subsection claims Stacktape 'automatically keeps EC2 runner AMIs up to date' and describes a specific reprovisioning workflow (terminate idle runners, reprovision on next deployment, never interrupt running builds). Neither source file mentions AMI management.",
+            "Specific EC2 runner runtime versions (Node.js 18/20/22/24 via fnm, Java Corretto 11/17/21, Ruby 3.3/3.4 via rbenv, PHP 8.1/8.2/8.3, Maven, Gradle, Composer) are not in any provided source. The source only lists runtimes generically. Citing specific version numbers that are wrong or outdated breaks user trust.",
+            "The final FAQ entry on runner failure describes specific operational thresholds: '30 minutes in a transitional state triggers reset' and 'stalled for 2+ hours marks deployment as failed'. These timeouts are completely absent from the source and appear invented.",
+            "The FAQ mentions 'Organization-level additional build commands' for EC2 runners. This is not confirmed in the source. It may be a CodeBuild-only concept that the writer has incorrectly generalized.",
+            "Minor: The 'Changing the instance type' subsection under EC2 runner configuration is nearly content-free — it repeats that the change takes effect on the next deployment, which was already stated in the intro paragraph and in the Switching section. It reads as a padded heading."
+          ],
+          "mandatoryFixes": [
+            "Remove or rewrite the CodeBuild configuration subsections (compute types table, base Docker image, additional install commands). The provided source shows no UI for these settings in the Stacktape Console — the modal only exposes runner type and EC2 instance type. Either confirm this feature exists via a source file not provided, or collapse the section to 'CodeBuild settings (compute type, Docker image, install commands) are configured globally from the Projects page in the Console' without inventorying options the source does not show.",
+            "Remove the AMI updates subsection entirely. No provided source mentions AMI lifecycle management. If this behavior exists, it needs a grounded source file before it can be documented.",
+            "Remove all specific runtime version numbers from the EC2 runner pre-installed runtimes FAQ answer and from the comparison table row. Replace with the generic list confirmed by source (Node.js, Bun, Python, Java, Go, Ruby, PHP, Docker) without specific versions or package manager tooling details that are not sourced.",
+            "Rewrite or remove the runner-failure FAQ entry. The specific thresholds (30-minute transitional timeout, 2-hour stall detection) are not present in any source file and read as fabricated operational detail. If failure recovery behavior is worth documenting, it must be grounded in source."
+          ],
+          "optionalImprovements": [
+            "Collapse the 'Changing the instance type' subsection — it adds no content not already in the parent section's intro or the Switching section. Remove the heading and absorb the one-sentence note into the EC2 runner configuration section intro.",
+            "The cost comparison math in the 'How does CodeBuild pricing compare to EC2 runner pricing?' FAQ uses $0.02/min for CodeBuild but the page's comparison table earlier lists no per-minute cost for CodeBuild in the 'Cost model' row — adding it to the table would make the table self-sufficient without requiring the reader to find the FAQ.",
+            "The DeployNewProjectFromGit source quotes ~$0.005/min compute for EC2, while the instance options table shows $0.006/min for c7a.2xlarge. The page consistently uses $0.006 (from the options table, which is more specific). A brief note that cost varies by instance type would clarify why the two numbers differ for readers who notice the tooltip vs. table mismatch.",
+            "Consider moving the 'EC2 runners vs CodeBuild' comparison table above the H2 intro paragraph — the audience wants to see the comparison immediately after the one-paragraph intro, not after another prose paragraph that partially repeats the table's content."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded comparison table accurately reflects RunnerConfigModal.tsx values: all six instance types (m6a.large through c7a.8xlarge), their vCPU/RAM/cost figures, and the default c7a.2xlarge are all confirmed by source.",
+            "Hibernation behavior (15-minute idle threshold, ~10-second wake-up) is correctly extracted from both source files' tooltip text.",
+            "The per-project (EC2) vs global (CodeBuild) configuration scope distinction is accurately drawn from RunnerConfigModal.tsx which links to `/projects?buildRunnerSettings=open` for CodeBuild settings.",
+            "The EC2_RUNNER default for new projects is correctly identified from DeployNewProjectFromGit.tsx default state.",
+            "The 'Build runners and CI/CD' comparison table clearly separates Console-triggered deployments from CLI-triggered ones — useful grounding for engineers who mix both paths.",
+            "The opening section immediately answers the decision question; no filler or meta-framing.",
+            "No forbidden patterns: no YAML Stacktape config blocks, no StacktapeConfig type, no fenced TypeScript with defineConfig, no PropertiesTable, no multiple ApiReference blocks."
+          ],
+          "problems": [
+            "The FAQ answer for 'What happens if my EC2 runner fails or gets stuck?' cites specific timeouts (30 minutes transitional, 2 hours stalled) that do not appear anywhere in the provided source files. A production engineer relying on these numbers could be badly misled — these read as invented.",
+            "The pre-installed runtimes list in 'When to use EC2 runners' and the FAQ entry ('Node.js (18, 20, 22, 24 via fnm), Ruby (3.3, 3.4 via rbenv), PHP (8.1, 8.2, 8.3)...') is not present in any provided source file. The source only says 'Node.js, Bun, Python, Java, Go, Ruby, PHP, Docker' without version specifics. Specific version claims are unsupported and will drift.",
+            "The 'AMI updates' subsection describes a specific policy ('idle runners are terminated and reprovisioned... Running runners are not interrupted') that does not appear in any provided source. This is an invented operational claim about failure/update behavior, exactly what a production engineer needs to be accurate.",
+            "The CodeBuild 'Compute types' table (BUILD_GENERAL1_SMALL through BUILD_GENERAL1_2XLARGE with specific vCPU/RAM figures) is not in the provided source files. These are well-known AWS facts but are presented as Stacktape-grounded content — they should be attributed to AWS documentation or clearly framed as AWS CodeBuild limits, not implied to be Stacktape-controlled.",
+            "FAQ entry 'Can I customize the EC2 runner's build environment?' mentions 'Organization-level additional build commands' for EC2 runners, but the source only shows per-project EC2 instance type selection. The 'additional install commands' feature is described under CodeBuild configuration, not EC2. This claim is unsupported for EC2.",
+            "Minor cost inconsistency: the FAQ example uses $0.006/min for c7a.2xlarge (matching RunnerConfigModal.tsx) but DeployNewProjectFromGit.tsx tooltip says '~$0.005/min compute'. Not a blocker, but the page should acknowledge this is approximate."
+          ],
+          "mandatoryFixes": [
+            "Remove the specific monitoring timeout numbers from the FAQ answer about runner failures ('30 minutes transitional', '2 hours stalled'). These are not in any provided source. Replace with: 'Contact Stacktape support if a runner appears stuck, or reprovision it from the runner configuration modal.' Do not fabricate behavior that production engineers will depend on.",
+            "Replace the specific runtime version list (Node.js 18/20/22/24, Ruby 3.3/3.4 via rbenv, PHP 8.1-8.3, etc.) with the source-confirmed non-versioned list: 'Node.js, Bun, Python, Java, Go, Ruby, PHP, Docker, and standard build tools'. Remove the fnm/rbenv version manager claims which are not in the source.",
+            "Remove or rewrite the 'AMI updates' subsection entirely. The operational policy described (how and when idle vs. running instances are updated) is not grounded in any provided source file. If AMI management is worth mentioning, write only what is confirmable: 'Stacktape manages the EC2 runner AMI. When a new image is available, it is applied between deployments.' Do not describe interruption behavior or timing that isn't sourced.",
+            "Reframe the CodeBuild compute types table as AWS CodeBuild service limits ('AWS CodeBuild offers the following compute types') rather than implying Stacktape controls them. Better still: omit the table entirely if it isn't configurable through Stacktape, or verify it against an AWS source reference. The provided source files do not enumerate these values.",
+            "Remove 'Organization-level additional build commands' from the EC2 customization FAQ answer. The source only shows per-project instance type selection for EC2. If additional build commands are only a CodeBuild feature, say so explicitly. Do not imply EC2 runners support a parallel 'additional build commands' mechanism without source."
+          ],
+          "optionalImprovements": [
+            "Acknowledge the $0.005/min vs $0.006/min cost figure difference between the new-project flow and the modal — or use '~$0.005–$0.006/min' to bracket the approximation honestly.",
+            "The RunnerConfigModal.tsx falls back to CODEBUILD for projects where deploymentRunnerType is null (legacy projects), while new projects default to EC2_RUNNER. A sentence noting that older projects created before EC2 runners existed may default to CodeBuild would help engineers auditing existing projects.",
+            "The 'Switching runner types' section says 'the EC2 instance is eventually terminated and the EBS volume released after the idle timeout passes' when switching away from EC2. This is plausible but not confirmed by the source — soften to 'the EC2 instance is deprovisioned after the runner is no longer needed' if this is not source-verifiable.",
+            "Consider adding a brief note that the runner region is chosen at project creation and determines where the EC2 instance lives — the source tooltip in DeployNewProjectFromGit.tsx confirms 'Runner is per project and region, but you can change the default region later if needed', which is currently buried."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page opens with a clear answer-first paragraph and keeps the main decision framed around EC2 runners versus CodeBuild.",
+            "The comparison table is useful and cites concrete sourced values for runner type, caching behavior, hibernation, wake-up time, pricing model, and instance sizes.",
+            "The page distinguishes Console/GitOps runners from local CLI and custom CI/CD, which is important for the reader’s mental model."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source files: runners cloning the repository, installing dependencies, running the Stacktape CLI, dependency-install steps being skipped entirely, specific 4-5 minute versus 1-2 minute deployment times, AMI update behavior, runner replacement behavior, EC2 termination/EBS release timing, stuck-runner recovery thresholds, and deployments stalled for 2 hours being marked failed.",
+            "The page describes Console UI flows that are more specific than the provided source supports, such as changing settings from a project runner configuration modal, creating a project with a chosen instance size, and switching runner types from project settings. The source shows a modal and links, but not all described workflows.",
+            "The CodeBuild configuration section is weakly grounded. The provided source only says CodeBuild settings are configured globally on the projects page and that CodeBuild uses a fresh container with build-minute pricing; it does not show compute type options, base image configuration, or additional install commands.",
+            "The EC2 customization FAQ claims organization-level additional build commands for EC2 runners, but the provided source only mentions additional install commands in the draft and does not ground them for EC2 runners.",
+            "The FAQ includes useful questions, but several answers add unsupported calculations or operational behavior. The cost arithmetic and break-even guidance may be reasonable, but it goes beyond the exact source facts and should be marked as illustrative only or removed if strict source grounding is required.",
+            "The page has good comparison structure, but it overstates recommendations with unsupported thresholds such as “less than once a week” and “pays for itself after the first few deploys.” The source supports “recommended” and “infrequent deploys,” not those exact cutoffs."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground every unsupported operational claim: repository clone/install/CLI execution, skipped installs, exact deployment duration examples, AMI refresh behavior, runner replacement behavior, EC2 cleanup timing, stuck-runner reset thresholds, and 2-hour deployment failure behavior.",
+            "Rewrite the CodeBuild configuration section to include only facts present in the provided source, or add the source files that define CodeBuild compute types, base Docker image, and install-command settings.",
+            "Narrow Console workflow wording to what the provided UI source shows: the runner modal lets users choose runner type, save changes for the next deployment, and select an EC2 instance type only when EC2 runner is selected; CodeBuild settings are linked from the projects page.",
+            "Remove or qualify unsupported EC2 runner customization claims, especially organization-level additional build commands and deeper AMI customization guidance.",
+            "Replace unsupported precise frequency recommendations with source-grounded wording such as “EC2 runner is recommended for most new projects and active deploy workflows; CodeBuild fits infrequent deployments where avoiding idle compute matters.”"
+          ],
+          "optionalImprovements": [
+            "Add a short “What is sourced here” level of precision in prose by separating Console-supported facts from opinionated recommendations.",
+            "Keep the useful cost comparison, but avoid derived monthly totals unless the source set explicitly provides enough billing assumptions; otherwise present only the sourced per-minute and storage figures.",
+            "Consider shortening the FAQ cost answer to prevent it from becoming a second pricing model that may drift or exceed source grounding.",
+            "Use “approximately” consistently for all sourced prices and speed claims, including 2-5x and wake-up time."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the supplied Console runner sources on the main EC2-vs-CodeBuild distinction, default new-project runner selection, EC2 instance options, hibernation timing, wake-up timing, and pricing cues. The main problems are unsupported operational details that go beyond the two provided source files, especially lifecycle behavior, AMI maintenance, failure recovery, and CLI/CI interactions.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically keeps EC2 runner AMIs up to date. When a new AMI version is available ... idle runners are terminated and reprovisioned with the latest image on their next deployment.”",
+              "reason": "The provided source files mention EC2 runners, hibernation, caching, instance selection, and costs, but they do not describe AMI update behavior, replacement timing, or interruption guarantees. This is a Stacktape-specific lifecycle claim that readers could rely on operationally.",
+              "suggestedFix": "Remove the AMI updates section, or narrow it to only the sourced fact that EC2 runners use a dedicated EC2 instance in the user's AWS account. Do not claim automatic AMI replacement unless a runner backend source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Dedicated EC2 instance in your AWS account. Stays warm between deploys, caches dependencies on disk and runs builds faster."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "Dedicated EC2 instance in your AWS account. Stays warm between deploys, caches dependencies on disk - typically 2-5x faster than CodeBuild."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape monitors runner state automatically. Runners stuck in a transitional state ... for more than 30 minutes are reset and reprovisioned. Deployments that appear stalled for more than 2 hours are marked as failed.”",
+              "reason": "The provided sources contain no monitoring, stuck-state reset, reprovisioning, or timeout behavior for runners. These are specific operational guarantees and would materially affect troubleshooting expectations.",
+              "suggestedFix": "Remove this FAQ entry unless backend runner orchestration source files are added. A cautious replacement could say that the supplied Console sources only document runner selection and settings, not failure recovery behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "Runner is per project and region, but you can change the default region later if needed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The runner clones your repository, installs dependencies, and runs the Stacktape CLI to deploy your stack.”",
+              "reason": "The supplied Console source grounds that runner settings choose how deployments run, but it does not describe the runner's internal steps. Repository cloning, dependency installation, and running the Stacktape CLI are plausible, but unsupported by the provided files.",
+              "suggestedFix": "Narrow the opening to: “Console-triggered deployments run on a configured build runner. Stacktape offers EC2 runners and CodeBuild runners.” Only describe clone/install/CLI mechanics if runner execution source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“EC2 runners are the default for new projects” is presented broadly for all new projects.",
+              "reason": "The create-new-project-from-Git flow defaults `runnerType` to `EC2_RUNNER`, but the existing project runner modal falls back to `CODEBUILD` when `projectDetails.deploymentRunnerType` is missing. The broad statement overstates what the provided sources prove.",
+              "suggestedFix": "Scope the claim to the Git project creation flow: “In the Git-based new-project flow, EC2 runner is preselected and marked recommended.” Avoid saying all new projects default to EC2 unless broader project-creation sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "const runnerType = (searchParams.get('runnerType') || 'EC2_RUNNER') as 'EC2_RUNNER' | 'CODEBUILD';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "const resolvedRunnerType = projectDetails.deploymentRunnerType || 'CODEBUILD';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You choose the runner type and instance size when creating a project” and the surrounding EC2 configuration section imply EC2 instance size is selectable during project creation.",
+              "reason": "The Git new-project source shows runner type and runner region selection during project creation, but no EC2 instance type selector. EC2 instance type is shown in the separate runner configuration modal.",
+              "suggestedFix": "Change to: “You choose the runner type and runner region when creating a Git-backed project. EC2 instance size is configured later in the runner configuration modal.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "<p css={{ fontWeight: 'bold', margin: '20px 0px 5px 5px' }}>Runner type</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "label=\"Runner region\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "label=\"EC2 runner instance\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CodeBuild settings are configured globally — they apply to all projects in the organization that use CodeBuild runners. You configure them from the Projects page in the Stacktape Console,” plus the subsections listing CodeBuild compute types, base Docker image, and additional install commands.",
+              "reason": "The source supports that CodeBuild settings are global for every project and are opened from the projects page, but the provided files do not show the actual CodeBuild settings schema, compute type options, Docker image configuration, or additional install commands.",
+              "suggestedFix": "Keep the global settings sentence, but remove or qualify the compute type, base Docker image, and additional install command details unless the CodeBuild settings component/source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "CodeBuild settings are configured globally (for every project) on the{' '}\n          <InlineLink to=\"/projects?buildRunnerSettings=open\" linkColor=\"primary\" underline>\n            projects\n          </InlineLink>{' '}\n          page."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Organization-level additional build commands can be configured to run setup steps before each deployment.”",
+              "reason": "The provided files do not mention organization-level additional build commands for EC2 runners. The only sourced additional setup-like behavior in the draft is unsupported by these files.",
+              "suggestedFix": "Remove this sentence, or replace it with the sourced fact that EC2 runner customization in the provided UI is limited to runner type, runner region during project creation, and EC2 instance type in the runner modal.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "updateProjectRunnerSettingsMutation.mutate(\n      {\n        organizationId: selectedOrg!.id,\n        projectName: projectDetails.name,\n        deploymentRunnerType: runnerType,\n        ec2RunnerInstanceType: runnerType === 'EC2_RUNNER' ? selectedInstanceType : null\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `codebuild:deploy` CLI command ... uses its own CodeBuild project and is independent of the Console's runner configuration,” and the table row saying it is configured by CLI flags.",
+              "reason": "The documentation index confirms the `/cli/codebuild-deploy` route exists, but no CLI command source is provided here. The supplied Console files do not describe `codebuild:deploy`, its project ownership, or its flags.",
+              "suggestedFix": "Either remove the `codebuild:deploy` behavior details from this page or cite CLI source. A safe version is: “The `codebuild:deploy` command has its own CLI reference at `/cli/codebuild-deploy`; its behavior is separate from the Console runner settings documented in the provided Console UI source.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The EC2 runner instance type table matches the provided `ec2RunnerInstanceOptions`, including vCPU, memory, and approximate per-minute prices.",
+            "The draft correctly distinguishes EC2 runners from CodeBuild: EC2 uses a dedicated EC2 instance that stays warm and caches dependencies; CodeBuild creates a fresh container for each deploy and has no idle compute costs.",
+            "The draft correctly states that EC2 runners auto-hibernate after 15 minutes of inactivity and wake in approximately 10 seconds, matching both supplied Console sources.",
+            "The draft’s cross-links point to routes that exist in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the available Console sources on runner types, defaults in the new-project flow, EC2 instance options, hibernation, wake-up timing, and CodeBuild's fresh-container model. The main problems are unsupported operational details and several numeric/runtime claims that are not present in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The runner clones your repository, installs dependencies, and runs the Stacktape CLI to deploy your stack.”",
+              "reason": "The provided sources establish that runner settings control how deployments run, but they do not describe the runner implementation steps. The clone/install/Stacktape CLI sequence is plausible, but it is not grounded in the supplied source files.",
+              "suggestedFix": "Narrow the wording to what the source supports, for example: “Build runners control how Console-created project deployments run.” If implementation steps are needed, add source from the server-side deployment runner implementation.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Every deployment triggered through the Stacktape Console — whether via GitOps or a manual Console action — executes on a build runner.”",
+              "reason": "The supplied sources show runner selection during Git-based project creation and a project runner configuration modal, but they do not show all Console deployment paths or prove that every GitOps/manual Console action uses the runner.",
+              "suggestedFix": "Limit the claim to project deployments configured through the shown Console flows, or add source files for GitOps/manual deployment execution before making the universal claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "deploymentRunnerType: runnerType,"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A deploy that takes 4–5 minutes on CodeBuild often finishes in 1–2 minutes on an EC2 runner.”",
+              "reason": "The source supports the relative claim that EC2 runners are typically 2–5x faster than CodeBuild, but it does not provide absolute deployment duration examples.",
+              "suggestedFix": "Use the sourced relative wording only: “EC2 runners are typically 2–5x faster than CodeBuild because they stay warm and cache dependencies on disk.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "Dedicated EC2 instance in your AWS account. Stays warm between deploys, caches dependencies on disk - typically 2-5x faster than CodeBuild."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“EC2 runners ... caches dependencies on its EBS volume, repeated deploys skip the dependency-install step entirely.”",
+              "reason": "The source says EC2 runners cache dependencies on disk, but it does not say dependency installation is skipped entirely. That is a stronger behavioral guarantee than the source supports.",
+              "suggestedFix": "Change to: “EC2 runners cache dependencies on disk, so repeated deploys usually spend less time downloading and installing dependencies.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Dedicated EC2 instance in your AWS account. Stays warm between deploys, caches dependencies on disk and runs builds faster."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“EC2 runners include Node.js (18, 20, 22, 24 via fnm), Bun, Python 3.x, Java (Corretto 11, 17, 21), Go, Ruby (3.3, 3.4 via rbenv), PHP (8.1, 8.2, 8.3), Docker, Docker Compose, AWS CLI v2, and standard build tools like Maven, Gradle, and Composer.”",
+              "reason": "The provided Console sources do not enumerate EC2 runner AMI contents or runtime versions. The draft’s detailed runtime list is unsupported by the supplied source files.",
+              "suggestedFix": "Remove the detailed version list, or add the AMI build/source file that enumerates installed tools. With current sources, say only that the EC2 runner is described as a dedicated instance that caches dependencies and runs builds faster.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "Dedicated EC2 instance in your AWS account. Stays warm between deploys, caches dependencies on disk - typically 2-5x faster than CodeBuild."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically keeps EC2 runner AMIs up to date... idle runners are terminated and reprovisioned with the latest image on their next deployment. Running runners are not interrupted.”",
+              "reason": "No provided source describes AMI update behavior, reprovisioning, security patch handling, or interruption guarantees.",
+              "suggestedFix": "Remove the AMI updates section unless source files for runner lifecycle/AMI management are added. If kept, phrase only what the added source proves.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Dedicated EC2 instance in your AWS account. Stays warm between deploys, caches dependencies on disk and runs builds faster."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When switching from EC2 to CodeBuild, the EC2 instance is eventually terminated and the EBS volume released after the idle timeout passes. When switching from CodeBuild to EC2, the first deployment provisions a new EC2 instance.”",
+              "reason": "The sources support changing runner settings and that changes take effect on the next deployment, but they do not describe cleanup timing, EBS volume release, or first-deployment provisioning behavior.",
+              "suggestedFix": "Keep: “You can switch runner types in the Console, and changes take effect on the next deployment.” Remove lifecycle details unless runner backend source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Runner settings updated."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape monitors runner state automatically. Runners stuck in a transitional state (starting or stopping) for more than 30 minutes are reset and reprovisioned. Deployments that appear stalled for more than 2 hours are marked as failed.”",
+              "reason": "The provided source files do not include runner monitoring, reset, reprovisioning, or stalled deployment timeout logic. These are concrete operational guarantees and numeric thresholds without source support.",
+              "suggestedFix": "Remove this FAQ entry or add the backend source that implements those timeouts and reset behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The EC2 instance type table matches the options and approximate per-minute costs shown in RunnerConfigModal.tsx.",
+            "The default `c7a.2xlarge` EC2 runner instance type is grounded in `DEFAULT_EC2_RUNNER_INSTANCE_TYPE`.",
+            "The draft correctly distinguishes EC2 runners from CodeBuild runners using sourced Console tooltip language: EC2 is a dedicated instance that stays warm and caches dependencies; CodeBuild creates a fresh container for each deploy.",
+            "The draft’s hibernation timing and wake-up wording are grounded in the Console source: EC2 runners auto-hibernate after 15 minutes and wake in about 10 seconds.",
+            "All markdown cross-links checked against the provided navigation index are valid routes."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking gaps for this page. The page has no primary Stacktape config type, so CHECK 1 is limited; the documented runner-type union is covered, and there are no Stacktape config CodeBlock examples to audit for demonstrativeness.",
+          "issues": [],
+          "positiveFindings": [
+            "The page explicitly distinguishes EC2 runners from CodeBuild runners, including runner scope, idle behavior, caching, and cost model.",
+            "Both runner variants visible in the source, `EC2_RUNNER` and `CODEBUILD`, are named and compared throughout the draft.",
+            "The EC2 runner instance-type table matches the instance options, vCPU/memory labels, and approximate per-minute costs shown in `RunnerConfigModal.tsx`.",
+            "The page does not contain forbidden hand-authored YAML, plain-object `StacktapeConfig` examples, or fenced Stacktape TypeScript config examples."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\ci-cd-and-gitops__build-runners\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Excellent source grounding throughout — all instance types, vCPU/RAM specs, per-minute costs, hibernation timing, and storage costs are verified against RunnerConfigModal.tsx and DeployNewProjectFromGit.tsx with no invented values.",
+            "The FeatureComparisonTable up front is the right call for this page — a reader can decide EC2 vs CodeBuild in under 30 seconds without reading prose.",
+            "The 'Build runners and CI/CD' section is a genuine value-add: it explicitly clarifies when the Console runner config does NOT apply (custom CI, `codebuild:deploy`), preventing a common source of confusion.",
+            "Decision support is concrete, not circular — 'if you deploy more than a few times per week' gives the reader a real signal instead of 'if you need faster builds, use EC2'.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-mechanics, comparison) and provides complete 2-4 sentence answers that stand alone as Featured Snippets.",
+            "Instance type table with actionable guidance ('if your builds are memory-heavy, use m6a') saves readers from guessing which family to pick.",
+            "Hibernation cost model is explained with numbers that make the case concisely: 'a few minutes of compute plus the flat storage cost'."
+          ],
+          "problems": [
+            "The 'CodeBuild configuration' section is noticeably thin — one paragraph with essentially one fact (CodeBuild has no persistent infrastructure). It names the Console location ('Projects page') but gives no further actionable detail, making it feel like a placeholder stub.",
+            "The two <Tip> callouts repeat content already stated in the immediately preceding prose sentences (hibernation cost model, runner region advice). They add visual weight without new information, which can reduce reading momentum for a first-timer scanning the page.",
+            "The runner region section does not explain the functional relationship between runner region and default deploy region. The source tooltip explicitly states 'Your first deploy defaults here' — this is non-obvious behavior that could surprise a reader and belongs in the prose.",
+            "The intro paragraph assumes readers know what 'Console-managed project deployments' means. For a first-time reader landing here from search, a one-clause orientation ('when you deploy through the Stacktape Console's GitOps or manual deploy flow') would prevent a false start."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand the 'CodeBuild configuration' section to name the specific setting available on the Projects page (from the source: `?buildRunnerSettings=open`), clarify what a user can actually configure there, and note that it applies across all projects in the organization.",
+            "Remove or condense the two <Tip> callouts. The hibernation tip only restates the paragraph directly above it; the runner region tip restates the paragraph's own last sentence. If you want visual emphasis, fold the core fact into a single callout rather than two near-duplicate ones.",
+            "Add one sentence to the runner region section explaining that the runner region also serves as the default deploy region for the project's first deployment (grounded in the source tooltip: 'Your first deploy defaults here'). This is non-obvious and a practical gotcha.",
+            "Sharpen the intro's first sentence to orient readers who arrived without context: add a brief parenthetical like '(GitOps and Console-triggered deploys)' after 'Console-managed project deployments' so the page scope is immediately clear to cold-traffic readers."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All key technical claims — instance specs, costs, hibernation timing (15 min idle, ~10 s wake), default instance type (c7a.2xlarge), and runner behavior — are directly grounded in the source files (RunnerConfigModal.tsx and DeployNewProjectFromGit.tsx).",
+            "The feature comparison table at the top enables a fast go/no-go decision without reading the whole page. It covers exactly the dimensions (caching, cost model, idle behavior, configuration scope) that engineers care about when picking a runner.",
+            "The instance type table (vCPU, memory, approx cost per minute) is sourced verbatim from the modal and is immediately actionable for right-sizing decisions.",
+            "The 'Build runners and CI/CD' section with the deployment-method summary table is the clearest statement of the custom CI/CD vs. Console runner boundary. Engineers who've seen codebuild:deploy in the CLI will immediately understand the distinction.",
+            "The FAQ covers all three required categories (Stacktape-specific, AWS-service mechanics, comparison/choosing) and is substantive — each answer is genuinely non-obvious.",
+            "Opinionated tone matches the product's own UX: EC2_RUNNER is the default in the project creation flow and labeled '(recommended)' in the source; the page consistently echoes that recommendation with concrete reasoning."
+          ],
+          "problems": [
+            "The 'CodeBuild configuration' section is functionally two sentences that restate what was already said in 'When to use CodeBuild' and the comparison table. It does not introduce any new information about what the global CodeBuild settings actually configure. The source is silent on the contents of that modal, but the section as written reads as padding rather than genuine configuration guidance.",
+            "Minor but reader-visible pricing inconsistency: the intro says '~$0.005/min compute while deploying' (taken from the project-creation tooltip) while the FAQ answer for the same question correctly states '~$0.006/min' for the default c7a.2xlarge (sourced from the modal per-instance label). Both are technically sourced, but a reader who reads both will notice the mismatch."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Align the intro-paragraph EC2 compute estimate (~$0.005/min) with the more precise per-instance value (~$0.006/min for the default c7a.2xlarge). Easiest fix: change the intro to say '~$0.006/min compute while deploying (with the default c7a.2xlarge)' to match the FAQ and eliminate the apparent contradiction.",
+            "Either expand the 'CodeBuild configuration' section with what the global settings actually control (if that source becomes available), or collapse it into the 'When to use CodeBuild' section and remove the section heading entirely. A two-sentence section under its own H2 reads as a skeleton placeholder to a production engineer.",
+            "Add a one-sentence note in the EC2 runner sections that the runner instance lives in the user's own AWS account (the project-creation tooltip says 'Dedicated EC2 instance in your AWS account'). This affects AWS cost visibility (it shows up in the user's own bill, not a Stacktape bill), IAM footprint, and the trust model — worth one line for the audience.",
+            "The 'Runner region' tip advises choosing a region close to deployed stacks to avoid cross-region transfer costs. The source tooltip grounds this well, but the page does not mention that the runner region is fixed at project creation (you cannot change the runner to a different region post-creation, only the default deployment region). Clarify whether the runner region itself is changeable or just the deployment-target default."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and includes the core choice: EC2 runners vs CodeBuild runners.",
+            "The comparison table is useful and concrete, with sourced costs, caching behavior, hibernation behavior, and runner-type tradeoffs.",
+            "The page gives pragmatic recommendations instead of treating EC2 and CodeBuild as equally good defaults.",
+            "FAQ is broad enough for search extraction and covers choosing, pricing, hibernation, CodeBuild, and custom CI/CD implications."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source files: `stacktape deploy`, `stacktape codebuild:deploy`, custom CI/CD behavior, Console-triggered deployments, deployed infrastructure being identical across runner types, and no redeployment being needed for existing stacks.",
+            "The page describes specific Console navigation and UI surfaces beyond what the source supports in places, especially `project's runner configuration modal` and `Projects page` details. The source supports the modal and link target, but not a full workflow.",
+            "The `m6a` versus `c7a` workload guidance is mostly AWS instance-family inference, not grounded in the provided Stacktape source. The source only provides the allowed instance types, vCPU, memory, and approximate per-minute costs.",
+            "The `Runner region` section says the runner region can be changed later. The source says the default region can be changed later in a tooltip during project creation, but does not show a runner-region update flow in the runner settings modal.",
+            "The FAQ answer `Can I use different runner types for different stages?` says all stages within a project use the same runner type and recommends separate projects for different environments. That may be reasonable, but it is not supported by the provided source files.",
+            "Some paragraphs start relying on nearby context with generic phrasing such as `The trade-off is speed` and `The default is c7a.2xlarge`; most are understandable, but stronger entity naming would improve extractability.",
+            "The page has no MDX/API-reference issue because this is a CI/CD concept page, but it includes a `<Tip>` component without an example-page pattern. Since no example guidance is provided, this is not a mandatory drift issue."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the unsupported CLI/custom-CI table claims. If those claims stay, add source files for CLI behavior and custom CI/CD docs/source; otherwise narrow the section to Git-backed project creation and runner settings shown in the provided Console source.",
+            "Correct the runner-region wording: source-ground it as a region selected during Git-backed project creation where the runner is created/warmed and billed, and avoid claiming a runner-region change workflow unless source is provided.",
+            "Replace unsupported stage-specific guidance with cautious wording or remove it unless source files show runner type is strictly project-scoped across all stages.",
+            "Narrow the instance-family recommendations to what the source proves: allowed instance types, vCPU, RAM, approximate cost, and the default `c7a.2xlarge`. If keeping compute-optimized/general-purpose workload advice, mark it as AWS instance-family context rather than Stacktape behavior."
+          ],
+          "optionalImprovements": [
+            "Add a short `Setup` or `Where to configure` section that separates source-grounded creation-time settings from later runner settings in the modal.",
+            "Make the pricing context line slightly more precise: EC2 runner project-creation tooltip says ~$3/month for 50 GB storage plus ~$0.005/min compute while deploying; the default instance table lists `c7a.2xlarge` at ~$0.006/min.",
+            "Strengthen paragraph extractability by naming `EC2 runners`, `CodeBuild runners`, or `Stacktape build runners` at the start of more paragraphs instead of using `the default`, `the trade-off`, or `this`.",
+            "Keep the deployment-method table only if additional source files are provided; otherwise replace it with a smaller note that Console runner configuration is shown in Git-backed project creation and runner settings."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided Console source. The main factual risk is that it describes several Console and deployment-scope behaviors that are not present in the two supplied files, especially around switching runner settings, default region changes, and which deployment paths use Console runners.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The runner region is per project, but you can change the default region later if needed.”",
+              "reason": "The project creation source supports selecting a runner/default region and says it can be changed later in tooltip text, but the provided source does not show any UI or mutation for changing the default region after project creation. The only provided settings modal updates runner type and EC2 instance type, not region.",
+              "suggestedFix": "Narrow the wording to the source-backed claim: “The runner region is selected when creating the project. The creation UI notes that the default region can be changed later, but this page does not cover that flow.” Or omit the “change later” sentence.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "defaultRegion: selectedRegion || null"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "updateProjectRunnerSettingsMutation.mutate(\n      {\n        organizationId: selectedOrg!.id,\n        projectName: projectDetails.name,\n        deploymentRunnerType: runnerType,\n        ec2RunnerInstanceType: runnerType === 'EC2_RUNNER' ? selectedInstanceType : null\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No redeployment of your existing stacks is needed — the runner type only affects how the deployment process runs, not the deployed infrastructure.” Similar claims also appear in the FAQ: “Switching does not affect your deployed stacks — only the machine that runs future deployments changes.”",
+              "reason": "The provided source supports that runner setting changes take effect on the next deployment, but it does not establish that no redeployment is needed or that deployed infrastructure is identical across runner types. That may be true architecturally, but it is not grounded in the supplied files.",
+              "suggestedFix": "Replace with the grounded behavior: “The Console says runner changes take effect on the next deployment.” Avoid claims about existing stacks or infrastructure identity unless supported by additional deployment source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Build runners are used by GitOps deployments and Console-triggered deployments. When you use custom CI/CD, your CI system's own runners execute the Stacktape CLI directly — the Console's build runner configuration does not apply.”",
+              "reason": "The supplied source files show runner selection for Git-backed project creation and a project runner configuration modal. They do not show which deployment workflows consume those runner settings, nor do they document custom CI/CD behavior. The route links are valid, but the behavioral mapping is not grounded in these files.",
+              "suggestedFix": "Limit the claim to what the source shows: “The Console configures how deployments run for a project created from Git or configured in project settings.” If this section should cover GitOps/custom CI behavior, add source from the GitOps deployment implementation or CLI/custom CI docs.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "deploymentRunnerType: runnerType"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `codebuild:deploy` CLI command is a separate mechanism that offloads a CLI-initiated deployment to AWS CodeBuild. It uses its own CodeBuild project and is independent of the Console's runner configuration.”",
+              "reason": "The navigation index confirms that `/cli/codebuild-deploy` exists, but the supplied source files do not include CLI implementation or docs for `codebuild:deploy`. The claim about its mechanism and independence from Console runner configuration is not grounded in the provided files.",
+              "suggestedFix": "Either remove the mechanism details or add CLI source for `codebuild:deploy`. A safer grounded sentence is: “For CLI-initiated CodeBuild deployments, see [`codebuild:deploy`](/cli/codebuild-deploy).”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A 5-minute CodeBuild deploy finishing in 1–2 minutes on an EC2 runner…”",
+              "reason": "The provided source supports “typically 2-5x faster than CodeBuild,” but a 5-minute build at 2x would take about 2.5 minutes. The example understates the slow end of the sourced range.",
+              "suggestedFix": "Change to “about 1–2.5 minutes” or avoid the derived example and keep the sourced “typically 2–5x faster” wording.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Hibernation preserves the instance's state, so cached dependencies are immediately available.”",
+              "reason": "The supplied source says EC2 runners stay warm, cache dependencies on disk, hibernate after 15 minutes, and wake in about 10 seconds. It does not explicitly tie hibernation resume to immediate cache availability, though that is plausible AWS behavior.",
+              "suggestedFix": "Narrow to the source-backed wording: “The EC2 runner caches dependencies on disk between deploys and wakes in about 10 seconds after hibernation.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes EC2 runners from CodeBuild runners using the exact two runner types shown in the Console source.",
+            "The EC2 instance type table matches the provided instance options, vCPU, memory, and approximate per-minute prices.",
+            "The default EC2 runner instance type `c7a.2xlarge` is grounded in `DEFAULT_EC2_RUNNER_INSTANCE_TYPE`.",
+            "The hibernation timing, wake timing, storage cost, compute cost, CodeBuild cost, and 2–5x speed claim are directly supported by the project creation tooltip source.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely grounded in the provided Console sources. The main factual risk is one over-specific deployment-method claim that is not supported by the supplied files; most pricing, default runner, hibernation, instance type, and CodeBuild/EC2 comparison claims are directly backed by the source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Build runners are used by GitOps deployments and Console-triggered deployments.” and the table row “Console-triggered deploy | Yes | Project settings in Console”.",
+              "reason": "The provided sources only show runner selection during Git-backed project creation and runner settings in a project modal. They do not show a separate Console-triggered deployment path or prove that such deployments use the configured build runner. This claim changes the reader’s understanding of when runner settings apply.",
+              "suggestedFix": "Narrow the claim to the sourced behavior: build runners are configured for Git-backed project deployments and project runner settings. Remove “Console-triggered deploy” unless a Console deployment source file is added that proves it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "const runnerType = (searchParams.get('runnerType') || 'EC2_RUNNER') as 'EC2_RUNNER' | 'CODEBUILD';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All stages within a project use the same runner type and instance configuration. If you need different runner configurations for different environments, create separate projects in the Stacktape Console.”",
+              "reason": "The sources support runner settings being saved per project, but they do not mention stages or prescribe creating separate projects for different stage-level runner behavior. The recommendation may be reasonable, but the stage-specific negative claim is not grounded in the provided files.",
+              "suggestedFix": "Say runner settings are saved at the project level. Avoid claiming stage-level behavior unless a project/stage model source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "projectName: projectDetails.name,\n        deploymentRunnerType: runnerType,\n        ec2RunnerInstanceType: runnerType === 'EC2_RUNNER' ? selectedInstanceType : null"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "deploymentRunnerType: runnerType,\n        defaultRegion: selectedRegion || null"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The EC2 runner default of `c7a.2xlarge` is supported by `DEFAULT_EC2_RUNNER_INSTANCE_TYPE`.",
+            "The EC2 instance type table matches the option values, vCPU/RAM labels, and approximate per-minute costs in `RunnerConfigModal.tsx`.",
+            "The EC2 hibernation claims, including 15 minutes of inactivity and ~10 second wake time, are grounded in both source files.",
+            "The CodeBuild claims about fresh containers, no caching between builds, and no idle charges are grounded in the Git project creation tooltip and runner modal text.",
+            "All markdown cross-links in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the two documented runner variants and the important Console-visible controls. I found a few supportability gaps where the page turns source-visible UI mechanics into broader lifecycle or operational claims that are not grounded in the provided files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"You can always switch to CodeBuild later from the project's runner configuration modal, and the change takes effect on the next deployment.\" Similar claims appear in \"When to use CodeBuild,\" \"Switching runner types,\" and FAQ answers.",
+              "reason": "The source supports that runner settings can be edited in the modal and that the modal text says changes take effect on the next deployment. It does not support \"always,\" nor does it establish that switching has no side effects for every project state.",
+              "suggestedFix": "Narrow the wording: \"The runner configuration modal lets you change runner type, and the Console says changes take effect on the next deployment.\" Avoid \"always\" and broad no-side-effect guarantees unless another source covers them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "updateProjectRunnerSettingsMutation.mutate({ organizationId: selectedOrg!.id, projectName: projectDetails.name, deploymentRunnerType: runnerType, ec2RunnerInstanceType: runnerType === 'EC2_RUNNER' ? selectedInstanceType : null })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"No redeployment of your existing stacks is needed — the runner type only affects how the deployment process runs, not the deployed infrastructure.\"",
+              "reason": "The provided source only shows Console runner settings and UI copy. It does not prove that no stack redeployment is needed or that deployed infrastructure is identical across runner types.",
+              "suggestedFix": "Replace with a source-grounded statement: \"Runner settings control where future Console-managed deployments run. The Console says changes take effect on the next deployment.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Build runners are used by GitOps deployments and Console-triggered deployments.\"",
+              "reason": "The source files show Git-backed project creation and runner settings, but they do not show the execution path for GitOps deployments or Console-triggered deployments. This is probably true product behavior, but it is not grounded in the provided files.",
+              "suggestedFix": "Either add source files for the deployment execution path or narrow to what these sources prove: \"Git-backed project creation asks you to choose a runner type and runner region, and project runner settings can later be edited in the Console.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "deploymentRunnerType: runnerType, defaultRegion: selectedRegion || null"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"When you use custom CI/CD, your CI system's own runners execute the Stacktape CLI directly — the Console's build runner configuration does not apply.\"",
+              "reason": "No custom CI/CD source is included. The provided files do not describe GitHub Actions, GitLab CI, external CI runners, or whether Console runner settings apply to custom CI/CD.",
+              "suggestedFix": "Remove this claim or add source files for the custom CI/CD page/CLI integration. If retained from other docs, phrase as a cross-link rather than a sourced fact on this page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\DeployNewProject\\Git\\DeployNewProjectFromGit.tsx",
+                  "quote": "Runner type"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "CodeBuild settings are configured globally (for every project) on the projects page."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The `codebuild:deploy` CLI command is a separate mechanism that offloads a CLI-initiated deployment to AWS CodeBuild. It uses its own CodeBuild project and is independent of the Console's runner configuration.\"",
+              "reason": "The page links a CLI command, but no CLI source file is included. The provided Console sources do not establish how `codebuild:deploy` works or whether it uses an independent CodeBuild project.",
+              "suggestedFix": "Either add the `src/commands/codebuild-deploy` source to the source set or shorten this to a link-only note: \"For CLI-initiated CodeBuild deployments, see [`codebuild:deploy`](/cli/codebuild-deploy).\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "CodeBuild settings are configured globally (for every project) on the projects page."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Runner type is configured per project, not per stage. All stages within a project use the same runner type and instance configuration. If you need different runner configurations for different environments, create separate projects in the Stacktape Console.\"",
+              "reason": "The source supports runner settings being saved by `projectName`, but it does not discuss stages or recommend separate projects for stage-specific runner settings.",
+              "suggestedFix": "Keep the supported part and remove the unsupported stage guidance: \"Runner settings are saved for the project.\" Add stage-specific guidance only if a project/stage model source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "projectName: projectDetails.name, deploymentRunnerType: runnerType, ec2RunnerInstanceType: runnerType === 'EC2_RUNNER' ? selectedInstanceType : null"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "\"CodeBuild settings are configured globally — they apply to all projects in the organization that use CodeBuild runners.\"",
+              "reason": "The source says CodeBuild settings are configured globally \"for every project\" on the projects page. It does not explicitly define the scope as the organization, even though the UI uses selected organization elsewhere.",
+              "suggestedFix": "Use the source wording unless an organization-scoping source is added: \"CodeBuild settings are configured globally for every project on the Projects page.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "CodeBuild settings are configured globally (for every project) on the projects page."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For small projects with simple builds, `m6a.large` keeps costs minimal. For monorepos or projects with heavy Docker builds, `c7a.4xlarge` or `c7a.8xlarge` can cut build times significantly.\"",
+              "reason": "The source lists instance types, vCPU, RAM, and approximate costs, but it does not map instance families or sizes to monorepos, Docker builds, or expected build-time improvements.",
+              "suggestedFix": "Keep the cost/capacity comparison and make the workload guidance cautious: \"Choose larger instances when your own builds are CPU-bound or memory-bound; the Console exposes these sizes and prices.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "c7a.8xlarge ... 32 vCPU, 64 GB RAM - approx $0.023/min"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\ProjectOverview\\RunnerConfigModal.tsx",
+                  "quote": "m6a.large ... 2 vCPU, 8 GB RAM - approx $0.001/min"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft explicitly distinguishes EC2 runners from CodeBuild runners, which is the central requirement for this page.",
+            "The EC2 runner instance type table matches the provided Console options, including the default `c7a.2xlarge`.",
+            "The page acknowledges both runner type variants, `EC2_RUNNER` and `CODEBUILD`, and does not imply that only one runner type exists.",
+            "The draft correctly avoids Stacktape config examples, YAML examples, and `StacktapeConfig` typed examples, so the config-example forbidden patterns are not present."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\ci-cd-and-gitops\\build-runners.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 8.2, hard blockers 1, advisory high 0, verifier medium 13"
+}

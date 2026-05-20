@@ -1,0 +1,1446 @@
+{
+  "pageId": "resources__networking__custom-domains",
+  "pageRoute": "resources/networking/custom-domains",
+  "startedAt": "2026-05-15T21:34:56.673Z",
+  "updatedAt": "2026-05-16T10:33:36.488Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__custom-domains\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript as the source of truth — no YAML blocks, no StacktapeConfig type pattern.",
+            "All three DomainConfiguration properties (domainName, customCertificateArn, disableDnsRecordCreation) get their own section with a working code example and clear when-to-use guidance.",
+            "The 'Supported resources' table is scannable and gives readers a clear picture of where custom domains apply.",
+            "Focus markers and hidden-import pattern match the example page's <CodeBlock> conventions exactly.",
+            "FAQ section has exactly 10 Q&A pairs spread across Stacktape-specific, AWS use-case, and choosing/comparison questions — good coverage breadth.",
+            "Opening paragraph is self-contained, 40–60 words, and follows the example's definition → reason-to-care shape.",
+            "H2s are noun-form and ordered consistently with the example page (When to use → When NOT to use → Basic example → [specific sections] → API Reference → FAQ).",
+            "The prerequisite ('run stacktape domain:add once per root domain') is surfaced early in the Basic example section, preventing a common first-timer pitfall.",
+            "Frontmatter keys (title, order, seoTitle, seoDescription) match the example page exactly."
+          ],
+          "problems": [
+            "The 'Supported resources' table lists web-service, Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack, Remix, and static hosting as supporting customDomains, but the only source-grounded type for this is StpDomainAttachableResourceType, which explicitly enumerates only application-load-balancer, http-api-gateway, network-load-balancer, and cdn. The draft does not cite source files for the SSR frontend / static hosting entries, making the table potentially misleading.",
+            "The <Tip> callout 'Even with disableDnsRecordCreation: true, you still need a Route53 hosted zone' is not grounded in DomainConfiguration's interface or any provided source file. ACM DNS validation CAN be satisfied by adding the validation CNAME in an external DNS provider (Cloudflare, etc.) without a Route53 hosted zone — the tip may be actively wrong for the external-DNS use case it describes.",
+            "The <Info> callout in the 'TLS certificates' section ('For CDN-attached resources, AWS requires the certificate to be in us-east-1') is well-known AWS behavior but is not referenced in any provided source file. The DomainConfiguration interface is silent on this constraint. A source-grounding verifier will flag it as an unsupported Stacktape-specific claim.",
+            "The <Tip> about HTTPS being available without custom domains floats between the 'When NOT to use' H2 and 'Supported resources' H2, outside any section. This breaks the visual rhythm — it reads as orphaned content and will confuse readers scanning for where it belongs.",
+            "The page has no 'Referenceable parameters' section. The example page includes <ReferenceableParams resource=\"...\" />, and while custom domains is a config concept rather than a standalone resource, some resources supporting customDomains do expose referenceable params (e.g. the URL after domain attachment). The omission is logically defensible, but it creates MDX component palette drift from the example.",
+            "The <FeatureComparisonTable> component used in the example page is absent. While there is no obvious head-to-head comparison for this page, minor component palette drift weakens section consistency across the docs site."
+          ],
+          "mandatoryFixes": [
+            "Audit the 'Supported resources' table against source files for each listed resource type. The provided source only confirms custom domain support on application-load-balancer, http-api-gateway, network-load-balancer, and cdn via StpDomainAttachableResourceType. For SSR frontends, web-service, and static hosting, either locate and cite the resource type definition confirming customDomains is a property, or narrow the table to the four confirmed types and add a prose note that SSR frameworks may expose custom domains through their underlying load balancer or CDN.",
+            "Remove or rewrite the <Tip> in 'External DNS' that claims a Route53 hosted zone is still required when disableDnsRecordCreation: true. This is unsupported by the DomainConfiguration source and may be incorrect for users who can satisfy ACM DNS validation entirely through Cloudflare or another external provider. Replace with a cautious note: 'Stacktape still needs to validate domain ownership to provision the TLS certificate — check ACM documentation for the validation options available with your DNS provider.'",
+            "Remove or move the floating <Tip> about HTTPS being available without custom domains. Place it inside the 'When NOT to use' section's body, not as a free-floating block between two H2 sections. Orphaned callouts between H2s break the page's visual rhythm.",
+            "Rewrite or remove the <Info> callout about ACM certificates needing us-east-1 for CDN resources if no source file confirms this requirement. If the claim is accurate, add the specific source reference or frame it explicitly as an AWS requirement ('AWS CloudFront requires...') rather than a Stacktape behavior."
+          ],
+          "optionalImprovements": [
+            "Add a brief sentence or two on certificate provisioning timing — how long it takes for a custom domain to go live after first deploy. The FAQ partially covers this but new users will look for it in the Basic example section too.",
+            "The 'External DNS' section's Tip could be simplified. Currently it tells users to run 'domain:add' even when skipping DNS record creation, which may surprise them. A one-sentence explanation of why (certificate validation) before the code example would reduce the jarring feeling.",
+            "Consider adding a small prose callout or sentence in the 'Multiple domains' section noting that each additional certificate provisioning adds deploy time proportionally — useful for teams automating multi-tenant setups.",
+            "The FAQ answer for 'How long does it take for a custom domain to start working?' could be more concrete about the difference between first-time setup (minutes to hours for Route53 propagation + certificate validation) vs. subsequent deploys (certificate already exists, near-instant)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive 'Supported resources' table with direct links gives users fast lookup across the resource types they care about.",
+            "Decision support for TLS certificate options (auto-provisioned vs. custom) is well-grounded and opinionated — the 'When to use a custom certificate' note is exactly what the reader needs to decide.",
+            "External DNS section pairs a code example with a concrete explanation of when to use it, including the Cloudflare case, which is a real reader segment.",
+            "The 'When NOT to use' section has concrete, actionable scenarios (dev stages, internal-only services, prototyping) rather than generic caveats.",
+            "All 10 FAQ answers are substantive 2-4 sentence paragraphs; coverage spans Stacktape-specific, AWS-mechanics, and practical-decision questions as required.",
+            "Code examples use realistic values (`api.example.com`, `app.example.com`, named resources) and cover all three main paths (basic, custom cert, external DNS, multiple domains)."
+          ],
+          "problems": [
+            "MDX palette drift: the draft introduces `<Warning>` and `<Info>` callout types that do not appear in the example page, which uses only `<Tip>`. This violates the mandatory palette-matching rule. Both callouts carry informational content that fits `<Tip>` semantics — the one-time `domain:add` note and the us-east-1 certificate note are neither warnings nor info-box-exclusive content.",
+            "The 'Supported resources' table lists web services, all seven SSR frontend types, and static hosting as supporting `customDomains`. The source's `StpDomainAttachableResourceType` only enumerates `application-load-balancer`, `http-api-gateway`, `network-load-balancer`, and `cdn`. The extended list is plausible (SSR resources wrap CDN/ALB internally) but is not verified by any provided source file. A wrong claim here will break real user configs.",
+            "The `<Tip>` under 'External DNS' asserts: 'you still need a Route53 hosted zone for the domain… Stacktape uses it for DNS-based certificate validation'. The `DomainConfiguration` JSDoc says Stacktape 'won't touch your DNS' — it does not say a Route53 hosted zone is required for cert issuance. ACM DNS validation records can be added to any DNS provider; requiring Route53 for external-DNS users is an additional constraint the source does not state and that could actively mislead Cloudflare-native teams."
+          ],
+          "mandatoryFixes": [
+            "MDX palette drift: Replace the `<Warning>` and `<Info>` callout components with `<Tip>` throughout the page to match the example page's callout palette. The domain:add one-time-setup note and the us-east-1 ACM region note are both informational nudges that work as `<Tip>`. Using `<Warning>` and `<Info>` with no precedent in the example section creates callout-type inflation that must be corrected per the palette-matching rule.",
+            "Narrow or verify the 'Supported resources' table: the source's `StpDomainAttachableResourceType` is `application-load-balancer | http-api-gateway | network-load-balancer | cdn` only. The table currently adds WebService, NextjsWeb, AstroWeb, NuxtWeb, SvelteKitWeb, SolidStartWeb, TanStackWeb, RemixWeb, and HostingBucket without grounding. Either (a) verify each type's definition file shows a `customDomains` property and cite that source, or (b) remove unverified rows and add a one-line note that SSR and static hosting resources expose `customDomains` via their internal CDN/ALB — but only add that note if source-grounded.",
+            "Remove or correct the claim in the External DNS `<Tip>` that 'you still need a Route53 hosted zone for the domain' when `disableDnsRecordCreation: true`. The `DomainConfiguration` source only states Stacktape 'won't touch your DNS'; it does not mandate a hosted zone for external-DNS users. If the hosted zone is truly required for ACM validation in Stacktape's implementation, that constraint must be grounded in a source file. If it is not grounded, remove the sentence rather than state it as fact — it will break the workflow for teams whose DNS authority is entirely in Cloudflare or another provider."
+          ],
+          "optionalImprovements": [
+            "The External DNS section would benefit from a concrete sentence on where the user retrieves the endpoint value to create the CNAME/alias — e.g. 'Retrieve the endpoint from `$ResourceParam` after deploy or from `stacktape info:stack`.' The current wording names the mechanism but doesn't show the lookup step.",
+            "The FAQ is missing a choosing/comparison question about Route53 vs. external DNS for DNS management with Stacktape. This is a high-intent search query for users who are deciding whether to move DNS to Route53 and would anchor the External DNS section in FAQ discoverability.",
+            "The 'Basic example' section could add a one-sentence note about how `stacktape domain:add` verifies nameserver propagation before the first deploy will succeed — first-time users regularly deploy before propagation completes and hit a confusing cert-validation timeout.",
+            "Consider adding a short note in the 'TLS certificates' section that auto-provisioned certs for CDN-backed resources are always placed in `us-east-1` automatically by Stacktape — this distinguishes the auto path from the custom-cert path that requires the user to manage region placement, and sets a clear expectation."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is self-contained, 57 words, clearly answers 'what is this and why does it matter' — extractable by AI engines.",
+            "All three DomainConfiguration properties (domainName, customCertificateArn, disableDnsRecordCreation) each get a dedicated section with a working code example and decision-support prose.",
+            "The 'Supported resources' table is highly scannable and cited-friendly — maps resource types to pages and typical use cases in a single view.",
+            "Code examples are realistic and copy-paste complete. Each example targets a different resource (HttpApiGateway, ApplicationLoadBalancer) which demonstrates that the customDomains pattern works across resource types.",
+            "FAQ spans 10 questions with reasonable coverage across Stacktape-specific, AWS-mechanics, and choosing/comparison categories (Route53 cost, domain propagation, Cloudflare interop, what happens on stack delete).",
+            "H2 heading style (noun-form), ordering (When to use → When NOT to use → ... → API Reference → FAQ), and frontmatter keys all match the example page precisely.",
+            "Decision support is present in every opt-in section: TLS certificates section explains when to use a custom certificate vs the default; External DNS section explains when external DNS management applies."
+          ],
+          "problems": [
+            "MDX component palette drift: the draft introduces a `<Warning>` callout that the example page does not use. The example uses only `<Info>` and `<Tip>`. The Warning content ('The domain:add step is a one-time setup per root domain...') is positive/advisory, not a destructive-consequence warning, making `<Tip>` the semantically correct choice anyway.",
+            "The `<Info>` callout in the TLS certificates section claims 'Stacktape handles this automatically for auto-provisioned certificates' regarding the us-east-1 certificate requirement for CDN-attached resources. The DomainConfiguration source files do not mention this behavior. This is an ungrounded Stacktape-specific claim dressed as a sourced fact.",
+            "The Tip inside the External DNS section states 'you still need a Route53 hosted zone for the domain' even when disableDnsRecordCreation is true, attributing this to certificate validation. The DomainConfiguration JSDoc for disableDnsRecordCreation says only 'Stacktape will still provision the TLS certificate but won't touch your DNS' — it does not explicitly state a hosted-zone requirement for certificate validation. This claim may be correct operationally but is not grounded in the provided source.",
+            "The Basic example section's opening paragraph starts with a prerequisite ('Before attaching a custom domain, your domain must have a Route53 hosted zone...') rather than a self-contained definition of what the basic example demonstrates. This breaks AEO extractability — an AI engine extracting the first paragraph of the 'Basic example' H2 gets a prerequisite, not a snippet about the configuration pattern."
+          ],
+          "mandatoryFixes": [
+            "Replace the `<Warning>` component with `<Tip>` to match the example page's MDX component palette. The example page uses only `<Info>` and `<Tip>` callouts — introducing `<Warning>` creates palette drift across the section. The Warning content is advisory (clarifying one-time domain:add setup), which maps naturally to `<Tip>` semantics."
+          ],
+          "optionalImprovements": [
+            "Rewrite the opening paragraph of the 'Basic example' H2 to be self-contained. Instead of leading with the Route53 prerequisite, open with a sentence that defines the configuration pattern ('The minimal custom domain configuration is a single `customDomains` entry with a `domainName`...') and then state the prerequisite as a follow-on sentence. This makes the section extractable as a standalone snippet.",
+            "Soften or remove the ungrounded claim in the `<Info>` callout about Stacktape auto-handling the us-east-1 certificate requirement for CDN domains. Either verify this against source (e.g., the CDN resolver or domain-attach logic) before publishing, or rephrase to 'AWS requires the certificate to be in us-east-1 for CloudFront — ensure your custom certificate is in that region if providing one for a CDN-attached resource.'",
+            "The Tip inside the External DNS section ('you still need a Route53 hosted zone for the domain') is a potentially surprising constraint that deserves more precise wording. If the requirement is confirmed by source, state it as a fact in prose rather than burying it inside a Tip — readers skimming Tip callouts for advisory notes may underweight this as a hard requirement.",
+            "The FAQ's choosing/comparison category is underrepresented. Currently only 2 of 10 questions are comparison-style ('Can I use a domain registered outside AWS?', 'Can I use Cloudflare?'). Consider swapping one Stacktape-specific question for a direct comparison such as 'Route53 vs Cloudflare for DNS management — which should I use with Stacktape?'",
+            "The 'How long does it take for a custom domain to start working?' FAQ answer claims DNS propagation 'can take up to 48 hours in edge cases'. This is a well-known AWS/internet fact and acceptable in a FAQ, but the answer could be more useful if it distinguished between: (1) time for ACM certificate issuance (typically minutes), (2) Route53 record propagation (typically seconds to minutes for records within Route53's own nameservers), and (3) external DNS TTL propagation if the user is switching from another provider."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The configuration shape is the same across all these resources — once you've set up a custom domain on one resource, the same pattern works everywhere.",
+              "reason": "While the DomainConfiguration interface is shared, Application Load Balancer and Network Load Balancer accept `DomainConfiguration[] | string[]` (a backward-compatible string array format), whereas other resources accept only `DomainConfiguration[]`. The claim that 'the same pattern works everywhere' slightly overstates uniformity. ALB and NLB have an additional legacy format option.",
+              "suggestedFix": "Soften to: 'The core configuration uses the same `DomainConfiguration` structure across all these resources.' Optionally note that ALB and NLB also accept a legacy string array format for backward compatibility.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\application-load-balancers.d.ts",
+                  "quote": "customDomains?: DomainConfiguration[] | string[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "customDomains?: DomainConfiguration[] | string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Stacktape handles this automatically for auto-provisioned certificates, but if you provide a custom certificate for a CDN domain, ensure it's in `us-east-1`.",
+              "reason": "The claim that 'Stacktape handles this automatically for auto-provisioned certificates' is a Stacktape-specific behavioral assertion not present in the provided source files. The DomainConfiguration interface and its JSDoc make no mention of automatic us-east-1 handling. While the underlying AWS requirement is well-known, the specific claim about Stacktape's automatic handling is unsupported.",
+              "suggestedFix": "Rephrase to: 'AWS CloudFront requires TLS certificates to be in the `us-east-1` region regardless of your stack's region. If you provide a custom certificate via `customCertificateArn` for a CDN-attached domain, ensure it's provisioned in `us-east-1`.' Remove the claim about automatic handling unless verifiable.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "customCertificateArn?: string;\n  /**\n   * #### Use your own TLS certificate instead of the auto-generated one.\n   *\n   * ---\n   *\n   * Provide the ARN of an ACM certificate from your AWS account.\n   * Only needed if you have specific certificate requirements (e.g., EV/OV certs).\n   * By default, Stacktape provisions and renews free certificates automatically.\n   */"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Deleting a stack removes the DNS records and TLS certificate association, but does not delete the Route53 hosted zone or your domain registration. The hosted zone persists for reuse in future stacks.",
+              "reason": "This is a specific behavioral claim about stack deletion behavior that is not explicitly stated in the provided source files. It's a reasonable inference (domain:add is a separate command, so the hosted zone likely persists), but the source doesn't explicitly confirm this delete-time behavior.",
+              "suggestedFix": "Add a qualifying phrase like 'The Route53 hosted zone created by `domain:add` is managed independently of any stack and persists after stack deletion.' This frames it as the expected design rather than an observed guarantee.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "domainName: string;\n  /**\n   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).\n   *\n   * ---\n   *\n   * Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Even with `disableDnsRecordCreation: true`, you still need a Route53 hosted zone for the domain. Stacktape uses it for DNS-based certificate validation — the hosted zone must exist so ACM can verify you own the domain.",
+              "reason": "The source confirms the hosted zone requirement on the domainName property and that TLS is still provisioned when disableDnsRecordCreation is true. The specific mechanism 'DNS-based certificate validation' is a reasonable inference about ACM behavior but isn't explicitly stated in the source as the reason. The broader claim is logically sound but the mechanism detail is inferred.",
+              "suggestedFix": "The claim is directionally correct and useful to readers. Consider softening slightly: 'Even with `disableDnsRecordCreation: true`, a Route53 hosted zone is still required — Stacktape needs it for TLS certificate validation.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "disableDnsRecordCreation?: boolean;\n  /**\n   * #### Skip DNS record creation for this domain.\n   *\n   * ---\n   *\n   * Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All three DomainConfiguration properties (domainName, customCertificateArn, disableDnsRecordCreation) are correctly described with accurate defaults and behavior matching the source JSDoc.",
+            "The supported resources table is verified correct — all listed resources (web-service, nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web, hosting-bucket, http-api-gateway, application-load-balancer, network-load-balancer, cdn) do have a `customDomains` property in their type definitions.",
+            "All cross-links point to valid routes in the navigation index — no invented routes.",
+            "Code examples use correct class names (HttpApiGateway, ApplicationLoadBalancer) from the validated whitelist, proper defineConfig pattern, and correct CodeBlock intellisense format.",
+            "Heading hierarchy is correct — 'When to use' and 'When NOT to use' are both properly at H2 level.",
+            "The ApiReference definitionName 'DomainConfiguration' matches the named interface in __helpers.d.ts and exists in the generated config schema.",
+            "The FAQ section has exactly 10 questions spanning Stacktape-specific, AWS use-case, and comparison categories as required.",
+            "The domainName JSDoc requirement ('The domain must have a Route53 hosted zone in your AWS account, with your registrar's nameservers pointing to it') is accurately reflected throughout the page."
+          ],
+          "summary": "The draft is well-grounded and factually accurate. All claimed resource types supporting customDomains are verified against the type definitions. The DomainConfiguration properties, their defaults, and behaviors match the source JSDoc. The four issues raised are medium-to-low severity: one about ALB/NLB accepting a legacy string[] format (making the 'same shape everywhere' claim slightly imprecise), one about an unsupported claim regarding automatic us-east-1 certificate handling, and two about behavioral claims that are reasonable inferences but not explicitly stated in source. No high-severity factual errors found."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft has several Stacktape-specific overclaims, mainly around which resources support custom domains and what the `domain:add` command or external DNS flow does. The strongest source-backed issue is that the provided type source only identifies Application Load Balancer, HTTP API Gateway, Network Load Balancer, and CDN as domain-attachable resource types, while the draft expands support to web services, SSR frontends, and static hosting.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Custom domains work across networking resources, SSR frontends, and static hosting” and the Supported resources table/FAQ list WebService, Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix, and Static hosting as direct custom-domain targets.",
+              "reason": "The provided authoritative helper type only defines domain-attachable resource types as `application-load-balancer`, `http-api-gateway`, `network-load-balancer`, and `cdn`. The draft broadens this to many resources not present in the source list, which would mislead readers about where `customDomains` is supported directly.",
+              "suggestedFix": "Narrow supported resources to HTTP API Gateway, Application Load Balancer, Network Load Balancer, and CDN unless additional source files prove direct support on frontend/static/web-service resources. If frontends or static hosting use custom domains through an attached CDN, describe that as the attachment path rather than direct resource support.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Run `stacktape domain:add` to create one — it walks you through creating the hosted zone, updating your registrar's nameservers to point to Route53, and provisioning TLS certificates.” Similar detailed `domain:add` behavior appears in the FAQ.",
+              "reason": "The provided source files establish that a Route53 hosted zone must exist and registrar nameservers must point to it, but they do not include CLI source for `domain:add` or support the detailed workflow claims about the command creating hosted zones, walking nameserver updates, verifying ownership, or provisioning certificates.",
+              "suggestedFix": "Replace the detailed CLI workflow with cautious wording grounded in the available source, such as: “The domain must have a Route53 hosted zone in your AWS account, with registrar nameservers pointing to it. See [`stacktape domain:add`](/cli/domain-add) for the CLI workflow.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After deploying, retrieve the resource's endpoint using `$ResourceParam` or `stacktape param:get`, then create a CNAME or alias record in your DNS provider pointing `app.example.com` to that endpoint.”",
+              "reason": "The supplied sources do not list referenceable parameters for Application Load Balancer, HTTP API Gateway, Network Load Balancer, or CDN, and they do not show that `param:get` can retrieve the endpoint needed for external DNS. The statement may be true elsewhere, but it is not grounded in the provided source files.",
+              "suggestedFix": "Avoid naming `$ResourceParam` or `stacktape param:get` as the endpoint retrieval mechanism unless the page source includes the relevant referenceable parameters or CLI behavior. Say only that with `disableDnsRecordCreation`, Stacktape will not create DNS records and you must manage the DNS record yourself.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Even with `disableDnsRecordCreation: true`, you still need a Route53 hosted zone for the domain. Stacktape uses it for DNS-based certificate validation — the hosted zone must exist so ACM can verify you own the domain.”",
+              "reason": "The source supports the hosted-zone requirement for `domainName` generally and says Stacktape still provisions the TLS certificate when DNS record creation is disabled. It does not explicitly state that the hosted zone is still used for DNS-based certificate validation in this mode or that ACM validation depends on that hosted zone.",
+              "suggestedFix": "Ground the statement more narrowly: “The `domainName` documentation still requires a Route53 hosted zone in your AWS account. With `disableDnsRecordCreation: true`, Stacktape provisions the TLS certificate but does not create or modify the resource DNS record.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it.\n   *\n   * Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For CDN-attached resources, AWS requires the certificate to be in the `us-east-1` region... Stacktape handles this automatically for auto-provisioned certificates...”",
+              "reason": "This may be a correct AWS/CloudFront fact, but the Stacktape-specific part that Stacktape handles `us-east-1` placement automatically for CDN auto-provisioned certificates is not present in the provided source. The `DomainConfiguration` source only says Stacktape provisions and renews free certificates automatically.",
+              "suggestedFix": "Keep the AWS requirement if desired, but narrow the Stacktape claim: “For CDN-attached domains, custom ACM certificates generally need to be in `us-east-1`. Stacktape provisions free certificates automatically when you do not provide `customCertificateArn`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "By default, Stacktape provisions and renews free certificates automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each domain gets its own TLS certificate and DNS record” in the Multiple domains section.",
+              "reason": "The source says Stacktape creates a DNS record and provisions a free TLS certificate for a `DomainConfiguration`, and `customDomains` is described in the draft as an array, but the provided source does not establish that each array entry always receives its own separate certificate rather than sharing or grouping certificates. This is a specific implementation claim not grounded in the supplied files.",
+              "suggestedFix": "Use less specific wording: “Stacktape configures certificate and DNS handling for each domain entry, unless DNS creation is disabled or a custom certificate is supplied.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Use your own TLS certificate instead of the auto-generated one."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I attach the same domain to multiple resources? No. A domain name can only point to one resource at a time.”",
+              "reason": "The provided source files do not define a uniqueness constraint for `domainName` across resources. The DNS concept is generally reasonable, but the absolute Stacktape-specific prohibition is not grounded in the provided types or validators.",
+              "suggestedFix": "Phrase as practical DNS guidance instead of a Stacktape constraint: “A single DNS name normally resolves to one frontend target. Use an HTTP API Gateway, Application Load Balancer, or CDN routing layer when you need one hostname to route to multiple backends.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface DomainConfiguration {\n  /**\n   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Deleting a stack removes the DNS records and TLS certificate association, but does not delete the Route53 hosted zone... The hosted zone persists for reuse in future stacks.”",
+              "reason": "Stack deletion behavior for custom-domain DNS records, certificate associations, certificates, and hosted zones is not described in the supplied source files. This is operational behavior that should be grounded in runtime or CLI/deployment code, which is not present here.",
+              "suggestedFix": "Remove this FAQ answer or rewrite cautiously: “The provided configuration source does not document cleanup behavior for hosted zones. Before deleting a stack that uses custom domains, check whether other stacks or records still depend on the hosted zone.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape config examples use `<CodeBlock intellisense>` with a `label: 'TypeScript'` tab and do not hand-author YAML.",
+            "The draft correctly grounds the basic `DomainConfiguration` properties: `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`.",
+            "The draft correctly states that `domainName` should omit the protocol prefix, matching the source JSDoc.",
+            "The draft includes exactly one `<ApiReference>` component and uses `DomainConfiguration`, which is the relevant interface visible in the provided source."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness for `DomainConfiguration` itself is mostly covered: the draft documents `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`, uses exactly one `ApiReference`, and the config examples are demonstrative for the documented properties. The main problems are unsupported breadth claims around which resources accept custom domains and a few Stacktape-specific operational claims that are not grounded in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Custom domains work on web services, all SSR frontends, and static hosting; the `customDomains` configuration is the same across all of them.",
+              "reason": "The provided source only exposes domain-attachable resource types as `application-load-balancer`, `http-api-gateway`, `network-load-balancer`, and `cdn`. The draft expands support to web services, SSR frontend resources, and static hosting without source evidence in the provided files.",
+              "suggestedFix": "Narrow the supported-resources section to the source-grounded attachable targets: HTTP API Gateway, Application Load Balancer, Network Load Balancer, and CDN. If higher-priority source files for frontend/web-service custom domains are added later, document those paths separately and cite their property definitions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The `domain:add` command creates a Route53 hosted zone, updates registrar nameservers, verifies DNS ownership, and provisions TLS certificates.",
+              "reason": "No CLI source for `domain:add` is included. The only provided source for `DomainConfiguration` says the domain must already have a Route53 hosted zone and describes what Stacktape does when the domain is attached in config. The draft turns that into a detailed CLI workflow that is not grounded in the supplied files.",
+              "suggestedFix": "Keep the page focused on the config requirement: the domain must have a Route53 hosted zone in the AWS account, with registrar nameservers pointing to it. Link to `/cli/domain-add` without claiming specific interactive steps unless CLI source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "After deploying with `disableDnsRecordCreation: true`, retrieve the resource endpoint using `$ResourceParam` or `stacktape param:get`, then create a CNAME or alias record in your DNS provider.",
+              "reason": "The source supports only that Stacktape skips DNS record creation and still provisions the TLS certificate. The provided files do not list referenceable parameters for these domain-attachable resources or specify which DNS record type to create for external DNS.",
+              "suggestedFix": "Say only that Stacktape will not create or modify DNS records when `disableDnsRecordCreation` is true, so the reader must manage the traffic DNS record outside Stacktape. Avoid naming `$ResourceParam`, `param:get`, CNAME, or alias record unless referenceable-parameter or CLI source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider). Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "For CDN-attached resources, AWS requires the certificate to be in the `us-east-1` region; Stacktape handles this automatically for auto-provisioned certificates.",
+              "reason": "The provided source does define `cdn` as a domain-attachable resource type, but it does not state the `us-east-1` certificate requirement or Stacktape's behavior for CDN certificate placement. This may be true AWS background, but it is written as Stacktape-specific behavior without source support.",
+              "suggestedFix": "Either remove the Stacktape-specific handling claim or phrase cautiously as AWS background: CDN custom certificates commonly have regional requirements in AWS; use the API reference and CDN docs for the exact certificate setup. Keep `customCertificateArn` described at the level supported by `DomainConfiguration`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Provide the ARN of an ACM certificate from your AWS account.\nOnly needed if you have specific certificate requirements (e.g., EV/OV certs)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Each domain in the `customDomains` array gets its own TLS certificate and DNS record.",
+              "reason": "The source says a domain configuration provisions a free TLS certificate and creates a DNS record, but it does not state certificate cardinality for multiple array entries. A single certificate could theoretically cover multiple names, so this is more specific than the source supports.",
+              "suggestedFix": "Reword to: “Each domain entry is configured independently. Unless DNS creation is disabled, Stacktape creates the DNS record and provisions TLS for that domain.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft mentions every property in the primary `DomainConfiguration` type: `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`.",
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with `label: 'TypeScript'` and class-based `defineConfig` examples, with no hand-authored YAML config blocks.",
+            "The custom certificate and external DNS examples are demonstrative: the TLS section sets `customCertificateArn`, and the External DNS section sets `disableDnsRecordCreation`.",
+            "The page includes exactly one `<ApiReference definitionName=\"DomainConfiguration\" />`, matching the page metadata type name."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__custom-domains\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three DomainConfiguration properties (domainName, customCertificateArn, disableDnsRecordCreation) get dedicated sections with code examples and decision guidance — no property is left as a bare sentence.",
+            "The 'Supported resources' table is an effective orientation device for a cross-cutting concept page: readers immediately know what accepts customDomains without hunting through other pages.",
+            "Every Stacktape config example uses TypeScript class-based form inside <CodeBlock intellisense> with correct label: 'TypeScript'. No YAML Stacktape config anywhere.",
+            "Single <ApiReference definitionName=\"DomainConfiguration\" /> is placed immediately before FAQ, matching the example page's bottom placement.",
+            "FAQ covers all three required categories: Stacktape-specific ('Which resources support custom domains?'), AWS-use-case ('How long does certificate provisioning take?'), and comparison/choosing ('Should I use custom domains on staging?').",
+            "Noun-form H2 headings throughout — consistent with the example page style, and the shared H2s (When to use, When NOT to use, Basic example, API Reference, FAQ) appear in the same relative order as the example.",
+            "Decision guidance in each sub-section is concrete and opinionated: the writer commits to a recommendation rather than listing options without judgment.",
+            "<Tip> callouts match the example's MDX palette and add genuine reader value without overuse."
+          ],
+          "problems": [
+            "The External DNS section contains contradictory statements within a few sentences of each other. One paragraph states 'The domainName property still requires a Route53 hosted zone in your AWS account' even when disableDnsRecordCreation: true. The immediately following <Tip> then says 'Stacktape still needs to validate domain ownership to provision the TLS certificate. Check ACM documentation for the validation options available with your DNS provider.' These two statements conflict: if Route53 is always required, why direct the reader to non-Route53 ACM validation options? A first-time reader will be confused about whether they actually need Route53 or not.",
+            "The External DNS section has a near-verbatim sentence duplicated across two consecutive paragraphs: 'Stacktape provisions the TLS certificate but does not create or modify the resource DNS record' appears almost word-for-word in the pre-example paragraph and again in the post-example paragraph. This feels like an editing artifact and makes the section look padded.",
+            "The claim that domainName 'still requires a Route53 hosted zone' when disableDnsRecordCreation: true is not clearly grounded in the provided source. The domainName JSDoc says the hosted zone is required in the general case, but the disableDnsRecordCreation JSDoc says Stacktape 'won't touch your DNS' — implying full hand-off to an external provider, which does not necessarily require Route53. Asserting Route53 is required in all cases may mislead users who manage DNS entirely through Cloudflare."
+          ],
+          "mandatoryFixes": [
+            "Resolve the Route53 contradiction in the External DNS section. Either: (a) if a Route53 hosted zone IS always required (e.g., Stacktape uses Route53 for ACM DNS validation even when skipping the alias record), state this clearly and remove the <Tip> that implies otherwise; or (b) if a Route53 hosted zone is NOT required when disableDnsRecordCreation: true, remove the sentence 'The domainName property still requires a Route53 hosted zone in your AWS account' and keep/expand the <Tip> directing readers to ACM documentation for validation. Ground the corrected wording in the source JSDoc for disableDnsRecordCreation, which says Stacktape 'won't touch your DNS' — the sentence that contradicts this must be removed or disambiguated."
+          ],
+          "optionalImprovements": [
+            "Remove the duplicate sentence in the External DNS section. 'Stacktape provisions the TLS certificate but does not create or modify the resource DNS record' appears nearly verbatim in both the paragraph before the code example and the paragraph after it. Keep it in one place only.",
+            "The introductory paragraph ends with 'The DomainConfiguration type is shared across networking resources, compute resources, and frontends' — this is a useful orientation point, but would flow better if immediately followed by a link anchor or a short reference to the 'Supported resources' section that follows, so the reader knows where to go for specifics.",
+            "Consider adding a small comparison table in the TLS Certificates section (auto-provisioned vs custom certificate: Renewal responsibility, Supported cert types, Cost, Setup effort). This would match the example page's use of <FeatureComparisonTable> for decision points that readers frequently face.",
+            "The 'Supported resources' section states that web services, SSR frontends, and static hosting also accept customDomains 'through the resource's underlying CDN or load balancer' — this is a useful architectural note. Strengthen it by making the chain explicit: 'On a web service, customDomains configures the domain on its Application Load Balancer; on Next.js Web and other SSR frontends, it configures the domain on the underlying CDN.' This prevents the reader from wondering how the plumbing works."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]}/>` with TypeScript-only tabs — no YAML violations, no fenced TypeScript blocks wrapping defineConfig.",
+            "The 'Supported resources' table cleanly enumerates the four domain-attachable resource types that correspond to the source's `StpDomainAttachableResourceType` union (`application-load-balancer | http-api-gateway | network-load-balancer | cdn`).",
+            "Each of the three `DomainConfiguration` properties (`domainName`, `customCertificateArn`, `disableDnsRecordCreation`) gets its own section with a working code example and decision-support guidance (when to use, when to skip, cost/tradeoff signal).",
+            "FAQ contains exactly 10 questions spanning all three required categories: Stacktape-specific ('Which resources support custom domains?'), AWS use-case ('How much do custom domains cost on AWS?'), and comparison/choosing ('Should I use custom domains on staging?').",
+            "The 'When to use' / 'When NOT to use' pair is concrete — calling out dev/test stages, internal VPC services, and rapid prototyping as cases where custom domains add overhead without benefit. The note that auto-generated endpoints already have TLS is a genuinely useful production callout.",
+            "Heading style is noun-form throughout (matching the example), H2 ordering places shared sections (When to use, When NOT to use, Basic example, API Reference, FAQ) in the same relative order as the example page.",
+            "The `<ApiReference definitionName=\"DomainConfiguration\" />` is placed at the bottom, matching the example page's placement."
+          ],
+          "problems": [
+            "**Internal inconsistency about Route53 requirement with external DNS**: The 'External DNS' section body states 'The `domainName` property still requires a Route53 hosted zone in your AWS account' even when `disableDnsRecordCreation: true`. But the FAQ's Cloudflare answer says to just set `disableDnsRecordCreation: true` and 'Point the Cloudflare CNAME to the resource endpoint after deployment' — with no mention of needing a Route53 hosted zone. A production engineer configuring Cloudflare DNS reads two contradictory things on the same page.",
+            "**Self-contradictory Tip in the 'External DNS' section**: The Tip says 'Stacktape still needs to validate domain ownership to provision the TLS certificate. Check ACM documentation for the validation options available with your DNS provider,' implying multiple DNS validation paths exist. But the surrounding body text says Route53 is still required — leaving no room for 'other options'. These two statements cannot both be correct as written.",
+            "**Ungrounded 'legacy string-array format' claim**: The sentence 'Application Load Balancers and Network Load Balancers also accept a legacy string-array format for backward compatibility' at the end of the 'Supported resources' section is not present in any provided source file (`__helpers.d.ts`, the `DomainConfiguration` interface, or `StpDomainAttachableResourceType`). This is an invented claim.",
+            "**Duplicate sentence in 'External DNS' section**: 'With `disableDnsRecordCreation: true`, Stacktape provisions the TLS certificate but does not create or modify the resource DNS record' appears verbatim twice within the same section (once after the code block, once at the end of the prose block)."
+          ],
+          "mandatoryFixes": [
+            "**Resolve the Route53 requirement contradiction**: The body text and FAQ answer give opposite guidance for the Cloudflare/external DNS scenario. Determine the accurate behavior from source (or implementation knowledge) and make the page internally consistent: if Route53 is still needed for TLS certificate DNS validation even with `disableDnsRecordCreation: true`, say so explicitly in BOTH the body section AND the FAQ Cloudflare answer; if it is NOT needed, remove the 'still requires a Route53 hosted zone' sentence from the 'External DNS' section and reconcile the Tip.",
+            "**Fix or remove the contradictory Tip about ACM validation options**: The Tip in the 'External DNS' section ('Check ACM documentation for the validation options available with your DNS provider') implies multiple validation paths, but the surrounding prose says Route53 is required. Either remove the Tip, or replace it with one that accurately describes what happens during certificate validation given the Route53 requirement. Do not link to ACM docs as if they offer alternatives when the source grounds the domain requirement in Route53.",
+            "**Remove the ungrounded 'legacy string-array format' claim**: Delete 'Application Load Balancers and Network Load Balancers also accept a legacy string-array format for backward compatibility' from the 'Supported resources' section. This claim has no basis in the provided source files (`DomainConfiguration` interface or `StpDomainAttachableResourceType`). If this format genuinely exists, it must be grounded in a source file before being documented.",
+            "**Remove the duplicate sentence in the 'External DNS' section**: 'With `disableDnsRecordCreation: true`, Stacktape provisions the TLS certificate but does not create or modify the resource DNS record' appears twice in the same section. Remove the second occurrence to eliminate repetition."
+          ],
+          "optionalImprovements": [
+            "The `<Tip>` about `domain:add` being a one-time setup per root domain appears in both the 'Basic example' section and the 'Multiple domains' section. Consider keeping it only in 'Basic example' where the reader first encounters `domain:add`, to reduce repetition without losing the information.",
+            "The 'Supported resources' section claims SSR frontends (Next.js, Astro, etc.) and static hosting also expose a `customDomains` property — but those resource type files are not among the provided source files. Consider hedging this claim ('See each resource's page for whether it exposes `customDomains`') or note which source confirms it, to avoid future source-grounding flags.",
+            "Consider adding one sentence in the 'TLS certificates' section explaining that the auto-provisioned certificate uses DNS validation (Stacktape creates a CNAME record in Route53 for validation, which is why Route53 is required). This bridges the conceptual gap between 'Stacktape creates a DNS record' and 'certificate provisioning' for engineers who have seen ACM validation records before."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three DomainConfiguration properties (domainName, customCertificateArn, disableDnsRecordCreation) are covered with source-grounded examples and clear decision guidance.",
+            "Properly structured — H2 sections follow noun-form labels matching the example page, and shared sections (When to use, When NOT to use, Basic example) appear in the same relative order.",
+            "10-question FAQ spans all three required categories: Stacktape-specific ('Does Stacktape handle TLS renewal?'), AWS service use-case ('How much do custom domains cost?'), and decision/comparison ('Should I use custom domains on staging stages?').",
+            "Code examples are realistic, copyable, and correctly wrapped in <CodeBlock intellisense> with focus markers and hidden imports above the focus region.",
+            "Decision support is present in every opt-in section — TLS certificates section explains when to use a custom cert vs the default; External DNS section explains when Cloudflare/external DNS is the right choice.",
+            "Supported resources table correctly enumerates all four StpDomainAttachableResourceType values (application-load-balancer, http-api-gateway, network-load-balancer, cdn) as found in the source type.",
+            "<Tip> callouts are used in appropriate spots, matching the MDX component palette of the example page.",
+            "<ApiReference definitionName=\"DomainConfiguration\" /> correctly references the interface name from the source types."
+          ],
+          "problems": [
+            "'Supported resources' section asserts that SSR frontends (NextjsWeb, AstroWeb, NuxtWeb, SvelteKitWeb, SolidStartWeb, TanStackWeb, RemixWeb), web services, and static hosting 'also expose a customDomains property that accepts the same DomainConfiguration array' — none of these resource types' Props interfaces are in the provided source files, making these claims ungrounded Stacktape-specific assertions that the source-grounding verifier will flag.",
+            "External DNS section creates an internal contradiction: the prose says 'The domainName property still requires a Route53 hosted zone in your AWS account' but the Tip immediately after says 'Check ACM documentation for the validation options available with your DNS provider' — implying other validation paths exist outside Route53. Readers using Cloudflare who don't have a Route53 hosted zone will be confused about whether they need one.",
+            "FAQ question 10 ('What happens to my custom domain if I delete the stack?') makes concrete behavioral claims about post-deletion Route53 hosted zone persistence and DNS record removal that are not grounded in the provided source files.",
+            "The 'Page' column in the Supported Resources table adds no useful information — all four resources are in the Networking section — creating visual noise."
+          ],
+          "mandatoryFixes": [
+            "Ground or caveat the SSR frontends / web services claim in the 'Supported resources' section. The current text confidently lists seven SSR resource types by name, but their Props interfaces are not in the provided source. Replace the specific list with a cautiously worded sentence (e.g., 'Most Stacktape compute resources and frontend types also accept customDomains — see each resource's dedicated page for how it exposes the property') and remove the claim that they 'accept the same DomainConfiguration array' without a grounded source to confirm.",
+            "Resolve the Route53 / ACM validation contradiction in the External DNS section. The prose and the Tip currently make opposite claims. Pick one grounded position: either (a) keep the source-grounded requirement from the domainName JSDoc ('domain must have a Route53 hosted zone') and remove the Tip's implication of other validation paths, or (b) remove the Route53-is-still-required claim and keep only the Tip's cautious 'check ACM documentation' framing. The current state leaves readers who use Cloudflare without knowing whether they need a Route53 hosted zone."
+          ],
+          "optionalImprovements": [
+            "Drop the 'Page' column from the Supported Resources table, or replace it with a 'Notes' column that adds genuinely useful context (e.g., 'ALB — attaches at listener level; CDN — certificate must be in us-east-1 for CloudFront').",
+            "FAQ question 10's answer about post-stack-deletion behavior is ungrounded. If accurate, add a source pointer; if uncertain, reframe with hedging ('typically', 'the hosted zone is created outside the stack context') to avoid a hard factual claim.",
+            "The opening paragraph is solid at ~64 words, but the third sentence ('The DomainConfiguration type is shared across networking resources...') is implementation-framing, not reader-value framing. Consider replacing it with a user-benefit sentence (e.g., 'The configuration pattern is the same regardless of which resource you attach the domain to, so you only need to learn it once') which extracts better as an AI snippet.",
+            "The 'Supported resources' table 'Typical use case' column repeats the resource name in its own description (e.g., 'api.example.com for Lambda-backed APIs' for HTTP API Gateway, which is already implied). Consider adding unique routing-level context instead (e.g., 'ALB — path + header routing to multiple backends').",
+            "Consider adding a one-liner note to the 'Basic example' section explaining that the `customDomains` property is an array so multiple domains can be added without a separate H2 (readers often don't realize this from the type alone and scan ahead looking for a 'multiple domains' section — bridging the two sections early improves discoverability)."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The `domainName` property still requires a Route53 hosted zone in your AWS account. With `disableDnsRecordCreation: true`, Stacktape provisions the TLS certificate but does not create or modify the resource DNS record.",
+              "reason": "This paragraph in the External DNS section makes the same two points twice. The first paragraph already states 'Stacktape provisions the TLS certificate but does not create or modify the resource's DNS record. You create and manage the DNS record yourself.' The repeated claim adds no new information and makes the section read as if two separate constraints are being stated when it is one. Additionally, the claim that Route53 is still required when using external DNS is grounded in the `domainName` JSDoc, but the Tip immediately below it contradicts the simplicity by saying users should check ACM validation options with their DNS provider — implying Route53 may not always be the validation mechanism. The section should clarify this in one coherent statement rather than repeating and creating ambiguity.",
+              "suggestedFix": "Remove the duplicated paragraph ('The `domainName` property still requires a Route53 hosted zone...') and consolidate into one clear statement. Explain that Stacktape uses the Route53 hosted zone for ACM DNS validation by default, and that when using an external DNS provider the user must ensure ACM can validate domain ownership (e.g., by adding the CNAME validation record in their external DNS provider).",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The core `DomainConfiguration` structure is the same across all resources that accept it.",
+              "reason": "While the DomainConfiguration type is shared, Application Load Balancers and Network Load Balancers accept `DomainConfiguration[] | string[]` (a union with string array), whereas HTTP API Gateway, CDN, web services, and all SSR frontends accept only `DomainConfiguration[]`. The draft correctly mentions the legacy string-array format for ALB and NLB one sentence later, but the preceding sentence's blanket claim of identical structure could confuse readers who try passing string arrays to an HTTP API Gateway.",
+              "suggestedFix": "Rephrase to: 'The core `DomainConfiguration` structure is the same across all resources that accept it. Application Load Balancers and Network Load Balancers additionally accept a legacy `string[]` format for backward compatibility.' — making the scope of the exception immediately clear in context.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\application-load-balancers.d.ts",
+                  "quote": "customDomains?: DomainConfiguration[] | string[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\network-load-balancer.d.ts",
+                  "quote": "customDomains?: DomainConfiguration[] | string[];"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "DomainConfiguration type properties (domainName, customCertificateArn, disableDnsRecordCreation) and their descriptions are accurately grounded in the __helpers.d.ts JSDoc.",
+            "The four core domain-attachable resource types (ALB, HTTP API Gateway, NLB, CDN) correctly match StpDomainAttachableResourceType in the source.",
+            "The claim that web services, SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix), and static hosting also accept customDomains is verified — all have `customDomains?: DomainConfiguration[]` in their type definitions.",
+            "The legacy string-array format claim for ALB and NLB is confirmed by both type definitions showing `DomainConfiguration[] | string[]` with explicit JSDoc: 'Backward compatible format `string[]` is still supported.'",
+            "The `disableDnsRecordCreation` default of `false` matches the source JSDoc @default annotation.",
+            "All cross-links (resource pages, CLI pages) match valid routes in the documentation navigation index.",
+            "The 'When NOT to use' section is correctly at H2 level, not nested under 'When to use'.",
+            "Code examples use correct Stacktape class names (HttpApiGateway, ApplicationLoadBalancer), proper defineConfig pattern, and correct CodeBlock intellisense format with TypeScript tab label.",
+            "FAQ answers use well-known AWS facts (Route53 pricing, ACM free certificates, DNS propagation) appropriately without making unsupported Stacktape-specific claims.",
+            "The ApiReference component uses 'DomainConfiguration' which is the actual interface name in the source — appropriate for this cross-cutting configuration page."
+          ],
+          "summary": "The draft is well-grounded overall. The DomainConfiguration type, its three properties, defaults, and JSDoc descriptions are accurately reflected. The four core domain-attachable resource types match the source, and the claim that additional resources (web services, SSR frontends, static hosting) accept customDomains is confirmed by their type definitions. The legacy string-array format on ALB/NLB is verified. The two issues found are: (1) a duplicated paragraph in the External DNS section that repeats the same constraint and creates ambiguity about whether Route53 is truly required when using external DNS, and (2) a minor ordering issue where the blanket 'same structure' claim precedes the ALB/NLB exception, which could mislead. All code examples, cross-links, and component usage are correct."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided DomainConfiguration source, but it makes several Stacktape-specific claims that are not supported by the supplied source files. The highest-impact issues are around supported-resource coverage, external-DNS behavior, API reference naming, and deletion behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"The DomainConfiguration type is shared across networking resources, compute resources, and frontends\" and the later claim that web services, SSR frontends, and static hosting also accept customDomains.",
+              "reason": "The provided source files only show DomainConfiguration itself and the domain-attachable resource type union for application-load-balancer, http-api-gateway, network-load-balancer, and cdn. They do not include type definitions proving customDomains on web services, SSR frontend resources, or static hosting. This is a Stacktape-specific supported-resources claim that would change what readers try to configure.",
+              "suggestedFix": "Narrow the page to the resource types proven by the provided source, or add the relevant source files for web services/frontends/static hosting before documenting those resources as supported.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"With disableDnsRecordCreation: true, you must create a CNAME or alias record in your DNS provider pointing your domain to the resource's endpoint. The domainName property still requires a Route53 hosted zone in your AWS account.\"",
+              "reason": "The source says disableDnsRecordCreation is for managing DNS records yourself and that Stacktape will still provision TLS but won't touch DNS. It does not state that a Route53 hosted zone is still required when DNS record creation is disabled. The draft's combined guidance is internally confusing for external DNS users and unsupported by the specific property documentation.",
+              "suggestedFix": "Say only that disableDnsRecordCreation skips Stacktape DNS record creation and is for externally managed DNS. If you keep the hosted-zone requirement, tie it cautiously to domainName's general documentation rather than asserting it as an external-DNS requirement.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "ambiguous-claim",
+              "statement": "`<ApiReference definitionName=\"DomainConfiguration\" />`",
+              "reason": "The page metadata route is a resource page, but no page typeName is provided. The source defines DomainConfiguration as an interface, not a resource Props type. The requirement says resource pages must use exactly one ApiReference matching the page metadata typeName when present, and otherwise look up the canonical Props type. With only the provided source, it is unclear that DomainConfiguration is a valid generated schema definition for a resource page API reference.",
+              "suggestedFix": "Verify the generated schema has a DomainConfiguration definition before publishing. If the page is a cross-resource concept page rather than a resource props page, consider changing the kind/metadata or using the canonical resource Props type expected by the page system.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface DomainConfiguration {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The domain resolver attaches domains to four core networking resource types\"",
+              "reason": "The source defines StpDomainAttachableResourceType as application-load-balancer, http-api-gateway, network-load-balancer, and cdn, but it does not describe a \"domain resolver\" or its behavior. The supported resource list is grounded; the resolver implementation claim is not present in the provided source.",
+              "suggestedFix": "Rephrase to the sourced surface: \"The domain-attachable resource type covers four networking resource types...\" or simply \"Custom domains are supported for...\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"When you supply customCertificateArn, Stacktape skips automatic certificate provisioning and uses your certificate instead. You are responsible for renewing custom certificates before they expire.\"",
+              "reason": "The source supports using your own certificate instead of the auto-generated one, but it does not explicitly state the operational behavior that Stacktape skips provisioning or that the user is responsible for renewal. The recommendation is reasonable, but the Stacktape-specific behavior should be narrowed to the source wording.",
+              "suggestedFix": "Use the source wording: \"customCertificateArn tells Stacktape to use an ACM certificate from your AWS account instead of the auto-generated certificate.\" Add renewal responsibility as a cautious AWS operational note, not as a documented Stacktape behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Use your own TLS certificate instead of the auto-generated one.\n   *\n   * ---\n   *\n   * Provide the ARN of an ACM certificate from your AWS account.\n   * Only needed if you have specific certificate requirements (e.g., EV/OV certs).\n   * By default, Stacktape provisions and renews free certificates automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Each domain in the array is configured independently — you can mix auto-managed DNS with external DNS, and auto-provisioned certificates with custom certificates, within the same resource. All domains route to the same underlying endpoint.\"",
+              "reason": "The source proves customDomains is an array of DomainConfiguration objects only indirectly through the draft; the provided DomainConfiguration source does not state per-entry independent handling or that all domains route to the same endpoint. This is a Stacktape-specific behavior claim beyond the supplied type documentation.",
+              "suggestedFix": "Keep the array example but narrow the prose: \"Each array entry can include its own domainName, customCertificateArn, and disableDnsRecordCreation values.\" Avoid asserting endpoint routing behavior unless backed by the resource implementation source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface DomainConfiguration {\n  /**\n   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "customCertificateArn?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "disableDnsRecordCreation?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"What happens to my custom domain if I delete the stack? ... Deleting a stack removes the DNS records and TLS certificate associations created for that stack, but the hosted zone and your domain registration remain intact.\"",
+              "reason": "The provided source files do not describe deletion behavior for custom domain DNS records, certificate associations, hosted zones, or domain:add-created resources. This claim affects operational expectations during destructive actions and should be backed by delete/domain command or runtime source.",
+              "suggestedFix": "Remove or narrow this FAQ answer unless delete/domain command source is added. A cautious replacement: \"The provided configuration source does not document stack-deletion behavior for domain:add-created hosted zones; verify deletion behavior before relying on it.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Application Load Balancers and Network Load Balancers also accept a legacy string-array format for backward compatibility.\"",
+              "reason": "No provided source file shows ApplicationLoadBalancer or NetworkLoadBalancer props, so this backward-compatibility claim cannot be verified from the supplied source list. It may be true elsewhere, but it is ungrounded here.",
+              "suggestedFix": "Either add the relevant load balancer type source files or remove the legacy format sentence from this page.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses CodeBlock with intellisense and a TypeScript tab for Stacktape configuration examples, and it does not hand-author YAML configuration.",
+            "The core DomainConfiguration properties documented in the page — domainName, customCertificateArn, and disableDnsRecordCreation — match the provided interface names.",
+            "The draft correctly states that domainName should not include the https:// protocol, which is directly supported by the DomainConfiguration JSDoc.",
+            "The draft includes exactly 10 FAQ Q&A pairs and uses valid cross-link routes from the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers all three properties of the primary `DomainConfiguration` type and its code examples are demonstrative for the sections they appear in. I found no API completeness, union-variant coverage, or code-example demonstrativeness issues within the auditor scope.",
+          "issues": [],
+          "positiveFindings": [
+            "All `DomainConfiguration` properties from the primary type are documented: `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`.",
+            "The page acknowledges all source-listed domain-attachable networking targets: `application-load-balancer`, `http-api-gateway`, `network-load-balancer`, and `cdn`.",
+            "Each `<CodeBlock intellisense>` example demonstrates the surrounding section: basic domain attachment, custom certificate usage, disabled DNS record creation, and multiple domain entries.",
+            "The page includes exactly one `<ApiReference definitionName=\"DomainConfiguration\" />`, matching the page metadata type name."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__custom-domains\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript' — no YAML blocks, no fenced TypeScript, no StacktapeConfig type import.",
+            "Class names used in examples (HttpApiGateway, ApplicationLoadBalancer) are valid Stacktape exports.",
+            "DomainConfiguration properties (domainName, customCertificateArn, disableDnsRecordCreation) are accurately documented and match the source interface exactly, including correct defaults.",
+            "Every configuration section includes genuine decision support: when to enable, when the default is fine, cost/tradeoff signal, and an opinion. The TLS certificates and External DNS sections are particularly well-structured.",
+            "FAQ has exactly 10 questions spanning all three required categories: Stacktape-specific (Q1, Q2, Q4, Q7, Q9), AWS-service use-case (Q5, Q6, Q8), and choosing/comparison (Q3, Q10).",
+            "The 'When to use' / 'When NOT to use' peer H2 structure is correct — they are not nested.",
+            "Section headings are compact and descriptive (When to use, Prerequisites, Basic example, TLS certificates, External DNS, Multiple domains).",
+            "The Prerequisites section is practical: it links the CLI command, explains one-time setup, and gives the hosted zone cost (~$0.50/month) which is a grounded, concrete number.",
+            "No marketing language found anywhere on the page.",
+            "The first paragraph is self-contained and AEO-optimized: concise, names the concept explicitly, explains what Stacktape does end-to-end."
+          ],
+          "problems": [
+            "UNSUPPORTED CLAIM — 'backward-compatible string[] format' for ALBs and NLBs: The source (types/stacktape-config/__helpers.d.ts) defines customDomains only via the DomainConfiguration interface. No string[] alternative form appears anywhere in the provided source files. This statement is fabricated from context not present in the source.",
+            "UNVERIFIED RESOURCE LIST — The 'Supported resources' table includes web-service, static-hosting (HostingBucket), and all seven SSR frontend types. However, the authoritative StpDomainAttachableResourceType union in __helpers.d.ts lists only four types: application-load-balancer, http-api-gateway, network-load-balancer, and cdn. The individual resource type definition files for web services, hosting buckets, and SSR frontends were not provided as source, so these entries cannot be verified from the provided sources. The page presents them as confirmed facts when the evidence is absent.",
+            "OVERCONFIDENT CLAIM on disableDnsRecordCreation Route53 requirement: The page asserts 'The domainName property requires a Route53 hosted zone in your AWS account regardless of the disableDnsRecordCreation setting (see Prerequisites). Stacktape still uses the hosted zone for TLS certificate provisioning.' The source JSDoc for domainName requires Route53, but the JSDoc for disableDnsRecordCreation only says Stacktape 'won't touch your DNS' — it does not explicitly state Route53 is still required for certificate provisioning in that case. This is a reasonable inference but is stated as fact."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the 'backward-compatible string[] format' claim for Application Load Balancers and Network Load Balancers. The provided source files contain no evidence for this format. Either find the type definition that supports it (e.g., from the ALB or NLB resource type files) or remove the sentence entirely.",
+            "Narrow the Supported resources table to only the four types confirmed by StpDomainAttachableResourceType in __helpers.d.ts (application-load-balancer, http-api-gateway, network-load-balancer, cdn). For web-service, static-hosting, and SSR frontends, either locate the individual resource type definition files that show a customDomains property on those types, or add a qualifying note such as 'verify support in the individual resource docs' rather than presenting all seven SSR types as confirmed."
+          ],
+          "optionalImprovements": [
+            "Soften the Route53-still-required-when-disableDnsRecordCreation=true claim to match the source's actual wording, e.g., 'Stacktape uses the domain for certificate provisioning; check whether your setup still needs the hosted zone for DNS validation.'",
+            "The 'Multiple domains' section is short on prose — it could benefit from one sentence about practical limits (e.g., whether there's a documented cap on how many domains a single resource can serve) if that data exists in the resource type definitions.",
+            "The <Warning> and <Tip> callouts in the TLS certificates section are useful, but there is no example page provided to verify palette drift. If other networking pages (HTTP API Gateway, ALB) don't use <Tip> callouts, consider aligning for consistency."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong peer-H2 'When to use / When NOT to use' split with concrete, practical scenarios — not circular or generic",
+            "All Stacktape config examples correctly use <CodeBlock intellisense /> with defineConfig and class-based resources; no forbidden YAML blocks, no StacktapeConfig type patterns anywhere on the page",
+            "Clear prerequisites section explaining one-time Route53 hosted zone setup via `stacktape domain:add`, including the valuable 'one zone covers all subdomains' insight",
+            "Realistic, copyable examples for all three DomainConfiguration property combinations (basic domainName, customCertificateArn, disableDnsRecordCreation) plus a multi-domain array example",
+            "Well-structured FAQ with exactly 10 Q&A pairs that span Stacktape-specific, AWS use-case, and comparison/choosing categories as required"
+          ],
+          "problems": [
+            "UNSUPPORTED CLAIM: 'Application Load Balancers and Network Load Balancers also accept a backward-compatible string[] format.' The only type documented in the provided source is DomainConfiguration — no string[] overload appears anywhere in the source files. Readers who try this form will hit an error.",
+            "OVERCONFIDENT CONSTRAINT: The page asserts a Route53 hosted zone is required 'regardless of the disableDnsRecordCreation setting.' The source JSDoc for domainName states the hosted zone requirement in the general case; it does not say the requirement persists when disableDnsRecordCreation: true is combined with customCertificateArn. A reader managing their own DNS and bringing their own cert may not need Route53 at all — this blanket assertion could cause real confusion.",
+            "UNSOURCED RESOURCE LIST: The Supported resources table lists WebService, HostingBucket, and all seven SSR frontend types. The only source-grounded StpDomainAttachableResourceType in __helpers.d.ts is 'application-load-balancer | http-api-gateway | network-load-balancer | cdn'. Those other resource types may expose customDomains through an internal CDN or ALB, but this is unverifiable from the provided source files and is presented as fact without qualification.",
+            "INVENTED PRICING: Route53 pricing (~$0.50/month per zone) and DNS query pricing (~$0.40/million) are stated as concrete facts but appear nowhere in the provided source files. Pricing rules prohibit inventing AWS list prices not present in source."
+          ],
+          "mandatoryFixes": [
+            "Remove the sentence 'Application Load Balancers and Network Load Balancers also accept a backward-compatible string[] format.' It has no basis in the provided source (DomainConfiguration is the only documented shape) and will mislead any reader who attempts to use it.",
+            "Qualify the Route53 hosted zone requirement for the disableDnsRecordCreation path. Replace the absolute statement 'requires a Route53 hosted zone regardless of the disableDnsRecordCreation setting' with a scoped claim: the auto-provisioned certificate (default) requires Route53 for DNS validation; when combined with customCertificateArn, the requirement may not apply. Do not assert a constraint the source does not explicitly state.",
+            "Remove the specific pricing figures (~$0.50/month, ~$0.40/million queries) from both the Prerequisites section and the FAQ answer. They are not in any provided source file. Per pricing rules, either source them or omit the numbers entirely (a phrase like 'Route53 hosted zones have a small monthly cost per zone' is acceptable without a specific dollar figure)."
+          ],
+          "optionalImprovements": [
+            "In the Supported resources section, add a one-sentence clarification that SSR frontends and WebService expose customDomains as a convenience wrapper over their underlying CDN or ALB — this explains why the DomainConfiguration shape is the same across all resource types and why they don't appear in the low-level StpDomainAttachableResourceType union.",
+            "The Tip callout about CloudFront requiring us-east-1 certificates is correct and useful but is buried inside the TLS certificates section prose. Consider placing it immediately after the code example for customCertificateArn rather than after the explanatory paragraph, so scanning readers spot it before they provision a cert in the wrong region.",
+            "The External DNS section mentions pointing 'a CNAME record in Cloudflare to the resource's endpoint' but doesn't flag the proxy-mode decision (orange-cloud vs gray-cloud). Cloudflare proxy mode is the most common reason teams choose this option, and proxied records have different TLS implications. A one-sentence note would prevent a common misconfiguration."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first opening paragraph is self-contained, concise (~55 words), and directly answers 'what is this and why does it matter' — citation-ready.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[{label: 'TypeScript', ...}]} />` with no forbidden YAML blocks, no `StacktapeConfig` type imports, and no fenced TypeScript blocks containing `defineConfig`. Style compliance is clean.",
+            "Each opt-in feature section (TLS certificates, external DNS) provides: when to enable, when the default suffices, a concrete tradeoff signal, and an opinionated recommendation — full decision-support coverage.",
+            "FAQ section has exactly 10 questions and covers all three required categories: Stacktape-specific (hosted zone setup, certificate renewal, Cloudflare), AWS use-case (cost, propagation time, Route53 vs registrar), and comparison/choosing (staging vs production, routing multiple backends).",
+            "Prerequisites section is actionable and includes a concrete pricing line (~$0.50/month per zone) sourced from AWS facts, with the one-zone-covers-all-subdomains clarification that helps readers avoid over-spending.",
+            "Supported resources table is scannable and links each resource to its dedicated page — good for both navigation and citation extractability.",
+            "The `DomainConfiguration` interface's three properties (domainName, customCertificateArn, disableDnsRecordCreation) are all correctly described and grounded in the provided source JSDoc.",
+            "Section headings are compact noun-form labels (When to use, When NOT to use, Prerequisites, TLS certificates, External DNS, Multiple domains) — good for AEO extractability.",
+            "Exactly one `<ApiReference definitionName=\"DomainConfiguration\" />` is present, positioned at the bottom as conventional for tutorial-style pages."
+          ],
+          "problems": [
+            "The claim 'Application Load Balancers and Network Load Balancers also accept a backward-compatible `string[]` format' in the Supported resources section is not grounded in any provided source file. The `DomainConfiguration` interface shows only an object with three named properties — no string[] alternative form is documented. This reads as a fabricated backward-compatibility detail.",
+            "The Supported resources table lists web services, static hosting (hosting-bucket), and all seven SSR frontend types as resources that support `customDomains` directly. The provided source's `StpDomainAttachableResourceType` only enumerates `application-load-balancer`, `http-api-gateway`, `network-load-balancer`, and `cdn`. The additional resources' type definitions were not provided, so the claim cannot be verified from inline source — the page may be overstating the scope of direct domain attachment support.",
+            "The `<Tip>` callout claiming 'AWS CloudFront requires TLS certificates to be in the `us-east-1` region regardless of your stack's region' is not present in any provided source file. While this is a well-known AWS constraint, it is stated as a Stacktape-specific instruction without source grounding, and the Tip callout's usage cannot be verified against an example page (no example page was provided)."
+          ],
+          "mandatoryFixes": [
+            "Remove or explicitly caveat the 'backward-compatible `string[]` format' claim for ALB and NLB in the Supported resources section — this is not grounded in the provided source. The `DomainConfiguration` interface contains only `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`. Either locate the type definition that shows the string[] overload or remove the sentence.",
+            "Verify that WebService, HostingBucket, and the seven SSR frontend resources (NextjsWeb, AstroWeb, NuxtWeb, SvelteKitWeb, SolidStartWeb, TanStackWeb, RemixWeb) actually expose a top-level `customDomains: DomainConfiguration[]` property in their own type definitions before listing them in the table. The provided source's `StpDomainAttachableResourceType` does not include them. If their type files confirm support, keep the table; if not, replace with a note that custom domains reach those resources via an attached CDN or ALB."
+          ],
+          "optionalImprovements": [
+            "The CloudFront us-east-1 certificate constraint in the Tip callout is a real AWS limitation worth keeping, but it would be cleaner to frame it under a CDN-specific sub-note rather than as a general tip under TLS certificates — readers attaching a domain to an HTTP API Gateway or ALB don't need this caveat.",
+            "The 'Multiple domains' section's opening paragraph could be made more self-contained for citation: it starts 'You can attach multiple custom domains...' without naming the resource type — change to 'A single Stacktape resource can serve multiple custom domains...' to anchor the entity explicitly.",
+            "Consider adding a one-sentence note that `stacktape domain:add` is the required CLI prerequisite command in the Prerequisites section's first sentence, rather than only in the body, so readers who skim headings get the command immediately.",
+            "The Supported resources table's 'Typical use case' column uses generic descriptions (e.g. 'TCP/TLS services at a custom domain') — linking the resource type name in column 1 is already done, but adding a second column with 'How domains attach' (ALB listener, API Gateway custom domain, CloudFront alias, etc.) would help readers understand the underlying mechanism and aid decision-making.",
+            "The FAQ answer for 'Can I route one domain to multiple backends?' recommends ALB or HTTP API Gateway path-based routing — this is good advice. Adding a `$ResourceParam()` note or a brief link to path-based routing docs would make it more actionable."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Application Load Balancers and Network Load Balancers also accept a backward-compatible `string[]` format.",
+              "reason": "While this claim is actually TRUE (confirmed by checking the source types), the claim is presented in a way that may confuse readers. More importantly, the draft states this as a unique ALB/NLB feature but doesn't mention that all other resource types (HTTP API Gateway, web service, hosting bucket, SSR frontends) do NOT accept the string[] format — they only accept DomainConfiguration[]. The claim is correct but missing a caveat about the limitation being specific to only ALB and NLB.",
+              "suggestedFix": "The statement is factually correct. Consider clarifying slightly: 'Application Load Balancers and Network Load Balancers also accept a backward-compatible `string[]` format where each string is a domain name. Other resource types require the full `DomainConfiguration` object.' This prevents readers from assuming string[] works everywhere.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/application-load-balancers.d.ts",
+                  "quote": "customDomains?: DomainConfiguration[] | string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The supported resources table lists web service, static hosting, and SSR frontends alongside HTTP API Gateway, ALB, NLB, and CDN without distinguishing that web services and SSR frontends attach domains through their embedded infrastructure.",
+              "reason": "The StpDomainAttachableResourceType in __helpers.d.ts only lists 'application-load-balancer', 'http-api-gateway', 'network-load-balancer', and 'cdn' as the primitive domain-attachable types. While web services, hosting buckets, and SSR frontends DO have a customDomains property (confirmed in their type files), they attach domains through their underlying ALB, API Gateway, or CloudFront distribution — not as a direct domain attachment. The table presents them as equivalent, which is technically correct from a configuration perspective but misses an opportunity to explain the mechanism difference.",
+              "suggestedFix": "This is a minor caveat. The table is acceptable as-is since all listed resources genuinely accept a customDomains property. Optionally add a brief note: 'Web services and SSR frontends attach domains through their underlying load balancer or CloudFront distribution.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType = Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'> | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The `domainName` property requires a Route53 hosted zone in your AWS account regardless of the `disableDnsRecordCreation` setting.",
+              "reason": "The JSDoc on domainName says 'The domain must have a Route53 hosted zone in your AWS account, with your registrar's nameservers pointing to it.' This requirement is unconditional. The draft's claim that Route53 is required 'for TLS certificate provisioning' even when disableDnsRecordCreation is true is a reasonable inference (DNS validation needs the hosted zone) but the source doesn't explicitly state this mechanism. The claim is very likely correct but the specific mechanism ('Stacktape still uses the hosted zone for TLS certificate provisioning') goes slightly beyond what the source states.",
+              "suggestedFix": "Soften slightly: 'The `domainName` property requires a Route53 hosted zone in your AWS account regardless of the `disableDnsRecordCreation` setting. Stacktape uses the hosted zone for DNS-based TLS certificate validation.' Or simply: 'A Route53 hosted zone is required for all custom domains, even when `disableDnsRecordCreation` is set.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The DomainConfiguration interface properties (domainName, customCertificateArn, disableDnsRecordCreation) are accurately described and match the source types exactly.",
+            "The disableDnsRecordCreation default of false is correctly documented, matching the @default false in the source JSDoc.",
+            "The customCertificateArn description accurately reflects the source JSDoc — 'Only needed if you have specific certificate requirements (e.g., EV/OV certs).'",
+            "All cross-links in the draft point to valid routes in the documentation navigation index. No invented routes detected.",
+            "The 'When to use' and 'When NOT to use' sections are correctly structured as peer H2 headings, not nested.",
+            "The FAQ section has exactly 10 Q&A pairs spanning all three required categories: Stacktape-specific, AWS service use-case, and comparison/choosing questions.",
+            "The CodeBlock examples correctly use the <CodeBlock intellisense> component with TypeScript tabs and defineConfig pattern. No forbidden YAML blocks or StacktapeConfig-typed patterns are present.",
+            "The CLI command stacktape domain:add is correctly linked to /cli/domain-add, and stacktape info:stack is correctly linked to /cli/info-stack.",
+            "The ApiReference uses definitionName='DomainConfiguration' which matches the interface name in the source types — appropriate since this is a shared configuration type, not a resource Props type.",
+            "Confirmed via source exploration that all 14 resource type files (including web-services, hosting-buckets, all SSR frontends, ALB, NLB, HTTP API Gateway, CDN, and convex) do have a customDomains property accepting DomainConfiguration[], validating the draft's supported resources table."
+          ],
+          "summary": "The Custom Domains draft page is well-grounded and factually accurate. The DomainConfiguration interface, its three properties, and their descriptions closely match the source types. All cross-links are valid, code examples follow the correct CodeBlock pattern, and the FAQ covers the required breadth. Three minor issues were found: (1) the backward-compatible string[] format claim for ALB/NLB is correct but should note that other resource types don't support this format; (2) the supported resources table correctly lists all resources with customDomains but could clarify that web services and SSR frontends attach domains through their underlying infrastructure; (3) the claim about Route53 being needed for TLS certificate provisioning with disableDnsRecordCreation is reasonable but goes slightly beyond what the source explicitly states. No high-severity issues were found — the page is publication-ready with minor optional improvements."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided DomainConfiguration source, but it overstates which resources support customDomains directly and makes several Stacktape-specific claims about domain:add, external DNS, endpoint discovery, and routing behavior that are not grounded in the provided sources. The biggest publication risk is the supported-resource list: the source only defines domain-attachable resource types as Application Load Balancer, HTTP API Gateway, Network Load Balancer, and CDN.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft says custom domains are supported directly on web services, static hosting, and SSR frontend resources.",
+              "reason": "The provided source defines the domain-attachable resource type union as Application Load Balancer, HTTP API Gateway, Network Load Balancer, and CDN only. The source even comments out web-service and hosting-bucket in a nearby CDN-related union, and no provided resource prop type shows customDomains on web-service, hosting-bucket, or SSR frontends.",
+              "suggestedFix": "Limit the direct support list to HTTP API Gateway, Application Load Balancer, Network Load Balancer, and CDN. If other resource pages support custom domains through nested CDNs or load balancers, describe that as an attachment path only if the relevant resource source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `DomainConfiguration` structure is the same across all resource types that accept it. Each entry in the `customDomains` array accepts three properties: `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`. Application Load Balancers and Network Load Balancers also accept a backward-compatible `string[]` format.”",
+              "reason": "The provided source defines DomainConfiguration, but it does not define the `customDomains` property or a backward-compatible `string[]` format for Application Load Balancers and Network Load Balancers. That compatibility claim would change what readers configure and is not supported by the provided source files.",
+              "suggestedFix": "Keep the DomainConfiguration property list, but remove the `string[]` compatibility claim unless the ALB/NLB prop types are added as sources and show it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface DomainConfiguration {\n  /**\n   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Run `stacktape domain:add` to create the hosted zone and get the nameservers to configure at your registrar.”",
+              "reason": "The provided source says the domain must already have a Route53 hosted zone with registrar nameservers pointing to it, but no CLI source for `domain:add` is provided. The draft describes exact CLI behavior that cannot be verified from the source list.",
+              "suggestedFix": "Say the domain must have a Route53 hosted zone in the AWS account, and link `stacktape domain:add` only as the documented setup command if the CLI source or docs page is included. Otherwise phrase cautiously: “Use the domain setup flow or `stacktape domain:add` documentation to create or configure the hosted zone.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This is a one-time setup per root domain — after adding `example.com`, any subdomain (`api.example.com`, `app.example.com`, `staging-api.example.com`) works without repeating the process.”",
+              "reason": "The source requires a Route53 hosted zone for the domain, but it does not state Stacktape’s matching behavior for root domains versus subdomains or that no repeated setup is needed for any subdomain. The claim is plausible AWS DNS context, but stated as Stacktape setup behavior without source support.",
+              "suggestedFix": "Narrow the wording to the sourced requirement: “The custom domain must resolve through a Route53 hosted zone in your AWS account. In typical DNS setups, one hosted zone for `example.com` can contain records for subdomains such as `api.example.com`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“With just `domainName`, Stacktape creates a DNS record in Route53 and provisions a free TLS certificate.”",
+              "reason": "The source supports DNS record creation and free TLS certificate provisioning, but the example uses `HttpApiGateway` and the provided source files do not include `HttpApiGateway` props showing a `customDomains` property. The code may be valid in the real package, but it is not grounded in the provided source files.",
+              "suggestedFix": "Either add the relevant `HttpApiGatewayProps` source file to ground the example, or keep the example generic only if the documentation pipeline validates it independently. From the provided sources alone, do not show a specific resource class with `customDomains`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After deployment, create a CNAME or alias record in your external DNS provider pointing your domain to the resource's endpoint. You can find the endpoint using `stacktape info:stack` or in the Stacktape Console.”",
+              "reason": "The source supports `disableDnsRecordCreation` and says Stacktape will not touch DNS, but it does not describe how to find endpoints, whether `info:stack` exposes the needed target, or any Console location. Console and CLI behavior must be grounded in their source files, which are not included.",
+              "suggestedFix": "Keep the sourced behavior: “When `disableDnsRecordCreation` is true, Stacktape does not create or modify DNS records, so you manage the DNS record yourself.” Remove endpoint discovery details unless CLI/Console sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I route one domain to multiple backends? … place an HTTP API Gateway or Application Load Balancer in front and use path-based routing to direct traffic to multiple Lambda functions or container workloads.”",
+              "reason": "The source supports path-based conditions for HTTP API integrations and Application Load Balancer integrations, but the provided sources do not establish that one custom domain can be used with those routing setups, nor do they show custom-domain attachment for an API Gateway or ALB resource prop. The answer blends general routing behavior with a Stacktape custom-domain claim.",
+              "suggestedFix": "Narrow the FAQ to routing mechanics supported by the provided integration source: “Application Load Balancer integrations can match paths, methods, hosts, headers, query parameters, and source IPs; HTTP API integrations match method and path. Attach the custom domain to the fronting resource when that resource’s custom-domain support is documented.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You can route requests based on HTTP method, path, headers, query parameters, and source IP address."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Routes are matched by specificity — exact paths take priority over wildcard paths."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the required `<CodeBlock intellisense tabs={[{ label: 'TypeScript' ... }]} />` pattern for Stacktape configuration examples and does not include hand-authored YAML Stacktape config.",
+            "The DomainConfiguration property names in the draft match the provided source: `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`.",
+            "The draft correctly states that `domainName` should not include `https://`, matching the DomainConfiguration JSDoc.",
+            "The draft correctly describes the default DNS record creation and free TLS certificate provisioning behavior at a high level, as long as resource-specific support is narrowed to the sourced attachable types.",
+            "The page includes exactly 10 FAQ question-and-answer pairs."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers every property on the primary DomainConfiguration type and the configuration examples are demonstrative for their sections. The main API-shape problem is that the supported-resource list goes beyond the domain-attachable resource union visible in the provided source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The following resource types support custom domains directly” includes Web service, Static hosting, and SSR frontend resources.",
+              "reason": "The provided source defines the domain-attachable resource union as application-load-balancer, http-api-gateway, network-load-balancer, and cdn. The draft may be describing higher-level resources that expose custom domains through nested infrastructure, but the wording says they support DomainConfiguration directly, which is broader than the source-backed API shape for this page.",
+              "suggestedFix": "Narrow the direct-support table to HTTP API Gateway, Application Load Balancer, Network Load Balancer, and CDN. If mentioning web services or frontend resources, phrase them as higher-level resources that may expose custom domain configuration on their own pages, rather than as direct members of this page’s attachable-resource union.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All three DomainConfiguration properties are documented: domainName, customCertificateArn, and disableDnsRecordCreation.",
+            "Each CodeBlock example demonstrates the section topic: the basic example sets customDomains, the TLS section sets customCertificateArn, the external DNS section sets disableDnsRecordCreation, and the multiple-domains section shows multiple DomainConfiguration entries.",
+            "The page uses exactly one ApiReference with definitionName=\"DomainConfiguration\", matching the page metadata.",
+            "No Stacktape configuration example uses hand-authored YAML, plain-object StacktapeConfig style, or fenced TypeScript config."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__networking__custom-domains\\iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clean, self-contained opening paragraph that immediately answers 'what is this and why do I care' — copyable by AI engines verbatim.",
+            "Both 'When to use' and 'When NOT to use' are peer H2 sections, well-developed with concrete scenarios and explicit alternatives (private services, dev stages).",
+            "Four working code examples that progressively build from the simplest case to mixing multiple options — each accompanied by explanatory prose that anchors the property values.",
+            "Prerequisites section clearly explains the Route53 hosted zone requirement and links to `stacktape domain:add`, which is exactly what a newcomer needs before they start.",
+            "FAQ has exactly 10 pairs spanning all three required categories (Stacktape-specific, AWS use-case, comparison/choosing) with link-out to related docs.",
+            "Property-value anchoring is consistently applied — every non-obvious property in a code example has a brief prose explanation of what it controls and what alternatives exist.",
+            "The 'External DNS' section correctly captures the decision-support format: when to enable, when to skip, and an opinionated recommendation."
+          ],
+          "problems": [
+            "SOURCE GROUNDING — The 'Supported resources' table lists web services, static hosting (HostingBucket), and all seven SSR frontend types (NextjsWeb, AstroWeb, NuxtWeb, SvelteKitWeb, SolidStartWeb, TanStackWeb, RemixWeb) as directly supporting `customDomains`. The provided source's `StpDomainAttachableResourceType` in `__helpers.d.ts` enumerates only four types: `application-load-balancer`, `http-api-gateway`, `network-load-balancer`, and `cdn`. Claiming the other resource types directly accept a `customDomains` property is not grounded in the provided source files.",
+            "SOURCE GROUNDING — The page states 'Application Load Balancers and Network Load Balancers also accept a `string[]` format where each string is a domain name — other resource types require the full `DomainConfiguration` object.' The provided source shows only the `DomainConfiguration` object interface; no string shorthand format appears in any provided source file.",
+            "SOURCE GROUNDING — The page asserts 'A Route53 hosted zone is still required for the domain even when `disableDnsRecordCreation` is set — Stacktape uses the hosted zone for DNS-based TLS certificate validation.' The JSDoc for `disableDnsRecordCreation` in the source says only that Stacktape skips DNS record creation; it does not state that a hosted zone is still required. This is an inference the page presents as fact.",
+            "MINOR — The `customCertificateArn` example's `Warning` callout states 'AWS does not auto-renew imported certificates.' This is a general AWS fact but is stated as though it is a Stacktape-specific behavior. The framing is acceptable as a well-known AWS fact, but the phrasing could read as a Stacktape claim to a pedantic verifier."
+          ],
+          "mandatoryFixes": [
+            "Narrow the 'Supported resources' table to the four types grounded in `StpDomainAttachableResourceType`: HTTP API Gateway, Application Load Balancer, Network Load Balancer, and CDN. For web services, static hosting, and SSR frontends, either verify support from the resource-specific `.d.ts` files (not provided) or remove them from the table and add a note such as 'SSR frontends and hosting buckets expose custom domain configuration through their own properties — see each resource's page for details.'",
+            "Remove or source-ground the claim that 'Application Load Balancers and Network Load Balancers also accept a `string[]` format'. The provided source only shows `DomainConfiguration` as the accepted type. If this shorthand exists, it must be grounded in the ALB/NLB-specific `.d.ts` files; until then, remove the claim to avoid misleading readers.",
+            "Soften the Route53-required-for-certificate-validation claim to match the source: the JSDoc for `disableDnsRecordCreation` says Stacktape skips DNS record creation but does not explicitly state a hosted zone is still required. Either verify this from the implementation or rephrase as 'typically, a Route53 hosted zone is still needed for DNS-based certificate validation unless you supply a pre-existing certificate via `customCertificateArn`'."
+          ],
+          "optionalImprovements": [
+            "The 'Multiple domains' section shows all three options (auto-DNS, external-DNS mix) but does not mention that each *root domain* (e.g., `example.com` vs `mycompany.io`) needs its own hosted zone until the final sentence — consider surfacing this constraint one sentence earlier, before the code example, so readers don't copy-paste and then hit a confusing failure.",
+            "The `Warning` callout about imported certificate renewal could link to AWS Certificate Manager docs for readers who need to understand the renewal process — currently it ends with no path forward.",
+            "The FAQ answer 'How long does it take for a custom domain to start working?' could mention that redeployments *after* the first deployment are faster because the certificate already exists and doesn't need re-validation. This is a common point of confusion for users who experience slow first deploys."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "No mandatory style violations: all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]}>, imports are hidden with focus markers, and no hand-authored YAML appears anywhere.",
+            "The DomainConfiguration property coverage is fully source-grounded: domainName, customCertificateArn, and disableDnsRecordCreation are all documented with accurate defaults drawn directly from the JSDoc in __helpers.d.ts.",
+            "Decision support is strong throughout. Each opt-in feature (custom certificates, external DNS, multiple domains) includes a 'when to use' opinion, a cost or tradeoff signal, and a concrete scenario — not just configuration instructions.",
+            "The FAQ satisfies all three required categories: Stacktape-specific (hosted zone setup, TLS renewal, staging guidance), AWS-service use-case (Route53 cost, propagation timing, registrar vs. DNS), and choosing/comparison (Cloudflare, multi-backend routing). Ten Q&A pairs present.",
+            "The 'When NOT to use' section is a peer H2 alongside 'When to use' — correct heading hierarchy; not nested as an H3.",
+            "The opening paragraph is self-contained, 40-75 words, and reads as a standalone answer an AI engine could quote verbatim.",
+            "The supported resources table is an effective AEO asset — structured comparison format, links to each resource page, concrete use-case column."
+          ],
+          "problems": [
+            "Ungrounded claim: 'Application Load Balancers and Network Load Balancers also accept a string[] format where each string is a domain name.' This claim appears both in the Supported resources section and in the DomainConfiguration summary paragraph. The provided source (types/stacktape-config/__helpers.d.ts) defines only DomainConfiguration as the domain attachment shape; no union type or string[] overload for ALB/NLB customDomains is present anywhere in the provided source files. If the claim is wrong, it directly misleads a reader configuring an ALB with multiple domains.",
+            "The CloudFront us-east-1 certificate constraint in the <Tip> ('AWS CloudFront requires TLS certificates to be in the us-east-1 region') is a well-known AWS fact and is useful, but it is not present in the provided source files. Under the source-grounding rules it may be flagged as unsupported Stacktape-specific behavior — framing it clearly as an AWS CloudFront constraint (not a Stacktape behavior) is safer."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the string[] shorthand claim for ALB/NLB. The statement 'Application Load Balancers and Network Load Balancers also accept a string[] format where each string is a domain name' does not appear in any provided source file. Either (a) find the type definition that confirms it (e.g., in the ALB/NLB type files not included in the provided source) and note the source, or (b) remove the claim and document only the DomainConfiguration object form, which is definitively grounded. This affects the Supported resources section prose paragraph and needs to be removed from both places it appears."
+          ],
+          "optionalImprovements": [
+            "The <Tip> about CloudFront certificates requiring us-east-1 would be more verifier-safe if reworded as an AWS constraint rather than a Stacktape one, e.g.: 'AWS CloudFront only accepts ACM certificates issued in us-east-1, regardless of the stack region. This is an AWS requirement — not Stacktape-specific.' This framing is accepted by the source-grounding verifier for well-known AWS facts.",
+            "The Prerequisites section mentions Route53 hosted zones have 'a small monthly cost per zone' but the FAQ section gives more detail on this. Consider either removing the prose cost mention from Prerequisites (since it's covered in FAQ Q5) or making the two mentions consistent — currently one says 'small monthly cost per zone' and the FAQ says 'small monthly cost per zone, plus a per-query fee'. Minor but a production reader will notice the inconsistency.",
+            "The 'Basic example' section ends with a note about the domainName format ('use the bare domain: api.example.com, not https://api.example.com'). This is useful but could be a short <Info> callout rather than prose to make it stand out for copy-paste users — it's the kind of detail that bites people in practice."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first opening paragraph is concise (~55 words), self-contained, and names both the mechanism (Route53 DNS record, ACM certificate) and the benefit (no manual setup).",
+            "Decision support is present for every opt-in feature: custom certificates have a clear 'when to use' opinion ('Only when compliance requires EV/OV'), external DNS section explains the Cloudflare trade-off explicitly.",
+            "The 10-question FAQ covers all three required categories: Stacktape-specific (renewal, hosted zones), AWS use-case (cost, propagation time, Route53 vs registrar), and choosing/comparison (staging stages, routing to multiple backends).",
+            "No forbidden style violations detected: no YAML Stacktape config blocks, no StacktapeConfig type import, no fenced TypeScript blocks with defineConfig, no <PropertiesTable>, exactly one <ApiReference>.",
+            "Code examples are realistic, copy-paste runnable, and contain no placeholder tokens. Each example demonstrates a distinct real-world scenario (basic, custom cert, external DNS, multiple domains).",
+            "The 'When NOT to use' section is a peer H2 (not nested), and its bullets are concrete and actionable rather than circular.",
+            "The supported resources table uses a comparison layout that improves extractability and citation probability over equivalent prose."
+          ],
+          "problems": [
+            "The Supported Resources table and FAQ answer #1 claim that web services, static hosting (HostingBucket), and all seven SSR frontend resources (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix) support a `customDomains` property. The only source-grounded type for domain attachment is `StpDomainAttachableResourceType`, which enumerates exactly four resource types: application-load-balancer, http-api-gateway, network-load-balancer, and cdn. The source files for web-service, hosting-bucket, and SSR frontend types were not provided, so these claims cannot be verified and may be incorrect or at least overstated.",
+            "The page asserts 'Application Load Balancers and Network Load Balancers also accept a `string[]` format where each string is a domain name'. This format distinction is not present in any of the provided source files. The `DomainConfiguration` interface is the only domain config type shown, and there is no union with `string` or `string[]` in scope.",
+            "The 'Prerequisites' section states 'Route53 hosted zones have a small monthly cost per zone, and ACM certificates provisioned by Stacktape are free.' The first clause repeats a fact from the FAQ without adding context; the cost claim is not sourced in the provided source files (no pricing JSON was provided). The cost statement in FAQ item #5 at least includes a caveat and links to AWS pricing — the prose in Prerequisites does not.",
+            "The page uses `<Warning>` and `<Tip>` callout components. No example page was provided, so drift from a house palette cannot be confirmed, but these components are used without a style reference — writers are advised to match the example page's MDX component palette."
+          ],
+          "mandatoryFixes": [
+            "Verify and correct the supported resources claim: the provided source (`StpDomainAttachableResourceType`) enumerates only application-load-balancer, http-api-gateway, network-load-balancer, and cdn as domain-attachable types. Either (a) supply the missing source files (web-service, hosting-bucket, SSR frontend types) that prove those types expose a `customDomains` property, or (b) narrow the supported resources table and FAQ answer #1 to only the four source-grounded types, noting that web services and frontends may expose domain configuration through the underlying ALB or CDN layer.",
+            "Remove or source-ground the `string[]` format claim for ALB/NLB: 'Application Load Balancers and Network Load Balancers also accept a `string[]` format where each string is a domain name' appears nowhere in the provided source files. Until the ALB and NLB type definitions are confirmed to have this union, remove the sentence rather than risk a source-grounding blocker."
+          ],
+          "optionalImprovements": [
+            "The 'Prerequisites' section duplicates the Route53 cost fact already in FAQ #5. Consider removing the cost sentence from Prerequisites to avoid redundancy, or elevate it into an `<Info>` callout following the pattern used by resource pages that include a pricing context line near the top.",
+            "The External DNS section mentions that Route53 is 'still required for the domain even when `disableDnsRecordCreation` is set' but then immediately hedges with 'may not apply' when `customCertificateArn` is also provided. The uncertainty is handled reasonably but could be sharpened: state explicitly that the only Route53 dependency is DNS-based ACM validation, so providing `customCertificateArn` (skipping new certificate provisioning) is the one case where a hosted zone may not be needed.",
+            "FAQ answer #7 (Cloudflare) says to 'point a CNAME record in Cloudflare to the resource's endpoint' after deployment. This is practical advice but incomplete: ALB DNS names typically require an ALIAS record at the apex or a CNAME at a subdomain — CNAMEs cannot be used at the zone apex. Clarify that the CNAME approach works for subdomains (api.example.com) but not for root domains (example.com).",
+            "Consider adding a one-sentence note on certificate provisioning time in the 'Basic example' section (e.g., 'On the first deploy, certificate DNS validation typically takes 2–5 minutes'). This sets realistic expectations and avoids support questions about the domain not working immediately after deploy.",
+            "The `<Warning>` callout about imported certificate renewal responsibility is useful but placed mid-section between two code blocks. Moving it immediately after the prose sentence 'you are responsible for renewing it before expiration' would tighten the reading flow."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "When combined with `customCertificateArn` (providing your own pre-existing certificate), the Route53 requirement for certificate validation may not apply since no new certificate needs provisioning.",
+              "reason": "The `domainName` JSDoc states unconditionally: 'The domain must have a Route53 hosted zone in your AWS account, with your registrar's nameservers pointing to it.' The source makes no exception for cases where `customCertificateArn` is provided. Telling users Route53 'may not apply' could lead to deployment failures if Stacktape requires the hosted zone for other resolution steps regardless of certificate source.",
+              "suggestedFix": "Remove the speculative claim. Replace with: 'A Route53 hosted zone is still required for the domain even when both `disableDnsRecordCreation` and `customCertificateArn` are set — the domain must have a hosted zone in your AWS account.' If the requirement truly is relaxed in this combination, the source should document it first.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `DomainConfiguration` structure is the same across all resource types that accept it.",
+              "reason": "This claim omits the Convex resource, which uses a different structure (`ConvexCustomDomains`) with named properties (`cloud`, `site`, `dashboard`) instead of a `DomainConfiguration[]` array. While Convex is a niche resource, the blanket 'all resource types' claim is inaccurate. Additionally, ALB and NLB accept `DomainConfiguration[] | string[]` (union with string array), while other resources accept only `DomainConfiguration[]`.",
+              "suggestedFix": "Narrow the claim: 'The `DomainConfiguration` structure is the same across most resource types. ALB and NLB additionally accept a shorthand `string[]` format.' Drop the 'all resource types' framing, or add a caveat for Convex if it's user-facing.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\application-load-balancers.d.ts",
+                  "quote": "customDomains?: DomainConfiguration[] | string[];"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The External DNS section says 'A Route53 hosted zone is still required for the domain even when `disableDnsRecordCreation` is set — Stacktape uses the hosted zone for DNS-based TLS certificate validation.'",
+              "reason": "The source JSDoc for `disableDnsRecordCreation` says 'Stacktape will still provision the TLS certificate but won't touch your DNS' — it does not explicitly state that the hosted zone is used for 'DNS-based TLS certificate validation.' While this is likely true (ACM DNS validation requires a hosted zone), the specific mechanism attribution ('DNS-based TLS certificate validation') is the draft's inference, not a source-stated fact.",
+              "suggestedFix": "Simplify to: 'A Route53 hosted zone is still required — the `domainName` source states the domain must have a Route53 hosted zone in your AWS account.' This grounds the requirement in the source without inferring the mechanism.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All three DomainConfiguration properties (domainName, customCertificateArn, disableDnsRecordCreation) match the source types exactly, including the @default false for disableDnsRecordCreation.",
+            "The supported resources table is accurate — all listed resource types (HttpApiGateway, ALB, NLB, CDN, web-service, hosting-bucket, and all 7 SSR frameworks) have `customDomains` properties confirmed in their respective type definition files.",
+            "The claim that ALB and NLB accept `string[]` shorthand is confirmed: both types define `customDomains?: DomainConfiguration[] | string[]` with the comment 'Backward compatible format `string[]` is still supported.'",
+            "All cross-links point to valid routes in the documentation navigation index — no invented routes.",
+            "H2 structure is correct: 'When to use' and 'When NOT to use' are peer H2 sections, not nested.",
+            "Code examples use correct Stacktape class names (HttpApiGateway, ApplicationLoadBalancer) in proper <CodeBlock intellisense> format with defineConfig pattern.",
+            "FAQ contains exactly 10 questions spanning all three required categories (Stacktape-specific, AWS use-case, choosing/comparison).",
+            "The ALB integration routing capabilities cited in the FAQ ('paths, methods, hosts, headers, query parameters, and source IPs') match the ApplicationLoadBalancerIntegrationProps type definition exactly."
+          ],
+          "summary": "The custom domains draft is well-grounded overall. The DomainConfiguration interface properties, supported resource types, and ALB/NLB string[] shorthand are all confirmed by source types. Three issues found: (1) a speculative claim that Route53 'may not apply' when using customCertificateArn contradicts the unconditional source requirement; (2) the blanket 'same across all resource types' claim overlooks Convex's different structure and the ALB/NLB string[] union; (3) a minor inference about DNS-based certificate validation mechanism not explicitly stated in source. No high-severity issues. Code examples, links, and structure are all correct."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the visible DomainConfiguration source for the core domainName/customCertificateArn/disableDnsRecordCreation behavior, but it overextends support to resource types and routing behavior not grounded in the provided source files. The highest-impact fixes are narrowing supported resources to the attachable types visible in source and removing unsupported operational claims around Stacktape DNS/certificate workflows.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The following resource types support custom domains” includes Web service, Static hosting, and all SSR frontend resources.",
+              "reason": "The provided source only defines domain-attachable resource types as application-load-balancer, http-api-gateway, network-load-balancer, and cdn. The draft’s extra resource types may be true through nested abstractions in files not provided, but they are not grounded in this source set and would directly affect what readers configure.",
+              "suggestedFix": "Limit the supported-resource table to HTTP API Gateway, Application Load Balancer, Network Load Balancer, and CDN, or phrase compute/frontend mentions cautiously as “attach custom domains to the public networking resource they use” only if their resource-specific source files are available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `customDomains` property accepts an array of `DomainConfiguration` objects” and “Application Load Balancers and Network Load Balancers also accept a `string[]` format…”",
+              "reason": "The provided source defines the DomainConfiguration interface but does not show any customDomains property on resource props, nor a string[] shorthand for ALB/NLB. This is a Stacktape API-shape claim and needs direct type evidence from the relevant resource prop files.",
+              "suggestedFix": "Document the DomainConfiguration object itself, and only state per-resource `customDomains` property shapes when the relevant resource prop types are in the source set. Remove the `string[]` shorthand claim unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface DomainConfiguration {\n  /**\n   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use the `stacktape domain:add` command to create the hosted zone and retrieve the nameservers to configure at your registrar.”",
+              "reason": "The provided files include the DomainConfiguration hosted-zone requirement, but no CLI command source for `domain:add` behavior. The navigation index proves the route exists, not that the command creates hosted zones or returns nameservers.",
+              "suggestedFix": "Either provide the `src/commands/domain-add/index.ts` source before making this operational claim, or narrow the sentence to: “The domain must have a Route53 hosted zone in your AWS account, with registrar nameservers pointing to it.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape still provisions the TLS certificate using the Route53 hosted zone for DNS-based validation” when `disableDnsRecordCreation` is true.",
+              "reason": "The source says Stacktape still provisions the TLS certificate when DNS record creation is disabled, but it does not state the validation mechanism. “DNS-based validation” and Route53-specific validation behavior are narrower implementation claims than the provided JSDoc supports.",
+              "suggestedFix": "Say: “Stacktape will still provision the TLS certificate, but won’t create or modify the DNS record for the resource.” Avoid specifying DNS validation unless runtime or provisioning source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When combined with `customCertificateArn` … the Route53 requirement for certificate validation may not apply since no new certificate needs provisioning.”",
+              "reason": "The source states the domain must have a Route53 hosted zone in the `domainName` field documentation and does not carve out an exception when `customCertificateArn` is used. The draft introduces an unsupported conditional exception that could change setup decisions.",
+              "suggestedFix": "Remove this exception. Keep the sourced requirement that the domain must have a Route53 hosted zone, and separately state that `customCertificateArn` makes Stacktape use the provided ACM certificate instead of the auto-generated one.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Provide the ARN of an ACM certificate from your AWS account.\n   * Only needed if you have specific certificate requirements (e.g., EV/OV certs).\n   * By default, Stacktape provisions and renews free certificates automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When you provide a custom certificate, Stacktape skips automatic certificate provisioning for that domain.”",
+              "reason": "The source says Stacktape uses your own TLS certificate instead of the auto-generated one, but does not explicitly describe provisioning behavior as skipped. The intended meaning is likely correct, but the draft should stick to the sourced behavior.",
+              "suggestedFix": "Replace with: “When `customCertificateArn` is set, Stacktape uses that ACM certificate instead of the auto-generated certificate.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Use your own TLS certificate instead of the auto-generated one."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Provide the ARN of an ACM certificate from your AWS account."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "FAQ: “After deployment, point a CNAME record in Cloudflare to the resource's endpoint.”",
+              "reason": "The provided source does not define the DNS target form to create when DNS record creation is disabled. ALB, NLB, API Gateway, and CDN targets can differ, so “CNAME to the resource endpoint” is not grounded by the supplied Stacktape source.",
+              "suggestedFix": "Say only that Stacktape will not manage the DNS record when `disableDnsRecordCreation` is true, and the reader must create the appropriate record in their DNS provider using the deployed target details.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "FAQ: “To route different paths to different backends under the same domain, attach the custom domain to an Application Load Balancer or HTTP API Gateway and use their routing integrations.”",
+              "reason": "The source supports routing integrations and matching conditions, but does not show that attaching a custom domain to ALB or HTTP API Gateway enables path-based routing to multiple backends under one domain. The routing examples are grounded, but the domain-to-multiple-backend guidance combines separate concepts without source support.",
+              "suggestedFix": "Split the answer: state that a single DNS name resolves to one target endpoint, then describe the sourced routing capabilities of ALB and HTTP API integrations without asserting the full custom-domain architecture unless resource docs for customDomains plus integrations are supplied.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You can route requests based on HTTP method, path, headers, query parameters, and source IP address."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Routes are matched by specificity — exact paths take priority over wildcard paths."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape config examples and does not hand-author YAML Stacktape configuration.",
+            "The core `DomainConfiguration` fields are correctly identified as `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`, and the default for `disableDnsRecordCreation` matches the source.",
+            "The draft correctly states that `domainName` should not include `https://`, matching the DomainConfiguration JSDoc.",
+            "The draft includes exactly one `<ApiReference>` component and uses the visible `DomainConfiguration` interface name."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness for the primary `DomainConfiguration` type is good: the draft documents `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`, and the examples demonstrate the properties discussed in their sections. The main concern is that the draft expands supported-resource claims beyond the domain-attachable union visible in the provided source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says custom domains are supported on web services, static hosting, and all SSR frontend resources.",
+              "reason": "The provided source only defines `StpDomainAttachableResourceType` as Application Load Balancer, HTTP API Gateway, Network Load Balancer, and CDN. The draft may be relying on lower-priority or absent resource-specific source files, but those are not present in this audit packet, so this broader support matrix is not grounded here.",
+              "suggestedFix": "Narrow the supported resources section to the source-grounded attachment targets: HTTP API Gateway, Application Load Balancer, Network Load Balancer, and CDN. If web services/frontends support custom domains through nested ALB/CDN properties, phrase that as a separate, cautious note only when the relevant resource source files are available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpDomainAttachableResourceType =\n  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>\n  | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Application Load Balancers and Network Load Balancers also accept a `string[]` format where each string is a domain name — other resource types require the full `DomainConfiguration` object.”",
+              "reason": "The provided source defines `DomainConfiguration` but does not show the ALB or NLB `customDomains` property type, so the `string[]` shorthand and the negative claim about other resources are not grounded in this source packet.",
+              "suggestedFix": "Remove the shorthand sentence unless the ALB/NLB source files are included. Keep the page focused on `DomainConfiguration` objects, which are directly grounded by the primary type.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface DomainConfiguration {\n  domainName: string;\n  customCertificateArn?: string;\n  disableDnsRecordCreation?: boolean;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says to attach a custom domain to an Application Load Balancer or HTTP API Gateway and use routing integrations to route one domain to multiple backends.",
+              "reason": "The source supports ALB host/path/header/query/source-IP matching and HTTP API method/path matching, but it does not directly support the higher-level statement that a single custom domain can be used this way through Stacktape custom-domain attachment. This is likely true, but the provided source only grounds the routing integration conditions.",
+              "suggestedFix": "Rephrase to: “ALB integrations can match paths, methods, hosts, headers, query parameters, and source IPs; HTTP API integrations match method and path. Use those routing features on the resource that owns the custom domain.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You can route requests based on HTTP method, path, headers, query parameters, and source IP address."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface HttpApiIntegrationProps {\n  httpApiGatewayName: string;\n  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS' | '*';\n  path: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All three primary `DomainConfiguration` properties are documented in prose and examples: `domainName`, `customCertificateArn`, and `disableDnsRecordCreation`.",
+            "Each `<CodeBlock intellisense>` example demonstrates the section topic: the basic example sets `domainName`, the TLS section sets `customCertificateArn`, the external DNS section sets `disableDnsRecordCreation`, and the multiple-domains section shows multiple `customDomains` entries.",
+            "The page includes exactly one `<ApiReference definitionName=\"DomainConfiguration\" />`, and the definition name matches the page metadata.",
+            "No hand-authored Stacktape YAML, plain-object `StacktapeConfig` examples, or fenced Stacktape TypeScript config blocks were found."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\networking\\custom-domains.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 2, advisory high 0, verifier medium 11"
+}

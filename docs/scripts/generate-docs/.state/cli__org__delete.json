@@ -1,0 +1,318 @@
+{
+  "pageId": "cli__org__delete",
+  "pageRoute": "cli/org-delete",
+  "startedAt": "2026-05-17T23:29:09.661Z",
+  "updatedAt": "2026-05-17T23:32:06.716Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__org__delete\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Prerequisites are accurately grounded in source code — the three conditions (no non-service users, no connected AWS accounts, must be OWNER) match the command description in commands.ts exactly.",
+            "Clear split between interactive and agent mode with a concrete invocation example for each path, which is exactly what a first-time user needs.",
+            "The Warning callout correctly signals the destructive / access-removing nature of the command without overstating it.",
+            "Related commands are well-chosen: org:create, org:list, and info:whoami are the natural siblings and the links are correct.",
+            "<CliCommandsApiReference> is correctly populated with the full sortedArgs object matching the source command definition.",
+            "Lead paragraph is concise and accurate — accurately reflects 'Deletes organization access for your user' from the source."
+          ],
+          "problems": [
+            "The '## Important flags' section hand-authors a partial flags table (3 of 4 flags), violating the section instruction which explicitly says 'Use the auto-generated <CliCommandsApiReference> component for the flags table — never hand-author it.' The information is fully duplicated in the '## Flags reference' section below.",
+            "Section ordering does not follow the prescribed CLI page flow. The section instruction specifies: Lead → Usage → auto-generated reference → Examples → Related commands. The draft inserts Prerequisites, Warning, Important flags, and Examples all BEFORE the '## Flags reference', placing the reference at the very end instead of immediately after Usage.",
+            "Having both '## Important flags' (manual) and '## Flags reference' (component) creates two authoritative-looking sources for flag documentation on the same page, which is confusing and invites staleness in the hand-authored section."
+          ],
+          "mandatoryFixes": [
+            "Remove the '## Important flags' hand-authored table entirely. The section instruction forbids hand-authoring the flags table. All four flags are already documented in the <CliCommandsApiReference> component under '## Flags reference'; any extra per-flag prose about agent-mode behavior belongs in the lead paragraph or the Usage section, not in a separate duplicating table.",
+            "Move '## Flags reference' (the <CliCommandsApiReference> block) to immediately after '## Usage', following the prescribed CLI page order: Lead → Usage → auto-generated reference → Examples → Related commands. The current placement after Examples and after a hand-authored flags table breaks the prescribed flow."
+          ],
+          "optionalImprovements": [
+            "The '## Prerequisites' section could be condensed into a short paragraph or <Warning> callout immediately before the Usage example rather than its own H2, keeping the page tighter since it contains only three bullet points of context.",
+            "Consider adding a one-sentence note about what happens after deletion — specifically that the user loses API access to resources in that organization — so the reader understands the downstream impact beyond just 'access removed'.",
+            "The second Usage block (`stacktape org:delete --agent --organizationId \"org_abc123\"`) inside '## Usage' could be labeled or introduced with a short prose sentence distinguishing it from the plain interactive invocation directly above it, since the two invocations look very similar at a glance."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Lead paragraph accurately reflects the source description: the operation removes access, is restricted to owners, and requires no other non-service users and no connected AWS accounts.",
+            "Prerequisites section directly maps to the three constraints in the source (`commandOrgDelete` + command description) — none are invented.",
+            "Shell code blocks are correctly separated — one command per block, no copy-button trap.",
+            "Agent mode requirement for `--organizationId` is accurately documented; the source throws `ExpectedError` when it's missing in agent mode.",
+            "`<CliCommandsApiReference>` auto-generated component is present with the correct `sortedArgs` payload.",
+            "Related commands section links to the natural sibling commands (`org:create`, `org:list`, `info:whoami`)."
+          ],
+          "problems": [
+            "MANDATORY VIOLATION — hand-authored 'Important flags' table: the CLI section instructions explicitly say 'Use the auto-generated <CliCommandsApiReference> component for the flags table — never hand-author it.' The 'Important flags' section is a manually written `| Flag | Purpose |` table that duplicates a subset of what <CliCommandsApiReference> already shows. This creates two authoritative-looking flag references on one page and violates the prescribed page rhythm.",
+            "The prose frames `--organizationId` as exclusively an agent-mode flag ('In agent mode, pass `--organizationId` directly'). The source code shows that `organizationId` is read from args unconditionally before the `isAgentMode()` branch — if provided in interactive mode, the select prompt is skipped. The flag is *required* in agent mode but *optional* in interactive mode too.",
+            "Page deviates from the prescribed CLI section rhythm: the instructions specify 'lead → usage example → auto-generated reference → examples → related commands.' The current order inserts Prerequisites and Important flags between usage and the auto-generated reference, pushing the flags reference to the bottom and creating structural confusion.",
+            "The interactive-mode confirmation behavior is undocumented: per `commandOrgDelete`, a confirmation prompt is shown in non-agent mode with `defaultValue: false`, meaning the user must explicitly confirm. Omitting this is a meaningful gap for someone building a CI script or advising a teammate."
+          ],
+          "mandatoryFixes": [
+            "Remove the hand-authored 'Important flags' table entirely. The CLI section instructions state 'never hand-author it — use <CliCommandsApiReference>.' Fold any important behavioral notes (agent-mode requirement, interactive vs agent behavior) into the lead prose instead. Then move <CliCommandsApiReference> up to immediately after the Usage section, before Examples, matching the prescribed rhythm: lead → usage example → <CliCommandsApiReference> → examples → related commands."
+          ],
+          "optionalImprovements": [
+            "Correct the `--organizationId` framing to: 'You can also pass `--organizationId` in interactive mode to skip the organization picker; in agent mode it is required.' This removes the misleading implication that the flag only applies to `--agent` invocations.",
+            "Add one sentence about the confirmation prompt: 'In interactive mode, the command prompts for confirmation with the default set to No — you must explicitly confirm to proceed.' This is directly grounded in `tuiManager.promptConfirm({ defaultValue: false })` and matters for teams advising users on safe usage.",
+            "Tighten the `<Warning>` callout — 'backed up or migrated any projects and configurations' is vague and not grounded in the source. Replace with something more specific: 'After this operation your user account loses access to the organization. If you are the sole owner, the organization will be unreachable.' Or remove the warning and rely on the confirmation prompt note.",
+            "Consider whether the Prerequisites section adds value once the hand-authored flags table is removed and the lead paragraph is strengthened — those same three constraints could live in a short bulleted list in the lead section rather than a numbered heading, keeping the page rhythm tighter for a simple command like this."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page uses one command per shell block and avoids forbidden YAML or Stacktape config examples.",
+            "The core runtime modes are covered: interactive selection and agent mode with `--organizationId`.",
+            "The `<CliCommandsApiReference command=\"org:delete\" ... />` component is present and appears to use the correct command name.",
+            "Related commands are relevant and limited to close siblings."
+          ],
+          "problems": [
+            "The opening paragraph is too short for the required answer-first snippet target and does not fully distinguish deleting organization access from deleting the organization itself.",
+            "Several phrases imply the organization is deleted rather than the user's access being removed, including the SEO description, `confirm the deletion`, `delete one by ID`, and `Non-interactive deletion`. The source consistently says the command deletes or removes organization access for the user.",
+            "The Warning callout says to back up or migrate projects and configurations, but the provided runtime source only shows access removal and does not support a claim about project/configuration deletion or migration needs.",
+            "The page hand-authors an `Important flags` table even though the CLI page instructions say to use the generated `<CliCommandsApiReference>` flags table and never hand-author it.",
+            "The `Prerequisites` section is useful, but the wording should be narrowed to the source-backed constraint: the operation is allowed only for an organization OWNER when there are no other non-service users and no active connected AWS accounts.",
+            "The page says `--agent` disables interactive prompts and outputs structured JSONL; this is grounded in the generated flag description, but the page should avoid duplicating a custom flags table and rely on the generated reference for full flag behavior."
+          ],
+          "mandatoryFixes": [
+            "Replace organization-deletion wording with access-removal wording everywhere: SEO description, Usage prose, Examples headings, and Warning callout. Use the source-backed fact that `org:delete` removes access to an organization for the current user.",
+            "Remove the hand-authored `Important flags` table and rely on the single `<CliCommandsApiReference command=\"org:delete\" sortedArgs={...} />` component for flags.",
+            "Remove or rewrite the unsupported backup/migration warning. If a warning remains, ground it in the runtime behavior: interactive mode asks for confirmation before removing access; agent mode does not prompt once `--organizationId` is supplied.",
+            "Expand the first paragraph to 40-75 words and make it a self-contained answer that states what `stacktape org:delete` does, when to use it, and the owner/no-users/no-active-AWS-accounts constraints."
+          ],
+          "optionalImprovements": [
+            "Move the generated flags reference directly after the Usage section to match the CLI page rhythm, then keep Examples below it.",
+            "Add a short note that agent mode throws `Missing required flag: --organizationId` when `--agent` is used without an organization ID, matching the runtime error path.",
+            "Change `Prerequisites` to `Access requirements` or similar, since the command removes organization access rather than provisioning or deleting infrastructure.",
+            "In the interactive example, mention that the CLI lists organizations available to the current user and marks the current organization in the prompt, because that is visible in the source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the command definition and implementation. The main problems are an unsupported manual flags table that duplicates the auto-generated reference, and a few statements that overstate behavior not shown in the provided command source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The manually authored “Important flags” table states that `--agent` “outputs structured JSONL” and that `--outputFormat` “Controls output format: `jsonl`, `plain`, or `tty`. Auto-detected when omitted.”",
+              "reason": "The provided source for `org:delete` shows that these arguments exist, but it does not provide the detailed behavior or allowed values claimed in the manual table. The page already uses `<CliCommandsApiReference command=\"org:delete\" ... />`, which is the required source-generated place for flag details on CLI pages.",
+              "suggestedFix": "Remove the manual “Important flags” table. Keep the prose limited to behavior shown in the command definition and implementation: in agent mode, provide `--organizationId`; interactive mode prompts when the ID is omitted.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'org:delete': {\n    description: `Deletes organization access for your user.\n\nIn interactive mode, you'll pick an organization. In agent mode, provide --organizationId.\n\nThis operation is allowed only for organization OWNER and only when there are no other non-service users and no active connected AWS accounts.`,\n    args: {\n      logLevel: logLevel.optional(),\n      agent: agent.optional(),\n      outputFormat: outputFormat.optional(),\n      organizationId: organizationId.optional()\n    },\n    requiredArgs: [] as const\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Ensure you have backed up or migrated any projects and configurations you need before proceeding.”",
+              "reason": "The command source describes removing the user's access to the organization, not deleting projects, configurations, or deployed resources. The warning may make readers think `org:delete` destroys organization assets or project data, which is not supported by the provided implementation or command definition.",
+              "suggestedFix": "Narrow the warning to the sourced behavior: “This operation removes your access to the organization. Make sure you have another way to access anything you still need before continuing.” Avoid claims about backing up or migrating projects unless supported by server-side source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\org-delete\\index.ts",
+                  "quote": "tuiManager.success(`Access to organization ${tuiManager.makeBold(selectedOrganization.name)} removed.`);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'org:delete': {\n    description: `Deletes organization access for your user."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The SEO description says `org:delete` “Requires owner role, no active users, and no connected AWS accounts.”",
+              "reason": "The source is more specific: the operation requires no other non-service users and no active connected AWS accounts. “No active users” is broader and could imply the current owner must be absent or that service users count.",
+              "suggestedFix": "Change the SEO description to: “Delete your access to a Stacktape organization with the org:delete CLI command. Requires OWNER role, no other non-service users, and no active connected AWS accounts.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says “In agent mode, pass `--organizationId` directly” and shows `stacktape org:delete --agent --organizationId \"org_abc123\"`, but the “Examples” section also shows `stacktape org:delete --organizationId \"org_abc123\"` without `--agent`.",
+              "reason": "The implementation supports providing `organizationId` outside agent mode, but non-agent mode still prompts for confirmation. The surrounding text does not make that distinction clear, which can mislead readers expecting fully non-interactive behavior from the second example.",
+              "suggestedFix": "Label the non-agent ID example as “Delete a selected organization by ID and confirm interactively,” or remove it and keep the agent-mode example for non-interactive use.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The command name, route, and related-command links match the documentation navigation index.",
+            "The draft correctly states that `org:delete` has no globally required CLI arguments; `--organizationId` is only enforced by the implementation in agent mode.",
+            "The interactive flow is accurately grounded: when no organization ID is provided outside agent mode, the command prompts the user to choose an organization and then asks for confirmation.",
+            "The `<CliCommandsApiReference command=\"org:delete\" ... />` component uses the correct command name for this CLI reference page."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the CLI command definition and runtime implementation. The main factual problem is that it repeatedly describes the operation as deleting the organization, while the authoritative command text and runtime messages describe deleting/removing the current user's access to the organization.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The metadata and prose describe the command as deleting a Stacktape organization, including: \"Delete a Stacktape organization...\", \"confirm the deletion\", \"Before you can delete an organization\", and \"List your organizations first, then delete one by ID.\"",
+              "reason": "The command definition and runtime implementation describe the operation as deleting or removing organization access for the current user, not directly deleting the organization object. The page should consistently use the narrower source-grounded wording.",
+              "suggestedFix": "Replace organization-deletion wording with access-removal wording, for example: \"Remove your access to a Stacktape organization\" and \"confirm removing your access.\" Keep the owner/no-other-users/no-active-AWS-accounts prerequisite wording where relevant.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "description: `Deletes organization access for your user."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\org-delete\\index.ts",
+                  "quote": "message: `Remove your access to organization ${tuiManager.makeBold(selectedOrganization.name)}?`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\org-delete\\index.ts",
+                  "quote": "tuiManager.success(`Access to organization ${tuiManager.makeBold(selectedOrganization.name)} removed.`);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Requires owner role, no active users, and no connected AWS accounts.\"",
+              "reason": "The source says the operation is allowed only when there are no other non-service users and no active connected AWS accounts. \"No active users\" is broader and can be read as including the current owner, which is not what the source states.",
+              "suggestedFix": "Change to: \"Requires the OWNER role, no other non-service users, and no active connected AWS accounts.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The usage examples use valid command names and keep one shell command per fenced bash block.",
+            "The `<CliCommandsApiReference command=\"org:delete\" ... />` component matches the documented command and includes the source-grounded arguments.",
+            "The draft correctly states that `--organizationId` is required in agent mode, matching the runtime check in `src\\commands\\org-delete\\index.ts`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the command's important arguments and uses the required CliCommandsApiReference component, but it has a few command-reference issues: it mixes \"delete organization\" wording with the source's narrower \"delete organization access\" behavior, includes a hand-authored flags table despite the CLI page instruction, and shows a non-interactive organizationId example without explaining that only agent mode enforces the flag without prompting.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "\"Delete a Stacktape organization with the org:delete CLI command\" and \"Before you can delete an organization\"",
+              "reason": "The authoritative command description and runtime implementation describe deleting organization access for the current user, not plainly deleting the organization object. The draft mostly says \"removes your access,\" but the SEO description and prerequisites heading switch to broader deletion wording that can mislead readers about the operation's surface.",
+              "suggestedFix": "Use consistent wording such as \"remove your access to a Stacktape organization\" or \"delete organization access for your user\" in the SEO description, intro, prerequisites, warning, and examples.",
+              "evidence": [
+                {
+                  "file": "src/config/cli/commands.ts",
+                  "quote": "'org:delete': { description: `Deletes organization access for your user."
+                },
+                {
+                  "file": "src/commands/org-delete/index.ts",
+                  "quote": "message: `Remove your access to organization ${tuiManager.makeBold(selectedOrganization.name)}?`"
+                },
+                {
+                  "file": "src/commands/org-delete/index.ts",
+                  "quote": "tuiManager.success(`Access to organization ${tuiManager.makeBold(selectedOrganization.name)} removed.`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft includes a hand-authored \"Important flags\" markdown table for `--organizationId`, `--agent`, and `--outputFormat`.",
+              "reason": "The CLI page instructions say flags should be documented with the auto-generated CliCommandsApiReference component and not hand-authored. The page already includes the component, so this extra table duplicates a subset of the API surface and can drift from generated metadata.",
+              "suggestedFix": "Remove the \"Important flags\" table. Keep short prose for important usage patterns, then rely on `<CliCommandsApiReference command=\"org:delete\" ... />` for the flags table.",
+              "evidence": [
+                {
+                  "file": "Human-maintained section instructions",
+                  "quote": "Use the auto-generated <CliCommandsApiReference command=\"X\" sortedArgs={...} /> component for the flags table — never hand-author it."
+                },
+                {
+                  "file": "src/config/cli/commands.ts",
+                  "quote": "args: { logLevel: logLevel.optional(), agent: agent.optional(), outputFormat: outputFormat.optional(), organizationId: organizationId.optional() }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "\"List your organizations first, then delete one by ID: ... stacktape org:delete --organizationId \\\"org_abc123\\\"\"",
+              "reason": "The implementation only requires `--organizationId` in agent mode. Outside agent mode, `--organizationId` selects the organization but the command still asks for interactive confirmation. The example is valid, but the section should state that it remains interactive unless `--agent` is also passed.",
+              "suggestedFix": "Add a sentence before or after the example: \"Without `--agent`, passing `--organizationId` skips the organization picker but still asks for confirmation.\"",
+              "evidence": [
+                {
+                  "file": "src/commands/org-delete/index.ts",
+                  "quote": "if (isAgentMode()) { if (!organizationId) { throw new ExpectedError( 'CLI', 'Missing required flag: --organizationId', 'Provide --organizationId <organization-id>' ); } } else if (!organizationId) { organizationId = await tuiManager.promptSelect({"
+                },
+                {
+                  "file": "src/commands/org-delete/index.ts",
+                  "quote": "if (!isAgentMode()) { const confirmed = await tuiManager.promptConfirm({"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All important command arguments are represented either in prose, examples, or the CliCommandsApiReference component: `organizationId`, `agent`, `outputFormat`, and `logLevel`.",
+            "The agent-mode example is demonstrative because it includes both `--agent` and the runtime-required `--organizationId` flag.",
+            "The page correctly uses one command per shell code block, so the examples are safe for copy buttons."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\org-delete.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T23:32:06.716Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\org-delete\\index.ts": "ea38e45b2ed4e47e894d801ffe8f032cca8c73fb",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\org-delete.md": "bedd3e95b2a9cb24cca5494d21a8522817bc3712"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

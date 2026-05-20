@@ -1,0 +1,1425 @@
+{
+  "pageId": "resources__security__web-application-firewall",
+  "pageRoute": "resources/security/web-application-firewall",
+  "startedAt": "2026-05-15T14:50:04.866Z",
+  "updatedAt": "2026-05-15T15:48:15.694Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__security__web-application-firewall\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent use of tables throughout — scope table, rule group comparison table, and attachment-point tables make decisions fast to find.",
+            "Three fully worked code examples covering every rule type (managed, rate-based, custom), each with realistic property values and clear surrounding prose.",
+            "The 'When to use' and 'When NOT to use' sections are concrete and opinionated — specific scenarios, not circular language.",
+            "FAQ has exactly 10 Q&As spanning Stacktape-specific, AWS use-case, and comparison questions, with actionable 2-4 sentence answers.",
+            "The defaultAction section lands an opinion ('Most teams should keep the default Allow') rather than just describing options.",
+            "Pricing context appears near the top and is consistent with the source JSDoc.",
+            "Single <ApiReference definitionName='WebAppFirewallProps' /> using the correct Props-suffixed name.",
+            "No forbidden YAML blocks, no StacktapeConfig type pattern, no fenced TypeScript blocks containing defineConfig.",
+            "CAPTCHA/challenge immunity section correctly sources both defaults (300 s) from the JSDoc @default annotations.",
+            "The two-scope model is explained clearly with the constraint that scope must match the protected resource type."
+          ],
+          "problems": [
+            "FACTUAL CONTRADICTION: FAQ answer for 'Do I need a WAF if I'm using API Gateway?' states 'Stacktape does not currently support attaching a WAF directly to an HTTP API Gateway.' The source JSDoc on the scope property explicitly says 'regional for ALBs, User Pools, or direct API Gateways', and the WebAppFirewall type header says 'Attach to an HTTP API Gateway, Application Load Balancer, or CDN.' The page's own prose contradicts the source.",
+            "MISSING ATTACHMENT PATH: The 'Scope' table and 'Attaching to resources' section omit HTTP API Gateway as a valid regional attachment target, even though the source enumerates it alongside ALBs and User Pools.",
+            "Bot Control managed rule group pricing (~$10/month additional) stated in the managed rule group table is not present in the provided source files — it is an invented price claim.",
+            "The <Info> callout asserting that a cdn-scoped WAF 'must be deployed in us-east-1' and that 'Stacktape handles this automatically' is not grounded in any provided source file. It may be accurate AWS behaviour but is presented as a Stacktape-specific guarantee without a source.",
+            "The web service 'requires loadBalancing: application-load-balancer' constraint for useFirewall is asserted in the table but not present in the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Remove the false FAQ claim that HTTP API Gateway is unsupported. Replace it with source-grounded content: the scope property JSDoc explicitly lists 'direct API Gateways' as a valid regional target. Add HttpApiGateway to the regional row of the Scope table and add a row for it in the 'Attaching to resources — Regional resources' table.",
+            "Remove the Bot Control ~$10/month pricing claim from the managed rule group comparison table. It is not in the provided source files. Either source it or remove it and replace with a link to the AWS WAF pricing page.",
+            "Either source the us-east-1 claim for cdn-scoped WAF from the codebase (e.g., a resolver or CloudFormation override) or reframe it as an AWS WAF requirement rather than a Stacktape-specific guarantee: 'AWS WAF for CloudFront must be created in us-east-1 — check Stacktape's CloudFormation overrides documentation if your stack is not deployed in that region.'"
+          ],
+          "optionalImprovements": [
+            "The 'Attaching to resources' section could benefit from a single small code example showing a cdn-scoped attachment (e.g., NextjsWeb + WebAppFirewall) to balance the regional-only basic example at the top.",
+            "The managed rule group section lists five rule groups in a table but doesn't explain how to find additional rule group names. A one-sentence note pointing to the AWS WAF console or documentation would help readers who need groups not listed.",
+            "The custom response body section says bodies are 'referenced by key in WAF rule actions (configured through CloudFormation overrides)' — this is the only place where the user is left without a working path. A one-sentence note that individual rule action customResponseBodyKey is set via overrides would confirm this is intentional, not an omission.",
+            "Consider adding a brief note that rate-based rules evaluate a 5-minute rolling window (not a fixed clock minute), since the current wording 'rolling 5-minute window' is accurate but the implication that unblocking is also on a rolling basis ('automatically unblocked') is worth confirming or qualifying.",
+            "The 'Metrics and request sampling' section is thin. One sentence noting that CloudWatch metric names follow the pattern AllowedRequests/BlockedRequests per rule (visible in the WAF console) would make it more actionable for readers debugging rule behaviour."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three rule types (managed-rule-group, rate-based-rule, custom-rule-group) get individual H3 subsections with working code examples, tradeoffs, and per-property prose — union-type coverage discipline is well executed.",
+            "The Scope section's comparison table cleanly maps resource types to scope values, which is the most common decision engineers face when configuring this resource.",
+            "Rate-based rule section accurately covers aggregation modes (IP vs FORWARDED_IP), the full action union (Allow/Block/Count/Captcha/Challenge), and forwardedIPConfig semantics — all directly grounded in the source.",
+            "Default values are cited accurately throughout: defaultAction Allow, captchaImmunityTime 300, challengeImmunityTime 300, rate-based action Block, disableMetrics false, sampledRequestsEnabled false.",
+            "The 'Attaching to resources' tables separate regional vs cdn attachment points and call out the web-service dual-attachment-path nuance with a Warning callout — directly relevant to production gotchas.",
+            "FAQ has exactly 10 pairs spanning all three required categories (Stacktape-specific, AWS use-case, choosing/comparison). The 'defaultAction interaction with rules' and 'false positive handling' answers are high signal.",
+            "When NOT to use section is concrete and opinionated — explicitly names NLBs, internal-only services, and Layer 3/4 vs Layer 7 scope limitations."
+          ],
+          "problems": [
+            "FACTUAL ERROR: The FAQ answer for 'Do I need a WAF if I'm using API Gateway?' states 'Stacktape does not currently support attaching a WAF directly to an HTTP API Gateway.' This directly contradicts both source files. The WebAppFirewall type JSDoc says 'Attach to an HTTP API Gateway, Application Load Balancer, or CDN.' The scope property JSDoc says '`regional` for ALBs, User Pools, or direct API Gateways.' The claim is wrong and would mislead an engineer trying to protect an HTTP API Gateway.",
+            "OMISSION: The Scope section table lists `regional` scope as covering Application Load Balancer, Web Service, and User Auth Pool — but omits HTTP API Gateway, which the source explicitly includes as a valid regional attachment target.",
+            "MINOR SOURCE CLAIM: The 'Custom response bodies' section restricts contentType to exactly three values (`application/json`, `text/plain`, `text/html`). The source type declares `contentType: string` with no enumeration. The values cited are accurate AWS facts, but the claim reads as a Stacktape-enforced constraint when the source is silent on valid values."
+          ],
+          "mandatoryFixes": [
+            "Fix the factual contradiction in the FAQ 'Do I need a WAF if I'm using API Gateway?' answer: remove the claim that attaching WAF to HTTP API Gateway is unsupported. The source explicitly supports it ('regional' scope covers 'direct API Gateways'). Rewrite the answer to reflect that HTTP API Gateway is a valid regional attachment point.",
+            "Update the Scope section table: add `HttpApiGateway` / `http-api-gateway` as a valid `regional` scope target in the 'Protects / Use with' columns. The source JSDoc on the `scope` property explicitly names 'direct API Gateways' alongside ALBs and User Pools."
+          ],
+          "optionalImprovements": [
+            "Add a short code example in 'Attaching to resources' for the User Auth Pool use case — it's the most distinct from the ALB path and the most likely to trip engineers up (rate-limiting login flows is a distinct concern).",
+            "The `contentType` enumeration in 'Custom response bodies' should be framed as an AWS WAF constraint ('AWS WAF accepts three content types: ...') rather than a Stacktape constraint, to avoid implying Stacktape validates it.",
+            "Consider adding a note in 'Metrics and request sampling' that sampled requests are viewable in the AWS WAF console (not the Stacktape Console), so engineers know where to look during debugging.",
+            "The 'CAPTCHA and challenge immunity' section would benefit from one sentence explaining when these actions are actually usable — they require the CAPTCHA/Challenge action to be configured on at least one rule, which is an escape-hatch-only workflow currently (rules only expose Block/Count/Allow through the Stacktape layer)."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All three rule types (managed-rule-group, custom-rule-group, rate-based-rule) are documented with separate, copy-paste-ready code examples — good union-type coverage and per-variant depth.",
+            "The scope table concisely maps each scope value to the resource types it protects, which is the most common point of confusion for new users.",
+            "Strong 'When NOT to use' section with concrete, opinionated alternatives (NLBs, internal services, low-traffic projects, Layer 3/4 threats).",
+            "Decision support is present throughout opt-in sub-sections — each explains when to enable, when the default suffices, the cost/tradeoff, and an opinionated recommendation.",
+            "FAQ has exactly 10 questions spanning Stacktape-specific, underlying AWS service, and comparison/choosing categories.",
+            "All code examples are complete and copy-paste runnable with no placeholder values.",
+            "Rate-based rule section includes practical translation ('2000 = ~6-7 requests/second sustained') and explains FORWARDED_IP aggregation for proxy-behind scenarios.",
+            "The Warning callout about the two attachment paths (top-level `useFirewall` vs `cdn.useFirewall`) is precise and avoids the common mistake of flattening nested property constraints.",
+            "Opening paragraph is self-contained and within the 40-75 word target for AI extractability."
+          ],
+          "problems": [
+            "Pricing contradiction: the intro pricing line says 'Each additional rule group adds ~$1/month' but the managed rule groups table says AWSManagedRulesBotControlRuleSet costs '~$10/month additional' — these directly contradict each other. Neither figure is in the provided source, but the internal inconsistency will confuse readers and cannot both be correct.",
+            "HTTP API Gateway is mentioned in the opening paragraph as an attachable target (matching the source JSDoc: 'regional for ALBs, User Pools, or direct API Gateways') but is absent from both the Scope table and the Attaching to resources regional table. Readers who want to protect an API Gateway will not find it in the reference tables.",
+            "The customResponseBodies section claims bodies are 'referenced by key in WAF rule actions (configured through CloudFormation overrides on individual rule actions)' — this mechanism is not present in the source types. The source defines `customResponseBodies` as a top-level property but does not describe how rule actions reference them. The CF-overrides claim is speculative.",
+            "The cdn-scope Info callout states 'Stacktape handles this automatically when you deploy a CDN-scoped firewall' (referring to us-east-1 deployment) — this Stacktape-specific behavior claim is not grounded in the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Resolve the Bot Control pricing contradiction: remove the '~$10/month additional' annotation from the AWSManagedRulesBotControlRuleSet table row (it is not in the source and conflicts with the stated $1/month per rule group), or if you retain it, remove the '$1/month per rule group' claim from the intro line since both cannot be true simultaneously.",
+            "Add HTTP API Gateway to the regional scope row of both the Scope table and the Attaching to resources regional table — the source JSDoc explicitly lists it ('regional for ALBs, User Pools, or direct API Gateways'). Alternatively, remove the HTTP API Gateway mention from the opening paragraph to avoid the inconsistency."
+          ],
+          "optionalImprovements": [
+            "Rephrase or remove the CF-overrides mechanism claim in the customResponseBodies section. Since the source does not document how bodies are connected to rule actions, it is safer to say 'Custom response bodies are defined here and can be referenced from WAF rule actions via their key' without asserting the CF-overrides path, which may not be the only or primary mechanism.",
+            "Remove or hedge the 'Stacktape handles this automatically' claim for cdn-scope/us-east-1 deployment until it can be verified in the source. Replacing with 'AWS WAF for CloudFront requires the us-east-1 region' (an AWS fact) and leaving deployment mechanics unstated avoids an unsupported Stacktape-specific claim.",
+            "Add a concrete CDN-scope example — currently all three code examples use `regional` scope. A short example showing a cdn-scoped firewall attached to a HostingBucket or NextjsWeb would give the CDN path equal depth.",
+            "The Metrics section mentions inspecting sampled requests 'in the AWS WAF console' — consider adding a pointer to `stacktape debug:logs` (linked to /cli/debug-logs) as the Stacktape-native complement for log inspection.",
+            "The per-variant depth on managed rule groups vs. custom rule groups is slightly uneven: the managed section has an explanatory table of common rule groups and notes on excludedRules and overrideAction, while the custom section only shows the ARN example. Adding a sentence on when to use custom rule groups (shared team rule sets, compliance-mandated rulesets) would balance them."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "FAQ answer: 'Note that Stacktape does not currently support attaching a WAF directly to an HTTP API Gateway — to use a WAF with API Gateway traffic, route through an Application Load Balancer instead.'",
+              "reason": "The WebAppFirewall interface JSDoc explicitly says 'Attach to an HTTP API Gateway, Application Load Balancer, or CDN.' and the scope property JSDoc says 'regional for ALBs, User Pools, or direct API Gateways.' The FAQ directly contradicts the source by claiming HTTP API Gateway is not supported. While HttpApiGatewayProps does not have a top-level useFirewall property, it does have a cdn property (CdnConfiguration) which has useFirewall. The source JSDoc treats HTTP API Gateway as a supported target. The draft should not claim it is unsupported.",
+              "suggestedFix": "Rewrite the FAQ answer to explain that HTTP API Gateway can be protected by enabling CDN on the gateway and attaching a cdn-scoped firewall via cdn.useFirewall. Remove the claim that it is 'not currently supported'. Additionally, mention this attachment path in the CDN resources table.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets by default."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "`cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "missing-caveat",
+              "statement": "The scope table and 'Attaching to resources' section completely omit HTTP API Gateway as a protectable resource, despite the source listing it as a supported target.",
+              "reason": "The WebAppFirewall interface JSDoc lists HTTP API Gateway as the first attachment target. The scope property JSDoc mentions 'direct API Gateways' under regional scope. HttpApiGatewayProps has a cdn property (CdnConfiguration) with useFirewall. The opening paragraph, 'When to use' section, scope table, and both attachment tables never mention HTTP API Gateway. This is a significant omission that leaves readers unaware they can protect their API Gateway endpoints.",
+              "suggestedFix": "Add HTTP API Gateway to the scope table (at minimum under CDN-based attachment via cdn.useFirewall). Add it to the CDN resources attachment table. Mention it in the opening paragraph alongside ALBs and CDN distributions. Add a 'When to use' bullet for public APIs on HTTP API Gateway.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\http-api-gateways.d.ts",
+                  "quote": "cdn?: CdnConfiguration;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The 'Attaching to resources' CDN table lists CDN, Static hosting, and SSR frontends but omits HTTP API Gateway and Lambda functions, which also support cdn.useFirewall via their CdnConfiguration property.",
+              "reason": "HttpApiGatewayProps has cdn?: CdnConfiguration, and CdnConfiguration has useFirewall?: string. This means HTTP API Gateway with CDN enabled can be protected by a cdn-scoped firewall. The CDN attachment table should include this path. Similarly, other resources with CdnConfiguration (like buckets with CDN) could be omitted. The table is incomplete.",
+              "suggestedFix": "Add HTTP API Gateway to the CDN resources attachment table with a note like: 'HTTP API Gateway with CDN enabled can be protected via cdn.useFirewall'. Review other resources that have CdnConfiguration to ensure completeness.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\http-api-gateways.d.ts",
+                  "quote": "cdn?: CdnConfiguration;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "useFirewall?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The scope description paragraph says 'Set it to regional for resources like Application Load Balancers and user auth pools' — omitting API Gateways which the source explicitly lists for regional scope.",
+              "reason": "The source scope JSDoc says '`cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways.' The draft's prose after the basic example only mentions ALBs and user auth pools for regional scope, dropping 'direct API Gateways' from the list. This narrows the reader's understanding of what regional scope covers.",
+              "suggestedFix": "Update the scope description to include 'API Gateways' alongside ALBs and user auth pools for regional scope, matching the source JSDoc. Note: since HttpApiGatewayProps lacks a top-level useFirewall, clarify the actual attachment mechanism (direct or CDN-based).",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "`cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Info box: 'A cdn-scoped firewall must be deployed in us-east-1 because AWS WAF for CloudFront requires that region. Stacktape handles this automatically when you deploy a CDN-scoped firewall.'",
+              "reason": "The us-east-1 requirement for CloudFront WAF is a well-known AWS fact. However, the claim that 'Stacktape handles this automatically' is a Stacktape-specific behavior claim not verifiable from the provided source files. It is likely correct but ungrounded.",
+              "suggestedFix": "If this automatic handling can be verified in the resolver source, keep as-is. Otherwise, soften to 'CloudFront WAF resources must reside in us-east-1' without claiming automatic handling, or verify the claim in the WAF resolver code.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "scope: 'regional' | 'cdn';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All default values are accurately sourced: defaultAction 'Allow', captchaImmunityTime 300, challengeImmunityTime 300, disableMetrics false, sampledRequestsEnabled false, rate-based action 'Block'.",
+            "All three rule types (managed-rule-group, custom-rule-group, rate-based-rule) are correctly documented with accurate sub-properties matching the source types.",
+            "Rate limit range (100–20,000,000) correctly matches the source RateBasedStatementProps JSDoc.",
+            "Heading hierarchy is correct: 'When to use' and 'When NOT to use' are peer H2 sections.",
+            "ApiReference uses correct definitionName 'WebAppFirewallProps' matching the source interface name.",
+            "ReferenceableParams uses correct resource identifier 'web-app-firewall' matching the source type.",
+            "CodeBlock examples use proper TypeScript tabs with intellisense, defineConfig, and valid class names (WebAppFirewall, ApplicationLoadBalancer).",
+            "The excludedRules, overrideAction, forwardedIPConfig, and aggregateBasedOn properties are accurately documented with correct value options matching the source.",
+            "The warning about web service dual attachment points (useFirewall vs cdn.useFirewall) is correctly grounded in the web-services.d.ts source which confirms both paths.",
+            "Custom response body content types (application/json, text/plain, text/html) match the source JSDoc."
+          ],
+          "summary": "The draft is well-structured and mostly accurate for the properties it covers. The primary issue is the complete omission of HTTP API Gateway as a WAF-protectable resource. The source's WebAppFirewall interface JSDoc explicitly lists 'HTTP API Gateway' as an attachment target, and the scope property JSDoc mentions 'direct API Gateways' under regional scope. Despite this, the draft never mentions HTTP API Gateway in the opening paragraph, scope table, attachment tables, or 'When to use' section. Worse, FAQ Q7 actively claims 'Stacktape does not currently support attaching a WAF directly to an HTTP API Gateway,' directly contradicting the source. While HttpApiGatewayProps lacks a top-level useFirewall property, it does have cdn.useFirewall via CdnConfiguration, providing a real CDN-based attachment path. All other factual claims (defaults, property names, value ranges, rule types) are accurately grounded in the source."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the WebAppFirewallProps source, but it contains several publication-blocking Stacktape-specific inaccuracies around HTTP API Gateway support, the `scope` requirement, attachment points, and custom response usage. It also adds unsupported concrete pricing details beyond the provided source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Note that Stacktape does not currently support attaching a WAF directly to an HTTP API Gateway — to use a WAF with API Gateway traffic, route through an Application Load Balancer instead.”",
+              "reason": "The source explicitly says a Stacktape WebAppFirewall can attach to an HTTP API Gateway and that `regional` scope is used for direct API Gateways. The draft tells readers the opposite and would lead them to choose a different architecture.",
+              "suggestedFix": "Replace with a source-grounded statement: Stacktape web application firewalls can be attached to HTTP API Gateways with `scope: 'regional'`, as well as ALBs, user pools, and CDN-attached resources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets\n * by default."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly omits HTTP API Gateway from the supported attachment tables and examples, including the `Scope` table and `Attaching to resources` section.",
+              "reason": "The source lists HTTP API Gateway as a supported attachment target. Omitting it while listing other targets makes the page materially misleading, especially because the FAQ later claims direct API Gateway attachment is unsupported.",
+              "suggestedFix": "Add HTTP API Gateway to the `regional` scope table and the regional attachment table. Use cautious wording such as “regional scope is used for direct HTTP API Gateways” unless another source file gives the exact property path for attachment.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `scope` property is the only required field.”",
+              "reason": "The inline source shows `scope` is required inside `WebAppFirewallProps`, but `WebAppFirewall.properties` itself is optional. Without runtime validator evidence, the draft overstates that `scope` is always required to define the resource.",
+              "suggestedFix": "Narrow the wording to: “When you configure firewall properties, `scope` selects whether the firewall is regional or CDN-scoped.” Avoid saying it is the only required field unless runtime/schema sources confirm that `properties` cannot be omitted in practice.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "interface WebAppFirewall {\n  type: 'web-app-firewall';\n  properties?: WebAppFirewallProps;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "interface WebAppFirewallProps {\n  /**\n   * #### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways.\n   */\n  scope: 'regional' | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Pricing claims beyond the source: “Each additional rule group adds ~$1/month”; FAQ says “~$0.60 per million requests inspected,” “2-3 rule groups costs $7-8/month,” and Bot Control prices of “~$1 per million” / “~$10.”",
+              "reason": "The provided source contains only one pricing statement: approximately $5/month base plus $1 per million requests inspected. The draft adds concrete prices not present in the source and contradicts the source by using $0.60 per million requests in the FAQ.",
+              "suggestedFix": "Keep the pricing context to the sourced line: “~$5/month base + ~$1/million requests inspected.” Remove the additional rule group and Bot Control dollar amounts unless pricing source files are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Costs ~$5/month base + $1/million requests inspected."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Custom response bodies are referenced by key in WAF rule actions (configured through CloudFormation overrides on individual rule actions).”",
+              "reason": "The source supports `customResponseBodies` as a map for `Block` actions, but the typed rule actions exposed on this page do not include a custom response action field. The draft asserts a specific override path/usage pattern that is not present in the provided sources.",
+              "suggestedFix": "Say only what the source supports: `customResponseBodies` defines named bodies available for block actions. If custom rule action wiring currently requires an escape hatch, phrase it cautiously as not documented in this type surface rather than instructing a specific override method.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### Custom response bodies for `Block` actions. Map of key → content type + body."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "action?: 'Allow' | 'Block' | 'Count' | 'Captcha' | 'Challenge';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape handles this automatically when you deploy a CDN-scoped firewall.”",
+              "reason": "The source says `cdn` scope is for CloudFront-attached resources, but it does not state that Stacktape automatically deploys CDN-scoped WAF resources in `us-east-1` or performs any region handling. That behavior may be true, but it is not grounded in the provided files.",
+              "suggestedFix": "Keep the AWS requirement if desired as background, but remove the Stacktape automation claim unless runtime deployment code is provided. For example: “AWS WAF for CloudFront uses `cdn` scope; region handling is managed by the deployment layer.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape web application firewall CloudWatch metrics are enabled by default. Set `disableMetrics: true` on the firewall or on individual rules to stop publishing metrics.”",
+              "reason": "The source supports `disableMetrics` defaulting to false for the firewall and rules, but it does not explicitly say CloudWatch metrics are published by default. The claim is likely true by implication, but it is stronger than the provided type comments.",
+              "suggestedFix": "Narrow to the property behavior: “`disableMetrics` defaults to `false` on the firewall and on individual rules, so leave it unset unless you intentionally want to disable WAF metrics.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### Disable CloudWatch metrics for the firewall.\n   * @default false"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### Disable CloudWatch metrics for this rule.\n   * @default false"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The basic example uses `new ApplicationLoadBalancer({ useFirewall: 'firewall' })`, and the attachment table states exact `useFirewall` property paths for ALB, web service, user auth pool, static hosting, CDN, and SSR frontends.",
+              "reason": "The provided source for this verification includes WebAppFirewall types but not the resource type definitions for ALB, web service, frontend, CDN, or user auth pool attachment properties. The top-level WAF source supports the general attachment targets, but the exact class constructor shape and property paths are not visible here.",
+              "suggestedFix": "Either provide the relevant resource type sources for the writer/verifier, or phrase exact attachment paths only where source files for those resources are available. Keep the web-service `useFirewall` versus `cdn.useFirewall` distinction if separately sourced.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />` for Stacktape configuration examples and does not hand-author YAML config examples.",
+            "The API reference uses `<ApiReference definitionName=\"WebAppFirewallProps\" />`, which matches the provided props type name.",
+            "The page correctly documents the default action values `Allow` and `Block`, the default `Allow`, the three rule variants, priority ordering, `excludedRules`, `overrideAction`, rate-based limit range, forwarded IP configuration, CAPTCHA/challenge immunity defaults, token domains, sampled request default, and referenceable params `arn` and `scope`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers most WebAppFirewallProps fields and the main rule variants, but it misses or contradicts HTTP API Gateway support and omits one documented rate-rule action variant.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Stacktape does not currently support attaching a WAF directly to an HTTP API Gateway — to use a WAF with API Gateway traffic, route through an Application Load Balancer instead.”",
+              "reason": "The primary WebAppFirewall source explicitly says a web application firewall can attach to an HTTP API Gateway, and the scope JSDoc includes direct API Gateways under regional scope. This FAQ answer would steer readers toward an unnecessary ALB.",
+              "suggestedFix": "Replace the FAQ answer with a source-grounded version: Stacktape web application firewalls can attach to HTTP API Gateways with `scope: 'regional'`; use WAF when API Gateway throttling is not enough because you need HTTP request inspection. Also add HTTP API Gateway to the regional attachment table.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets\n * by default."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The regional attachment table lists Application Load Balancer, Web Service, and User Auth Pool, but not HTTP API Gateway.",
+              "reason": "HTTP API Gateway is an important supported attachment target according to the WebAppFirewall source. Omitting it while separately claiming direct API Gateway attachment is unsupported makes the API coverage materially incomplete.",
+              "suggestedFix": "Add a regional row for `HttpApiGateway` / HTTP API Gateway and state that it uses a `regional` firewall. Keep any ALB-specific caveats scoped only to ALB-backed web services.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "| HttpApiGateway"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“Actions for rate-exceeded requests: Besides the default `'Block'` ... you can use `'Count'`, `'Captcha'`, or `'Challenge'`.”",
+              "reason": "The draft documents the `action` union for rate-based rules but omits the `Allow` variant, even though the source type includes it. Union-variant coverage requires every documented union member to be named somewhere on the page.",
+              "suggestedFix": "Mention that `Allow` is also accepted by the type, but should usually be skipped for rate limiting because it permits requests that exceed the threshold. Keep `Block` as the normal recommendation and `Count` for dry runs.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "action?: 'Allow' | 'Block' | 'Count' | 'Captcha' | 'Challenge';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft includes exactly one `<ApiReference definitionName=\"WebAppFirewallProps\" />`, matching the page metadata typeName.",
+            "The main `rules` union variants are all acknowledged: managed rule groups, custom rule groups, and rate-based rules.",
+            "The Stacktape config examples use `<CodeBlock intellisense>` with a `TypeScript` tab and demonstrate the section topic for the major configuration sections."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__security__web-application-firewall\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three rule types (managed, rate-based, custom) are documented with working CodeBlock examples and per-variant tradeoff guidance — no variant is left as a one-liner.",
+            "The scope table (regional vs cdn) with a row per resource type is exactly the right format for a concept that trips readers up; it's immediately actionable.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS use-case, choosing/comparison) and all 10 pairs are substantive 2-4 sentence answers.",
+            "Decision support is present in every opt-in section: 'When to use', 'When NOT to use', defaultAction guidance all land with an opinion rather than just config syntax.",
+            "Pricing is sourced directly from the JSDoc comment (~$5/month base + ~$1/million) and appears near the top as required.",
+            "CodeBlock intellisense format is used correctly throughout; imports are present but outside focus markers; no YAML config blocks; no StacktapeConfig type pattern; single ApiReference with correct definitionName 'WebAppFirewallProps'.",
+            "The Warning callout distinguishing top-level useFirewall (regional) from cdn.useFirewall (cdn scope) on a web service with CDN is precise and saves the reader a deployment error.",
+            "The rate-based rule section covers aggregation mode and FORWARDED_IP config — the two most common production gotchas — with concrete property-value anchors explaining each."
+          ],
+          "problems": [
+            "The Info callout claims 'The Stacktape deployment layer handles this automatically' for the us-east-1 requirement of cdn-scoped WAFs. This is a Stacktape-specific behavioral claim that is not present in any of the provided source files (types, JSDoc, or helpers). It may be true, but citing it as guaranteed Stacktape behavior without a source risks a source-grounding verifier flag and could mislead readers if the behavior changes.",
+            "The 'Attaching to resources' table for web services states 'Requires loadBalancing: application-load-balancer' — this constraint is not in the provided web-app-firewall source files. It may be accurate (sourced from another type), but it's presented as a definitive note without a link or caveat, which a source-grounding verifier could flag as unsupported.",
+            "The FAQ answer for 'How much does AWS WAF cost?' says 'The Stacktape source documents the baseline as ~$5/month...' — this meta-reference to 'the Stacktape source' is awkward and reads as if written by an automated pipeline. A first-time reader will find it odd.",
+            "The 'Custom response bodies' section ends with a limitation note that wiring a custom response body to a rule action requires CloudFormation overrides. While this matches the type shape (no per-rule customResponse link in source), the prose is vague about what the `customResponseBodies` property actually achieves on its own versus what is deferred. A reader copying the example will not know how to activate the body they defined.",
+            "The Info callout's phrasing 'you deploy your stack in any region and the CDN-scoped WAF is created in us-east-1' makes a specific infrastructure promise. If this is actually a manual constraint the user must handle (e.g., setting region in config), the claim would cause a broken deployment."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Soften or remove the unsourced 'Stacktape deployment layer handles this automatically' claim about us-east-1 for cdn-scoped WAFs. Either verify it against a runtime source file (not included here) and add a footnote, or rewrite as 'AWS WAF for CloudFront requires the WAF to be in us-east-1; check your Stacktape documentation for cross-region deployment details.'",
+            "Rewrite the FAQ pricing answer to state the numbers directly: 'AWS WAF charges ~$5/month per firewall plus ~$1 per million requests inspected...' — drop the 'The Stacktape source documents' phrasing entirely.",
+            "In the 'Custom response bodies' section, clarify the functional gap: explain that the `customResponseBodies` map defines named bodies available to rule actions, but that associating a body key with a specific block action currently requires a CloudFormation override. Link to the overrides doc. Without this, the reader has a named response body they cannot activate from pure Stacktape config.",
+            "Add a one-sentence cost signal to the 'CAPTCHA and challenge immunity' section: CAPTCHA and Challenge actions incur additional AWS WAF per-request pricing beyond the base inspection cost. First-time readers may not realize enabling these on busy endpoints adds meaningful cost.",
+            "The 'web service' row in the Attaching to resources table cites 'Requires loadBalancing: application-load-balancer'. Either link to the web-service resource page where this constraint is documented, or replace the note with a reference: 'See the web service page for ALB configuration'."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three rule types (managed-rule-group, custom-rule-group, rate-based-rule) are documented with working examples and tradeoffs — no union variant is buried or skipped.",
+            "Scope table and attachment tables are clear and accurate, including the two-firewall pattern for web-service resources with both ALB and CDN.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-service use-case, choosing/comparison) with exactly 10 entries, and each answer is actionable at 2-4 sentences.",
+            "The 'When NOT to use' section is concrete: NLBs, Layer-4-only needs, and low-traffic side projects are all named with reasoning, not vague disclaimers.",
+            "Rate-based rule coverage is thorough: limit range, 5-minute window, FORWARDED_IP aggregation with forwardedIPConfig, and dry-run via Count action are all present.",
+            "No mandatory style violations: all Stacktape config examples use CodeBlock intellisense, no YAML resources blocks, no fenced TypeScript with defineConfig, one ApiReference with the correct definitionName.",
+            "Metrics and sampling section correctly states the defaults (false for both) and gives practical guidance on when to enable each — rare but useful when debugging rule behavior.",
+            "Pricing note is placed early and quotes the source JSDoc values (~$5/month + ~$1/million) without inflation or invention."
+          ],
+          "problems": [
+            "The `customResponseBodies.contentType` field is typed as `string` in the source, but the page asserts a finite set of allowed MIME types (`application/json`, `text/plain`, `text/html`). This is an accurate AWS WAF constraint not present in the provided source, so it reads as an unsupported Stacktape-specific fact and could be flagged by the source-grounding verifier.",
+            "The page states `overrideAction` defaults to `'None'` for managed and custom rule groups, but the source marks the field as optional without a `@default` annotation. If the real default differs, users following this page would misconfigure group behavior.",
+            "The `aggregateBasedOn` default of `'IP'` is asserted ('By default, rate limiting uses the direct client IP') but the source does not annotate a default for this field. A production user tuning rate limiting behind a proxy could act on this claim incorrectly.",
+            "The Info callout claims 'The Stacktape deployment layer handles [us-east-1 for cdn-scoped WAF] automatically.' This is a concrete Stacktape operational claim with no grounding in the provided source files. If it is not actually automatic (e.g., requires explicit region config or a separate stack), the user will get a deployment-time surprise.",
+            "The custom response bodies section ends with: 'Wiring a custom response body to a specific rule action is not directly exposed in the Stacktape config surface — use CloudFormation overrides.' This is correct but leaves the reader without a concrete path. A production engineer hitting blocked requests needs to know what the override path actually looks like, not just that overrides exist."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace the unsourced MIME-type enumeration ('application/json, text/plain, text/html') in customResponseBodies with a link to the AWS WAF docs, or narrow the wording to 'AWS WAF accepts JSON, plain text, and HTML content types — see AWS WAF documentation for the full list.'",
+            "For `overrideAction` and `aggregateBasedOn`, either remove the default claim or add a parenthetical like '(AWS WAF defaults to X; Stacktape does not override this)' to signal the source of the default.",
+            "Expand the Info callout about us-east-1 with a link to a Stacktape multi-region or CloudFormation override doc, and either confirm the 'handled automatically' claim against source or soften it to 'Stacktape creates the WAF web ACL in us-east-1 as required by AWS; no extra config is needed in most cases.'",
+            "Add a one-sentence note on AWS WAF Capacity Units (WCUs) in the Rules section: each managed rule group and rate-based rule consumes WCUs, and a web ACL has a 5,000 WCU default limit. This is an important production ceiling that can surface only after adding multiple rule groups.",
+            "The custom response bodies section would benefit from a minimal CloudFormation override snippet showing how to associate the named body key with a specific rule's block action — the prose says to use overrides but leaves the reader to discover the CloudFormation property path themselves.",
+            "Consider adding a brief mention of the `overrides` property on `WebAppFirewall` (it is in the type definition) to let advanced users know the full escape hatch is available, consistent with how other resource pages reference overrides."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is 55 words, self-contained, and directly answers 'what is this and why does it matter' — extractable as a Featured Snippet.",
+            "All three rule types from the source union (ManagedRuleGroup | CustomRuleGroup | RateBasedStatement) are covered with full working code examples and per-variant depth, satisfying union-type coverage discipline.",
+            "The 'Attaching to resources' section uses two clear tables (regional vs CDN) listing every resource type with the exact property path — highly practical and citable.",
+            "Rate-based rule documentation translates `limit: 2000` into human-readable throughput ('roughly 6–7 requests per second sustained'), satisfying the unexplained-tunable-values criterion.",
+            "The scope section's table maps scope values to resource types concisely and is clearly a prime citation target.",
+            "10-question FAQ covers all three required categories: Stacktape-specific, AWS-service use-case, and choosing/comparison questions. Each answer is 2-4 sentences and cites related links.",
+            "Decision support in 'When to use' and 'When NOT to use' is opinionated and concrete — names alternatives (AWS Shield, API Gateway throttling, security groups) rather than being circular.",
+            "The `<Warning>` callout on dual-attachment for ALBs with CDN enabled correctly scopes a constraint to the exact property path rather than inflating it to a resource-wide claim.",
+            "Pricing is presented with sourced numbers (~$5/month base + ~$1/million requests) and an honest regional-variation qualifier.",
+            "The `aggregateBasedOn` / `FORWARDED_IP` / `forwardedIPConfig` configuration is well-explained with the proxy/CDN context that motivates its use — good decision support for a non-obvious property."
+          ],
+          "problems": [
+            "The 'CAPTCHA and challenge immunity' section has no code example showing `captchaImmunityTime`, `challengeImmunityTime`, or `tokenDomains` in a `WebAppFirewall` config — it is all prose and no runnable snippet. A reader wanting to configure CAPTCHA token sharing across domains has nothing to copy.",
+            "The 'Metrics and request sampling' section similarly lacks a code example showing `sampledRequestsEnabled: true` at either the firewall or rule level. Two properties are mentioned but never demonstrated in a block the reader can copy.",
+            "The 'Custom response bodies' section ends with a limitation statement — custom response bodies can be defined but cannot be wired to specific rule actions through the Stacktape config surface, requiring CloudFormation overrides. This is honest, but the section leaves the reader without a path forward. A brief pointer to `$ResourceParam('firewall', 'arn')` + a CloudFormation override snippet (even abbreviated) would give the reader somewhere to go.",
+            "The `excludedRules` property is mentioned in prose under 'Managed rule groups' ('use `excludedRules` to disable specific rules by name') but is never shown in a code example. The FAQ also mentions it ('add that rule's name to `excludedRules`') without a snippet. This is a common real-world need and warrants at least one inline code fragment.",
+            "Section depth on CAPTCHA immunity and metrics is thin relative to the other rule sections — each consists of one paragraph of prose with no code, which fails the 'section depth beyond the opening paragraph' criterion even for secondary features."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short code example to 'CAPTCHA and challenge immunity' showing `captchaImmunityTime`, `challengeImmunityTime`, and `tokenDomains` set on a `WebAppFirewall` so the section has a copyable snippet.",
+            "Add a code example to 'Metrics and request sampling' showing `sampledRequestsEnabled: true` at the firewall level and at least one rule level — even a minimal snippet removes the 'all prose, no code' gap.",
+            "Expand the `excludedRules` mention in 'Managed rule groups' with a brief inline snippet or at minimum a `properties: { excludedRules: ['SizeRestrictions_BODY'] }` fragment so the reader knows the exact syntax without hunting the API reference.",
+            "In 'Custom response bodies', add a CloudFormation override skeleton (even 2–3 lines of commented pseudo-code) showing how to wire a named response body key to a specific rule's block action. The current 'use CloudFormation overrides' pointer is too vague for a reader who has never done that.",
+            "The `overrideAction` property is introduced in the managed rule group prose but not shown in the main managed-rule-group example. Consider adding a second minimal example or an inline code fragment illustrating `overrideAction: 'Count'` for dry-run mode, since this is a highly practical pre-production workflow.",
+            "Consider adding a one-line note under the basic example explaining the `ApplicationLoadBalancer` import — readers following the minimal snippet may not realize the firewall must be explicitly referenced from the protecting resource's `useFirewall` property; the example shows both but the connection is implicit.",
+            "The H2 'Attaching to resources' is slightly long; 'Attachment' or 'Attaching' is more compact and consistent with the style guide's 1–5 word noun-form label preference — minor but consistent with the style guide."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The draft is well-grounded overall. The WAF type source, scope description, rule types, defaults, and pricing are accurately reflected. All three rule type variants are covered with examples (good union coverage). Heading hierarchy is correct (When to use / When NOT to use are peer H2s). ApiReference uses the correct `WebAppFirewallProps` definition name. All cross-links check out against the navigation index. The main issues are: one missing union variant in the rate-based rule `action` documentation, a vague attachment path for HTTP API Gateway in the regional table, and a couple of default-value claims not backed by `@default` annotations in the source (though they align with well-known AWS WAF behavior).",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `action` property controls what happens when the limit is exceeded: 'Block' (default, returns 403), 'Count' (log only — good for tuning the threshold), 'Captcha' (present a CAPTCHA challenge), or 'Challenge' (silent browser verification).",
+              "reason": "The source type for rate-based rule `action` is a 5-member union: 'Allow' | 'Block' | 'Count' | 'Captcha' | 'Challenge'. The draft lists only 4 options, omitting 'Allow'. While 'Allow' is an unusual choice for a rate-based rule, it exists in the type and could be used in combination with a 'Block' defaultAction to explicitly allowlist rate-limited IPs. Per union-type coverage rules, all variants should be named.",
+              "suggestedFix": "Add 'Allow' to the listed options, e.g.: \"'Allow' (explicitly pass the request — useful with a 'Block' defaultAction), 'Block' (default, returns 403), ...\" or at minimum mention all five values.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "action?: 'Allow' | 'Block' | 'Count' | 'Captcha' | 'Challenge';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "HTTP API Gateway | Regional scope association | The WAF scope definition covers direct API Gateways as valid regional targets",
+              "reason": "In the 'Attaching to resources — Regional resources' table, every other resource has a concrete property path in the 'Where to set useFirewall' column (e.g. 'useFirewall on the ALB', 'useFirewall on the pool'). HTTP API Gateway's column says 'Regional scope association' which is not actionable — the reader cannot determine which property to set. The scope JSDoc confirms API Gateways are valid regional targets, but the draft fails to name the specific property or acknowledge it's unclear.",
+              "suggestedFix": "Either name the specific property path (e.g. 'useFirewall on the gateway') if verifiable from the HTTP API Gateway type, or explicitly note that the reader should check the HTTP API Gateway page for the exact attachment property. Do not use the vague 'Regional scope association' as a stand-in.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "By default, rate limiting uses the direct client IP ('IP').",
+              "reason": "The source type for `aggregateBasedOn` is `'IP' | 'FORWARDED_IP'` with no `@default` annotation. The draft claims 'IP' is the default. This aligns with well-known AWS WAF behavior (IP is the default aggregation key when unset), but the Stacktape source does not document it. Since the property is optional and the claim is about AWS WAF's behavior when the property is omitted, this is minor.",
+              "suggestedFix": "Soften to 'When omitted, rate limiting aggregates by the direct client IP' or add a brief note that this is the AWS WAF default behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "aggregateBasedOn?: 'IP' | 'FORWARDED_IP';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The default (`'None'`) applies the group's built-in block/allow actions.",
+              "reason": "The source type for `overrideAction` on managed rule groups is `'None' | 'Count'` with no `@default` annotation. The draft claims 'None' is the default. The property is optional, and omitting it in AWS WAF means the group's actions apply as-is (equivalent to 'None'), but the source doesn't document this as a Stacktape default.",
+              "suggestedFix": "Rephrase to: 'When omitted (or set to `'None'`), the group's built-in block/allow actions apply as-is.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `None` = apply normally, `Count` = log matches without blocking (dry-run mode).\n   */\n  overrideAction?: 'None' | 'Count';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All three rule types (managed-rule-group, custom-rule-group, rate-based-rule) are covered with dedicated subsections and working code examples — good union-type coverage.",
+            "Default rules behavior accurately documented: 'AWSManagedRulesCommonRuleSet' + 'AWSManagedRulesKnownBadInputsRuleSet' when rules are omitted, matching the source JSDoc exactly.",
+            "Pricing line ('~$5/month base + ~$1 per million requests') accurately reflects the source JSDoc: 'Costs ~$5/month base + $1/million requests inspected'.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections — heading hierarchy is correct.",
+            "ApiReference uses 'WebAppFirewallProps' which matches the source type name exactly. ReferenceableParams uses 'web-app-firewall' matching the resource type.",
+            "Rate-based rule limit range (100–20,000,000) correctly quoted from source. Default action 'Allow' with @default annotation correctly documented.",
+            "CAPTCHA and challenge immunity time defaults (300 seconds each) correctly match source @default annotations.",
+            "disableMetrics and sampledRequestsEnabled defaults (both false) correctly documented from source.",
+            "Scope table clearly maps regional vs cdn to resource types, accurately reflecting the scope JSDoc.",
+            "All cross-links verified against the navigation index — no invented routes found. FAQ has exactly 10 questions spanning Stacktape-specific, AWS service, and comparison categories.",
+            "Custom response body content types ('application/json', 'text/plain', 'text/html') accurately reflect the JSDoc guidance on the contentType property.",
+            "Code examples use proper defineConfig pattern with correct WebAppFirewall class import and focus markers hiding the import line."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the WebAppFirewall type surface, including scope values, default managed rule groups, rule variants, defaults for defaultAction, metrics, sampling, CAPTCHA/challenge immunity, pricing, and the API reference name. I found several Stacktape-specific attachment and configuration claims that are not supported by the provided sources or go beyond what the WebAppFirewall source states.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly claims Stacktape WAF can be attached directly to SSR frontends and static hosting via `useFirewall`, including: “A Stacktape web application firewall (WAF) protects your ... SSR frontends”, “Set it to `'cdn'` for CloudFront-based resources like static hosting and SSR frontends”, and the CDN resources table entries for static hosting and SSR frontends.",
+              "reason": "The provided WebAppFirewall source says a firewall attaches to HTTP API Gateway, Application Load Balancer, or CDN, and the helper source defines CDN-attachable resources as bucket, application-load-balancer, http-api-gateway, and function. The provided sources do not document `useFirewall` on SSR frontend resources or hosting buckets. This may be true elsewhere, but it is not grounded in the provided source set and would change how a reader configures WAF attachment.",
+              "suggestedFix": "Narrow the attachment language to the source-grounded targets: HTTP API Gateway, Application Load Balancer, User Pool where scope documentation supports it, and CDN/CloudFront-attached resources. If discussing SSR frontends or static hosting, phrase them cautiously through their CloudFront/CDN path only if the page source includes their `useFirewall` property; otherwise omit the direct property claims.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets\n * by default. Costs ~$5/month base + $1/million requests inspected."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpCdnAttachableResourceType = Subtype<\n  StpResourceType,\n  'bucket' | 'application-load-balancer' | 'http-api-gateway' | 'function' // | 'web-service' | 'hosting-bucket'\n>;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft claims a `cdn`-scoped firewall can attach to a Lambda function with CDN enabled using `cdn.useFirewall`: “Lambda function (with CDN enabled) | `cdn.useFirewall` on the function | Requires CDN enabled on the function.”",
+              "reason": "The provided helper source lists functions as CDN-attachable resources, but the provided WebAppFirewall source only says attach to an HTTP API Gateway, Application Load Balancer, or CDN. No provided LambdaFunction source documents a `cdn` property or `cdn.useFirewall` path on Lambda functions. This is a concrete configuration path claim without source backing in the provided files.",
+              "suggestedFix": "Remove the Lambda-specific `cdn.useFirewall` row unless the LambdaFunction source for this page includes that property path. A safer source-grounded wording is that CDN-scoped firewalls are for CDN/CloudFront attachments.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets\n * by default."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type StpCdnAttachableResourceType = Subtype<\n  StpResourceType,\n  'bucket' | 'application-load-balancer' | 'http-api-gateway' | 'function' // | 'web-service' | 'hosting-bucket'\n>;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape deployment layer handles this automatically — you deploy your stack in any region and the CDN-scoped WAF is created in `us-east-1`.”",
+              "reason": "The AWS WAF CloudFront us-east-1 requirement is general AWS knowledge, but the claim that Stacktape automatically creates the CDN-scoped WAF in us-east-1 while allowing deployment from any region is Stacktape-specific runtime behavior. The provided source only defines `scope: 'regional' | 'cdn'`; it does not describe cross-region creation behavior.",
+              "suggestedFix": "Keep the AWS requirement but narrow the Stacktape behavior: “AWS WAF for CloudFront uses `us-east-1`; use `scope: 'cdn'` for CloudFront-attached resources.” Only claim automatic cross-region handling if runtime source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "scope: 'regional' | 'cdn';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Request sampling (`sampledRequestsEnabled`, defaults to `false`) saves samples of matched requests for inspection in the AWS WAF console... including request headers and body snippets.”",
+              "reason": "The source supports that sampled requests can be saved for inspection in the AWS WAF console, but it does not state that request headers and body snippets are included. That added detail may be AWS behavior, but it is not grounded in the provided Stacktape source and could affect a reader’s privacy/security expectations.",
+              "suggestedFix": "Remove the unsupported detail or phrase it generically: “Enable it when debugging rule behavior to inspect sampled matched requests in the AWS WAF console.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### Save samples of matched requests for inspection in the AWS WAF console.\n   * @default false\n   */\n  sampledRequestsEnabled?: boolean;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### Save samples of requests matching this rule for inspection in the WAF console.\n   * @default false\n   */\n  sampledRequestsEnabled?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Wiring a custom response body to a specific rule action is not directly exposed in the Stacktape config surface — use CloudFormation overrides to configure individual rule actions that reference these response body keys.”",
+              "reason": "The source confirms `customResponseBodies` exists, but it does not document any custom block action shape or explicitly state that wiring custom response bodies to rule actions is not exposed. Negative claims about absent Stacktape support are risky unless the relevant validator/runtime source is included.",
+              "suggestedFix": "State only the grounded part: “`customResponseBodies` defines named response bodies for `Block` actions.” If retaining the override guidance, phrase it cautiously: “The provided WebAppFirewall type does not expose a per-rule custom response body selector; advanced AWS WAF rule action customization may require overrides.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### Custom response bodies for `Block` actions. Map of key → content type + body.\n   */\n  customResponseBodies?: CustomResponseBodies;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "type ResourceOverrides = {\n  [cfLogicalName: string]: { [resourcePath: string]: any };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft enumerates specific AWS-managed rule group coverage, for example “`AWSManagedRulesCommonRuleSet` (covers OWASP Top 10)”, “KnownBadInputsRuleSet blocks Log4j, Java deserialization”, and “BotControlRuleSet blocks scrapers, crawlers, HTTP libraries.”",
+              "reason": "The source only names the two default managed rule group identifiers and describes managed rule groups generically as AWS presets. It does not provide the detailed threat coverage for individual AWS managed rule groups. These may be accurate AWS facts, but they are not in the provided source files, and the draft presents them as part of Stacktape’s default/security behavior.",
+              "suggestedFix": "Keep the source-grounded default group names, but reduce detailed coverage claims or explicitly frame them as AWS-managed rule group descriptions that readers should verify in AWS WAF managed rule group docs. Do not assert detailed rule contents from Stacktape source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "If omitted, Stacktape uses `AWSManagedRulesCommonRuleSet` + `AWSManagedRulesKnownBadInputsRuleSet` by default."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### Firewall rules: managed rule groups (AWS presets), custom rule groups, or rate-based rules."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The rest of the properties — rules, default action, CAPTCHA immunity — are all optional and ship with sensible defaults.”",
+              "reason": "The source documents defaults for `defaultAction`, omitted `rules`, `captchaImmunityTime`, and `challengeImmunityTime`, but the phrase “the rest of the properties” is broader than those properties. Some optional properties, such as `tokenDomains` and `customResponseBodies`, do not have documented defaults beyond being absent.",
+              "suggestedFix": "Replace with a narrower sentence: “`defaultAction`, omitted `rules`, `captchaImmunityTime`, `challengeImmunityTime`, `disableMetrics`, and `sampledRequestsEnabled` have documented defaults; properties such as `customResponseBodies` and `tokenDomains` are opt-in.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A single `regional` firewall can protect multiple Application Load Balancers and user auth pools. A single `cdn` firewall can protect multiple CloudFront-based resources.”",
+              "reason": "The source documents the firewall resource and its scope, but it does not state cardinality or whether the same WebAppFirewall resource may be associated with multiple protected resources. This may be permitted by AWS WAF, but it is not shown in the provided Stacktape source.",
+              "suggestedFix": "Either remove the multi-attachment claim or qualify it as AWS WAF behavior if Stacktape runtime/source evidence is not available. The safer Stacktape-specific wording is that resources reference a firewall by name where their config exposes `useFirewall`.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />` for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The draft uses `<ApiReference definitionName=\"WebAppFirewallProps\" />`, which matches the provided page type surface.",
+            "The draft correctly documents the three rule variants from `rules?: (ManagedRuleGroup | CustomRuleGroup | RateBasedStatement)[]`.",
+            "The draft correctly documents sourced defaults for omitted `rules`, `defaultAction: 'Allow'`, CAPTCHA and challenge immunity times, metrics, sampling, and the rate-based rule default action.",
+            "The draft includes exactly 10 FAQ Q&A pairs and uses valid cross-links from the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the main WebAppFirewallProps surface well: scope, defaultAction, rules, custom responses, CAPTCHA/challenge settings, token domains, metrics, sampled requests, referenceable params, and the rule union variants are all addressed. The main API-completeness gap is a missing union member for rate-based rule actions.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `action` property controls what happens when the limit is exceeded: `'Block'` (default, returns 403), `'Count'` (log only — good for tuning the threshold), `'Captcha'` (present a CAPTCHA challenge), or `'Challenge'` (silent browser verification).",
+              "reason": "The documented `RateBasedStatementProps.action` union also includes `'Allow'`. Because the section explicitly enumerates supported action values, omitting `'Allow'` makes the variant coverage incomplete.",
+              "suggestedFix": "Add `'Allow'` to the rate-based rule action list with cautious wording, for example: \"`'Allow'` is also accepted by the config type, but rate-based rules are usually used with `'Block'`, `'Count'`, `'Captcha'`, or `'Challenge'`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "action?: 'Allow' | 'Block' | 'Count' | 'Captcha' | 'Challenge';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page mentions every top-level WebAppFirewallProps property that a typical user is likely to touch: `scope`, `defaultAction`, `rules`, `customResponseBodies`, `captchaImmunityTime`, `challengeImmunityTime`, `tokenDomains`, `disableMetrics`, and `sampledRequestsEnabled`.",
+            "The `rules` union is covered with all three variants named and demonstrated: `managed-rule-group`, `custom-rule-group`, and `rate-based-rule`.",
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and demonstrate the section topic rather than repeating only a bare scaffold.",
+            "The page includes exactly one `<ApiReference definitionName=\"WebAppFirewallProps\" />`, matching the page metadata typeName."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__security__web-application-firewall\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three rule variants (managed-rule-group, rate-based-rule, custom-rule-group) are documented with their own working code examples — union-type coverage discipline is fully met.",
+            "Strong decision-support throughout: every opt-in feature (scope, rate-based rules, custom response bodies, count mode) includes when-to-use, when-to-skip, and a concrete tradeoff.",
+            "No mandatory style violations — all Stacktape config examples use <CodeBlock intellisense tabs=[...]>, no YAML blocks, no StacktapeConfig plain-object pattern.",
+            "FAQ contains exactly 10 Q&A pairs spanning all three required categories: Stacktape-specific, AWS service use-case, and choosing/comparison questions.",
+            "The Attaching to resources section correctly distinguishes top-level `useFirewall` vs `cdn.useFirewall` attachment paths and explicitly notes the two-firewall layering option for web services — the per-property-path precision required by the style guide is upheld.",
+            "Source-grounded numeric facts (limit range 100–20,000,000, captchaImmunityTime default 300 s, rate window 5 min) are stated precisely and match the source type's JSDoc.",
+            "The `disableMetrics` and `sampledRequestsEnabled` per-rule vs firewall-level distinction is correctly derived from CommonRuleProps and WebAppFirewallProps, with accurate defaults."
+          ],
+          "problems": [
+            "The 'Custom response bodies' section lists 'application/json', 'text/plain', and 'text/html' as supported content types. The source's CustomResponseBodies interface types `contentType` as `string` with no enum constraint — these specific values come from AWS WAF documentation, not the provided source file. A source-grounding verifier will flag this as an ungrounded Stacktape-specific claim.",
+            "The <Info> callout 'AWS WAF for CloudFront requires the `us-east-1` region' is a well-known AWS fact, but it reads as a Stacktape deployment requirement in context. It is not stated in the provided source files. It should be clearly framed as an AWS-side constraint, not a Stacktape one.",
+            "The 'Attaching to resources' table claims specific `useFirewall` and `cdn.useFirewall` property paths on ALB, web service, user auth pool, hosting bucket, SSR frontends, HTTP API Gateway, and Lambda function. The provided WAF source file does not enumerate these paths — they are properties on other resource types' source files, which are not included. The source-grounding verifier may flag the entire table as unsupported in this page's source context.",
+            "The 'Aggregation mode' sub-section in rate-based rules (forwarded IP config with headerName and fallbackBehavior) is technically thorough but pitched above the stated audience level (developer with low AWS experience). There is no 'skip this if you don't know what a reverse proxy is' guidance, which first-time users will need.",
+            "The claim 'Once you explicitly set `rules`, only your specified rules apply — the defaults are replaced entirely' appears both in the Rules intro and in the first FAQ answer. While accurate and worth emphasizing, this exact duplication slightly reduces scannability — one location is sufficient."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the 'Custom response bodies' section, remove the enumeration of specific content types ('application/json', 'text/plain', 'text/html') or attribute them explicitly to AWS WAF's allowed values rather than the Stacktape source, to avoid a source-grounding failure on the next review pass.",
+            "Reframe the <Info> callout about `us-east-1` as 'AWS requires WAF web ACLs for CloudFront to be created in `us-east-1`; Stacktape handles this automatically when `scope: \"cdn\"` is set' — distinguishing the AWS constraint from a Stacktape behavior.",
+            "Add a one-sentence note at the top of the 'Attaching to resources' section pointing to each resource's own documentation page for the canonical `useFirewall` property path — e.g. 'Each resource's documentation page shows the exact property path.' This both helps first-time readers and reduces surface area for source-grounding false positives.",
+            "In the 'Aggregation mode' paragraph, add a one-sentence orientation: 'Most teams can skip this — it only applies when your service sits behind a proxy (e.g., CloudFront or another ALB) that changes the visible client IP.' This serves the low-AWS-experience audience without removing the advanced detail.",
+            "The FAQ question 'What's the difference between regional and cdn scope?' substantially repeats the prose in the Scope section's table. Consider making the FAQ answer a brief summary that links back to the Scope section rather than restating the full explanation.",
+            "The 'Custom rule groups' section would benefit from a concrete 'who should use this' line at the start: 'Skip this section unless your team already manages WAF rule groups through the AWS Console or CLI.' Right now a first-time user has no signal whether this applies to them."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three rule types (managed, custom, rate-based) are documented with realistic, copyable code examples — directly grounded in the source types.",
+            "The scope table (regional vs cdn) clearly maps resource types to the correct scope, preventing a deployment error that would otherwise only surface at deploy time.",
+            "Default action guidance is opinionated and correct: 'Most teams should keep the default Allow' with an explicit signal about when to deviate.",
+            "Rate-based rule section covers aggregation mode (IP vs FORWARDED_IP), the forwardedIPConfig fallback behavior, and practical tuning advice (start with Count mode) — all sourced from RateBasedStatementProps.",
+            "Attachment table cleanly separates regional vs CDN attachment paths and correctly notes the dual-attachment-point case for web services in a Warning callout.",
+            "No style violations of any kind: no YAML Stacktape config, no StacktapeConfig type, no fenced TypeScript with defineConfig, no marketing language, single ApiReference.",
+            "FAQ has exactly 10 Q&A pairs spanning all three required categories (Stacktape-specific, AWS use-case, comparison/choosing), with answers at the right length for snippet extraction.",
+            "Custom response bodies section correctly names the three supported contentType values from CustomResponseBodies in the source, and appropriately flags that per-rule custom response body selectors require overrides.",
+            "captchaImmunityTime and challengeImmunityTime defaults (300 seconds each) match the source JSDoc exactly.",
+            "disableMetrics and sampledRequestsEnabled are correctly documented at both firewall level and per-rule level, sourced from WebAppFirewallProps and CommonRuleProps respectively."
+          ],
+          "problems": [
+            "The attachment table claims that HTTP API Gateway, Web Service, and Lambda Function have a 'cdn.useFirewall' property — these properties live on those resources' types, which are not in the provided source files. The claim is plausible but unverified from the provided source. In particular, the source's StpCdnAttachableResourceType comments out 'web-service' and 'hosting-bucket', which raises a specific concern about whether WebService exposes cdn.useFirewall directly.",
+            "The Warning callout about WebService having two independent firewall attachment points (useFirewall on the service itself, cdn.useFirewall on its CloudFront distribution) references a constraint that is not traceable in the provided web-app-firewall.d.ts or __helpers.d.ts. The source comments out 'web-service' from StpCdnAttachableResourceType, making this claim uncertain.",
+            "The Referenceable parameters section uses the component and then states '$ResourceParam(\\u2019firewall\\u2019, \\u2019arn\\u2019)' returns the WAF ARN — but the referenceable params for WebAppFirewall are 'arn' and 'scope' (per WebAppFirewallReferencableParams in the source). The prose only names 'arn' in the example; 'scope' is silently omitted without explanation of what it returns.",
+            "The rate-based rule '5-minute window' is stated correctly from the source JSDoc, but the derived arithmetic ('roughly 6–7 requests per second sustained') is an author calculation not in the source — minor, but the verifier may flag it."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the Referenceable parameters section, name both 'arn' and 'scope' explicitly in prose (one sentence each) before the component renders, so readers know what the two params return without having to read the component output.",
+            "Scope down the attachment table's CDN row claims to only the resource types where cdn.useFirewall is verifiable from the provided source (Bucket and SSR frontends), and add a note directing readers to the individual resource pages for ALB/HTTP API/web-service CDN attachment details — this avoids grounding concerns on resource types whose types are not in scope.",
+            "Add a one-line note in the Rate-based rules section that 5 minutes is the only supported aggregation window in AWS WAF (not configurable) — readers familiar with other rate-limiters often look for this.",
+            "The tokenDomains section would benefit from a concrete scenario where cross-domain token sharing is actually needed (e.g., a CAPTCHA solved on api.example.com being valid on app.example.com when both are behind the same firewall) — currently the prose is correct but too abstract for the reader to know when to configure it.",
+            "The 'Can I attach one firewall to multiple resources?' FAQ answer would benefit from a single caveat: the WAF ACL must be in the same region as all target resources for regional scope (CloudFront/cdn scope is always global). This is a common production gotcha."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "First paragraph is self-contained, answer-first, and within the 40-75 word target — extracts cleanly as a Featured Snippet.",
+            "All three rule variant types (managed-rule-group, custom-rule-group, rate-based-rule) are documented with equal depth: a working code example, when-to-use guidance, and per-variant configuration details for each.",
+            "Scope section uses a comparison table that maps scope values to targets and typical resources — high citation value.",
+            "10-question FAQ correctly mixes Stacktape-specific, AWS-service, and comparison questions. Coverage spans pricing, false positives, security groups vs WAF, scope differences, third-party rule groups, and testing workflows.",
+            "Decision support is present throughout: dry-run mode ('Count' action), rate-limit threshold tuning advice, and an opinionated recommendation on defaultAction.",
+            "All defaults cited in prose match the source type definitions exactly (captchaImmunityTime: 300, challengeImmunityTime: 300, action: Block, defaultAction: Allow, disableMetrics: false, sampledRequestsEnabled: false).",
+            "No forbidden patterns: no YAML Stacktape config, no StacktapeConfig type import, CodeBlock intellisense used correctly for all config examples, only one ApiReference.",
+            "Warning callout for the dual-attachment-point edge case on web services is a high-value practical tip that prevents a real deployment mistake.",
+            "Code examples are complete, copy-paste runnable, with no placeholder values inside the focus-marker bodies."
+          ],
+          "problems": [
+            "The 'Attaching to resources — CDN attachment' table lists 'Web Service (with CDN enabled)' as supporting cdn.useFirewall, but the provided source shows `StpCdnAttachableResourceType` has `'web-service'` commented out. This is a potential factual error sourced from outside the provided files.",
+            "The Info callout asserts 'AWS WAF for CloudFront requires the us-east-1 region' — this is a well-known AWS constraint but is not present in any of the provided source files. If the source-grounding verifier flags it, it will block publication.",
+            "The Hosting Bucket and SSR frontend firewall attachment claims in the CDN table cannot be verified from the provided source files (only web-app-firewall.d.ts and __helpers.d.ts are available; those resources' own type files are not included). These are probably correct, but are asserted without source support.",
+            "The customResponseBodies section states the firewall does not expose a per-rule custom response body selector and that advanced customization 'may require CloudFormation overrides' — this is inferential rather than directly sourced, and the claim about what CloudFormation overrides can achieve here is vague."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Hedge or caveat the web service CDN attachment row in the table ('Web Service (with CDN enabled) — cdn.useFirewall') until the web-service type file can confirm it. The StpCdnAttachableResourceType comment-out is a yellow flag.",
+            "Add a one-sentence attribution for the us-east-1 constraint — e.g. 'This is an AWS requirement for all WAF web ACLs attached to CloudFront distributions' — to make clear it is AWS-side behavior, reducing the chance the source-grounding verifier flags it as a Stacktape-specific claim.",
+            "The customResponseBodies section could link to the ApiReference component drill-down (or the rule action types in the AWS WAF docs) for per-rule Block action configuration, rather than leaving the reader with 'may require CloudFormation overrides' as the only guidance.",
+            "Consider adding a brief note about WAF access logging (to S3 or Kinesis Data Firehose) for compliance or audit trails — this is an AWS WAF capability that production users frequently ask about, even if it requires a CloudFormation override today.",
+            "The 'Metrics and request sampling' section accurately notes sampledRequestsEnabled defaults to false but does not mention that enabling it adds a small volume of sampled request data visible in the AWS WAF console — one sentence would make the value proposition clearer.",
+            "FAQ Q4 (regional vs cdn scope) largely duplicates the prose in the Scope section. Consider rephrasing it as a decision question ('When should I use cdn scope vs regional scope?') with different framing than the main body to increase FAQ citation value."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The scope property description says 'Set it to `regional` for resources like Application Load Balancers and user auth pools' and the scope table lists only ALBs, user auth pools, and web services with ALB for regional scope — omitting HTTP API Gateway entirely from regional targets.",
+              "reason": "The source JSDoc for the `scope` property says: '`regional` for ALBs, User Pools, or direct API Gateways.' The draft omits 'direct API Gateways' from both the prose and the regional scope table. While this omission may be intentionally correct (AWS HTTP API Gateway v2 does not support regional WAF natively), the source explicitly lists it as a regional target. The draft should at minimum acknowledge this discrepancy or clarify that HTTP API Gateway in Stacktape only supports WAF via CDN attachment.",
+              "suggestedFix": "Add a brief note in the Scope section or the regional attachment table clarifying that HTTP API Gateway does not support direct regional WAF attachment in Stacktape — use CDN-level attachment instead. This reconciles the draft with the source JSDoc that mentions 'direct API Gateways' for regional scope.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The 'Custom response bodies' section says 'The WebAppFirewall type does not expose a per-rule custom response body selector; advanced AWS WAF rule action customization may require CloudFormation overrides.'",
+              "reason": "This negative claim is directionally correct — no rule-level custom response body key appears in the source types. However, it could mislead readers into thinking custom response bodies are only useful with overrides. The `customResponseBodies` property defines named bodies, but the draft doesn't explain that in native AWS WAF these are selected per-action via `CustomResponseBodyKey` — a field Stacktape's types don't expose. A brief clarification would help readers understand the gap and what overrides would target.",
+              "suggestedFix": "Optionally add a sentence noting that AWS WAF actions normally reference custom response bodies via a `CustomResponseBodyKey` field, and that this field can be added via CloudFormation overrides on the WAF rule action.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "action?: 'Allow' | 'Block' | 'Count' | 'Captcha' | 'Challenge';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All WebAppFirewallProps properties (scope, defaultAction, rules, customResponseBodies, captchaImmunityTime, challengeImmunityTime, tokenDomains, disableMetrics, sampledRequestsEnabled) match the source type definition exactly — names, types, and defaults are correct.",
+            "Default values are accurately stated: defaultAction='Allow', captchaImmunityTime=300, challengeImmunityTime=300, disableMetrics=false, sampledRequestsEnabled=false, rate-based action='Block'.",
+            "The three rule types (managed-rule-group, custom-rule-group, rate-based-rule) are correctly documented with all their properties matching the source union type. The rate-based limit range (100–20,000,000) is verbatim from source.",
+            "Default rules claim ('AWSManagedRulesCommonRuleSet + AWSManagedRulesKnownBadInputsRuleSet when rules omitted') matches the source JSDoc exactly.",
+            "The `useFirewall` property was verified on all claimed resource types: ALB (application-load-balancers.d.ts:51), web service (web-services.d.ts:79), user auth pool (user-pools.d.ts:319), hosting bucket (hosting-buckets.d.ts:118), and all seven SSR frontends. The CDN attachment path (`cdn.useFirewall`) is confirmed via CdnConfiguration.useFirewall inherited by ALB, HTTP API Gateway, web service, and Lambda function CDN configs.",
+            "NLB correctly excluded from WAF support — the source shows `useFirewall` is commented out in network-load-balancer.d.ts:64.",
+            "All cross-links point to valid routes in the documentation navigation index.",
+            "ApiReference uses the correct definition name 'WebAppFirewallProps' matching the source type.",
+            "ReferenceableParams uses 'web-app-firewall' which matches the resource type value in the source.",
+            "Pricing claim ('~$5/month base + ~$1 per million requests') is grounded in the source JSDoc: 'Costs ~$5/month base + $1/million requests inspected.'",
+            "All five CodeBlock examples use correct TypeScript class-based syntax with defineConfig, proper imports, and focus markers. No forbidden YAML or plain-object patterns.",
+            "Heading hierarchy is correct — 'When to use' and 'When NOT to use' are peer H2 sections.",
+            "FAQ has exactly 10 Q&A pairs spanning Stacktape-specific, AWS service, and comparison categories as required."
+          ],
+          "summary": "This is a very well-grounded draft. Every Stacktape-specific property name, default value, and type constraint was verified against the source type definitions and found to be accurate. The `useFirewall` attachment claims were independently confirmed across all referenced resource type files (ALB, web service, user auth pool, hosting bucket, all SSR frontends, and CDN configuration). The only substantive finding is a minor scope ambiguity where the source JSDoc mentions 'direct API Gateways' for regional scope but the draft omits HTTP API Gateway from the regional attachment table — likely intentionally correct since AWS HTTP API Gateway v2 doesn't support regional WAF, but worth a clarifying note. Code examples are correctly structured, all cross-links are valid, and the FAQ meets all coverage requirements."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the WebAppFirewall type, especially around rule variants, defaults, pricing, and the API reference name. The main factual risk is that it documents several attachment paths and scope requirements that are not present in the provided WAF source, and in one case it contradicts the source by requiring CDN for HTTP API Gateway protection.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“HTTP API Gateways with CDN enabled” and FAQ: “Enable CDN on the HTTP API Gateway and use `cdn.useFirewall` to attach a `cdn`-scoped firewall.”",
+              "reason": "The provided WAF type explicitly says `regional` scope is for “direct API Gateways” and the resource attaches to an HTTP API Gateway. The draft narrows HTTP API Gateway WAF usage to CDN-only attachment, which would steer readers away from a source-supported regional/direct API Gateway path.",
+              "suggestedFix": "Document both paths cautiously: `scope: 'regional'` for direct HTTP API Gateway attachment where supported by the gateway resource, and `scope: 'cdn'` for CloudFront/CDN attachment. Do not say CDN is required to protect an HTTP API Gateway.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets\n * by default."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft lists top-level `useFirewall` support for Hosting Bucket and SSR frontends, plus `cdn.useFirewall` support for ALB, HTTP API Gateway, Web Service, and Lambda Function.",
+              "reason": "The provided WAF source only grounds attachment to an HTTP API Gateway, Application Load Balancer, or CDN, and identifies scopes for CloudFront-attached resources, ALBs, user pools, and direct API Gateways. The specific property paths for Hosting Bucket, SSR frontends, Web Service, Lambda Function, and nested `cdn.useFirewall` are not present in the provided source list.",
+              "suggestedFix": "Narrow the attachment section to source-grounded targets: HTTP API Gateway, Application Load Balancer, User Auth Pool, and CloudFront/CDN attachments. If keeping resource-specific property paths, cite or provide the relevant resource type sources; otherwise phrase them as examples of CDN-attached resources only when their own docs establish the property.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets\n * by default."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A mismatch between scope and resource type causes a deployment error.”",
+              "reason": "The source defines the `scope` values and describes which resource categories they apply to, but it does not state the validation behavior or that a deployment error is produced on mismatch.",
+              "suggestedFix": "Use narrower wording: “Choose the scope that matches the attachment target: `regional` for ALBs, user pools, or direct API Gateways; `cdn` for CloudFront-attached resources.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The WebAppFirewall type does not expose a per-rule custom response body selector; advanced AWS WAF rule action customization may require CloudFormation overrides.”",
+              "reason": "The provided WebAppFirewall type shows `customResponseBodies`, but it does not document whether lower-level action customization is unsupported or whether CloudFormation overrides can be used for this specific WAF customization. The claim may be true, but it is stronger than the provided source supports.",
+              "suggestedFix": "Keep the grounded part and avoid the unsupported workaround claim: “`customResponseBodies` defines named response bodies available to the underlying WAF configuration; the provided WebAppFirewall type only exposes the response body map on the firewall.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "* #### Custom response bodies for `Block` actions. Map of key → content type + body."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "customResponseBodies?: CustomResponseBodies;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A single `regional` firewall can protect multiple Application Load Balancers and user auth pools. A single `cdn` firewall can protect multiple CloudFront-attached resources.”",
+              "reason": "The source establishes that a WAF can attach to resource categories, but it does not state whether a single WebAppFirewall resource may be associated with multiple targets. That is a Stacktape-specific behavior claim that could affect how readers configure resources.",
+              "suggestedFix": "Either remove the multi-attachment claim or phrase it as conditional on each target resource accepting the same firewall reference, backed by the target resource source files.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets\n * by default."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says “Default OWASP rules” in `seoDescription` and describes the default `AWSManagedRulesCommonRuleSet` and `AWSManagedRulesKnownBadInputsRuleSet` as “OWASP-style exploits.”",
+              "reason": "The source names the two default AWS-managed rule groups but does not describe them as OWASP rules. “OWASP-style” may be reasonable general security language, but “Default OWASP rules” sounds like a specific default rule set that is not named in the source.",
+              "suggestedFix": "Replace “Default OWASP rules” with “AWS-managed rule groups” in metadata and prose.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Edge filtering is generally more cost-effective for global traffic because requests are dropped earlier in the path.”",
+              "reason": "This is plausible AWS guidance, but the provided source only distinguishes `cdn` scope for CloudFront-attached resources and does not support a cost-effectiveness claim for Stacktape WAF attachments.",
+              "suggestedFix": "Frame as general AWS tradeoff guidance or remove the cost-effectiveness wording: “A `cdn` firewall can block requests before they reach the origin, which can reduce origin load for global traffic.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses exactly one `<ApiReference definitionName=\"WebAppFirewallProps\" />`, matching the provided `WebAppFirewallProps` type name.",
+            "The draft covers all three rule variants from the `rules` union: managed rule groups, custom rule groups, and rate-based rules.",
+            "The draft correctly states the sourced defaults for `defaultAction`, omitted `rules`, CAPTCHA and challenge immunity times, `disableMetrics`, `sampledRequestsEnabled`, and the rate-based rule action.",
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and avoid hand-authored YAML examples."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly complete for WebAppFirewallProps: it covers the primary properties, the rule union variants, pricing, attachment model, referenceable params, API reference, and exactly 10 FAQ entries. I found one API-completeness issue around a documented union member that is described conceptually but not named explicitly.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“When omitted, AWS WAF aggregates by the direct client IP. If your service sits behind a proxy or CDN, set `aggregateBasedOn` to `'FORWARDED_IP'`...”",
+              "reason": "The draft documents the `aggregateBasedOn` union but names only the `'FORWARDED_IP'` member. The source defines both `'IP'` and `'FORWARDED_IP'`. Because this section is explicitly explaining aggregation mode, naming the default/direct-IP value as `'IP'` would make the union coverage complete and avoid implying that the direct-client-IP mode is only an implicit omission behavior.",
+              "suggestedFix": "Revise the aggregation paragraph to explicitly name both supported values, for example: “`aggregateBasedOn` supports `'IP'` for the direct client IP and `'FORWARDED_IP'` for an IP address read from a header such as `X-Forwarded-For`. When `aggregateBasedOn` is omitted, use the API reference/default behavior rather than assuming a forwarded header.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "aggregateBasedOn?: 'IP' | 'FORWARDED_IP';"
+                },
+                {
+                  "file": "Draft page / Rules / Rate-based rules",
+                  "quote": "When omitted, AWS WAF aggregates by the direct client IP. If your service sits behind a proxy or CDN, set `aggregateBasedOn` to `'FORWARDED_IP'` and configure `forwardedIPConfig`..."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft mentions all primary WebAppFirewallProps properties that a typical user is likely to configure: `scope`, `defaultAction`, `rules`, `customResponseBodies`, CAPTCHA/challenge immunity, `tokenDomains`, metrics, and request sampling.",
+            "The `rules` union is covered at the right level: managed rule groups, custom rule groups, and rate-based rules are all named and each has a demonstrative Stacktape config example.",
+            "The code examples are mostly demonstrative: the managed-rule, rate-limit, custom-rule-group, and custom-response-body examples each set the property discussed in the surrounding section.",
+            "The page includes exactly one `<ApiReference definitionName=\"WebAppFirewallProps\" />` and uses the metadata type name correctly.",
+            "The draft avoids the major forbidden config-example patterns: Stacktape config examples use `<CodeBlock intellisense>` with a `TypeScript` tab and do not hand-author YAML."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__security__web-application-firewall\\iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "All three rule types (managed, rate-based, custom) are covered with working, realistic examples that a reader can copy directly.",
+            "The 'When to use' and 'When NOT to use' sections are concrete and opinionated — they name specific resource types and give clear rationale rather than restating the section heading.",
+            "Scope table clearly maps 'regional' vs 'cdn' to target resources — this is the single most-asked question when first encountering WAF and the table answers it at a glance.",
+            "Every code example correctly uses <CodeBlock intellisense tabs={[...]}> with a TypeScript tab; no YAML blocks, no StacktapeConfig type, no fenced defineConfig blocks.",
+            "Default values and ranges for rate-based rules (limit 100–20,000,000, default Block action, 5-minute window) are all grounded in the source JSDoc and stated precisely.",
+            "FAQ covers all three required question categories — Stacktape-specific, AWS use-case, and choosing/comparison — and reaches exactly 10 pairs.",
+            "Decision guidance inside rules sub-sections (overrideAction Count for dry-run, sampledRequestsEnabled for debugging) is actionable, not just descriptive."
+          ],
+          "problems": [
+            "The <Info> callout 'AWS WAF for CloudFront requires the us-east-1 region' is ungrounded in the provided source files and, more critically, doesn't say whether Stacktape handles this automatically or whether the user must configure their deployment region to us-east-1. For a first-time user with low AWS experience this creates confusion with no resolution.",
+            "The 'Attaching to resources' section consists almost entirely of prose tables and has no code example beyond the ALB case shown earlier in the basic example. A reader wanting to attach a firewall to an HTTP API Gateway or user auth pool has to infer the pattern — they are told it works but not shown how.",
+            "The 'Custom response bodies' section ends by instructing the user to use CloudFormation overrides to wire per-rule custom response body selectors, but this is an advanced escape-hatch path. A first-time user following the copy-paste path will define a custom body and be confused why it doesn't seem to apply anywhere. The section should either show that custom bodies only work if the rule's action is configured via overrides, or make clear that this feature requires advanced configuration upfront so readers know to skip it.",
+            "'Layer 7 (HTTP/HTTPS)' and 'Layer 3/4 protection (TCP flood, UDP reflection)' in the 'When NOT to use' section use AWS networking terminology without a brief orienting sentence. A reader with low AWS experience may not know what differentiates Layer 3/4 from Layer 7 in practical terms.",
+            "The `captchaImmunityTime` and `challengeImmunityTime` defaults (300 seconds) are stated correctly, but the section implies 'most teams won't need to adjust these' without explaining what scenario would actually require adjustment — leaving the section feeling like filler rather than guidance."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the Scope section's <Info> callout about us-east-1, add one sentence clarifying whether Stacktape transparently handles the us-east-1 placement for cdn-scoped WAF or whether the user must deploy to us-east-1 manually. If Stacktape handles it, say so explicitly — this removes a likely friction point for newcomers.",
+            "Add a second attachment code example under 'Attaching to resources' showing a cdn-scoped firewall attached to a NextjsWeb or HostingBucket resource. The basic example already covers the regional/ALB case; a cdn attachment example completes the coverage and is the more surprising case for newcomers.",
+            "In the 'Custom response bodies' section, move the CloudFormation-override caveat to the first paragraph rather than the last sentence, and add a one-line note that most teams will use this section only if they control the rule block action via overrides. This prevents copy-pasters from defining a custom body and wondering why it has no effect.",
+            "In 'When NOT to use', add a single parenthetical gloss for the layer terms: 'Layer 3/4 (IP/port level — floods and reflection attacks)' and 'Layer 7 (HTTP request inspection)'. This is one line and removes jargon for the low-AWS-experience audience without disrupting the section's brevity.",
+            "The captchaImmunityTime / challengeImmunityTime sub-section says 'most teams won't need to adjust these' but doesn't say who would. Add one concrete scenario (e.g., 'Lower only if protecting high-security pages where 5-minute token reuse is unacceptable') to give the guidance actual landing."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript and hidden imports; no forbidden YAML fenced blocks, no StacktapeConfig type, no fenced TypeScript with defineConfig.",
+            "All three rule types (managed, custom, rate-based) are given equal depth — each gets a working code example, key-property explanations, and decision guidance (e.g., tuning with Count mode before enforcing rate limits).",
+            "Scope table clearly maps 'regional' vs 'cdn' to concrete attachment targets, making the most common configuration decision immediately scannable.",
+            "Default action section is appropriately opinionated ('most teams should keep the default Allow') and explains the blocklist vs allowlist tradeoff in concrete terms.",
+            "captchaImmunityTime and challengeImmunityTime defaults (300 s) are directly sourced from JSDoc @default tags; no invented numbers.",
+            "'When NOT to use' is a correct peer H2 (not nested under 'When to use'), covering internal services, low-traffic projects, Layer 4-only needs, and NLBs.",
+            "FAQ has exactly 10 Q&A pairs spanning all three required categories: Stacktape-specific, underlying AWS service, and comparison/choosing questions.",
+            "sampledRequestsEnabled and disableMetrics coverage is accurate at both the firewall level and per-rule level, matching CommonRuleProps in the source."
+          ],
+          "problems": [
+            "The <Info> callout states 'AWS WAF for CloudFront requires the us-east-1 region' — this AWS-side constraint is not mentioned anywhere in the provided source files (web-app-firewall.d.ts or __helpers.d.ts). If Stacktape silently handles region routing for cdn-scoped WAFs, this statement may alarm users unnecessarily or be incorrect about the user-facing behavior.",
+            "The 'Attaching to resources' section provides tables listing CDN attachment targets but includes zero code examples showing a cdn-scoped firewall actually attached to a resource (e.g., HostingBucket, NextjsWeb). Regional attachment is shown in the basic example; CDN attachment is only described in prose. For an audience that configures both paths, the asymmetry is a practical gap.",
+            "The custom response bodies section claims that to wire per-rule custom response body keys, users must 'use CloudFormation overrides on the WAF rule action.' This AWS internals claim is not grounded in the provided source files and may be incorrect or misleading for users trying to configure custom block responses."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short code example under 'CDN attachment' in the 'Attaching to resources' section showing a cdn-scoped WebAppFirewall referenced from a HostingBucket or NextjsWeb resource — this is the most common CDN firewall use case and the current prose-only coverage leaves the reader without a copyable starting point.",
+            "Remove or qualify the us-east-1 callout: either drop the Info callout entirely if Stacktape abstracts the region requirement, or reframe it explicitly as 'AWS requires cdn-scoped WAF ACLs to be created in us-east-1; Stacktape handles this automatically' so users know whether they need to act.",
+            "Remove the speculation about CloudFormation overrides being required for per-rule custom response body wiring — the provided source only exposes customResponseBodies at the firewall level and doesn't document per-rule selectors. Either omit this note or link to the AWS WAF docs as a 'for advanced AWS-level customization' aside without claiming it requires overrides.",
+            "Trim the scope explanation paragraph in the 'Basic example' section — it restates content already covered more thoroughly in the dedicated 'Scope' H2. A one-line forward reference ('See Scope below for when to use cdn vs regional') would be cleaner.",
+            "Shorten 'CAPTCHA and challenge immunity' H2 to 'Token immunity' or 'CAPTCHA / challenge tokens' — the current heading is 5 words but reads like a phrase rather than a label, and it's slightly long compared to the rest of the page's compact H2 style."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first opening paragraph (47 words) is self-contained, names the threat categories blocked, and explains the AWS WAF underpinning — ideal for AI Overview extraction.",
+            "Complete union-type coverage: all three rule variants (managed-rule-group, custom-rule-group, rate-based-rule) have dedicated H3 sections with working code examples and per-variant tradeoff prose.",
+            "Exactly 10 FAQ questions spanning all three required categories: Stacktape-specific (default rules, firewall reuse, test mode), AWS use-case (WAF cost, false positives), and comparison (WAF vs security groups, regional vs cdn scope).",
+            "Pricing context (~$5/month + ~$1/million requests) sourced directly from the WebAppFirewall JSDoc comment — correctly flagged as approximate with a link to AWS pricing.",
+            "Rate-based rule section includes the full limit range (100–20,000,000), explains the 5-minute window semantics, documents all five action values, and covers the FORWARDED_IP aggregation mode with forwardedIPConfig — excellent depth for a property-heavy feature.",
+            "All Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with exactly label: 'TypeScript'. No YAML blocks, no fenced typescript blocks, no StacktapeConfig type — zero mandatory style violations.",
+            "Scope table and managed rule group table improve extractability; tables are fact-dense with concrete values rather than prose lists.",
+            "Decision support sections (When to use, When NOT to use, Default action) are opinionated and concrete — 'most teams should keep the default Allow' is the kind of actionable recommendation readers need.",
+            "Single <ApiReference definitionName=\"WebAppFirewallProps\" /> correctly placed at the end — matches the type name from the source definition exactly.",
+            "Custom response bodies section honestly flags the per-rule wiring limitation (requires CF overrides) rather than implying full support, which saves users a debugging session."
+          ],
+          "problems": [
+            "The 'Attaching to resources' section covers the cdn scope path only in tables and prose — there is no code example showing a cdn-scoped WebAppFirewall attached to an SSR resource (e.g. NextjsWeb). The 'Basic example' and all other code examples use scope: 'regional'. This leaves the CDN scope path underdocumented compared to regional, which is a mild per-variant equal-depth issue given that scope is a two-value union type.",
+            "The basic example attaches the firewall to an ApplicationLoadBalancer using useFirewall: 'firewall', but the provided source files do not include the ApplicationLoadBalancer type definition, so the property name cannot be verified from in-scope sources. This is a latent source-grounding risk — the source-grounding verifier may flag it if it reads ApplicationLoadBalancer props separately."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short code example (or expand the 'Scope' or 'Attaching to resources' section) showing scope: 'cdn' attached to a NextjsWeb or similar SSR resource, so CDN scope has equal code coverage to regional scope.",
+            "The 'CAPTCHA and challenge immunity' section is the thinnest on the page — it documents the two time values and tokenDomains but gives no concrete signal for when to change the 300-second default. Adding one sentence on typical adjustment thresholds (e.g. 'lower to 60 s for high-value financial flows, raise to 3600 s for read-heavy static sites') would help readers decide.",
+            "Consider verifying the ApplicationLoadBalancer.useFirewall property name against the npm types before publish. If the property is named differently (e.g. firewall, firewallName), the basic example would silently type-check incorrectly.",
+            "The 'Metrics and request sampling' section notes that sampledRequestsEnabled saves samples 'for inspection in the AWS WAF console' — a brief mention that these are also visible in the Stacktape Console (if supported) or a link to debug:logs would close the observability story.",
+            "The FAQ answer for 'How much does AWS WAF cost?' mentions 'Account Takeover Prevention' as an additional-cost feature — this is accurate AWS knowledge but the source files don't reference it. Consider scoping to Bot Control only (which is mentioned in the managed rule groups table) to stay fully grounded."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Multiple places in the draft claim HTTP API Gateways support direct regional WAF attachment — the scope table lists HTTP API Gateways as a regional target, the 'When to use' section says 'Attach directly with a regional firewall', the regional attachment table lists 'HTTP API Gateway: Direct regional attachment for HTTP request inspection', and FAQ #7 says 'you can attach a regional-scoped firewall directly to an HTTP API Gateway'.",
+              "reason": "The HttpApiGatewayProps type has no `useFirewall` property. The WAF resolver creates WebACLAssociation resources only for ALBs, user auth pools, and CDN — not HTTP API Gateways. The config-manager explicitly throws error e1003 when a web-service with http-api-gateway load balancing tries to use useFirewall. The only way to get WAF protection for an HTTP API Gateway is through its `cdn` property (cdn-scoped firewall). The JSDoc on `scope` mentions 'direct API Gateways' but this is not implemented in the actual resolver or config types.",
+              "suggestedFix": "Remove HTTP API Gateways from the regional scope targets throughout the page. In the scope table, regional attachment table, 'When to use' section, and FAQ, clarify that HTTP API Gateways can only get WAF protection through CDN (cdn-scoped firewall). The regional scope supports only Application Load Balancers and user auth pools for direct attachment.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/http-api-gateways.d.ts",
+                  "quote": "interface HttpApiGatewayProps {\n  payloadFormat?: '1.0' | '2.0';\n  cors?: HttpApiCorsConfig;\n  logging?: HttpApiAccessLogsConfig;\n  customDomains?: DomainConfiguration[];\n  cdn?: CdnConfiguration;\n  alarms?: HttpApiGatewayAlarm[];\n  disabledGlobalAlarms?: string[];\n}"
+                },
+                {
+                  "file": "types/stacktape-config/web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The Info box states 'AWS WAF for CloudFront requires the us-east-1 region. Use scope: cdn when protecting CloudFront-attached resources.' without clarifying what action this requires from the user.",
+              "reason": "The reader deploying a stack in eu-west-1 who wants a CDN-scoped firewall needs to know: does Stacktape handle the us-east-1 requirement automatically, or must the user deploy their stack in us-east-1? The source files don't clarify this at the Stacktape level. Leaving it ambiguous could lead users to incorrectly deploy their entire stack in us-east-1 or incorrectly assume it 'just works' without investigating.",
+              "suggestedFix": "Either verify how Stacktape handles this (check the WAF resolver for cross-region resource creation) and state it explicitly, or soften the Info box to: 'AWS WAF web ACLs for CloudFront must exist in us-east-1. Stacktape manages this automatically — your stack can deploy in any region.' (if confirmed) or 'Check that your CDN-scoped firewall deploys correctly when your stack is in a non-us-east-1 region.' (if uncertain).",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/web-app-firewall.d.ts",
+                  "quote": "scope: 'regional' | 'cdn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The 'Custom response bodies' section introduces the feature with a code example but provides no decision support — no guidance on when the default 403 is sufficient, when custom bodies matter, or an opinionated recommendation.",
+              "reason": "Per documentation-quality requirements, every opt-in feature section must cover when to enable it (concrete scenarios), when the default is fine, cost/tradeoff signal, and an opinion. The custom response bodies section jumps from a one-sentence description to a code example, then discusses the per-rule limitation. A reader doesn't know whether this feature matters for their use case.",
+              "suggestedFix": "Add 2-3 sentences before the code example: 'Use custom response bodies when blocked requests need machine-readable error payloads (e.g., JSON APIs where clients parse error responses) or user-facing block pages (e.g., branded HTML for a public website). For most internal APIs and backend services, the default 403 is sufficient — clients typically retry or surface a generic error regardless of the response body.'",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/web-app-firewall.d.ts",
+                  "quote": "#### Custom response bodies for `Block` actions. Map of key → content type + body."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The 'Metrics and request sampling' section is too brief — two short paragraphs with no code example, no tradeoff context for disabling metrics, and no practical guidance on using sampled requests.",
+              "reason": "Per section-depth requirements, sections that consist of only one or two short paragraphs without examples, tradeoffs, or actionable guidance are incomplete. The reader learns the defaults but gets no help deciding whether to enable sampling or understanding the cost implications of WAF metrics. The section would benefit from a brief code example showing how to enable sampling on a specific rule.",
+              "suggestedFix": "Expand with: (1) a brief note that WAF metrics publish to CloudWatch and may incur minor CloudWatch costs at high request volumes, (2) a sentence on what the sampled requests reveal (source IP, URI, matched rule, action taken), and (3) a practical recommendation like 'Enable sampledRequestsEnabled when onboarding new rule groups to verify they match the traffic patterns you expect. Disable once confident.'",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/web-app-firewall.d.ts",
+                  "quote": "#### Save samples of matched requests for inspection in the AWS WAF console.\n   * @default false"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All property names, types, and defaults for WebAppFirewallProps are accurately grounded in the source types — scope values, defaultAction, captchaImmunityTime (300), challengeImmunityTime (300), disableMetrics (false), sampledRequestsEnabled (false) all match.",
+            "All three rule type variants (managed-rule-group, custom-rule-group, rate-based-rule) are documented with equal depth — each gets a dedicated subsection, code example, and explanation of its properties.",
+            "Rate-based rule details are precise: limit range 100–20,000,000, 5-minute window, aggregateBasedOn values (IP/FORWARDED_IP), forwardedIPConfig properties (headerName/fallbackBehavior), and action values (Allow/Block/Count/Captcha/Challenge with Block default) all match source exactly.",
+            "The default rules behavior ('AWSManagedRulesCommonRuleSet + AWSManagedRulesKnownBadInputsRuleSet when rules omitted, replaced entirely when rules explicitly set') is correctly stated per the JSDoc on the rules property.",
+            "The ApiReference component uses the correct definitionName 'WebAppFirewallProps' matching the source type, and ReferenceableParams uses the correct resource identifier 'web-app-firewall' matching the WebAppFirewall.type value.",
+            "The NLB exclusion in 'When NOT to use' is correctly grounded — the network-load-balancer.d.ts has useFirewall commented out, confirming NLBs don't support WAF.",
+            "Code examples follow all required conventions: defineConfig with class-based resources, proper focus markers, TypeScript tab labels, no hand-authored YAML, and imports are present in source for type-checking.",
+            "All cross-links reference valid routes from the navigation index — no invented links detected.",
+            "FAQ contains exactly 10 Q&A pairs spanning all three required categories (Stacktape-specific, underlying AWS service, choosing/comparison).",
+            "Pricing claim ('~$5/month base + ~$1 per million requests inspected') directly matches the JSDoc on the WebAppFirewall interface."
+          ],
+          "summary": "The draft is well-structured and mostly accurately grounded in the source types. One high-severity issue: the draft repeatedly claims HTTP API Gateways support direct regional WAF attachment (in the scope table, When to use, regional attachment table, and FAQ #7), but the HttpApiGatewayProps type has no useFirewall property and the WAF resolver does not create WebACLAssociation for API Gateways — only for ALBs, user auth pools, and CDN. The JSDoc on scope mentions 'direct API Gateways' but this is not implemented. Three medium-severity issues address an ambiguous us-east-1 Info box, missing decision support for custom response bodies, and thin coverage of the metrics/sampling section. All other technical claims — defaults, property names, rule types, rate-limit ranges, referenceable params, and pricing — are accurately grounded."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided WebAppFirewall type source, especially around scope, default rules, pricing, rule variants, defaults, and referenceable parameters. The main problems are unsupported Stacktape-specific attachment details and one likely-broken code example that uses a resource property not present in the provided source list.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Basic example configures an ApplicationLoadBalancer with `useFirewall: 'firewall'`.",
+              "reason": "The provided WAF source confirms that web application firewalls can attach to Application Load Balancers, but none of the provided source files define the ApplicationLoadBalancer props or show `useFirewall` as a property. A copyable Stacktape config example should not introduce an unverified property path.",
+              "suggestedFix": "Either remove the ApplicationLoadBalancer from the basic example and show only the WebAppFirewall resource, or replace the attachment example with a property path that is explicitly present in the provided source files.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "Attach to an HTTP API Gateway, Application Load Balancer, or CDN. Comes with AWS-managed rule sets\n * by default. Costs ~$5/month base + $1/million requests inspected."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“User auth pools — rate-limit brute-force login attempts and block known-bad IP ranges on hosted UI and token endpoints.” and “Inspects requests to the hosted UI and token endpoints.”",
+              "reason": "The source only says `regional` scope applies to User Pools. It does not specify hosted UI endpoints, token endpoints, brute-force login protection, or known-bad IP blocking behavior for Stacktape user auth pools.",
+              "suggestedFix": "Narrow the wording to: “User auth pools can use a `regional` firewall.” If keeping login-abuse guidance, frame it as an AWS WAF use case rather than a Stacktape-specific endpoint claim.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `WebAppFirewallProps` type exposes the response body map on the firewall but does not expose a per-rule custom response body selector. In AWS WAF, individual rule actions reference custom response bodies via a `CustomResponseBodyKey` field — to wire this up, use CloudFormation overrides on the WAF rule action.”",
+              "reason": "The source supports that `customResponseBodies` exists and rule action types are limited, but it does not document the underlying CloudFormation logical structure or confirm that CloudFormation overrides can wire a custom response body selector into this generated WAF rule action safely.",
+              "suggestedFix": "Keep the supported fact and remove or soften the override instruction: “The WebAppFirewallProps type exposes `customResponseBodies`, but the provided Stacktape type does not expose a per-rule custom response body selector.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "customResponseBodies?: CustomResponseBodies;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "action?: 'Allow' | 'Block' | 'Count' | 'Captcha' | 'Challenge';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Use dot-notation paths to override specific properties on any child resource."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A `cdn` firewall can block requests before they reach the origin, which can reduce origin load for global traffic.”",
+              "reason": "The source says `cdn` is for CloudFront-attached resources, but it does not state origin-load reduction or edge-blocking behavior. This is general AWS WAF/CloudFront context, but the paragraph reads as Stacktape-specific behavior.",
+              "suggestedFix": "Frame this as AWS context: “Underneath, AWS WAF on CloudFront evaluates requests at the CloudFront layer, so blocked requests do not continue to the origin.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "scope: 'regional' | 'cdn';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\web-app-firewall.d.ts",
+                  "quote": "#### `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“You can reference the same firewall from multiple target resources, provided each target matches the firewall's scope.”",
+              "reason": "The provided WebAppFirewall source says a firewall can attach to HTTP API Gateway, Application Load Balancer, or CDN, but it does not state whether the same WebAppFirewall resource may be attached to multiple target resources in one stack.",
+              "suggestedFix": "Remove the multi-attachment claim unless the target resource source files or runtime validators confirm it. Safer wording: “Attach a firewall by referencing it from a compatible target resource.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Request sampling (`sampledRequestsEnabled`, defaults to `false`) saves samples of matched requests for inspection in the AWS WAF console.”",
+              "reason": "The source says sampled requests are saved for inspection in the AWS WAF console, but it does not specify “matched requests” at the firewall level. The wording is probably close, but “matched” may over-narrow what is sampled.",
+              "suggestedFix": "Use the source wording: “Request sampling saves samples of requests for inspection in the AWS WAF console.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses the required `<CodeBlock intellisense tabs={[{ label: 'TypeScript' ... }]} />` pattern for Stacktape config examples and does not hand-author YAML Stacktape config.",
+            "The API reference uses `<ApiReference definitionName=\"WebAppFirewallProps\" />`, which matches the provided props type name.",
+            "The draft correctly covers all three `rules` union variants: `managed-rule-group`, `custom-rule-group`, and `rate-based-rule`.",
+            "The pricing line is grounded in the WebAppFirewall source: approximately $5/month base plus $1 per million requests inspected.",
+            "The draft correctly states the default managed rule groups, default action, rate limit range, CAPTCHA/challenge immunity defaults, metrics default, sampled requests default, and referenceable params from the provided type file."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking or medium-severity completeness issues for WebAppFirewallProps. The draft covers the primary properties, acknowledges the documented union variants, and the focused CodeBlock examples demonstrate the sections they appear in.",
+          "issues": [],
+          "positiveFindings": [
+            "All WebAppFirewallProps properties that most readers would reasonably need are mentioned: scope, defaultAction, rules, customResponseBodies, CAPTCHA/challenge immunity, tokenDomains, metrics, and sampled requests.",
+            "The documented rule union is covered with named sections and examples for managed rule groups, custom rule groups, and rate-based rules.",
+            "Important nested rule unions are acknowledged, including regional vs cdn scope, Allow vs Block default action, None vs Count override action, IP vs FORWARDED_IP aggregation, MATCH vs NO_MATCH fallback behavior, and rate-limit actions.",
+            "Each Stacktape configuration example uses <CodeBlock intellisense> with a TypeScript tab and demonstrates the section topic rather than repeating an unrelated scaffold.",
+            "The page includes exactly one ApiReference definitionName=\"WebAppFirewallProps\" and one ReferenceableParams block for web-app-firewall."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\security\\web-application-firewall.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 2, advisory high 0, verifier medium 6"
+}

@@ -1,0 +1,264 @@
+---
+title: 'Remix'
+order: 44
+seoTitle: 'Deploy Remix on AWS | Stacktape Docs'
+seoDescription: 'Deploy Remix apps on AWS with Stacktape: SSR on Lambda, S3 static assets, CloudFront CDN, custom domains, WAF protection, and Vite-based builds.'
+---
+
+# Remix
+
+A Stacktape Remix resource deploys a Remix app with SSR on AWS Lambda, static assets on S3, and a CloudFront CDN. Use it when you want server-rendered Remix on AWS while keeping Stacktape responsible for the supporting infrastructure, including Vite-based builds, custom domains, CDN cache control, and optional WAF protection.
+
+## When to use
+
+A Stacktape Remix resource is the right choice when your frontend is a Remix app that needs server rendering and the file-based routing, loaders, and actions that Remix provides. The resource is designed around the Remix build output: point `appDirectory` at the directory containing `vite.config.ts` (or `remix.config.js`), and Stacktape wires the SSR function, static asset bucket, CDN, and supporting resources.
+
+Common use cases:
+
+- **Server-rendered product apps** — dashboards, e-commerce, portals, and content sites that use Remix loaders and actions for data fetching and mutations
+- **Remix monorepos** — set `appDirectory` to the workspace containing `vite.config.ts`, rather than the repository root
+- **Apps with nested routing** — Remix's route modules and data-loading model map directly to this resource; Stacktape does not alter the routing behavior
+- **Global apps** — the CDN serves static assets from edge locations and routes SSR requests to the regional Lambda function
+
+## When NOT to use
+
+- **Pure static websites** — use [static hosting](/resources/frontend/static-hosting) when your app can be exported as static files and does not need SSR, loaders, or actions.
+- **Containerized custom servers** — use a [web-service](/resources/compute/web-service) when you want to run a custom Node server or another HTTP process in a container.
+- **General backend APIs** — use a [Lambda function](/resources/compute/lambda-function) or [web-service](/resources/compute/web-service) for standalone APIs that are not part of a Remix app.
+- **Apps requiring response streaming or edge SSR** — the Remix resource does not support edge Lambda or response streaming. Use a [web-service](/resources/compute/web-service) with a container if you need streaming responses or a custom server.
+
+## Basic example
+
+The smallest useful Remix config points Stacktape at the app directory containing `vite.config.ts` (or `remix.config.js`). In a single-app repository that is often the repository root (`"."`); in a monorepo it is usually the package or workspace directory for the Remix app.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RemixWeb } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const web = new RemixWeb({
+    appDirectory: './apps/web'
+  });
+
+  return {
+    resources: { web }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`appDirectory` must point to the directory containing `vite.config.ts` (or `remix.config.js`). The default is `"."` (the repository root). Stacktape uses that directory to run the Remix build and then deploys SSR, static assets, and CDN routing for the app.
+
+## Build and dev
+
+A Stacktape Remix resource runs the Remix Vite build from `appDirectory`, and `buildCommand` lets teams replace the default build command when their repository has a custom script. Dev mode also has a small override surface: `dev.command` defaults to `remix vite:dev`, but can be changed when a package manager script is the canonical way to run the app locally.
+
+Use `buildCommand` when your Remix app needs a workspace-aware command such as `pnpm --filter web build` or when the app must run a prebuild step. Leave `buildCommand` unset when a normal Remix Vite build works from `appDirectory`; fewer custom commands make CI and local behavior easier to reason about.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RemixWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    buildCommand: 'pnpm --filter web build',
+    dev: {
+      command: 'pnpm --filter web dev'
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { web } };
+});`
+    }
+  ]}
+/>
+
+`dev.command` only affects `stacktape dev`; it does not change the deployed build command. Use the local command override when your repository expects a package-manager script, a monorepo filter, or another wrapper around `remix vite:dev`. The `dev.workingDirectory` property can also set the working directory for the dev command, relative to the project root.
+
+## Server Lambda
+
+A Stacktape Remix resource serves SSR through a Lambda function. `serverLambda` customizes that SSR function: memory, timeout, logging, and whether the function joins the stack's default VPC to reach VPC resources such as databases or Redis.
+
+The default `serverLambda.memory` is `1024` MB, and the allowed memory range is `128`–`10240` MB. Lambda CPU scales with memory, with `1769` MB corresponding to 1 vCPU. The default `serverLambda.timeout` is `30` seconds, and the maximum timeout for the Remix server Lambda is `30` seconds.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RemixWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    serverLambda: {
+      memory: 2048,
+      timeout: 30
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { web } };
+});`
+    }
+  ]}
+/>
+
+Increase `memory` when SSR is CPU-bound or the app initializes large dependencies. Keep the default when pages render quickly and memory pressure is low. Set `joinDefaultVpc: true` only when the SSR function must access VPC-protected resources; the function loses direct internet access when joining a VPC, while S3 and DynamoDB remain accessible through auto-created VPC endpoints.
+
+## Domains and firewall
+
+A Stacktape Remix resource can attach custom domains to the app's CDN and can associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
+
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. The source requires an existing Route 53 hosted zone in the AWS account. Stacktape can create DNS records and provision free TLS certificates automatically; `customCertificateArn` is only needed for specific certificate requirements, and `disableDnsRecordCreation` is for teams managing DNS elsewhere.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RemixWeb, WebAppFirewall } from 'stacktape';
+
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'cdn'
+  });
+
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    customDomains: [{ domainName: 'www.example.com' }],
+    useFirewall: 'firewall'
+    // [!code focus-end]
+  });
+
+  return { resources: { firewall, web } };
+});`
+    }
+  ]}
+/>
+
+Enable `useFirewall` when the public Remix app needs CDN-level WAF protection. Skip it for internal prototypes or early development stages where WAF rules would add configuration work before there is a clear threat model. Keep the scope precise: this property protects the Remix CDN path and requires a firewall with `scope: 'cdn'`.
+
+## Static files and CDN
+
+A Stacktape Remix resource uploads static assets to S3 and serves the app through CloudFront. Remix's Vite build outputs static assets to `build/client` with fingerprinted files under `assets/`. Stacktape automatically applies aggressive cache headers to fingerprinted files (`Cache-Control: public,max-age=31536000,immutable`) and short-lived headers to other static files (`Cache-Control: public,max-age=0,s-maxage=31536000,must-revalidate`).
+
+`fileOptions` lets teams set custom headers such as `Cache-Control` for uploaded files matching a glob pattern. `cdn` configures cache behavior for SSR routes and specific path patterns. By default, the CDN flushes all cached content on every deploy; set `cdn.disableInvalidationAfterDeploy` to `true` if you manage cache invalidation yourself.
+
+Use `cdn.defaultCachingOptions` when SSR responses need CDN-level caching beyond Remix's own `Cache-Control` headers. Use `cdn.pathCachingOverrides` to override caching for specific URL path patterns. Leave both unset first; Remix and Stacktape already provide a standard split between static assets and SSR responses.
+
+## Connecting resources
+
+`connectTo` gives the Remix SSR function access to other Stacktape resources and injects connection details as environment variables named `STP_[RESOURCE_NAME]_[PARAM]`. Use `connectTo` for resources such as relational databases, buckets, queues, and auth pools; use `iamRoleStatements` only for AWS permissions that are not covered by the resource connection model.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RemixWeb, RelationalDatabase } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: 'postgres-16',
+    instanceClass: 'db.t4g.micro'
+  });
+
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    // [!code focus-start]
+    connectTo: ['mainDatabase'],
+    serverLambda: {
+      joinDefaultVpc: true
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { mainDatabase, web } };
+});`
+    }
+  ]}
+/>
+
+With the resource name `mainDatabase`, the Remix app receives variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`. For the full connection model and injected variables by resource type, see [connecting resources](/configuration/connecting-resources).
+
+## Environment variables
+
+A Stacktape Remix resource can set explicit `environment` variables for the SSR function. Use these for application configuration, feature flags, public service URLs needed by server code, and values produced by directives such as `$ResourceParam()` or `$Secret()`.
+
+Prefer `connectTo` for Stacktape-managed resources because it also handles permissions and, where needed, network access. Use explicit `environment` entries for values that are not resource connections. For sensitive values, reference secrets through the [secrets](/configuration/secrets) and [directives](/configuration/directives) flow instead of hard-coding credentials in config.
+
+## Logging
+
+The Remix server Lambda sends logs to CloudWatch with a default retention of 180 days. For Stacktape log viewing, use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview); lower-level Lambda logging options are available through the `serverLambda.logging` property in the API reference.
+
+Most teams should keep logging enabled for deployed Remix apps because SSR errors, loader failures, and runtime exceptions need CloudWatch logs for diagnosis. Tune logging only when retention, cost, or compliance requirements justify changing the default.
+
+## FAQ
+
+### What does Stacktape create for a Remix app?
+
+A Stacktape Remix resource deploys SSR on Lambda, static assets on S3, and a CloudFront CDN. It also creates a CloudFront Function that rewrites the `Host` header to `x-forwarded-host` so Remix can detect the original request hostname. The resource uses Remix's Vite build output structure (`build/server` for SSR, `build/client` for static assets). See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
+
+### Where should `appDirectory` point?
+
+`appDirectory` should point to the directory containing `vite.config.ts` (or `remix.config.js`). The default is `"."` (repository root). In a monorepo, that usually means the Remix workspace rather than the root. The basic example on this page uses `./apps/web` to make that monorepo shape explicit.
+
+### Can I use a custom domain with Remix?
+
+Yes. Configure `customDomains` on the Remix resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape can create the DNS record and manage the TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+
+### Can I protect a Remix app with AWS WAF?
+
+Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` is `cdn`. This protects the CDN path for the Remix app; it is separate from load-balancer firewall attachment paths used by compute resources.
+
+### Does the Remix resource support response streaming or edge Lambda?
+
+No. Unlike the [Next.js resource](/resources/frontend/nextjs), the Remix resource does not expose `useEdgeLambda` or `streamingEnabled` properties. SSR runs on a regional Lambda function behind CloudFront. If you need streaming responses, consider deploying Remix as a container using a [web-service](/resources/compute/web-service) with a custom server entry.
+
+### How do I run database migrations with Remix on Stacktape?
+
+Use [hooks and scripts](/deployment-and-lifecycle/deployment-scripts-and-hooks). Define an `afterDeploy` hook that runs a migration script with `connectTo` pointing at your database. Stacktape injects connection environment variables automatically. Set `serverLambda.joinDefaultVpc: true` on the Remix resource so the SSR function can reach the database at runtime.
+
+### How does Remix static asset caching work on Stacktape?
+
+Remix's Vite build fingerprints assets under `build/client/assets/`. Stacktape automatically sets `Cache-Control: public,max-age=31536000,immutable` on those files. Other static files get `Cache-Control: public,max-age=0,s-maxage=31536000,must-revalidate`. You can override these defaults using `fileOptions` for custom patterns or `cdn.pathCachingOverrides` for CDN-level tuning.
+
+### How much does hosting Remix on Lambda and CloudFront cost?
+
+AWS bills the underlying services separately: Lambda invocations and duration for SSR, S3 storage and requests for static assets, and CloudFront data transfer and requests for CDN traffic. The provided Stacktape source does not include concrete Remix pricing, so this page avoids quoting list prices. Use [cost dashboards](/managing-costs/dashboards) after deployment to inspect real spend by stack.
+
+### When should I use static hosting instead of the Remix resource?
+
+Use [static hosting](/resources/frontend/static-hosting) when the site can be built into static files and does not need SSR, loaders, actions, or server-side data fetching. Use the Remix resource when runtime Remix behavior — loaders, actions, server rendering — is part of the product. Static hosting is simpler and has fewer moving parts.
+
+### When should I use a web service instead of the Remix resource?
+
+Use a [web-service](/resources/compute/web-service) when you want to run a custom HTTP server in a container, control the server process directly, need response streaming, or want persistent connections. Use the Remix resource when the deployment unit is a standard Remix Vite app and you want Stacktape to manage SSR, static assets, and CDN routing automatically.
+
+## API Reference
+
+<ApiReference definitionName="RemixWebProps" />
+
+## Referenceable parameters
+
+<ReferenceableParams resource="remix-web" />

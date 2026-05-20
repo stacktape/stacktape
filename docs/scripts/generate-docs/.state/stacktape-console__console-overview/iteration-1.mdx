@@ -1,0 +1,207 @@
+---
+title: 'Console Overview'
+order: 122
+seoTitle: 'Stacktape Console Overview — Dashboard, Teams & Monitoring | Stacktape Docs'
+seoDescription: 'Learn how the Stacktape Console helps you manage AWS deployments, track costs, monitor alarms and issues, control team access, and configure guardrails — all from one dashboard.'
+---
+
+# Console Overview
+
+The Stacktape Console is a web application for managing your AWS deployments, teams, and infrastructure. It provides a dashboard with deployment metrics and cost tracking, project and stage management, observability (alarms, issues, logs, metrics), budget alerts, secrets management, guardrails, and team access control. Everything deploys to your own AWS account — the Console is the management layer on top.
+
+## What the Console does
+
+The Stacktape Console organizes your work into organizations, projects, and stages. Each organization groups the people, AWS accounts, and projects that belong together. Projects map to your applications (typically one per repository), and each project can have multiple stages — isolated deployments like `production`, `staging`, or `dev`.
+
+From the Console you can:
+
+- View deployment history, logs, metrics, and costs for every stage
+- Create and manage alarm rules, budget alerts, and notification channels
+- Track runtime errors through the Issues inbox
+- Store secrets and SSM parameters used by your workloads
+- Set guardrails that enforce deployment policies across the organization
+- Connect AWS accounts, custom domains, and Git providers
+- Edit Stacktape configuration with an integrated Monaco-based editor
+- Manage team members with role-based access control
+
+The Console does not replace the [Stacktape CLI](/cli/deploy) — it complements it. Deployments run through the CLI (or through [GitOps](/ci-cd-and-gitops/gitops-with-console)), while the Console gives you visibility and control over what's been deployed.
+
+## Console navigation
+
+The Console sidebar organizes features into four groups. Navigation items are permission-gated — you only see sections your role allows.
+
+| Group | Pages | What it covers |
+|---|---|---|
+| **Top-level** | Overview, Config editor | Dashboard and the [visual config editor](/stacktape-console/visual-config-editor) |
+| **Organization** | Projects, Activity, Users, Costs | Project and stage management, deployment history, [team access](/stacktape-console/team-and-access-control), [cost tracking](/managing-costs/dashboards) |
+| **Monitoring** | Channels, Notifications, Alarms, Budgets, Issues | [Alert channels](/observability/alert-channels), [notification rules](/observability/notifications), [alarm rules](/observability/alarms), [budget alerts](/managing-costs/budgets), [runtime issues](/observability/issues) |
+| **Configuration** | Guardrails, Secrets, SSM Params, AWS Accounts, Domains | [Guardrails](/guardrails/overview), [secrets](/configuration/secrets), SSM parameters, [AWS account connections](/stacktape-console/connecting-your-aws-account), [custom domains](/resources/networking/custom-domains) |
+
+<Info>
+Users with the **Viewer** role see a read-only subset of the Console. The Config editor and management actions are hidden for viewers.
+</Info>
+
+## The Overview dashboard
+
+The Overview page is the default landing page after login. It displays a customizable dashboard with deployment metrics, cost data, and alert status for the selected organization.
+
+### KPI cards
+
+Five headline metrics appear at the top of the dashboard:
+
+- **Total Deployments** — count of deployments in the selected time range, with a sparkline trend
+- **Avg Duration** — average deployment duration in seconds
+- **Error Rate** — percentage of failed deployments
+- **Automation Rate** — percentage of deployments triggered by Git (as opposed to manual CLI or Console runs)
+- **AWS Costs** — current-month AWS spend for the organization
+
+A time range selector lets you scope the data to 7 days, 14 days, 30 days, 90 days, 6 months, or 1 year.
+
+### Dashboard gadgets
+
+Below the KPI cards, the dashboard uses a grid of 12 configurable gadgets. You can drag, resize, and rearrange gadgets in edit mode, or lock the layout for day-to-day use. The layout is saved per organization.
+
+| Gadget | What it shows |
+|---|---|
+| Deployment Frequency | Area chart of daily deployment counts |
+| Recent Deployments | Scrollable list of the latest deployments |
+| Open Issues | Scrollable list of unresolved runtime errors |
+| Recent Alerts | Recent alarm events |
+| Deployments by Runner Type | Breakdown by CLI, CodeBuild, EC2, CI/CD |
+| Deployments by Trigger | Breakdown by GitHub, GitLab, CLI, Console, etc. |
+| AWS Costs by Project | Bar chart of cost per project |
+| Budget Status | Active budget alerts |
+| Deployments by Project | Table of deployment counts per project |
+| AWS Costs by Resource | Bar chart of cost by AWS service |
+| Automation Ratio | Donut chart of manual vs. automated deployments |
+| Deployments by User | Table of deployment counts per team member |
+
+<Tip>
+Use the **Reset layout** button to restore the default gadget arrangement if the dashboard gets cluttered.
+</Tip>
+
+## Walkthrough: first login to deployed stage
+
+This walkthrough covers the path from first login to viewing a deployed stage.
+
+<FlowDiagram steps={[
+  { title: "Sign up and log in", description: "Create an account or sign in. You land on the Overview dashboard." },
+  { title: "Connect an AWS account", description: "Navigate to AWS Accounts in the Configuration section. Follow the guided setup to connect your AWS account via a cross-account IAM role." },
+  { title: "Create a project", description: "Go to Projects and create a new project. Pick a starter project, connect a Git repository, or start from scratch." },
+  { title: "Deploy a stage", description: "Use the CLI (stacktape deploy) or set up GitOps for push-to-deploy. The Console tracks the deployment automatically." },
+  { title: "View your stage", description: "Open the project, select the stage, and explore logs, metrics, costs, resources, and configuration." }
+]} />
+
+After the first deployment, the Overview dashboard populates with deployment data and cost metrics. Subsequent deploys, alarm events, and issues appear automatically.
+
+## Common tasks
+
+### Viewing logs and metrics for a stage
+
+In the Console, navigate to **Projects**, select your project, then select a stage. The stage detail view includes dedicated tabs for logs and metrics pulled from CloudWatch. You can also view logs from the CLI with [`stacktape debug:logs`](/cli/debug-logs).
+
+### Managing secrets
+
+Navigate to **Secrets** under the Configuration section to create, update, or delete secrets stored in AWS Secrets Manager. Secrets created here can be referenced in your Stacktape configuration using the [`$Secret()` directive](/configuration/directives). You need the `secrets:view` permission to see this page and `secrets:manage` to modify values.
+
+### Setting up alarm rules
+
+Navigate to **Alarms** → **Rules** under the Monitoring section. Alarm rules monitor AWS CloudWatch metrics for your resources — Lambda error rates, database CPU, API latency, and more. When a metric crosses the threshold you define, an alert is sent to the [channel](/observability/alert-channels) you specify. The actual CloudWatch alarms are created or updated on the next deployment of each matching stage. See [Alarms](/observability/alarms) for full details.
+
+### Tracking runtime issues
+
+The **Issues** page under Monitoring is an error inbox for your deployed workloads. Stacktape groups repeated runtime errors by fingerprint, project, and stage — showing the error message, stack trace, resource, and occurrence count. Issues require CLI version 3.8.0 or newer and the `issues:view` permission. See [Issues](/observability/issues) for detection details and supported languages.
+
+### Inviting team members
+
+Navigate to **Users** under the Organization section to invite members and assign roles. The Console supports four roles: **Owner**, **Admin**, **Developer**, and **Viewer**. Developer and Viewer roles can be scoped to specific projects. See [Team and access control](/stacktape-console/team-and-access-control) for the full permissions matrix.
+
+### Setting budget alerts
+
+Navigate to **Budgets** → **Rules** under the Monitoring section. Budget alerts can be scoped to specific projects or applied organization-wide. Organization-wide alerts are created in the selected AWS account when you save them. Stack-scoped budgets take effect on the next deployment of matching stacks. See [Budgets](/managing-costs/budgets).
+
+## Roles and permissions
+
+The Console uses four roles to control what each team member can see and do. Permissions are checked at the navigation level — sidebar items are hidden when the current user lacks the required permission.
+
+| Role | Scope | Key capabilities |
+|---|---|---|
+| **Owner** | Organization-wide | Full control. Can delete the organization, manage billing, and transfer ownership. |
+| **Admin** | Organization-wide | Everything except organization deletion. Manages members, AWS accounts, guardrails, and monitoring rules. |
+| **Developer** | Org-wide or project-scoped | Can deploy, manage secrets and configs, delete non-production stages. Cannot manage members or billing. |
+| **Viewer** | Org-wide or project-scoped | Read-only access to projects, logs, costs, and metrics. Cannot see the Config editor or modify any settings. |
+
+<Warning>
+Only Owner and Admin roles are always organization-wide. Developer and Viewer can be restricted to specific projects — useful for contractors or teams that should only access their own services.
+</Warning>
+
+## Troubleshooting
+
+### Cost data is not appearing
+
+AWS Cost and Usage Reports can take up to 24 hours to propagate. If the Costs page or the AWS Costs KPI card on the dashboard shows no data, wait a day after your first deployment. The cost breakdown requires an active AWS account connection.
+
+### Alarms not firing after creating rules
+
+Alarm rules saved in the Console are materialized as CloudWatch alarms on the next deployment of each matching stage. If you create a rule but don't redeploy, the alarm won't exist in AWS yet. Run [`stacktape deploy`](/cli/deploy) for the target stage to activate the alarm.
+
+### Issues page is empty despite errors in logs
+
+Issue detection requires Stacktape CLI version 3.8.0 or newer. Older CLI versions do not add the CloudWatch Logs subscription filters needed for error detection. Redeploy with a current CLI version. Also check that issue detection is enabled for the project and stage in the Issues settings.
+
+### Dashboard gadgets not loading
+
+Dashboard data is scoped to the selected organization. Confirm you have selected the correct organization in the header dropdown. If the organization has no deployments in the selected time range, widgets will be empty — try expanding the time range.
+
+## Related features
+
+- [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) — required before any deployment
+- [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — how the Console organizes your work
+- [Visual config editor](/stacktape-console/visual-config-editor) — Monaco-based editor with IntelliSense
+- [API keys](/stacktape-console/api-keys) — authenticate from the CLI and CI/CD
+- [Team and access control](/stacktape-console/team-and-access-control) — invite users and manage roles
+- [Billing and subscription](/stacktape-console/billing-and-subscription) — plans, invoices, and payment
+- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — auto-deploy on push
+- [Observability overview](/observability/overview) — logs, metrics, alarms, and issues in depth
+
+## FAQ
+
+### What is the Stacktape Console?
+
+The Stacktape Console is a web application that provides a management layer over your AWS deployments. It handles team access, deployment tracking, cost visibility, alarm and budget configuration, secret management, and guardrails — all scoped to your organization, projects, and stages. Deployments still run through the CLI or GitOps; the Console is where you monitor and manage them.
+
+### Do I need the Console to use Stacktape?
+
+No. You can use the Stacktape CLI standalone with [API keys](/stacktape-console/api-keys) for authentication and deploy entirely from your terminal or CI pipeline. However, the Console provides features that the CLI alone does not — the overview dashboard, team management, cost dashboards, alarm and budget rule configuration, the Issues error inbox, guardrails, and the visual config editor.
+
+### Does Stacktape deploy into my own AWS account?
+
+Yes. Stacktape deploys all infrastructure into your AWS account using a cross-account IAM role. The Console is the management interface; your resources, data, and costs stay in your AWS account. See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) and [AWS permissions](/stacktape-console/aws-permissions) for details on the required role.
+
+### How do I connect multiple AWS accounts?
+
+Navigate to **AWS Accounts** under the Configuration section. You can connect multiple AWS accounts to one organization and choose which account to deploy into on a per-stage basis. Each account connection uses its own cross-account IAM role.
+
+### What's the difference between the Console and the CLI?
+
+The CLI is the deployment engine — it packages code, creates CloudFormation stacks, and manages infrastructure lifecycle. The Console is the management layer — it tracks deployments, displays metrics and costs, manages team access, and configures monitoring rules. Most teams use both: the CLI (directly or via GitOps) for deploying, and the Console for everything else.
+
+### Can I customize the overview dashboard?
+
+Yes. The overview dashboard supports 12 gadgets that can be dragged, resized, and rearranged in edit mode. Your layout is saved per organization and persists across sessions. Use the reset button to restore the default arrangement.
+
+### How does role-based access control work?
+
+The Console has four roles: Owner, Admin, Developer, and Viewer. Owner and Admin are always organization-wide. Developer and Viewer can be scoped to specific projects, restricting what the user can see and modify. Navigation items are hidden when the user lacks the required permission. See [Team and access control](/stacktape-console/team-and-access-control).
+
+### How does Stacktape track AWS costs?
+
+Stacktape uses AWS Cost and Usage Reports to attribute spend to your projects and stages. Cost data appears in the Console within 24 hours of incurring charges. The Costs page breaks down spending by project, stage, and AWS service. See [Managing costs](/managing-costs/overview) for budgets and optimization.
+
+### What languages does the Issues error inbox support?
+
+Issue detection is log-pattern based and supports TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP. It looks for common runtime error markers — Lambda invoke errors, unhandled promise rejections, exceptions, tracebacks, panics, and stack-trace lines. Detection requires CLI version 3.8.0 or newer.
+
+### Is there a free tier for the Stacktape Console?
+
+Stacktape offers multiple subscription plans. See [Billing and subscription](/stacktape-console/billing-and-subscription) for current plan details, pricing, and invoice management. AWS infrastructure costs are billed separately by AWS and are visible in the Console's cost dashboards.

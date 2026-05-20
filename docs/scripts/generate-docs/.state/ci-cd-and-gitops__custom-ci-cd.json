@@ -1,0 +1,819 @@
+{
+  "pageId": "ci-cd-and-gitops__custom-ci-cd",
+  "pageRoute": "ci-cd-and-gitops/custom-ci-cd",
+  "startedAt": "2026-05-17T18:56:29.372Z",
+  "updatedAt": "2026-05-17T19:13:39.033Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\ci-cd-and-gitops__custom-ci-cd\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Authentication table is immediately actionable — reader knows exactly where to store the secret in their specific CI provider before writing a single workflow line.",
+            "The 'When NOT to use' section is genuinely opinionated and points to a specific alternative (GitOps with Console), making it a real decision aid rather than filler.",
+            "PR preview + cleanup workflow pair (deploy on open/sync, delete on close) is the most commonly needed CI pattern and it's complete and copy-pasteable.",
+            "The codebuild:deploy vs deploy comparison table is concise and decision-oriented — covers the right criteria (project size, CPU, build environment consistency).",
+            "Troubleshooting section addresses the two most common CI blockers (interactive prompt hang, API key env var) at the top where a first-timer needs them.",
+            "FAQ spans all three required categories: Stacktape-specific (API key auth, stage naming), AWS use-case (rollback behavior, CodeBuild pricing), and comparison (custom CI vs GitOps).",
+            "No marketing language anywhere. 'No raw AWS credentials needed' is stated as a concrete behavior, not a sales pitch.",
+            "The concurrency section with the GitHub Actions concurrency group example closes a real gotcha that would waste 20 minutes of a reader's time.",
+            "'--hotSwap' is introduced in the FAQ as an optimization, not buried — right placement for something most beginners won't need on day one."
+          ],
+          "problems": [
+            "Stage name maximum length is stated as '12 characters' in the Troubleshooting section, which conflicts with internal notes showing the limit is 10 characters. Neither provided source file (deploy/index.ts, login/index.ts) explicitly confirms either value. Publishing the wrong limit will cause confusing failures for readers.",
+            "The claim 'codebuild:deploy automatically skips the interactive confirmation once the remote build starts' is not grounded in any provided source file. Only deploy/index.ts is provided and it doesn't cover the codebuild:deploy flow. This reads as an invented behavior.",
+            "The FAQ answer for 'How do I roll back a failed deployment?' links to '/cli/rollback', but the git-modified file list shows 'docs/docs/cli/cf-rollback.mdx' — suggesting the correct route may be '/cli/cf-rollback'. A broken link in the FAQ is a silent failure for readers.",
+            "The '--disableAutoRollback' flag is mentioned in the FAQ without any grounding in the provided source files. The deploy source shows 'isAutoRollbackEnabled' as an internal flag, but the public CLI flag name is not confirmed.",
+            "Jenkins is listed in the intro sentence as a supported platform but gets no example section, not even a one-liner. Either remove it from the intro list or add a minimal Jenkins pipeline snippet so the reader who uses Jenkins isn't left hanging."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify and correct the stage name character limit (12 vs 10) against the actual CLI validation source before publishing. The Troubleshooting section will be the first place a reader looks when their pipeline fails with a stage name error.",
+            "Either ground the 'codebuild:deploy skips confirmation' claim by reading the codebuild:deploy source, or remove the sentence and let the codebuild:deploy reference page carry that detail.",
+            "Check whether the rollback CLI route is '/cli/rollback' or '/cli/cf-rollback' and fix the FAQ link accordingly.",
+            "Remove '--disableAutoRollback' from the FAQ or verify it is a documented public CLI flag. If it exists, link its reference page. If it doesn't, describe the auto-rollback behavior without implying a disable flag.",
+            "Either add a minimal Jenkins pipeline example (single Jenkinsfile snippet with the deploy command) or remove 'Jenkins' from the opening sentence. A reader scanning the page to confirm their CI is supported will be disappointed.",
+            "The 'Multi-environment patterns' table uses the same region (us-east-1) for all stages. Consider adding a note that teams using multiple regions for redundancy should vary the --region flag per row, or that the region choice is independent of the stage name — this is a common confusion point for first-timers.",
+            "The 'Passing config-level variables per environment' subsection mentions '$CfParam()' but links to '/configuration/directives' without explaining what it does even briefly. A one-sentence explanation ('a directive that lets you read a value from a CloudFormation parameter, so you can pass different values at deploy time') would make this subsection independently useful without requiring a context switch."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent provider-by-provider breakdown (GitHub Actions, GitLab, Bitbucket, CircleCI) with realistic, directly copyable YAML workflow files — an engineer can paste these into a real repo.",
+            "The PR preview environment pattern is complete: deploy on PR open, delete on close, with a cost warning about accumulated infrastructure. Both workflow files are shown, which is exactly what readers need.",
+            "The 'When NOT to use' section with an explicit recommendation to combine GitOps + custom CI is unusually opinionated and genuinely helpful for decision-making.",
+            "The `codebuild:deploy` vs `deploy` comparison table covers the right signals (project size, upload speed, build environment) and is well-suited for citation by AI engines.",
+            "The concurrency group troubleshooting tip is practically important, easy to miss, and comes with a concrete GitHub Actions snippet — this is the kind of hard-won operational detail that saves CI pipeline debugging time.",
+            "FAQ covers all three required categories: Stacktape-specific, AWS mechanics, and comparison questions. The Node.js version and Docker runner answers are concrete and useful."
+          ],
+          "problems": [
+            "Stage name maximum length is stated as '12 characters' in the Troubleshooting section, but the project's CLAUDE.md explicitly states 'Must be at most 10 characters'. This is a concrete factual error that would cause production pipeline failures — a user derives `pr-42-feature` (12 chars) from the docs, deploys, and gets a silent or confusing error.",
+            "The `--disableAutoRollback` flag is mentioned in the rollback FAQ answer but does not appear in the provided `deploy/index.ts` source. The deploy source confirms `isAutoRollbackEnabled` exists at the stack-manager level, but no CLI flag named `--disableAutoRollback` is shown anywhere in the source files. Citing an invented flag in a troubleshooting/FAQ context is a real production hazard.",
+            "`stacktape rollback` is linked as `/cli/rollback` in the FAQ without any source grounding from the provided files. If this command doesn't exist under that name, every engineer who follows the rollback FAQ answer will hit a 404 or an unknown command error.",
+            "The `$CfParam()` directive is mentioned in the 'Passing config-level variables per environment' subsection without source grounding from the provided files, and with no link or example. The section is too thin to act on — readers get a concept name but no path forward.",
+            "`preview-changes` is referenced as a standalone pipeline step with a bash example, but the command is not present in any provided source file. The link to `/cli/preview-changes` is the only backing — if the command name or flags differ from what's shown, engineers will have broken pipeline steps."
+          ],
+          "mandatoryFixes": [
+            "Fix the stage name maximum length: change '12 characters' to '10 characters' in the Troubleshooting section to match the CLAUDE.md constraint. Also update the example `pr-42` note to clarify that stage names including the prefix must stay within 10 characters total.",
+            "Remove `--disableAutoRollback` from the rollback FAQ answer or verify it against the actual CLI source. If the flag exists, cite it properly. If it does not, rewrite the answer: describe that CloudFormation auto-rollback is on by default (confirmed by the `isAutoRollbackEnabled` check in the deploy source) and direct readers to the CLI reference for rollback options rather than naming an unconfirmed flag.",
+            "Verify that `stacktape rollback` exists as a CLI command before linking to `/cli/rollback`. If the command doesn't exist or uses a different name (e.g. `cf:rollback`), correct the link and command name in the FAQ answer."
+          ],
+          "optionalImprovements": [
+            "The 'Passing config-level variables per environment' subsection introduces `$CfParam()` in one sentence with no example and no link to a directives reference page. Either expand it with a minimal two-line example showing a parameterized value and how `--parameter` is passed at deploy time, or link explicitly to `/configuration/directives` and cut the subsection to a one-liner cross-reference rather than leaving it as an orphaned concept.",
+            "The `preview-changes` section would benefit from one sentence explaining whether it requires a deployed stack to compare against, and what happens when run against a brand-new stage — engineers often use this in gated production pipelines where the stack already exists, but the failure mode for a first-deploy is worth calling out.",
+            "The `cancel-in-progress: false` value in the concurrency YAML snippet is shown without explanation. Add a single prose sentence clarifying that `false` queues deployments while `true` cancels the in-flight deploy when a new push arrives — the tradeoff (losing an in-progress deploy vs accumulating a queue) matters for production pipelines.",
+            "Consider adding a sentence noting that `npx stacktape` downloads the CLI binary on first run, which adds 10-30 seconds to the first CI job. Engineers running cost-sensitive pipelines may want to cache the binary or pin to a versioned install instead of relying on `npx` each time."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 5,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The page is organized around real CI/CD jobs readers recognize: authentication, CLI commands, provider examples, PR previews, CodeBuild offload, preview changes, troubleshooting, and FAQ.",
+            "Shell command blocks follow the copy-button rule: each bash block contains one command and no explanatory comments.",
+            "The page includes practical provider-specific examples and a broad FAQ spanning Stacktape-specific, AWS-cost, and comparison questions."
+          ],
+          "problems": [
+            "Many Stacktape-specific claims are not grounded in the provided source files. The sources show deploy internals and interactive login, but do not show STACKTAPE_API_KEY env-var behavior, Console API-key UI locations, GitHub/GitLab/Bitbucket/CircleCI setup mechanics, delete command behavior, codebuild:deploy behavior, preview-changes behavior, rollback flags, Node.js version requirements, or pricing.",
+            "The authentication section overstates source support: the provided login source accepts an apiKey argument and saves it, but the source list does not prove that CI authentication uses STACKTAPE_API_KEY or that no AWS credentials are needed in every CI pipeline.",
+            "The CodeBuild section makes detailed unsupported claims: zipping the project, uploading to S3, running inside the user's AWS account, skipping confirmation, and securely passing the API key are not present in the provided source files.",
+            "Several troubleshooting and FAQ claims are unsupported or too specific for the source list, including 12-character stage limits, CloudFormation UPDATE_IN_PROGRESS failure behavior, Node.js 18+ requirement, CodeBuild per-minute pricing, typical 2-10 minute deployment duration, and dedicated GitHub Action absence.",
+            "Some H2 first paragraphs are not self-contained answer-first snippets. For example, \"Essential CLI flags for CI\" opens with \"Two flags matter\" and does not define Stacktape CI deployment behavior in a standalone way.",
+            "Several sections are recipe-thin: GitHub Actions, GitLab CI, Bitbucket Pipelines, and CircleCI mostly present YAML snippets without enough source-grounded guidance on tradeoffs, runner requirements, or when each pattern is appropriate.",
+            "The page uses console workflow wording such as \"Create an API key in the Stacktape Console under API keys\" without console-app source in the provided list; that violates the instruction to avoid inventing Console navigation flows unless grounded.",
+            "The FAQ is useful for search, but a large share of answers rely on unsourced Stacktape-specific behavior, so the page would be risky for publication under the grounding rules."
+          ],
+          "mandatoryFixes": [
+            "Remove or rewrite every Stacktape-specific claim that is not supported by the provided deploy/login sources, or add the required source files for those claims. In particular, source or narrow claims about STACKTAPE_API_KEY, CI provider secret locations, codebuild:deploy, delete, preview-changes, rollback, Node version, pricing, and stage-name limits.",
+            "Rewrite the authentication section cautiously. Ground it only in the available login source unless additional auth/global-state source is provided; avoid claiming specific env-var behavior or Console navigation paths without supporting source.",
+            "Replace the CodeBuild section with source-grounded wording or require the codebuild:deploy command source. Do not claim S3 upload, AWS-account execution, confirmation behavior, or API-key passing from the current source list.",
+            "Fix H2 opening paragraphs so each section begins with a self-contained 40-75 word paragraph that names the concept explicitly, e.g. \"A Stacktape CI deployment runs the Stacktape CLI from a non-interactive runner...\"",
+            "Remove unsupported numeric claims: 12-character stage maximum, Node.js 18+ requirement, CodeBuild $0.005/min pricing, and typical 2-10 minute deployment duration unless source files proving them are added.",
+            "Avoid Console UI flow details unless console-app source is provided. Use a cautious link-only phrase such as \"managed in the Stacktape Console\" if that is supported elsewhere."
+          ],
+          "optionalImprovements": [
+            "Add a small table comparing `deploy`, `deploy --hotSwap`, and full CloudFormation fallback, grounded in `src/commands/deploy/index.ts`. The source supports hot-swap attempts, fallback to full CloudFormation deploy, and eligible Lambda/container workload updates.",
+            "Add a short \"What deploy does\" section grounded in source: validates guardrails, checks secrets and SSM parameters, packages workloads, prepares a CloudFormation diff, prompts before operation, uploads artifacts, deploys, optionally invalidates CloudFront caches, and prints stack info when invoked from CLI.",
+            "Clarify that `--hotSwap` is an opt-in deploy flag shown in source, and explain the tradeoff carefully: Stacktape attempts hot-swap for eligible Lambda functions and container workloads, but falls back to full CloudFormation deployment when hot-swap is not possible.",
+            "Reduce provider-specific detail unless separate provider docs or source files are provided. Keep one strong GitHub Actions example and make other CI systems a short adaptation table if the source cannot ground their mechanics.",
+            "Make the FAQ less speculative by focusing on sourced deployment behavior, such as hot-swap fallback, full deploy behavior, artifact packaging, CloudFormation diff preview during deploy preparation, and PR-stage cleanup as a user-managed pattern rather than a Stacktape guarantee."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific claims that are not grounded in the two provided source files. The most important risks are authentication mechanics, required CLI flags, CodeBuild deploy behavior, stage-name limits, pricing, and hotswap scope.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Set a single environment variable for authentication… No raw AWS credentials needed.” and “The CLI authenticates using the `STACKTAPE_API_KEY` environment variable.”",
+              "reason": "The provided CLI source does not show `STACKTAPE_API_KEY` authentication. The only authentication-related source provided shows `login` using `globalStateManager.args.apiKey` or an interactive auth flow, then saving the API key. The draft may be correct elsewhere, but it is not grounded in the provided files.",
+              "suggestedFix": "Narrow to what the provided source supports, or cite/include the source that reads `STACKTAPE_API_KEY`. For this source set, say that the CLI can authenticate with an API key and avoid claiming the exact env var or that no AWS credentials are needed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "let apiKey = globalStateManager.args.apiKey;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "if (!apiKey) {\n    // Run interactive auth flow (Google, email signup, email login, or manual API key)\n    const authResult = await runAuthFlow();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "await globalStateManager.saveApiKey({ apiKey });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“`--stage` and `--region` are required for every deploy.”",
+              "reason": "The provided `deploy` command implementation uses resolved global target-stack state, but it does not establish that `--stage` and `--region` must be passed as CLI flags for every deploy. They may be resolved from defaults or config in code not included in the source set.",
+              "suggestedFix": "Avoid saying the flags are required unless the command configuration source is provided. Write that CI commands should pass `--stage` and `--region` explicitly so the pipeline target is unambiguous.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "stage: globalStateManager.targetStack.stage"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.stage}/overview`;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“`codebuild:deploy` automatically skips the interactive confirmation once the remote build starts. It passes your API key to the CodeBuild environment securely.”",
+              "reason": "No `codebuild:deploy` implementation is included in the provided source files. The available `deploy` source only shows local deploy behavior and calls `potentiallyPromptBeforeOperation`; it does not support the draft’s claims about CodeBuild confirmation or API key handling.",
+              "suggestedFix": "Remove these behavior claims or replace them with claims grounded in the `codebuild:deploy` command source. Keep only the link to `/cli/codebuild-deploy` and a cautious statement that CodeBuild-based deploys run the deployment in AWS CodeBuild if that is supported by the command source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "export const commandDeploy = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stage names have a maximum length of 12 characters.”",
+              "reason": "The provided deploy source only warns when the combined stack name is too long and says some resource names will be obfuscated. It does not state a 12-character maximum stage name.",
+              "suggestedFix": "Replace the hard limit with sourced wording: long project+stage names can trigger name obfuscation. If a 12-character stage limit exists, include the validator or type source that states it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (obfuscatedNamesStateHolder.usingObfuscateNames) {\n    tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape itself doesn't charge per deployment — deployments are included in your subscription. If you use `codebuild:deploy`, CodeBuild charges per build minute (roughly $0.005/min for the default compute type in US regions). A typical deployment takes 2–10 minutes.”",
+              "reason": "The provided source files contain no pricing, subscription, CodeBuild compute type, or deployment-duration facts. This is specific pricing guidance and should not be invented without a pricing source.",
+              "suggestedFix": "Remove the concrete pricing and timing claims, or replace them with sourced pricing context from the relevant pricing files. A safe unsourced version would say AWS CodeBuild billing is separate and depends on build duration and compute type.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "requiresSubscription: true"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, Stacktape enables CloudFormation auto-rollback — if a deployment fails, the stack automatically reverts to its last working state.”",
+              "reason": "The deploy source checks `stackManager.isAutoRollbackEnabled` during error cleanup, but it does not establish the default value or guarantee that a failed deployment reverts to the last working state.",
+              "suggestedFix": "Say that deploy cleanup behavior checks whether auto-rollback is enabled, and only document the default if the command options or stack manager source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (stackManager.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {\n      await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `--hotSwap` for code-only changes to Lambda functions and container workloads — this bypasses CloudFormation and updates functions directly.”",
+              "reason": "The deploy source supports hotswap for Lambda functions and ECS container workloads when possible, but it explicitly falls back to a full CloudFormation deploy when hotswap is not possible. The wording overstates the guarantee and says “updates functions directly” even though container workloads are updated through ECS service/task-definition logic.",
+              "suggestedFix": "Write that `--hotSwap` attempts a faster update for eligible Lambda functions and container workloads; when Stacktape determines hotswap is not possible, it runs a full CloudFormation deploy.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (!useHotswap) {\n      // in this case we are falling back to standard Cloudformation deploy\n      tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.');"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const results = await Promise.all([\n    ...containerWorkloadsToBeUpdated.map(updateEcsService),\n    ...lambdaFunctionsToBeUpdated.map(updateFunctionCode)\n  ]);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft contains many CI-provider workflow examples and provider UI locations, such as GitHub Actions repository secrets, GitLab masked variables, Bitbucket repository variables, and CircleCI project environment variables.",
+              "reason": "These are largely third-party CI facts, not Stacktape behavior, but they are not grounded in the provided Stacktape source files. They should be checked against current provider docs if the page is expected to verify every technical statement from provided sources only.",
+              "suggestedFix": "Keep provider examples if the documentation policy allows common third-party CI knowledge, or add provider documentation sources. Avoid presenting provider UI paths as Stacktape-sourced facts.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses only routes that appear in the provided documentation navigation index.",
+            "The draft does not contain forbidden hand-authored Stacktape YAML config, plain-object `StacktapeConfig`, or fenced TypeScript Stacktape configuration examples.",
+            "The draft correctly links `deploy`, `delete`, `preview-changes`, `codebuild:deploy`, `rollback`, and `debug`-adjacent documentation using known route names where present.",
+            "The hotswap FAQ partially aligns with the deploy source by naming Lambda functions and container workloads as hotswap targets, though the guarantee needs narrowing."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific claims that are not grounded in the two provided source files. The highest-risk issues are around authentication mechanics, CLI flags, CodeBuild behavior, rollback behavior, and stage-name constraints.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The CLI authenticates using the `STACKTAPE_API_KEY` environment variable… No raw AWS credentials needed… the `STACKTAPE_API_KEY` is the only credential required.”",
+              "reason": "The provided login source shows authentication through `globalStateManager.args.apiKey` or an interactive auth flow, then saving the API key. It does not document `STACKTAPE_API_KEY`, CI env-var discovery, or the claim that no AWS credentials are needed in all custom CI/CD contexts.",
+              "suggestedFix": "Narrow the wording to what the provided source proves, or cite/add the source that maps `STACKTAPE_API_KEY` into CLI args. For example: “Authenticate the CLI with an API key. In non-interactive CI, pass the API key through the supported CLI configuration mechanism documented for your Stacktape CLI version.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "let apiKey = globalStateManager.args.apiKey;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "if (!apiKey) {\n    // Run interactive auth flow (Google, email signup, email login, or manual API key)\n    const authResult = await runAuthFlow();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“`--stage` and `--region` are required for every deploy” and the examples imply those are the only required deployment target flags.",
+              "reason": "The provided deploy source uses `globalStateManager.targetStack` and `globalStateManager.stage`, but it does not define CLI flag requirements. The draft also says `--projectName` is optional when config specifies a project name, which is not supported by the provided deploy source.",
+              "suggestedFix": "Remove or soften the requirement unless `src/config/cli/commands.ts` or related argument-parsing source is provided. Say that CI examples pass `--stage` and `--region` explicitly to make the deployment target unambiguous.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.stage}/overview`;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“`codebuild:deploy` automatically skips the interactive confirmation once the remote build starts. It passes your API key to the CodeBuild environment securely.”",
+              "reason": "No `codebuild:deploy` command source is provided. The deploy source shows interactive confirmation is handled by `potentiallyPromptBeforeOperation`, but does not establish CodeBuild behavior, auto-confirm behavior, or API-key passing semantics.",
+              "suggestedFix": "Either provide and verify against the `codebuild:deploy` source, or reduce the section to a cautious comparison: “Use `codebuild:deploy` when you want the deployment to run in AWS CodeBuild; see the CLI reference for command-specific behavior.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Stage names have a maximum length of 12 characters.”",
+              "reason": "The provided deploy source does not show a 12-character stage-name limit. It only warns when the combined project and stage stack name is too long and says some resource names will be obfuscated.",
+              "suggestedFix": "Replace with the grounded fact: “If the generated stack name is too long, Stacktape may obfuscate some resource names.” Avoid stating a specific stage-name maximum unless the validation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (obfuscatedNamesStateHolder.usingObfuscateNames) {\n    tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“By default, Stacktape enables CloudFormation auto-rollback — if a deployment fails, the stack automatically reverts to its last working state… To disable auto-rollback, pass `--disableAutoRollback`.”",
+              "reason": "The deploy source checks `stackManager.isAutoRollbackEnabled`, but the provided source does not establish the default value or the `--disableAutoRollback` flag name. This is a Stacktape-specific behavior claim that affects how readers debug failed deployments.",
+              "suggestedFix": "Keep only the sourced behavior: “When auto-rollback is enabled, Stacktape cleans up artifacts for rolled-back deployments.” Add the default and flag only after verifying the CLI argument source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (stackManager.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {\n      await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `--hotSwap` for code-only changes to Lambda functions and container workloads — this bypasses CloudFormation and updates functions directly.”",
+              "reason": "The deploy source supports hot-swap for eligible Lambda functions and container workloads, but it also shows hot-swap may be impossible and then falls back to a full CloudFormation deploy. The draft overstates the behavior as guaranteed for code-only changes.",
+              "suggestedFix": "Say: “`--hotSwap` attempts a hot-swap update for eligible Lambda functions and container workloads. If Stacktape decides hot-swap is not possible, it falls back to a full CloudFormation deploy.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (!useHotswap) {\n      // in this case we are falling back to standard Cloudformation deploy\n      tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.');"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "// this includes web-services, private-services and worker-services\n  const containerWorkloadsToBeUpdated = ("
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each PR preview stage is a full independent stack with its own databases, functions, and containers.”",
+              "reason": "The provided deploy source refers to a target stack and deployed stack metadata, but it does not establish that every stage is a full independent stack or that every PR preview necessarily creates independent databases, functions, and containers. The cost warning may be reasonable, but the Stacktape-specific independence claim needs configuration/stage source.",
+              "suggestedFix": "Narrow to: “A PR preview stage can create real AWS resources for whatever your Stacktape config defines. Delete preview stages on PR close to avoid unused infrastructure.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "message: {\n      text: `Deploying stack ${globalStateManager.targetStack.stackName}${useHotswap ? ' (using hotswap)' : ''}.`,\n      type: 'progress'\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`preview-changes` shows the CloudFormation diff without actually deploying.”",
+              "reason": "The deploy source computes a CloudFormation template diff during deploy preparation, but no `preview-changes` command source is provided. The statement may be true, but it is not grounded in the provided source files.",
+              "suggestedFix": "Provide the `preview-changes` command source or rewrite as a link-only recommendation without describing unsupported command internals.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const cfTemplateDiff = templateManager.getOldTemplateDiff();"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids forbidden hand-authored Stacktape YAML configuration examples; the YAML blocks are CI provider workflow files, not Stacktape config.",
+            "The draft uses valid cross-link routes from the provided navigation index, including `/cli/deploy`, `/cli/delete`, `/cli/codebuild-deploy`, `/ci-cd-and-gitops/gitops-with-console`, and `/ci-cd-and-gitops/stacks-per-git-branch-pattern`.",
+            "The draft correctly describes sourced deploy behavior that Stacktape packages workloads, uploads artifacts, deploys, sends deployment notifications, and can run hot-swap updates for Lambda functions and container workloads when hot-swap is selected and possible."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no primary Stacktape config type to walk for this page, and the draft contains no Stacktape `<CodeBlock intellisense>` examples to evaluate for configurational demonstrativeness. The main audit risk is that the page makes several CLI behavior claims that are not auditable from the two provided source files, but those fall under factual/source grounding rather than API completeness.",
+          "issues": [],
+          "positiveFindings": [
+            "No hand-authored Stacktape YAML configuration examples were found; the YAML blocks are CI provider workflow files, not Stacktape config.",
+            "No forbidden plain-object `StacktapeConfig` style examples were found.",
+            "No fenced TypeScript Stacktape configuration examples were found.",
+            "The page distinguishes direct `deploy` usage from `codebuild:deploy` conceptually, which fits the CI/CD page scope, although the provided sources do not include `codebuild:deploy` implementation details.",
+            "PR-per-stage cleanup is covered and linked to the stacks-per-git-branch pattern, matching the section guidance for custom CI/CD."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\ci-cd-and-gitops__custom-ci-cd\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Strong 'When to use / When NOT to use' section with concrete, non-circular criteria — tells the reader exactly when custom CI/CD adds value vs. when GitOps is enough.",
+            "All major CI providers (GitHub Actions, GitLab CI, Bitbucket Pipelines, CircleCI) get realistic, copyable workflow YAML examples, not toy snippets.",
+            "The PR preview environment pattern (deploy on open, delete on close) is fully worked out with two separate workflow files and a cost-awareness warning — this is exactly what a new user needs.",
+            "CLI flags section (--autoConfirmOperation, --hotSwap, --disableAutoRollback) gives each flag a grounded rationale, a working command, and an explicit recommendation for when to enable or skip it — this is decision-support, not just reference.",
+            "The codebuild:deploy vs deploy decision table maps scenarios to commands clearly and names the cost difference (CodeBuild charges per build minute) without guessing at dollar figures.",
+            "FAQ spans all three required categories: Stacktape-specific (API key setup, combining with GitOps), AWS-service mechanics (CloudFormation failure behavior, CodeBuild cost), and choosing/comparison (custom CI vs GitOps, codebuild:deploy vs deploy).",
+            "Concurrency control section calls out the CloudFormation serialization constraint and shows the GitHub Actions concurrency group with the correct cancel-in-progress: false setting — a real gotcha that most CI guides ignore.",
+            "No Stacktape config YAML violations: all fenced YAML blocks are CI provider workflow files, not Stacktape resource configs. No defineConfig or class-based config is needed on this page, and the page correctly avoids inventing one."
+          ],
+          "problems": [
+            "Stage name maximum length is stated as '12 characters' in both the --stage section and the troubleshooting section, but project documentation (CLAUDE.md/AGENTS.md) consistently states the limit is 10 characters. This is a concrete factual claim users will rely on when naming PR stages, and the two sources directly contradict.",
+            "The page links to '/cli/rollback' in two places (--disableAutoRollback section and FAQ), but the git status shows the actual CLI page file is 'docs/docs/cli/cf-rollback.mdx', meaning the correct link is '/cli/cf-rollback'. A broken internal link leaves users who need rollback help stranded.",
+            "The troubleshooting 'Concurrent deploys to the same stage' entry is nearly a verbatim repeat of the 'Concurrency control' subsection under GitHub Actions. In a troubleshooting section the right move is a one-liner with a back-reference, not a full re-explanation.",
+            "The --region flag is described as something to 'pass explicitly' but the page never states what happens if it is omitted — whether the CLI errors out or falls back to a default. A first-time user who forgets --region in a CI command has no way to predict the outcome from this page."
+          ],
+          "mandatoryFixes": [
+            "Fix stage name maximum length: the page states '12 characters' in the --stage section ('Stage names must be lowercase alphanumeric with dashes, at most 12 characters long') and again in the troubleshooting section. Project documentation specifies 10 characters. Update both occurrences to the correct limit once confirmed against the authoritative source.",
+            "Fix broken internal links: '/cli/rollback' appears twice (in the --disableAutoRollback section and in the FAQ answer for CloudFormation failure behavior). The actual CLI doc file is 'cf-rollback.mdx', so the correct link path is '/cli/cf-rollback'. Update both references."
+          ],
+          "optionalImprovements": [
+            "Trim the troubleshooting 'Concurrent deploys' entry to a one-sentence summary with an anchor link back to the 'Concurrency control' subsection under GitHub Actions — the current duplication adds length without adding information.",
+            "Add a one-sentence note on --region behavior when omitted (errors out, or uses a configured default) so users who forget the flag in a new pipeline know what to expect without trial-and-error.",
+            "The GitLab 'when: manual' production gate is a good pattern but uses a CI-provider term ('resource groups') without a link or one-sentence gloss. Either link to GitLab docs or drop the mention — a new user won't know where to configure it.",
+            "Consider adding a brief note about caching the npx stacktape binary across CI runs (e.g. actions/cache or similar) to avoid re-downloading on every pipeline run — this is a common first question once users have the basic flow working.",
+            "The multi-environment pattern table maps branches to stages but doesn't mention that the --projectName should stay consistent across all stages of the same project — easy to miss if a team names things ad hoc in their pipeline scripts."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent decision-support framing: the 'When to use' / 'When NOT to use' sections are concrete and opinionated, including the valuable 'combine both' hybrid pattern.",
+            "Every major CI provider (GitHub Actions, GitLab, Bitbucket, CircleCI) gets a working, copy-pastable example — not just the market-leader. The GitLab `when: manual` approval gate pattern is a production-relevant detail that most doc pages omit.",
+            "The concurrency-control section (CloudFormation serialization + GitHub Actions `concurrency` groups) is exactly the gotcha a real team hits on their first shared-stage deploy and rarely finds documented.",
+            "Shell code blocks correctly contain exactly one command each. No multi-command-in-one-block violations.",
+            "The fenced YAML blocks are CI workflow files (GitHub Actions, GitLab CI, etc.), not Stacktape config — correctly used as plain fenced blocks.",
+            "FAQ covers all three required question categories: Stacktape-specific, AWS-service questions (CodeBuild cost, CloudFormation failure behavior), and comparison questions (custom CI vs GitOps, deploy vs codebuild:deploy).",
+            "The `--hotSwap` fallback behavior (auto-falls back to full CloudFormation deploy when not all changes are hot-swappable) is described accurately and matches the source: the deploy command warns 'Hot-swap not possible; running full CloudFormation deploy.'",
+            "No marketing language anywhere on the page.",
+            "The PR preview delete-on-close pattern with a `<Warning>` about accumulated AWS charges is practical, production-relevant guidance that saves real money."
+          ],
+          "problems": [
+            "Stage name character limit is stated as 12 characters in two separate places ('at most 12 characters long' in the Essential CLI flags section, 'maximum length of 12 characters' in Troubleshooting), but the project's own CLAUDE.md deploy guidance states the limit is 10 characters. The provided source files do not define the numeric limit explicitly, so neither value is source-grounded. If the true limit is 10, a reader who creates an 11- or 12-character stage name based on this page will hit an opaque error in production.",
+            "The `preview-changes`, `codebuild:deploy`, and `stacktape rollback` commands are referenced with behavioral descriptions but are absent from the provided source files. The descriptions are plausible but unverifiable from the given source, and a wrong behavioral claim (e.g. about what `preview-changes` packages or how `codebuild:deploy` streams logs) could mislead.",
+            "The `--projectName` flag is described as 'optional when your configuration file specifies a project name' — this is not verifiable in the provided source files. If the flag is in fact required in some contexts not covered here, the reader will get an error.",
+            "The hot-swap eligibility for 'multi-container workloads' is accurate per the source (`allContainerWorkloads`) but the page also links to 'multi-container-workload' page specifically. The source shows hot-swap applies to web-services, private-services, and worker-services (all container workloads), not only the `MultiContainerWorkload` resource — the link may send readers to the wrong doc."
+          ],
+          "mandatoryFixes": [
+            "Verify and correct the stage name character limit. The page states 12 characters in two places; the project's CLAUDE.md states 10. Locate the authoritative validation code (likely in the config-manager or CLI arg-parsing layer) and set the single correct number everywhere. A wrong limit here causes silent production failures."
+          ],
+          "optionalImprovements": [
+            "Add a source-grounded note on what 'hot-swappable' means for container workloads — the source shows it covers web-services, private-services, and worker-services (via `allContainerWorkloads`), not only resources of type `MultiContainerWorkload`. Update the link or the description accordingly to avoid confusion.",
+            "The `codebuild:deploy` section says 'The API key is passed to the CodeBuild environment so the remote build can authenticate' and 'The build progress is streamed back via CloudWatch logs' — these behavioral claims need grounding in the `codebuild:deploy` source. If they are correct, add a brief note on what IAM permissions the CodeBuild role requires, as this is the first thing teams hit.",
+            "The GitLab 'variables' block pattern shown in the multi-stage pipeline example is technically redundant if `STACKTAPE_API_KEY` is set as a group- or project-level CI/CD variable in GitLab — it's not required at the job level. Add a one-line note clarifying this avoids confusion for GitLab users.",
+            "Consider a brief note on Node.js version requirements for `npx stacktape` — every CI example pins `node-version: '20'` without explanation. If older versions (e.g. 18) work fine, say so; if 20+ is required, say that too. Readers copy these versions verbatim into their own pipelines.",
+            "The `--disableAutoRollback` section could note that the `UPDATE_FAILED` state also prevents future deploys until manually resolved (either via rollback or a corrective deploy) — that's the actual pain point engineers face and is implicit in the source's `UPDATE_FAILED` branch handling."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, specific, and suitable for search snippets.",
+            "Structure is easy to scan: use cases, authentication, CI flags, provider examples, CodeBuild comparison, troubleshooting, and FAQ are in a practical order.",
+            "Provider workflow examples are copyable and avoid the forbidden Stacktape-config YAML pattern because they are CI provider YAML, not Stacktape resource configuration.",
+            "The page includes useful decision support for custom CI/CD vs GitOps, deploy vs codebuild:deploy, hot-swap, and preview stages."
+          ],
+          "problems": [
+            "Many Stacktape-specific claims are not grounded in the provided source files. The provided source covers deploy/login behavior only; it does not substantiate GitHub Actions, GitLab, Bitbucket, CircleCI, delete, preview-changes, codebuild:deploy, API key Console paths, provider secret-store locations, or multi-region behavior.",
+            "Authentication is over-specified from unsupported sources. The provided login source shows an API key argument and interactive auth flow, but it does not prove that the CLI reads STACKTAPE_API_KEY, exits in non-interactive CI when missing, or that API keys are created under the linked Console route.",
+            "Several CLI flag claims are unsupported or only partially supported by the provided deploy source. `--hotSwap` fallback is grounded, but `--autoConfirmOperation`, `--disableAutoRollback`, `--stage`, `--region`, `--projectName`, `delete`, `rollback`, and `preview-changes` behavior are not proven by the included files.",
+            "The stage-name constraints are stated too concretely. The deploy source only supports warning that long project+stage names can cause obfuscated resource names; it does not prove lowercase alphanumeric-with-dashes or a 12-character maximum.",
+            "The CodeBuild section is not grounded in source. No `codebuild:deploy` command source is provided, so claims about zipping, S3 upload, CodeBuild execution, CloudWatch log streaming, API key propagation, and matching deployment output should be removed or sourced.",
+            "The GitHub/GitLab integration requirement is not satisfied. The instructions say to ground GitHub or GitLab mechanics in console-app/server/lambdas/github-app source where available, but those sources are not provided and the page still describes mechanics confidently.",
+            "FAQ contains unsupported concrete claims, including Lambda-only deploys taking 1-3 minutes, hot-swap completing in seconds, no dedicated GitHub Action, Stacktape adding no per-deployment charges, and Docker runner requirements.",
+            "Some H2 first paragraphs are too short or not fully self-contained for extraction, especially sections that begin directly with instructions like `Create .github/workflows/deploy.yml` or `Add to .gitlab-ci.yml`.",
+            "The page is useful as a general CI recipe, but it repeatedly exceeds the authority of the supplied source files, which is a publication blocker under the stated grounding rules."
+          ],
+          "mandatoryFixes": [
+            "Remove or source every Stacktape-specific claim not supported by the provided files. In this source set, keep deploy behavior grounded in `src/commands/deploy/index.ts` and login behavior grounded in `src/commands/login/index.ts`; write cautiously where sources are missing.",
+            "Rewrite the Authentication section so it only claims what the provided login source proves, or add the source that proves `STACKTAPE_API_KEY`, non-interactive CI failure behavior, and Console API-key management.",
+            "Delete or narrow unsupported flag sections for `--autoConfirmOperation`, `--disableAutoRollback`, `--stage`, `--region`, and `--projectName` unless their CLI argument definitions or command sources are added.",
+            "Replace the stage-name rule with the grounded fact: when the combined project and stage stack name is too long, Stacktape warns that some resource names will be obfuscated. Do not state the 12-character/lowercase constraint without source.",
+            "Remove the `codebuild:deploy`, `preview-changes`, `delete`, and `rollback` behavior claims unless the corresponding CLI sources are provided.",
+            "Do not describe GitHub or GitLab integration mechanics as Stacktape behavior unless console-app/server/lambdas/github-app or other relevant source files are supplied. Keep provider YAML examples framed as generic CI examples, not verified Stacktape integration mechanics.",
+            "Remove unsupported FAQ claims about exact deployment durations, hot-swap duration in seconds, no dedicated GitHub Action, Stacktape pricing behavior, and multi-region stacks unless sources are added.",
+            "Make each H2 section's first paragraph self-contained by naming the concept explicitly, for example `A GitHub Actions workflow can run the Stacktape CLI from a Node.js runner...` instead of opening only with a file path instruction."
+          ],
+          "optionalImprovements": [
+            "Add a compact table separating source-grounded deploy facts from CI-provider examples, so readers can distinguish Stacktape behavior from generic CI setup.",
+            "Link the first mention of `stacktape debug:logs` only if troubleshooting logs are added; otherwise avoid introducing log commands not covered by the page.",
+            "Trim repeated custom CI/CD vs GitOps guidance between the main body and FAQ to keep the page tighter.",
+            "If more CLI sources are added, include a small command matrix for `deploy`, `delete`, `preview-changes`, and `codebuild:deploy` with grounded use cases and constraints."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape-specific claims that are not supported by the provided source files, and a few claims directly diverge from the deploy implementation. The main risks are documenting CI authentication, stage-name limits, hot-swap coverage, CodeBuild behavior, preview behavior, and deployment timing beyond what the provided sources establish.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“The `--hotSwap` flag attempts a faster deployment for code-only changes by updating Lambda functions and multi-container workloads directly…”",
+              "reason": "The provided deploy source shows hot-swap updating Lambda functions and container workloads derived from `configManager.allContainerWorkloads`, with an inline comment saying that includes web-services, private-services, and worker-services. The source does not support singling out multi-container workloads as the container hot-swap target.",
+              "suggestedFix": "Replace with source-grounded wording: “Hot-swap updates eligible Lambda functions and container workloads such as web services, private services, and worker services directly when Stacktape determines the stack changes are hot-swappable.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "// this includes web-services, private-services and worker-services\n  const containerWorkloadsToBeUpdated = (\n    await Promise.all(configManager.allContainerWorkloads.map((workload) => getECSHotswapInformation({ workload })))"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const lambdaFunctionsToBeUpdated = (\n    await Promise.all(\n      configManager.allLambdasEligibleForHotswap.map((lambdaProps) =>\n        getLambdaFunctionHotswapInformation({ lambdaProps })\n      )\n    )\n  ).filter(({ needsUpdate }) => needsUpdate);"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stage names must be lowercase alphanumeric with dashes, at most 12 characters long.” and “Stage names have a maximum length of 12 characters…”",
+              "reason": "The provided source only shows Stacktape warning when the combined project and stage stack name is too long and some resource names are obfuscated. It does not establish a 12-character stage limit or the lowercase/dash validation rule.",
+              "suggestedFix": "Remove the numeric stage-name rule unless a higher-priority source file with that validation is provided. Keep only the grounded warning: long project+stage combinations may cause some AWS resource names to be obfuscated.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (obfuscatedNamesStateHolder.usingObfuscateNames) {\n    tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape CLI reads the `STACKTAPE_API_KEY` environment variable for authentication. If no API key is found and the environment is non-interactive (as in CI), the CLI exits with an error.”",
+              "reason": "The provided login source shows authentication through `globalStateManager.args.apiKey` or an interactive auth flow. It does not show the `STACKTAPE_API_KEY` environment variable or non-interactive CI exit behavior.",
+              "suggestedFix": "Narrow the authentication section to what the provided source supports, or cite the source that maps `STACKTAPE_API_KEY` into CLI authentication. For this source set, say that `login` can accept an API key argument or run the interactive auth flow.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "let apiKey = globalStateManager.args.apiKey;\n\n  if (!apiKey) {\n    // Run interactive auth flow (Google, email signup, email login, or manual API key)\n    const authResult = await runAuthFlow();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The API key links the CLI to your Stacktape account and connected AWS account. Deployments run through the AWS account you've connected in the Stacktape Console.”",
+              "reason": "The provided source confirms the CLI initializes the Stacktape API client with an API key and fetches user/org data during login, but it does not support the claim about connected AWS account selection or deployment routing through a Console-connected AWS account.",
+              "suggestedFix": "Limit the claim to authentication: “The API key authenticates the CLI with your Stacktape user and organization.” Only add connected-AWS-account behavior if supported by Console or AWS account source files.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "await globalStateManager.saveApiKey({ apiKey });\n    await stacktapeTrpcApiManager.init({ apiKey });\n    const userData = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `--autoConfirmOperation` flag automatically confirms prompts during deploy or delete operations…” and the related troubleshooting claim that missing it blocks in non-TTY CI.",
+              "reason": "The deploy source shows Stacktape may prompt before an operation, but the provided source does not define the `--autoConfirmOperation` flag, show delete behavior, or establish the non-TTY blocking behavior.",
+              "suggestedFix": "Keep a cautious deploy-only statement if the CLI flag source is unavailable: “Deploy may prompt before applying changes; CI pipelines commonly pass an auto-confirm flag when supported by the CLI.” Prefer citing the CLI command source before documenting the exact flag and delete behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The `codebuild:deploy` section claims the CLI zips the project, uploads it to S3, starts CodeBuild in the AWS account, streams build progress via CloudWatch logs, and passes the API key to the CodeBuild environment.",
+              "reason": "No CodeBuild command source is included. The provided deploy source only covers local deploy artifact packaging, CloudFormation deployment, and artifact upload for the normal deploy command; it does not support the detailed `codebuild:deploy` mechanics.",
+              "suggestedFix": "Replace the detailed mechanics with a narrow comparison unless the `src/commands/codebuild-deploy` source is provided. Keep only the cross-link and a high-level statement that `codebuild:deploy` is a separate CLI command.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "export const commandDeploy = async () => {\n  await initializeAllStackServices({\n    commandRequiresDeployedStack: false,\n    commandModifiesStack: true,\n    loadGlobalConfig: true,\n    requiresSubscription: true\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command packages your workloads, resolves all resources, and generates a CloudFormation change set showing which resources would be created, updated, replaced, or deleted — without actually deploying.”",
+              "reason": "The provided source does not include the `preview-changes` command. The deploy source shows packaging, resource resolution, template preparation, and template diff for deploy, but it does not establish preview command behavior or CloudFormation change-set generation.",
+              "suggestedFix": "Do not describe `preview-changes` internals from the deploy source. Say only that `preview-changes` previews deployment changes and link to `/cli/preview-changes`, or provide the command source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: true });\n  await calculatedStackOverviewManager.resolveAllResources();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await templateManager.prepareForDeploy();\n\n  const cfTemplateDiff = templateManager.getOldTemplateDiff();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS CloudFormation tracks infrastructure as a stack. When a deployment fails mid-update, auto-rollback (enabled by default in Stacktape) reverts the stack to its previous working state.”",
+              "reason": "The provided deploy source checks `stackManager.isAutoRollbackEnabled` when deciding whether to delete rolled-back deployment artifacts, but it does not establish that auto-rollback is enabled by default or fully describe the rollback behavior as written.",
+              "suggestedFix": "Narrow to the source: “When auto-rollback is enabled and a non-monitoring deploy error occurs, Stacktape deletes artifacts from the rolled-back deploy.” Only state the default if the stack manager or CLI flag source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (stackManager.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {\n      await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();\n    }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses only valid documentation routes from the provided navigation index for its internal links.",
+            "The page correctly links the first mentions of `deploy`, `delete`, `codebuild:deploy`, `preview-changes`, and `rollback` to existing CLI reference routes.",
+            "The draft avoids forbidden Stacktape configuration examples: there are no hand-authored Stacktape YAML config blocks, no `StacktapeConfig` typed examples, and no fenced TypeScript Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is useful and uses valid site routes, but several Stacktape-specific operational claims are not grounded in the provided source files. The biggest risks are authentication behavior, stage-name constraints, CodeBuild deploy internals, preview-changes behavior, and deployment timing numbers.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape CLI reads the `STACKTAPE_API_KEY` environment variable for authentication. If no API key is found and the environment is non-interactive (as in CI), the CLI exits with an error.”",
+              "reason": "The provided authentication source only shows the login command using `globalStateManager.args.apiKey` and then falling back to an interactive auth flow. It does not show `STACKTAPE_API_KEY`, non-interactive CI detection, or the described error behavior.",
+              "suggestedFix": "Narrow the claim to what is sourced, or require the CLI/global state source that proves `STACKTAPE_API_KEY` support. For this draft, say CI should provide an API key to the Stacktape CLI, without specifying the exact lookup/error behavior unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "let apiKey = globalStateManager.args.apiKey;\n\n  if (!apiKey) {\n    // Run interactive auth flow (Google, email signup, email login, or manual API key)\n    const authResult = await runAuthFlow();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stage names must be lowercase alphanumeric with dashes, at most 12 characters long.” and the troubleshooting repeat of the same 12-character/lowercase constraint.",
+              "reason": "The provided source does not define stage-name validation rules. The deploy source only supports a narrower warning: long combined project+stage stack names can cause obfuscated resource names.",
+              "suggestedFix": "Replace the validation rule with the sourced statement: if the combined project name and stage name makes the stack name too long, Stacktape warns that some resource names will be obfuscated. Do not state a 12-character limit unless the stage validation source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (obfuscatedNamesStateHolder.usingObfuscateNames) {\n    tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The CLI zips your project, uploads it to S3, then starts a CodeBuild build that runs the deployment inside your AWS account. The build progress is streamed back via CloudWatch logs. The API key is passed to the CodeBuild environment so the remote build can authenticate.”",
+              "reason": "No `codebuild:deploy` implementation source is provided. The deploy source shows local packaging, artifact upload, and CloudFormation deployment, but it does not support the CodeBuild-specific mechanics described here.",
+              "suggestedFix": "Keep the sourced distinction at a high level: `codebuild:deploy` runs deployment using AWS CodeBuild. Remove the zip/S3/log-stream/API-key transfer mechanics unless the `src/commands/codebuild-deploy` source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: true });\n  await calculatedStackOverviewManager.resolveAllResources();"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The command packages your workloads, resolves all resources, and generates a CloudFormation change set showing which resources would be created, updated, replaced, or deleted — without actually deploying.”",
+              "reason": "No `preview-changes` command source is provided. The deploy source shows packaging and template diff preparation during deploy, but it does not prove preview-changes command behavior or CloudFormation change-set output.",
+              "suggestedFix": "Either add the preview-changes source or soften this to a link-only recommendation: use `preview-changes` before approval gates to inspect planned infrastructure changes.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await templateManager.prepareForDeploy();\n\n  const cfTemplateDiff = templateManager.getOldTemplateDiff();\n  const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Hot-swap is only used if all stack changes are hot-swappable — if Stacktape determines hot-swap is not possible, it falls back to a full CloudFormation deploy automatically.”",
+              "reason": "The automatic fallback is supported, but the “all stack changes” condition is stronger than the provided code states. The source exposes `isHotswapPossible` from template diff analysis, but does not define that as all stack changes being hot-swappable.",
+              "suggestedFix": "Say: when `--hotSwap` is set, Stacktape analyzes the CloudFormation template diff; if hot-swap is not possible, Stacktape warns and runs a full CloudFormation deploy.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const { isHotswapPossible = false, hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation = [] } =\n      stackManager.stackActionType !== 'create' &&\n      deployedStackOverviewManager.analyzeCloudformationTemplateDiff({\n        cfTemplateDiff\n      });\n    useHotswap = isHotswapPossible;\n    if (!useHotswap) {\n      // in this case we are falling back to standard Cloudformation deploy\n      tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If two CI runs deploy to the same stage simultaneously, one fails because the stack is in an `UPDATE_IN_PROGRESS` state.”",
+              "reason": "The provided source proves deploy uses CloudFormation through `stackManager.deployStack`, but it does not show Stacktape’s handling of concurrent deployments or the exact failure mode/status surfaced to users.",
+              "suggestedFix": "Keep the operational guidance but phrase it as an AWS CloudFormation concurrency risk, not a guaranteed Stacktape behavior: avoid parallel CI deploys to the same stage because CloudFormation updates a stack serially.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape also cleans up deployment artifacts for rolled-back deployments.”",
+              "reason": "The source shows artifact cleanup only when auto-rollback is enabled and the error type is not `STACK_MONITORING`. The draft states cleanup as unconditional rolled-back deployment behavior.",
+              "suggestedFix": "Qualify the statement: when auto-rollback is enabled and the failure is not only stack monitoring, Stacktape deletes artifacts for the rolled-back deploy.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (stackManager.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {\n      await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A Lambda-only stack typically deploys in 1–3 minutes” and “hot-swap updates complete in seconds when eligible.”",
+              "reason": "These deployment duration numbers are not present in the provided source. They are operational estimates that could be useful, but they are unsourced and may vary substantially by project and AWS state.",
+              "suggestedFix": "Remove the numeric timing claims or replace them with qualitative wording: Lambda-only stacks are usually faster than stacks with databases, VPCs, or container workloads; hot-swap avoids a full CloudFormation deployment when eligible.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (useHotswap) {\n    await performHotswapDeploy();\n  } else {\n    await performFullDeploy();\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses valid documentation routes from the provided navigation index; no invented internal cross-links were found.",
+            "The `--hotSwap` fallback claim is directionally grounded by the deploy source, which warns and runs a full CloudFormation deploy when hot-swap is not possible.",
+            "The artifact cleanup caveat is close to the source and only needs narrowing around the `STACK_MONITORING` exception.",
+            "No forbidden Stacktape configuration examples are present; the YAML examples are CI provider workflow files, not Stacktape config."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "Primary typeName is unknown and the provided sources include only deploy and login command implementations, so API-property completeness and union-variant coverage are not applicable. No Stacktape config <CodeBlock intellisense> examples appear in the draft, so the code-example demonstrativeness check also has no applicable findings.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft avoids hand-authored Stacktape YAML configuration examples and does not use the deprecated StacktapeConfig typed object style.",
+            "The draft links first mentions of core CLI commands such as deploy, delete, codebuild:deploy, preview-changes, and rollback to the corresponding CLI reference routes.",
+            "The page distinguishes ordinary CI-runner deploys from CodeBuild-based deployments and explains the practical decision point between them.",
+            "The PR preview and branch-to-stage guidance is placed on the custom CI/CD page, matching the section instruction that per-PR and per-branch stage patterns belong in CI/CD documentation."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\ci-cd-and-gitops\\custom-ci-cd.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 8, advisory high 0, verifier medium 8"
+}

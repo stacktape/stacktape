@@ -1,0 +1,324 @@
+{
+  "pageId": "cli__project__create",
+  "pageRoute": "cli/project-create",
+  "startedAt": "2026-05-17T23:32:06.751Z",
+  "updatedAt": "2026-05-17T23:35:16.844Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__project__create\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "One command per fenced bash block throughout — no copy-button trap, clean and runnable.",
+            "Uses <CliCommandsApiReference> correctly with all five args (agent, logLevel, outputFormat, projectName, region) matching the source command definition exactly.",
+            "Opening paragraph is self-contained and accurate: registers a project, groups stages, requires login.",
+            "Three realistic examples cover the key paths (interactive, non-interactive, non-interactive with region + agent mode).",
+            "Related commands are well-chosen and all verified present in commands.ts (projects:list, org:create, deploy, info:whoami)."
+          ],
+          "problems": [
+            "Section ordering does not match the canonical CLI page rhythm defined in section instructions: 'paragraph → usage → auto-generated reference → examples → related commands'. The draft inserts 'Important flags' and 'Naming rules' between Usage and Examples, then pushes <CliCommandsApiReference> to the very end after all examples. Per the instructions, the reference table should immediately follow the usage invocation.",
+            "The exact project name regex (^[a-z0-9-]+$) is not grounded in the provided source files. The `validateProjectName` function is called in `src/commands/project-create/index.ts` but its implementation is not in scope. The interactive prompt text 'lowercase letters, numbers, and dashes only' partially supports the prose description but not the specific regex pattern.",
+            "The --region flag description claims it 'sets a default region context for the project in the Console' — this is an inference about Console behavior. The source only shows `region: args.region` passed to `createProject`; how the Console surfaces it is not grounded.",
+            "'Important flags' section partially duplicates the auto-generated <CliCommandsApiReference> that follows it. A first-time reader sees the same flags described twice with slightly different wording, which adds noise without adding clarity."
+          ],
+          "mandatoryFixes": [
+            "Reorder sections to match the CLI page canonical structure: opening paragraph → Usage invocation(s) → <CliCommandsApiReference> → Examples (non-obvious patterns) → Related commands. Move <CliCommandsApiReference> immediately after the Usage section, and move the Examples section after it.",
+            "Remove or soften the specific regex claim (^[a-z0-9-]+$) since validateProjectName's implementation is not in the provided source. Replace with the prose from the interactive prompt: 'lowercase letters, numbers, and dashes only', consistent with what the runtime actually tells users."
+          ],
+          "optionalImprovements": [
+            "Remove the 'Important flags' section entirely now that <CliCommandsApiReference> will appear right after Usage — or reduce it to a single sentence that calls out the only non-obvious distinction (--projectName is required in agent mode, optional otherwise) and drop the per-flag repetition.",
+            "Qualify the --region claim: say 'passed to the project record on creation; consult the Stacktape Console for how it surfaces' rather than asserting Console display behavior that is not in the source.",
+            "Add a 2–3 entry FAQ covering the questions a first-timer would search for: 'Do I need to create a project before deploying?', 'Can I rename a project after creation?', 'What happens if I deploy without creating a project first?'. Even a short FAQ lifts discoverability for this command's page."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Intro paragraph is self-contained and explains the command's organizational context (projects, stages, cost tracking) in a concrete, non-marketing way.",
+            "Both interactive and agent modes are explicitly documented with distinct examples — the most practical split for this command.",
+            "The naming rules section proactively answers a question that would otherwise require a failed run to discover.",
+            "CLI reference uses the correct `<CliCommandsApiReference>` component with all args present and properly structured.",
+            "Related commands are well-chosen: `projects:list`, `org:create`, `deploy`, and `info:whoami` are the natural adjacencies."
+          ],
+          "problems": [
+            "Section ordering violates the CLI section instructions: 'Examples' appears before `<CliCommandsApiReference>`. The specified order is: intro → usage → auto-generated reference → examples → related commands. The current draft has Important flags → Naming rules → Examples → CLI reference.",
+            "The `--region` description claims it 'sets a default region context for the project in the Console' — this is not grounded in the provided source. The source (`commandProjectCreate`) only passes `region` to `createProject`. No Console behavior is documented in the provided files.",
+            "The naming regex `^[a-z0-9-]+$` is stated as fact, but the implementation calls `validateProjectName(name)` from `@utils/validator`, whose source is not provided. Presenting this as a confirmed regex when the validator source is unavailable is a factual risk."
+          ],
+          "mandatoryFixes": [
+            "Reorder sections to match CLI section instructions: place `<CliCommandsApiReference>` immediately after the Usage section (and the prose describing interactive vs. agent mode), then the Examples section, then Related commands. Move 'Important flags' and 'Naming rules' content either into the intro prose or after the CLI reference as a supplementary note."
+          ],
+          "optionalImprovements": [
+            "Soften the `--region` description to avoid unsourced Console-behavior claims. Replace 'sets a default region context for the project in the Console' with the source-grounded form: 'an optional AWS region to associate with the project at creation time'.",
+            "Caveat the naming regex: say 'Names must be lowercase alphanumeric with dashes (validated by the CLI)' rather than stating a specific regex, since the `validateProjectName` source is not included in the provided files.",
+            "Add a one-sentence note about success output (the CLI prints the project name and project ID), sourced directly from `tuiManager.success` and `tuiManager.info` calls at the end of `commandProjectCreate`. This helps users know what to expect — or parse — when scripting.",
+            "The 'Important flags' section hand-authors flag descriptions that are also in the auto-generated reference. Consider removing it entirely and letting the CLI reference carry the detail, since the most important behavioral note (agent mode requires `--projectName`) is already in the intro paragraph."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph quickly states the command purpose and the login/API-key prerequisite is consistent with project:create not being in commandsNotRequiringApiKey.",
+            "Usage examples are copyable, one command per shell block, and avoid forbidden shell comments.",
+            "The page uses the required <CliCommandsApiReference command=\"project:create\" ... /> component instead of hand-authoring the full flags table.",
+            "Agent-mode behavior is grounded in src/commands/project-create/index.ts: --projectName is required only when agent mode is active."
+          ],
+          "problems": [
+            "Several claims are not grounded in the provided source: project-level access control, GitOps configuration in the Console, and the exact Console meaning of --region are not shown in the command source or CLI definitions.",
+            "The --region explanation likely overstates behavior. The source only shows args.region being passed to createProject and the option description says AWS region for the operation; it does not prove that region is only a Console default or that stages are unrestricted.",
+            "The naming regex ^[a-z0-9-]+$ is not grounded by the provided files. The command calls validateProjectName(name), and the prompt says lowercase letters, numbers, and dashes only, but the validator implementation is not included.",
+            "The page hand-authors an Important flags section before the auto-generated reference. That can be useful, but here it duplicates the generated table and introduces unsupported semantics for --region.",
+            "Related commands lists four commands, while the CLI page instructions ask for the 1-3 closest siblings.",
+            "The page has no FAQ. For a narrow CLI command this is not fatal, but a short FAQ could improve answer extraction for agent mode, non-interactive use, naming failures, and login prerequisites.",
+            "The first paragraph is mostly answer-first, but it mixes in broader project claims that are not proven by the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported project claims. Replace “provide cost tracking, access control, and GitOps configuration in the Stacktape Console” with wording grounded in source, such as “Projects are the unit used by Stacktape commands when listing deployed stages, status, and costs,” if you keep that claim tied to projects:list.",
+            "Rewrite the --region description to match source-backed behavior only: the command accepts an optional AWS region and passes it when creating the project. Do not claim it does not restrict stage deployments or sets a Console default unless source proves that.",
+            "Remove the explicit regex or source it from validateProjectName implementation. With the current sources, say project names are validated and the prompt says to use lowercase letters, numbers, and dashes only.",
+            "Reduce Related commands to 1-3 closest siblings, preferably projects:list, org:create, and info:whoami or deploy."
+          ],
+          "optionalImprovements": [
+            "Move the most important agent-mode caveat closer to the first non-interactive example so automation users see it before the flags table.",
+            "Add a compact FAQ with 3-5 real questions: “Can I create a project without prompts?”, “What happens if --projectName is missing in agent mode?”, “Do I need to log in first?”, and “What characters can a project name use?”",
+            "Consider trimming the Important flags section to only the non-obvious behavior that is not already obvious from the auto-generated reference, especially agent-mode requirements.",
+            "Mention the returned success output only if useful: the command prints the created project name and project ID after API creation succeeds."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided command definition and implementation, but it overstates a few Stacktape-specific behaviors that are not grounded in the supplied sources. The most important fixes are to narrow the `--region` explanation, remove unsupported Console/GitOps/access-control claims, and avoid publishing an exact project-name regex unless the validator source is provided.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“--region — An optional AWS region to associate with the project. This does not restrict where stages can be deployed, but sets a default region context for the project in the Console.”",
+              "reason": "The implementation only forwards `args.region` to the `createProject` API call. The supplied sources do not state that this region becomes a Console default, nor that it has no effect on where stages can be deployed. That is a Stacktape-specific behavior claim a reader may rely on when deciding whether to pass `--region`.",
+              "suggestedFix": "Say only that `--region` is accepted and passed when creating the project, or omit the explanatory sentence unless a source documents the server-side meaning. For example: “`--region` — Optional AWS region passed with the project creation request.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts",
+                  "quote": "const project = await stacktapeTrpcApiManager.apiClient.createProject({\n    name,\n    region: args.region\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'project:create': {\n    description: `Creates a new project in the current organization.\n\nIf you omit --projectName in interactive mode, you'll be prompted for it. In agent mode, provide --projectName.`,\n    args: {\n      logLevel: logLevel.optional(),\n      agent: agent.optional(),\n      outputFormat: outputFormat.optional(),\n      projectName: projectName.optional(),\n      region: awsRegion.optional()\n    },\n    requiredArgs: [] as const\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Projects group related stages (deployments) and provide cost tracking, access control, and GitOps configuration in the Stacktape Console.”",
+              "reason": "The provided sources support that projects are in the current organization and that `projects:list` shows deployed stages, status, and costs. They do not support the broader claims about access control or GitOps configuration in the Stacktape Console on this page.",
+              "suggestedFix": "Narrow the sentence to sourced behavior, such as: “Projects live in the current Stacktape organization. Other CLI commands list projects with deployed stages, status, and costs.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'project:create': {\n    description: `Creates a new project in the current organization.\n\nIf you omit --projectName in interactive mode, you'll be prompted for it. In agent mode, provide --projectName.`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'projects:list': {\n    description: `Lists all projects in your organization with their deployed stages, status, and costs.\n\nShows each project with its stages, deployment status (in-progress, errored, etc.), and current/previous month costs. Useful for getting an overview of your deployments.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Project names must be lowercase alphanumeric with dashes only (regex: `^[a-z0-9-]+$`).”",
+              "reason": "The sources show that the prompt tells users to use lowercase letters, numbers, and dashes, and that `validateProjectName(name)` is called. The exact regex is not present in the supplied sources, so publishing it may overstate validation details such as allowed dash placement.",
+              "suggestedFix": "Remove the regex unless the validator source is included. A grounded version is: “Project names are validated by the CLI. The interactive prompt instructs you to use lowercase letters, numbers, and dashes only.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts",
+                  "quote": "await tuiManager.promptText({\n        message: 'Project name:',\n        description: '(use lowercase letters, numbers, and dashes only)'\n      })"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts",
+                  "quote": "validateProjectName(name);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The basic command purpose, interactive prompt behavior, and agent-mode requirement for `--projectName` are grounded in `src/config/cli/commands.ts` and `src/commands/project-create/index.ts`.",
+            "The usage examples each contain a single command per fenced `bash` block, which follows the copy-button rule.",
+            "The `<CliCommandsApiReference command=\"project:create\" ... />` component uses the correct command name for this CLI page.",
+            "All draft cross-links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the `project:create` command shape, required arguments, agent-mode behavior, and generated CLI reference. The main problems are unsupported product-context claims around Console capabilities and over-specific project-name validation wording that is not fully grounded in the provided sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Projects group related stages (deployments) and provide cost tracking, access control, and GitOps configuration in the Stacktape Console.”",
+              "reason": "The provided sources for `project:create` only establish that the command creates a project in the current organization and passes `name` and optional `region` to `createProject`. They do not support access-control or GitOps-configuration claims for projects, nor do they include Console source for project behavior. `projects:list` supports stages and costs more directly, but this source set does not ground the full sentence.",
+              "suggestedFix": "Narrow the opening to what the sources support, for example: “The `project:create` command creates a new project in the current Stacktape organization. Use it before deploying stages under a new project name, or in agent mode when automation needs to create the project non-interactively.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Creates a new project in the current organization.\n\nIf you omit --projectName in interactive mode, you'll be prompted for it. In agent mode, provide --projectName."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts",
+                  "quote": "const project = await stacktapeTrpcApiManager.apiClient.createProject({\n    name,\n    region: args.region\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Project names must be lowercase alphanumeric with dashes only (regex: `^[a-z0-9-]+$`). Names like `my-app`, `backend-v2`, or `analytics` are valid. Names containing uppercase letters, underscores, spaces, or special characters are rejected.”",
+              "reason": "The source supports the user-facing guidance “use lowercase letters, numbers, and dashes only” and shows that `validateProjectName(name)` is called, but the actual validator implementation is not provided. The exact regex, the complete invalid-character list, and the assertion that those example names are valid are not grounded in the provided source files.",
+              "suggestedFix": "Keep the grounded rule and remove the exact regex and exhaustive examples unless `validateProjectName` is included as a source. For example: “The prompt describes valid project names as lowercase letters, numbers, and dashes only. The command trims the provided name and validates it before creating the project.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts",
+                  "quote": "description: '(use lowercase letters, numbers, and dashes only)'"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts",
+                  "quote": "validateProjectName(name);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`--region` — An optional AWS region to associate with the project. This does not restrict where stages can be deployed, but sets a default region context for the project in the Console.”",
+              "reason": "The source only shows that `region` is an optional argument and is passed to `createProject`. It does not explain what the region means after creation, whether it is a Console default, or whether it restricts later stage deployments.",
+              "suggestedFix": "State only the grounded behavior: “`--region` — Optional AWS region passed when the project is created.” If the intended default-region behavior is important, add a source that documents it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "projectName: projectName.optional(),\n      region: awsRegion.optional()"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts",
+                  "quote": "const project = await stacktapeTrpcApiManager.apiClient.createProject({\n    name,\n    region: args.region\n  });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses one command per shell block and does not include invalid grouped command snippets.",
+            "The `CliCommandsApiReference` command value matches `project:create`, and the included arguments align with `src/config/cli/commands.ts`.",
+            "The agent-mode requirement for `--projectName` is grounded in `src/commands/project-create/index.ts`.",
+            "Related command links all point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the documented `project:create` arguments through the generated CLI reference and its examples are command-specific. I found two source-grounding risks that are outside API completeness but worth fixing because they describe project/region semantics not established by the provided command source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Projects group related stages (deployments) and provide cost tracking, access control, and GitOps configuration in the Stacktape Console.",
+              "reason": "The provided source for `project:create` only says the command creates a project in the current organization. A sibling `projects:list` description supports stages and costs, but the supplied source does not support access control or GitOps configuration as project capabilities for this page.",
+              "suggestedFix": "Narrow the sentence to sourced behavior, for example: \"A project is created in the current organization and is used by other commands when listing stages, deployment status, and costs.\" Avoid mentioning access control or GitOps unless console/source files for those capabilities are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'project:create': {\n    description: `Creates a new project in the current organization.\n\nIf you omit --projectName in interactive mode, you'll be prompted for it. In agent mode, provide --projectName.`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'projects:list': {\n    description: `Lists all projects in your organization with their deployed stages, status, and costs."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`--region` — An optional AWS region to associate with the project. This does not restrict where stages can be deployed, but sets a default region context for the project in the Console.",
+              "reason": "The command implementation passes `args.region` to `createProject`, and the CLI option is named AWS Region, but the supplied source does not describe its Console behavior, default-region semantics, or whether it restricts future stage deployments.",
+              "suggestedFix": "State only what the source proves: \"`--region` — Optional AWS region value sent when creating the project.\" If you want to keep broader behavior, include source that defines project region semantics.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts",
+                  "quote": "const project = await stacktapeTrpcApiManager.apiClient.createProject({\n    name,\n    region: args.region\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'project:create': {\n    args: {\n      logLevel: logLevel.optional(),\n      agent: agent.optional(),\n      outputFormat: outputFormat.optional(),\n      projectName: projectName.optional(),\n      region: awsRegion.optional()\n    }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents exactly one command, `project:create`, and uses the required `<CliCommandsApiReference command=\"project:create\" ... />` component instead of hand-authoring a flags table.",
+            "The examples are demonstrative for the command: interactive creation, non-interactive creation with `--projectName`, and machine-readable agent usage with `--agent`.",
+            "The draft correctly notes that `--projectName` is required in agent mode, matching the runtime check in `src\\commands\\project-create\\index.ts`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\project-create.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T23:35:16.844Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\project-create\\index.ts": "52d23eadbd15938de16e758298f94094ea81ed92",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\project-create.md": "cc1b04582f1dab69d137adab53a6ba8e6edc6fd8"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

@@ -1,0 +1,782 @@
+{
+  "pageId": "cli__rollback",
+  "pageRoute": "cli/rollback",
+  "startedAt": "2026-05-17T21:36:54.757Z",
+  "updatedAt": "2026-05-17T21:47:47.996Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__rollback\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 7,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All technical claims are cleanly grounded in src/commands/rollback/index.ts — version calculation, artifact verification, safety warnings, bucket restore, and the 'new version per rollback' audit-trail fact are all confirmed.",
+            "The Warning callout about data (database migrations, S3 state) not being reverted is exactly the gotcha a first-timer needs. Most rollback docs bury or omit this.",
+            "Safety-warnings section maps precisely to the four checkRollbackSafety() conditions in source (unsafeDirectives, hasTypeScriptTransforms, hasAfterDeployHooks, hasCustomDirectives) without inventing extras.",
+            "Every shell example is in its own fenced block with no multi-command blocks, no explanatory # comments inside the block. Copy-button hygiene is perfect.",
+            "FAQ covers all three required categories — Stacktape-specific, AWS-service-level, and comparison — with 8 well-differentiated pairs.",
+            "The '--agent for CI/CD' example is a realistic, copyable pattern that the audience will actually use in automated pipelines.",
+            "No YAML config blocks, no StacktapeConfig type import, no fenced TypeScript with defineConfig — no mandatory style violations at all."
+          ],
+          "problems": [
+            "The CLI section instructions specify the page rhythm as: intro paragraph → usage example → auto-generated API reference → examples → related commands. The draft delays `<CliCommandsApiReference>` until after six additional H2 sections (When to use, Usage, Important flags, How rollback works, Safety warnings, Version retention). This is a structural deviation from the CLI page contract.",
+            "The 'Important flags' H2 documents --targetVersion, --rollbackSteps, --listVersions, and --configPath with prose explanations — then the <CliCommandsApiReference> immediately below also documents those same flags. This creates visible duplication that makes the page feel longer than necessary.",
+            "The 'How rollback works' numbered-list section (6 steps, template prep, artifact verification, etc.) is genuinely useful but is positioned before the basic usage examples, which inverts the first-timer mental model: they want to know HOW to use it before WHY it works.",
+            "The 'When to use' section exists as an H2 but there is no peer 'When NOT to use' H2. The equivalent content (use cf:rollback instead) is buried as a prose aside inside the Warning callout and in the intro paragraph. For a CLI page where the command name might be confused with cf:rollback, this contrast deserves its own visible heading."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move <CliCommandsApiReference> to immediately after the opening Usage/Examples section, consistent with the CLI section instructions. The extra H2s (Important flags, How rollback works, Safety warnings, Version retention) can follow the reference — readers who want depth will scroll; readers who just want the flag list get it first.",
+            "Consolidate or remove 'Important flags' H2 since it duplicates what <CliCommandsApiReference> already shows. If you keep it, trim it to one short sentence per flag (not a full paragraph) so it reads as a quick orientation rather than a full reference section.",
+            "Move 'How rollback works' below the Examples section. A first-timer wants 'give me the command' before 'here is the internal state machine'. This section is valuable, just out of order for the stated audience.",
+            "Add a brief 'When NOT to use' bullet or note inline with 'When to use' — or make them a small two-column table — explicitly distinguishing rollback (successful deploy, broken app) from cf:rollback (failed deploy, stuck stack). The distinction is critical and currently split across two different callout locations.",
+            "The Tip about increasing previousVersionsToKeep is practical but placed at the end of a version-retention section that most readers will skip. Consider pulling the one-liner into the --listVersions flag description or the FAQ answer on how many versions you can roll back to."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All key behaviors are precisely grounded in source code — rollback step calculation, artifact verification, four safety-check variants, and bucket restoration all map exactly to `src/commands/rollback/index.ts`.",
+            "The Warning callout about database migration implications is placed before the how-to sections, where it does the most good for a reader about to execute the command in production.",
+            "The distinction between `rollback` and `cf:rollback` is concrete and actionable ('the deploy worked but the app is broken' vs 'the deploy itself failed') — the most common reader confusion is handled up front.",
+            "The 'How rollback works' step-by-step matches the actual implementation sequence (version resolution → artifact verification → safety check → template prep → deployment → bucket restoration) without inventing steps.",
+            "Safety warnings section covers all four metadata fields (`unsafeDirectives`, `hasTypeScriptTransforms`, `hasAfterDeployHooks`, `hasCustomDirectives`) and correctly describes the missing-metadata path.",
+            "The Info callout explaining that each rollback creates a new version (v000008→v000005 produces v000009) is non-obvious and genuinely useful — correctly sourced from the `nextVersion` logic.",
+            "FAQ mixes all three required categories: Stacktape-specific (does it rebuild?, can I use it without a config?), AWS-service questions (what happens to my database?), and comparison questions (rollback vs cf:rollback)."
+          ],
+          "problems": [
+            "CLI page rhythm violation: the prescribed section order for CLI pages is lead paragraph → usage example → auto-generated arguments reference → examples → related commands. The page inserts 'When to use', 'Important flags', 'How rollback works', 'Safety warnings', and 'Version retention' before the CliCommandsApiReference, placing the reference table as section 8 of 11. This is a significant structural deviation from the CLI page contract.",
+            "Factual inaccuracy in FAQ: 'you only need `--stage` and `--region` to identify the stack' — the source (`commands.ts`) marks only `region` in `requiredArgs`; `stage` is optional and may be set via `defaults:configure`. The answer overstates stage as required.",
+            "`--configPath` 'Important flags' description says 'if your project setup requires it for stack identification' — this is inaccurate. Stage and projectName identify the stack; configPath is for config-file-dependent operations (e.g. beforeDelete hooks). The source initializes with `commandRequiresConfig: false`, meaning the config path isn't used for identification at all in the normal rollback flow."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reorder sections to match CLI page rhythm: move CliCommandsApiReference to immediately after the Usage section. Prose sections like 'How rollback works' and 'Safety warnings' can follow the reference table as supplementary depth — they're valuable content but shouldn't delay access to the flags reference.",
+            "Fix the FAQ answer for 'Can I use rollback without a config file?' — replace 'You only need `--stage` and `--region`' with something like 'You typically provide `--stage` and `--region`; stage is optional if you have a default configured via `defaults:configure`, but region is always required.'",
+            "Correct the `--configPath` Important flags entry: remove the 'stack identification' rationale. A more accurate description: 'Provided when your project uses config-dependent args or if the stack name cannot be derived from projectName/stage alone. Most rollbacks do not require it.'",
+            "The 'When to use' section is longer than the lead paragraph and could be partially folded into it to keep the lead compact (the CLI rhythm asks for 'one short paragraph' covering what and when). The Warning callout can stay where it is — it earns its place.",
+            "In the version-numbering example under `--targetVersion`, explicitly say the format is `v` plus a zero-padded six-digit number (v000001 through v999999) to help readers construct the string when they know the number but haven't used `--listVersions`."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The page opens with a clear answer-first paragraph that explains what `stacktape rollback` does, why artifacts are reused, and when the command matters.",
+            "The usage examples are realistic, copyable, and keep one command per shell block with no explanatory comments inside the blocks.",
+            "The `rollback` versus `cf:rollback` distinction is useful and grounded in the command source.",
+            "The page uses the required `<CliCommandsApiReference command=\"rollback\" ... />` component and documents exactly one CLI command.",
+            "The safety warning around data, migrations, `after:deploy` hooks, custom directives, and bucket-synced content gives readers practical recovery context instead of only listing flags."
+          ],
+          "problems": [
+            "Some claims are stronger than the source supports, especially “the fastest way to undo a bad deployment” and “significantly faster.” The source supports “no rebuild is required,” but not a benchmark or absolute speed comparison.",
+            "The FAQ says “You only need `--stage` and `--region` to identify the stack,” but the command definition marks only `region` as required. `stage`, `projectName`, defaults, and other stack-identification context are more nuanced in the generated args table.",
+            "The `--configPath` explanation says a config file may be needed “if your project setup requires it for stack identification,” but the rollback implementation initializes with `commandRequiresConfig: false`; the wording should be narrowed to avoid implying a config-driven requirement that is not shown in the source.",
+            "The “Important flags” section partly duplicates the generated API reference. It is useful, but could be tighter by focusing only on decision-making behavior not already visible in the flags table.",
+            "The FAQ is helpful for Stacktape-specific questions, but it has little broader CLI-operational coverage such as how rollback relates to redeploying an older commit or what happens when artifacts were cleaned up."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported speed claims with source-grounded wording such as “Rollback skips packaging because it reuses stored Lambda zips and container images.”",
+            "Correct the config-free usage wording: state that `rollback` does not require a config file and that `--region` is the only required argument in the command definition; mention `--stage`, `--projectName`, or configured defaults only as stack-identification inputs when applicable.",
+            "Narrow the `--configPath` paragraph so it does not imply rollback requires local configuration for stack identification. Ground it in the fact that `configPath` is an allowed optional argument while `commandRequiresConfig` is false."
+          ],
+          "optionalImprovements": [
+            "Move the generated arguments reference closer to the initial usage examples, then keep the later “Examples” section for non-obvious workflows only.",
+            "Add a concise comparison table for `rollback`, `cf:rollback`, and redeploying an older commit; this would improve scan speed and answer-engine extractability.",
+            "Add one FAQ entry about cleaned-up deployment artifacts: if the target version is not in the deployment bucket, `--listVersions` shows what remains and rollback cannot target removed artifacts.",
+            "Consider trimming “How rollback works” to the source-visible sequence and avoid internal implementation phrasing unless it helps the reader decide what to do."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the rollback command sources, but it contains several unsupported specifics around rollback safety, configPath, and retained version behavior. The most important corrections are to avoid implying configPath participates in stack identification, narrow the TypeScript-transform warning to the exact source wording, and avoid saying retained versions necessarily still have artifacts available.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“However, you can optionally provide `--configPath` if your project setup requires it for stack identification.”",
+              "reason": "The rollback implementation explicitly initializes deployed-stack services with `commandRequiresConfig: false`. The provided sources show `configPath` is an accepted inherited argument, but they do not support the claim that it may be required for stack identification in some project setups.",
+              "suggestedFix": "Say that `rollback` does not require a configuration file, while `--configPath` is still an accepted shared CLI option. Avoid claiming it is needed for stack identification unless a source for that behavior is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "rollback: {\n    description: `Rolls back the stack to a previous deployment version."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“TypeScript transforms — if your config uses TypeScript transforms that generate dynamic values, those values are not captured in the CloudFormation template and will not be re-evaluated during rollback.”",
+              "reason": "The source only says TypeScript transforms are not captured in the CloudFormation template. It does not state that dynamically generated values are not captured or that transforms are not re-evaluated during rollback.",
+              "suggestedFix": "Use the exact source-grounded warning: “If rollback safety metadata says the config uses TypeScript transforms, Stacktape warns that those transforms are not captured in the CloudFormation template.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (safety.hasTypeScriptTransforms) {\n    warnings.push('Config uses TypeScript transforms that are not captured in the CF template.');\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“Old deployment versions are automatically cleaned up after successful deployments based on the `previousVersionsToKeep` setting in your deployment configuration. If a version has been cleaned up, rollback to that version is not possible — `--listVersions` shows only versions that still have their artifacts available.”",
+              "reason": "The source supports that missing versions may have been cleaned up based on `previousVersionsToKeep`, and `--listVersions` lists `availablePreviousVersions`. It does not support the stronger claim that cleanup always happens after successful deployments, nor that every listed version still has all artifacts available; artifact verification happens later and can fail.",
+              "suggestedFix": "Narrow to: “If `verifyArtifactsExist` cannot find the target version, Stacktape reports that old versions may have been cleaned up based on `previousVersionsToKeep`. Use `--listVersions` to see versions currently listed in the deployment bucket, then rollback verifies artifacts before deploying.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "message: `Version ${targetVersion} not found in deployment bucket. Available versions: ${availableVersions.sort().join(', ') || 'none'}.`,\n      hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“It does not revert data changes (database migrations, S3 objects written by your application, etc.).”",
+              "reason": "The source supports warning about `after:deploy` hooks, directives, transforms, custom directives, and bucket-synced content restoration attempts. It does not explicitly support the broad claim about database migrations or arbitrary S3 objects written by the application. The warning is practically reasonable, but should be framed as operational guidance rather than Stacktape-sourced behavior.",
+              "suggestedFix": "Keep a cautious warning: “Rollback redeploys an older template and artifacts; Stacktape sources do not show rollback undoing application-side data changes. Treat database migrations and application-written objects as separate recovery work.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await stackManager.deployStackForRollback(templateUrl);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.restoreBucketSyncFromManifest(targetVersion);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“This is the fastest way to undo a bad deployment” and “making it significantly faster.”",
+              "reason": "The source supports that rollback reuses artifacts and does not rebuild. It does not compare elapsed time against redeploying from an older commit or establish that rollback is always the fastest path.",
+              "suggestedFix": "Replace with a concrete supported statement: “Because rollback reuses stored Lambda zips and container images, it skips the packaging step.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“If the stack was deployed before rollback support was added, the safety metadata may be missing. The rollback still proceeds, but with a warning about potential unpredictability.”",
+              "reason": "The source warning says missing rollback safety metadata means the deployment was made before rollback support was added, and that rollback proceeds with a warning. The phrase “may be missing” broadens the condition slightly, but the claim is directionally supported.",
+              "suggestedFix": "Make it exact: “When rollback safety metadata is missing, Stacktape warns that the deployment was made before rollback support was added and proceeds with fast rollback.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly uses `<CliCommandsApiReference command=\"rollback\" ... />` for the CLI argument table.",
+            "The required-argument treatment is compatible with the source: `region` is the only required rollback argument, while `stage` is optional in the generated reference.",
+            "The distinction between `rollback` and `cf:rollback` is grounded in both the command definition and rollback implementation.",
+            "The `--targetVersion`, `--rollbackSteps`, and `--listVersions` descriptions match the command definition and implementation at a high level.",
+            "The draft avoids forbidden Stacktape config examples, YAML config blocks, and plain-object `StacktapeConfig` style."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the rollback command source, but it overstates several implementation details beyond the provided code and misstates the minimum arguments needed to identify a rollback target. The biggest risks are unsupported claims about artifact verification, rollback safety behavior, version retention cleanup, and config/stage requirements.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“You only need `--stage` and `--region` to identify the stack.”",
+              "reason": "The rollback command only marks `region` as required. `stage` is available but optional in the generated arguments. Saying `--stage` is required would mislead users about CLI usage.",
+              "suggestedFix": "Say `--region` is required. If a user does not rely on defaults or another stack identifier, they may also pass `--stage`, `--projectName`, or another supported stack-identification argument exposed by the command reference.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "rollback: {\n    description: `Rolls back the stack to a previous deployment version.\n\nDownloads the CloudFormation template from a previous version and deploys it. Artifacts (Lambda zips, container images) from that version are reused — no rebuild is required.\n\nUse \\`--listVersions\\` to see available versions. Specify a target with \\`--targetVersion v000003\\` or \\`--rollbackSteps N\\` (default: 1).\n\nFor recovering from \\`UPDATE_FAILED\\` state, use \\`cf:rollback\\` instead.`,\n    args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      targetVersion: rollbackVersion.optional(),\n      rollbackSteps: rollbackSteps.optional(),\n      listVersions: listVersions.optional()\n    },\n    requiredArgs: ['region'] as const\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Artifact verification — Stacktape checks that the CloudFormation template, Lambda artifacts, and container images for the target version still exist in the deployment bucket.”",
+              "reason": "The rollback command verifies artifacts for the target version, but the provided source does not enumerate that this verification separately checks the CloudFormation template, Lambda artifacts, and container images. The implementation detail lives behind `verifyArtifactsForVersion`, whose source is not provided.",
+              "suggestedFix": "Narrow this to the supported claim: Stacktape verifies that artifacts for the target version are available before deploying the rollback template.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "message: `Version ${targetVersion} not found in deployment bucket. Available versions: ${availableVersions.sort().join(', ') || 'none'}.`,\n      hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Old deployment versions are automatically cleaned up after successful deployments based on the `previousVersionsToKeep` setting in your deployment configuration.”",
+              "reason": "The source only states that old versions may have been cleaned up based on `previousVersionsToKeep`; it does not specify automatic cleanup timing, that cleanup happens after successful deployments, or where the setting is configured.",
+              "suggestedFix": "Write cautiously: “Old versions may have been cleaned up based on the `previousVersionsToKeep` setting. Use `--listVersions` to see which versions are still available.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The rollback command does not require a Stacktape configuration file — it works entirely from the stored CloudFormation template and artifacts. However, you can optionally provide `--configPath` if your project setup requires it for stack identification.”",
+              "reason": "The source supports that rollback does not require config, but it does not support the explanation that `--configPath` may be required for stack identification. `configPath` is simply an optional argument inherited from `configDependentArgs`.",
+              "suggestedFix": "Keep the grounded part: “Rollback initializes stack services with `commandRequiresConfig: false`, so a local config file is not required. `--configPath` is still accepted as an optional common Stacktape argument.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      targetVersion: rollbackVersion.optional(),\n      rollbackSteps: rollbackSteps.optional(),\n      listVersions: listVersions.optional()\n    },\n    requiredArgs: ['region'] as const"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Safety check — the command inspects rollback safety metadata stored during the original deployment.”",
+              "reason": "The command reads rollback safety metadata from the deployed stack overview. The source does not say the metadata was stored during the original deployment, only that missing metadata implies the deployment was made before rollback support was added.",
+              "suggestedFix": "Say: “The command reads rollback safety metadata from the deployed stack, when present, and prints warnings for directives, TypeScript transforms, custom directives, or `after:deploy` hooks.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "const rollbackSafety = deployedStackOverviewManager.getStackMetadata(stackMetadataNames.rollbackSafety());"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "Rollback safety metadata not found. This deployment was made before rollback support was added. Proceeding with fast rollback, but results may be unpredictable if the config used $File, TypeScript transforms, custom directives, or after:deploy hooks."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`$File` or other state-embedding directives — directives like `$File` embed local file contents at deploy time.”",
+              "reason": "The rollback source only refers generically to directives that embed local/external state and includes `$File` in one warning about missing safety metadata. It does not define `$File` behavior or say `$File` embeds local file contents.",
+              "suggestedFix": "Avoid defining directive semantics on this CLI page unless backed by directive source. Use the rollback warning wording: “Directives that embed local or external state are reported by name; the rolled-back template contains values from the original deploy time.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "`Config uses directives that embed local/external state: ${safety.unsafeDirectives.join(', ')}. The rolled-back template will contain values from the original deploy time.`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "Rollback safety metadata not found. This deployment was made before rollback support was added. Proceeding with fast rollback, but results may be unpredictable if the config used $File, TypeScript transforms, custom directives, or after:deploy hooks."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“TypeScript transforms — if your config uses TypeScript transforms that generate dynamic values, those values are not captured in the CloudFormation template and will not be re-evaluated during rollback.”",
+              "reason": "The source supports warning that TypeScript transforms are not captured in the CloudFormation template, but it does not state they “generate dynamic values” or explicitly that they are not re-evaluated during rollback.",
+              "suggestedFix": "Use the source wording: “If rollback safety metadata reports TypeScript transforms, Stacktape warns that those transforms are not captured in the CloudFormation template.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (safety.hasTypeScriptTransforms) {\n    warnings.push('Config uses TypeScript transforms that are not captured in the CF template.');\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If the manifest is not available, the command warns you and suggests redeploying from the original commit to restore static content.”",
+              "reason": "The command warns when bucket-synced content restoration fails, but the provided warning does not mention a missing manifest and does not specifically say “restore static content.”",
+              "suggestedFix": "Use the actual behavior: “If Stacktape cannot restore bucket-synced content, it warns that stacks with static websites may need to be redeployed from the original commit.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "try {\n    await deploymentArtifactManager.restoreBucketSyncFromManifest(targetVersion);\n  } catch {\n    tuiManager.warn(\n      'Could not restore bucket-synced content. If your stack has static websites, you may need to redeploy from the original commit.'\n    );\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses the correct CLI command name `stacktape rollback` and links only to valid routes from the navigation index.",
+            "The core description matches the command definition: rollback downloads a previous CloudFormation template, deploys it, and reuses Lambda zips and container images without rebuilding.",
+            "The draft correctly distinguishes `rollback` from `cf:rollback` for CloudFormation `UPDATE_FAILED` / `UPDATE_ROLLBACK_FAILED` recovery.",
+            "The `<CliCommandsApiReference command=\"rollback\" ... />` component uses the correct command name and includes the generated rollback arguments.",
+            "Shell examples use one command per fenced bash block and do not include copy-buffer comments."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the rollback-specific flags and the CLI reference component correctly. I found one medium issue where prose overstates required inputs compared with the command definition.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“You only need `--stage` and `--region` to identify the stack.”",
+              "reason": "The rollback command definition lists only `region` as required. `stage` is an allowed stack argument, but it is not required by the CLI schema and may be supplied through defaults or other stack-identification arguments documented by the generated reference.",
+              "suggestedFix": "Change to: “At minimum, `--region` is required. In most project workflows you also pass `--stage`, or rely on configured defaults and the stack-identification arguments shown in the reference below.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "rollback: {\n    description: `Rolls back the stack to a previous deployment version.\n...\n    requiredArgs: ['region'] as const\n  }"
+                },
+                {
+                  "file": "Draft page",
+                  "quote": "You only need `--stage` and `--region` to identify the stack."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft documents the rollback-specific arguments `--targetVersion`, `--rollbackSteps`, and `--listVersions`.",
+            "The draft uses `<CliCommandsApiReference command=\"rollback\" ... />` instead of hand-authoring the full flags table.",
+            "The command examples are demonstrative, each shell block contains one command, and all examples include the required `--region` flag.",
+            "The draft clearly distinguishes `rollback` from `cf:rollback`, matching the command descriptions in the source."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__rollback\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong, self-contained intro paragraph that immediately answers 'what is this and when do I need it' — well-optimized for AI extraction.",
+            "Excellent realistic examples section: each invocation has its own fenced bash block, explanatory prose precedes each block rather than appearing as # comments inside it, and the CI/CD pattern with --agent is a genuinely useful addition.",
+            "Clear and consistently maintained distinction between `rollback` (application rollback after a working deployment) and `cf:rollback` (stack recovery from failed state) — this appears in the intro, Warning callout, FAQ, and Related commands.",
+            "Safety warnings section accurately mirrors the four warning categories in source code (unsafeDirectives, hasTypeScriptTransforms, hasAfterDeployHooks, hasCustomDirectives) without inventing extra behavior.",
+            "FAQ is extensive (10 Q&A pairs), spans all three required categories (Stacktape-specific, AWS use-case, comparison), and each answer is concise enough to serve as a Featured Snippet.",
+            "How rollback works section provides a useful mental model with numbered steps sourced from the actual command flow in `src/commands/rollback/index.ts`."
+          ],
+          "problems": [
+            "The `--configPath` subsection under 'Important flags' adds almost no information — it says only that the flag is 'accepted as an optional common Stacktape argument', which is true for every command and tells the reader nothing specific. It reads as filler.",
+            "The `<FlowDiagram steps={[...]} />` component is used in 'How rollback works' but does not appear in the style guide's MDX component palette. If this component does not exist in the documentation renderer, the section will silently fail to render its core visual structure, leaving only the surrounding `<Info>` callout.",
+            "The 'Important flags' H2 section partially duplicates the `<CliCommandsApiReference>` block that follows. For a first-time reader this repetition is somewhat helpful, but the `--configPath` entry in particular undermines the section's value."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the `--configPath` subsection from 'Important flags' entirely, or replace it with a single inline sentence near the top of the Usage section: 'No config file is required — the command initializes with `commandRequiresConfig: false` and works from stored artifacts.' This is more useful and correctly positioned.",
+            "Verify that `<FlowDiagram>` is a supported MDX component in the documentation renderer. If it is not, replace it with a simple numbered list (which also renders correctly in plain markdown environments and is more portable for AI citation extraction).",
+            "The 'When to use' section could briefly note that rollback is faster than redeploying an older commit — because no rebuild or packaging occurs — to give the reader a concrete reason to prefer it in time-sensitive incidents. This tradeoff is mentioned in the FAQ but not foregrounded in the decision section where it matters most.",
+            "Consider trimming the 'Important flags' H2 to cover only the three truly rollback-specific flags (--targetVersion, --rollbackSteps, --listVersions). These are the flags a first-time user genuinely needs to understand before reading the full Arguments reference."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Technically accurate throughout — every behavioral claim (commandRequiresConfig: false, version format v000000, new version created on rollback, safety warning triggers, bucket sync restoration) is directly verifiable against src/commands/rollback/index.ts and src/config/cli/commands.ts.",
+            "Safety warnings section is exceptional: enumerates unsafeDirectives, hasTypeScriptTransforms, hasAfterDeployHooks, and hasCustomDirectives exactly as the source code checks them, and correctly notes that missing metadata causes a 'results may be unpredictable' warning rather than a hard block.",
+            "Shell blocks are correctly separated — one command per fenced block, no explanatory comments inside blocks, explanatory prose precedes each variant.",
+            "FAQ covers all three required categories: Stacktape-specific (does rollback require a config file?), AWS-generic (what happens to CloudFormation drift?), and comparison (rollback vs redeploying an older Git commit). Nine distinct, non-padded pairs.",
+            "Warning callout about database migrations is placed at exactly the right moment (immediately after the intro), setting reader expectations before they run the command.",
+            "Correct use of the auto-generated <CliCommandsApiReference> for the flags table — no hand-authored table.",
+            "Info callout noting that each rollback creates a new version is important and would otherwise be buried — well-placed."
+          ],
+          "problems": [
+            "<CliCommandsApiReference> placement deviates from CLI section instructions ('Then a usage example. Then the auto-generated reference.') — it is placed after Important flags, How rollback works, Safety warnings, Version availability, and Bucket-synced content sections. A developer scanning for the flags table must scroll through ~60% of the page before reaching it.",
+            "<FlowDiagram steps={[...]} /> is used in the 'How rollback works' section, but this component's existence in the Stacktape docs MDX system is not verifiable from the provided source files. If it is not a real component, the section will render broken markup.",
+            "The 'Important flags' H2 section manually documents --targetVersion, --rollbackSteps, --listVersions, and --configPath in prose, then CliCommandsApiReference documents the same flags again in the table below. The prose adds useful context, but --configPath's prose treatment ('is still accepted as an optional common Stacktape argument') is the weakest entry and adds little over the table description."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move <CliCommandsApiReference> immediately after the Usage section per CLI section instructions. The 'Important flags', 'How rollback works', 'Safety warnings', 'Version availability', and 'Bucket-synced content' sections can follow the reference table — they are supplementary depth for readers who need it, not required to understand the flags.",
+            "Verify that <FlowDiagram steps={[...]} /> is an available MDX component in the Stacktape docs system. If it is not, replace the section with a numbered list or a markdown table showing the six steps (Version resolution → Artifact verification → Safety check → Template preparation → Deployment → Bucket content restoration).",
+            "The --configPath subsection under 'Important flags' is the weakest of the four — it says 'is still accepted as an optional common Stacktape argument', which adds almost no information over the table entry. Either remove this subsection or replace it with a sentence explaining the practical consequence (you can omit --configPath entirely when rolling back, unlike deploy).",
+            "Consider adding a one-liner about the error thrown when targetNumeric < 1 (i.e., rolling back more steps than versions exist): the source raises an e999 error with a hint to use --targetVersion or a smaller --rollbackSteps. Mentioning this saves a confused developer from having to read the error mid-rollback."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly states what `stacktape rollback` does and when to use it.",
+            "Command examples are copyable, use one shell command per block, and include required `--region`.",
+            "The page clearly distinguishes `rollback` from `cf:rollback`, which is the most important decision point for this CLI command.",
+            "FAQ is broad and useful for search extraction, covering Stacktape-specific behavior, recovery workflows, and comparison with redeploying an older Git commit.",
+            "The page uses the required `<CliCommandsApiReference command=\"rollback\" ... />` component instead of hand-authoring the flags table."
+          ],
+          "problems": [
+            "The CLI page does not follow the requested CLI rhythm: it should lead with a short command summary, then a usage example, then the autogenerated reference, then examples. Several deep-dive sections appear before the flags reference.",
+            "Some claims are stated more strongly than the source supports. For example, `--targetVersion` is described as requiring a six-digit zero-padded format, but the command source only pads computed rollback-step targets and accepts a string for explicit `targetVersion`.",
+            "The `How rollback works` section uses a custom `<FlowDiagram>` component and includes detailed implementation steps before the reference table; this may be too heavy for a CLI reference page and makes the page harder to scan quickly.",
+            "The `Version availability` tip tells readers to increase `previousVersionsToKeep` in configuration, but the provided source only mentions the setting as the reason old versions may be cleaned up. It does not show where or how to configure it.",
+            "The FAQ claim about CloudFormation drift is plausible AWS background, but it is not grounded in the provided rollback command source. It should be framed more cautiously or removed."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move `<CliCommandsApiReference command=\"rollback\" ... />` directly after the initial usage example to match the CLI page instructions.",
+            "Soften the `--targetVersion` wording to: Stacktape-generated versions are displayed like `v000003`; use `--listVersions` and pass one of the available version strings.",
+            "Replace or simplify the `FlowDiagram` section with a compact ordered list if `FlowDiagram` is not part of the standard docs component palette for CLI pages.",
+            "Keep `How rollback works`, `Safety warnings`, and `Version availability`, but consider placing them after the argument reference as advanced operational notes.",
+            "For `previousVersionsToKeep`, say only that old versions may be cleaned up based on that setting unless the page source includes the config type that documents how to set it."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely grounded in the provided rollback command source. I found a few places where it overstates what the source proves or could mislead readers about behavior not shown in the implementation.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The stack is identified through `--stage`, `--projectName`, or configured defaults…” and “Pass `--stage`, `--projectName`, or rely on configured defaults to identify the stack.”",
+              "reason": "The provided rollback command definition only proves that `region` is required and that stack/config-dependent args are accepted. The source does not show that `--projectName` alone can identify a stack, and it does not include the initialization logic that resolves defaults or target stack identity. This wording may lead readers to run `--projectName` without `--stage`.",
+              "suggestedFix": "Narrow the wording to what the source proves: `--region` is the only required argument in the command definition; stack identity can be supplied with accepted stack arguments such as `--stage` and `--projectName`, or defaults where configured. Avoid implying `--projectName` alone is sufficient.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "rollback: {\n    description: `Rolls back the stack to a previous deployment version.\n\nDownloads the CloudFormation template from a previous version and deploys it. Artifacts (Lambda zips, container images) from that version are reused — no rebuild is required.\n\nUse \\`--listVersions\\` to see available versions. Specify a target with \\`--targetVersion v000003\\` or \\`--rollbackSteps N\\` (default: 1).\n\nFor recovering from \\`UPDATE_FAILED\\` state, use \\`cf:rollback\\` instead.`,\n    args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      targetVersion: rollbackVersion.optional(),\n      rollbackSteps: rollbackSteps.optional(),\n      listVersions: listVersions.optional()\n    },\n    requiredArgs: ['region'] as const\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you anticipate needing to roll back further than the default retention window, increase `previousVersionsToKeep` in your configuration before deploying.”",
+              "reason": "The source mentions that old versions may be cleaned up based on `previousVersionsToKeep`, but it does not define the setting’s type, scope, default, or confirm that increasing it is a supported configuration action. The advice may be true elsewhere, but it is not grounded in the provided source files.",
+              "suggestedFix": "Keep the grounded part and avoid configuration guidance not present in source: “Old versions may have been cleaned up based on the `previousVersionsToKeep` setting. Use `--listVersions` before a rollback to confirm the target version is still available.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `--agent` for machine-readable output in automated pipelines” and “The `--agent` flag switches output to JSONL format, disables interactive prompts, and auto-confirms the operation.”",
+              "reason": "The CLI argument reference in the draft says `--agent` implies JSONL output and automatic confirmation, but the provided rollback command implementation does not show that rollback has interactive prompts or that `--agent` changes rollback confirmation behavior. The global option description supports output behavior generally, but the pipeline recommendation is broader than the rollback source proves.",
+              "suggestedFix": "Limit this to the generated argument description: “Use `--agent` when you need CLI output optimized for programmatic consumption; the common argument description says it uses JSONL/NDJSON output and disables interactive terminal UI.” Avoid claiming rollback-specific prompt behavior unless command source shows it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "export const commandRollback = async () => {\n  await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "rollback: {\n    description: `Rolls back the stack to a previous deployment version.\n\nDownloads the CloudFormation template from a previous version and deploys it. Artifacts (Lambda zips, container images) from that version are reused — no rebuild is required.\n\nUse \\`--listVersions\\` to see available versions. Specify a target with \\`--targetVersion v000003\\` or \\`--rollbackSteps N\\` (default: 1).\n\nFor recovering from \\`UPDATE_FAILED\\` state, use \\`cf:rollback\\` instead.`,\n    args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      targetVersion: rollbackVersion.optional(),\n      rollbackSteps: rollbackSteps.optional(),\n      listVersions: listVersions.optional()\n    },\n    requiredArgs: ['region'] as const\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“What happens to CloudFormation drift during rollback? … CloudFormation will attempt to reconcile resources back to the template's declared state during the update.”",
+              "reason": "The source shows rollback deploys a prepared template with `deployStackForRollback(templateUrl)`, but it does not discuss CloudFormation drift handling or reconciliation semantics. This is general CloudFormation behavior, but the paragraph reads like a Stacktape rollback guarantee.",
+              "suggestedFix": "Frame this as AWS background rather than Stacktape-specific behavior: “Rollback submits the stored target-version template to CloudFormation. As with any CloudFormation update, AWS compares the submitted template with the current stack and applies the resulting update; manual drift may affect what changes CloudFormation can make.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The target deployment version to roll back to, for example `v000003`. Versions use the format `v` followed by a six-digit zero-padded number.”",
+              "reason": "The source generates rollback-step targets with six zero-padded digits and examples use `v000003`, but `--targetVersion` is typed as a string in the generated command metadata and the provided source does not show validation requiring that exact format for manually supplied target versions.",
+              "suggestedFix": "Phrase as convention rather than validation: “Stacktape-generated versions are shown in the `v000003` style; use `--listVersions` to copy an available target exactly.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly states that `rollback` downloads a previous CloudFormation template and reuses Lambda zips and container images without rebuilding, which is directly supported by the command description.",
+            "The distinction between `rollback` and `cf:rollback` is grounded in the command definitions and matches the source wording.",
+            "The `--rollbackSteps` default of `1`, target version calculation, artifact verification, safety warnings, new deployment version creation, and bucket-sync restoration warning are all supported by `src/commands/rollback/index.ts`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well-grounded in the rollback command source. I found a few places where the prose is stronger or more specific than the provided sources support, especially around artifact types, version-format guarantees, current-version listing, and hook behavior.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“It downloads the CloudFormation template from an earlier version and deploys it, reusing stored artifacts (Lambda zips, container images)…” and similar repeated claims that rollback specifically reuses “Lambda zips and container images.”",
+              "reason": "The command description says artifacts are reused and gives Lambda zips/container images as examples, but the runtime source only verifies and prepares artifacts generically. The draft repeatedly narrows rollback artifacts to exactly those two artifact classes, which may under-describe any other artifacts handled by deploymentArtifactManager.",
+              "suggestedFix": "Use the command-description phrasing once: “Artifacts, such as Lambda zips and container images, are reused.” In repeated prose, say “stored deployment artifacts” rather than enumerating only two artifact types.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Artifacts (Lambda zips, container images) from that version are reused — no rebuild is required."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Versions use the format `v` followed by a six-digit zero-padded number.”",
+              "reason": "The rollback-step path generates target versions in that format, and examples use that format, but the provided source does not show validation for manually supplied `--targetVersion`. The statement reads like a universal constraint on accepted versions.",
+              "suggestedFix": "Narrow the wording: “Versions shown by Stacktape commonly use values like `v000003`; when `--rollbackSteps` is used, Stacktape calculates a six-digit `v000001`-style target.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "return `v${String(targetNumeric).padStart(6, '0')}`;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "The target deployment version to rollback to (e.g., <code>v000003</code>). Use <code>--listVersions</code> to see available versions."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“When set, the command prints all available previous deployment versions and the current version, then exits without performing any rollback.”",
+              "reason": "The runtime prints the current version only when at least one previous version exists. If there are no previous versions, it prints “No previous deployment versions found.” and returns before printing the current version.",
+              "suggestedFix": "Say: “When previous versions exist, the command prints the current version and the available rollback versions, then exits without rolling back. If none exist, it prints that no previous deployment versions were found.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (!versions.length) {\n    tuiManager.info('No previous deployment versions found.');\n    return null;\n  }\n  tuiManager.info(`Current version: ${currentVersion || 'unknown'}`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Lifecycle hooks configured with `after:deploy` are not re-executed during rollback.”",
+              "reason": "The runtime source only shows that rollback emits this warning when rollback safety metadata reports after-deploy hooks. It does not show hook execution logic either way. The claim is likely true from the warning, but the draft states it as unconditional behavior rather than metadata-dependent warning text.",
+              "suggestedFix": "Anchor the claim to the source behavior: “When rollback safety metadata reports `after:deploy` hooks, Stacktape warns that they will not be re-executed during rollback.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "if (safety.hasAfterDeployHooks) {\n    warnings.push('Config has after:deploy hooks that will NOT be re-executed during rollback.');\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command works from stored CloudFormation templates and deployment artifacts. `--configPath` is still accepted as an optional common Stacktape argument.”",
+              "reason": "The source confirms `commandRequiresConfig: false` and that `configDependentArgs` are accepted, but it does not show exactly how `--configPath` behaves during rollback. The wording could imply `--configPath` is ignored or harmless, which is not established by the provided files.",
+              "suggestedFix": "Keep the grounded part and avoid behavior implications: “Rollback initializes with `commandRequiresConfig: false`, and `configPath` appears in the command’s optional arguments because rollback includes common config-dependent CLI arguments.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "commandRequiresConfig: false"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      targetVersion: rollbackVersion.optional(),\n      rollbackSteps: rollbackSteps.optional(),\n      listVersions: listVersions.optional()\n    },\n    requiredArgs: ['region'] as const"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“If you anticipate needing to roll back further than the default retention window, increase `previousVersionsToKeep` in your configuration before deploying.”",
+              "reason": "The source says old versions may have been cleaned up based on `previousVersionsToKeep`, but the provided files do not define the setting, its default, or where it is configured. The advice is plausible, but “default retention window” is not grounded in the supplied source.",
+              "suggestedFix": "Use narrower wording: “Old versions may be cleaned up based on `previousVersionsToKeep`; check your configuration before relying on deep rollback history.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Rollback also preserves the deployment version history: it creates a new version rather than overwriting.”",
+              "reason": "The runtime obtains `stackManager.nextVersion` and reports a new deployment version, which supports the claim for the normal path. However, “preserves the deployment version history” is broader than the source shows because no history-retention behavior is visible beyond deploying as `nextVersion`.",
+              "suggestedFix": "Say only what the source shows: “Rollback deploys the target template as `stackManager.nextVersion` and reports that new deployment version when the command completes.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required argument claim is grounded: `rollback` has `requiredArgs: ['region']`.",
+            "The distinction between `rollback` and `cf:rollback` is grounded in the command definitions.",
+            "The `--rollbackSteps` default of `1` is grounded both in the command description and runtime implementation.",
+            "The `--listVersions` behavior of exiting without rollback is grounded in the runtime branch that returns from `listAvailableVersions()`."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the main rollback command behavior and uses the generated CLI reference component. I found a few API-completeness and grounding issues, mostly around stack-identification flags and unsupported precision about version formatting/retention.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The only required argument is `--region`. The stack is identified through `--stage`, `--projectName`, or configured defaults.",
+              "reason": "The draft correctly states that only `region` is required by the command definition, but it under-documents important common stack-identification flags that users need in practice. The rollback command includes `stackArgs` and `configDependentArgs`, and the rendered reference includes `--stage`, `--projectName`, `--awsAccount`, and `--profile`. For a CLI reference page, the usage section should more clearly explain how to identify the target stack and AWS account/profile, not leave those important flags only to the generated table.",
+              "suggestedFix": "Add a short paragraph after the first usage example: “Pass `--stage` and, when needed, `--projectName` to select the Stacktape stack. Use `--awsAccount` or `--profile` when your defaults do not point at the AWS account that owns the stack.” Keep `--region` as the only formally required argument.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "rollback: {\n    description: `Rolls back the stack to a previous deployment version.\n...\n    args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs,\n      targetVersion: rollbackVersion.optional(),\n      rollbackSteps: rollbackSteps.optional(),\n      listVersions: listVersions.optional()\n    },\n    requiredArgs: ['region'] as const\n  }"
+                },
+                {
+                  "file": "Draft page",
+                  "quote": "The only required argument is `--region`. The stack is identified through `--stage`, `--projectName`, or configured defaults"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Versions use the format `v` followed by a six-digit zero-padded number.",
+              "reason": "The rollback implementation generates a six-digit padded target only when calculating from `--rollbackSteps`, and the command description gives `v000003` as an example. The provided source does not show validation requiring every manually supplied `--targetVersion` to match that exact format.",
+              "suggestedFix": "Narrow the wording to the behavior shown in source: “Stacktape deployment versions are shown in values like `v000003`; when `--rollbackSteps` is used, rollback calculates the target by subtracting from the current numeric version and pads it to six digits.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "return `v${String(targetNumeric).padStart(6, '0')}`;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Use `--listVersions` to see available versions. Specify a target with `--targetVersion v000003` or `--rollbackSteps N` (default: 1)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Old versions may have been cleaned up based on the `previousVersionsToKeep` setting.",
+              "reason": "The source grounds the error hint text saying old versions may have been cleaned up based on `previousVersionsToKeep`, but it does not include configuration source proving that readers can set or increase `previousVersionsToKeep` from this page’s provided sources. The Tip goes beyond the CLI source by instructing users to increase that setting.",
+              "suggestedFix": "Keep the grounded availability warning, but soften the configuration instruction unless the relevant config source is included: “If rollback depth matters for your team, check the deployment retention setting documented for your Stacktape configuration before relying on older versions.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "hint: `Use --listVersions to see available versions. Old versions may have been cleaned up based on the previousVersionsToKeep setting.`"
+                },
+                {
+                  "file": "Draft page",
+                  "quote": "If you anticipate needing to roll back further than the default retention window, increase `previousVersionsToKeep` in your configuration before deploying."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "What happens to CloudFormation drift during rollback? CloudFormation will attempt to reconcile resources back to the template's declared state during the update.",
+              "reason": "The provided rollback source shows Stacktape deploying a prepared rollback template through CloudFormation, but it does not discuss drift detection or reconciliation behavior for manually modified AWS resources. This is plausible AWS background, but it is not grounded in the supplied Stacktape CLI sources and may overpromise behavior for drifted resources.",
+              "suggestedFix": "Either remove the FAQ entry or narrow it: “Rollback deploys the stored template from the target version. If resources were manually changed in AWS, review the CloudFormation update carefully because the provided Stacktape rollback source does not add a separate drift-handling step.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts",
+                  "quote": "await stackManager.deployStackForRollback(templateUrl);"
+                },
+                {
+                  "file": "Draft page",
+                  "quote": "CloudFormation will attempt to reconcile resources back to the template's declared state during the update."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses one command per shell block and includes required `--region` in all command examples.",
+            "The page uses `<CliCommandsApiReference command=\"rollback\" ... />` instead of hand-authoring the full flags table in prose.",
+            "The draft distinguishes `rollback` from `cf:rollback`, which is directly supported by the command description.",
+            "The sections on `--targetVersion`, `--rollbackSteps`, and `--listVersions` align with the command definition and implementation at a practical level.",
+            "The code-example demonstrativeness check passes for a CLI page: each example command exercises the flag or workflow described by its surrounding section."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\rollback.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T21:47:47.996Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\rollback\\index.ts": "3e07aaed8ba4724795fb12fa285508d2b7da09d1",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\rollback.md": "014468905c0b192c32fc85ba393f710d8d5c9b20"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

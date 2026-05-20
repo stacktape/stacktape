@@ -1,0 +1,1123 @@
+{
+  "pageId": "stacktape-console__billing-and-subscription",
+  "pageRoute": "stacktape-console/billing-and-subscription",
+  "startedAt": "2026-05-17T20:37:42.296Z",
+  "updatedAt": "2026-05-17T20:45:59.402Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\stacktape-console__billing-and-subscription\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Correctly grounds page routes in source: `/subscription-plans` and `/billing` both match the actual component file names and React Router setup.",
+            "Permission model is well-reasoned: correctly identifies `org:manage-billing` from the source's `hasPermission('org:manage-billing')` call, and correctly shows Viewer redirect behavior from both page components.",
+            "The three-plan structure (Free / Flexible / Enterprise) with feature breakdowns matches the source's `SubscriptionPlanItem` renderings exactly — 1 team member, $100/month cap, unlimited deployments, SSO, SOC 2, and 24x7 premium support are all grounded.",
+            "FAQ section spans all three required categories (Stacktape-specific, AWS-use-case, choosing/comparison) with practical, concise answers.",
+            "Common tasks section gives actionable, route-anchored instructions that match source component behavior (BillingDetails + InvoicesList on `/billing`, Paddle checkout container on both pages).",
+            "Correctly identifies Paddle as the payment processor and describes the inline checkout overlay pattern, which is grounded in the `paddle-checkout-container` div present in both source components."
+          ],
+          "problems": [
+            "INVENTED DATA — CRITICAL: The specific pricing thresholds in the Flexible plan table (30% for $100–$1,000, 28% for $1,000–$4,000, 26% for $4,000–$10,000, 24% for $10,000–$15,000, 22% for $15,000–$25,000) are not present in any provided source file. The source only references a `PricingThresholds` component without exposing its values. Publishing fabricated billing rates on a billing page is a serious trust and accuracy hazard.",
+            "INCORRECT PERMISSION MODEL: The draft states 'Both pages require at least Admin-level access — Viewers and Members cannot see or manage billing.' The source contradicts this: both `BillingPage.tsx` and `SubscriptionPlansPage.tsx` check only `role === 'VIEWER'` for redirect — Developers and Members are NOT redirected and can access and view both pages. Only managing billing (`org:manage-billing`) is restricted to Owner/Admin. The permissions table in the draft incorrectly marks Developer and Member as unable to 'View billing'.",
+            "`<FlowDiagram>` is not a documented or known MDX component in the project's style guide or component palette. If it does not exist in the renderer, the walkthrough section will render as raw JSX or be silently dropped.",
+            "The troubleshooting item 'Console polls for the updated subscription status over several seconds' is not grounded in any provided source file — no polling logic is visible in the component source.",
+            "The `org:view-billing` permission mentioned in the Permissions section is not explicitly enumerated in the provided source files (only `org:manage-billing` appears in the code). Asserting its existence and associating it with 'access the costs and usage page' may be inaccurate."
+          ],
+          "mandatoryFixes": [
+            "Remove all specific Flexible plan pricing percentages and dollar thresholds from the table and prose. The source does not expose these values. Replace with: 'The Flexible plan charges a tiered percentage of your managed AWS costs — see the `/subscription-plans` page in the Console for current rates.' Do not invent billing rates.",
+            "Correct the permissions model throughout the page. Only Viewers are redirected (source: `if (isViewer) { return <Navigate to=\"/overview\" replace />; }` in both components). Members and Developers can view both billing pages; they only cannot manage billing (upgrade/downgrade/update payment). Update the permissions table so Developer and Member rows show Yes for 'View billing' and No for 'Manage billing'. Update the prose statement 'Both pages require at least Admin-level access' to accurately reflect that only the manage-billing actions are Admin/Owner-restricted.",
+            "Replace `<FlowDiagram>` with a numbered markdown list or prose steps. `<FlowDiagram>` is not in the documented MDX component palette and may not render. The content itself is good — just change the container to a numbered `ol` or inline steps."
+          ],
+          "optionalImprovements": [
+            "Remove or soften the troubleshooting item about Console polling for subscription status after Paddle checkout — it is not grounded in source. A simpler 'refresh the page if the plan status hasn't updated' is both safer and sufficient.",
+            "The `org:view-billing` permission cited in the Permissions section should either be removed (since the source doesn't enumerate it) or clearly marked as 'check the Console permissions settings' to avoid asserting an unverified permission name.",
+            "The Downgrade walkthrough notes 'you may not be able to deploy if you exceed plan limits' — consider making this more concrete: the Free plan's $100/month managed AWS cost cap is the constraint that would block continued usage, not deployment count or team size alone.",
+            "Consider adding a note that the Enterprise plan button is a `ScheduleMeetingButton` (source confirms this) rather than a form — this sets expectations for users clicking it and landing in a calendar scheduling flow rather than a checkout.",
+            "The FAQ answer for 'What happens if I exceed the Free plan limit?' could clarify that Stacktape restricts new deployments (not existing infrastructure) — existing deployed stacks continue running regardless of plan status, which is reassuring for users worried about downtime."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 6,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The three-plan structure (Free, Flexible, Enterprise) accurately matches the source. Plan features — 1 team member limit, $100/mo AWS cap, unlimited deployments, SSO, SOC 2, 24x7 support — are all grounded in SubscriptionPlansPage.tsx.",
+            "The Paddle payment processor, 'Upgrade now' button label, 'Downgrade to FREE' button label, 'ScheduleMeetingButton' for Enterprise, and Viewer redirect to /overview are all directly confirmed by source code.",
+            "The permission-gating of billing management on `org:manage-billing` is accurately sourced from BillingPage.tsx and SubscriptionPlansPage.tsx.",
+            "The FAQ section is broad and practically useful: it covers Stacktape-specific questions, AWS cost attribution questions, and plan comparison questions, meeting the style guide's three-category requirement.",
+            "Common tasks section (view invoices, update payment, downgrade, view current details) gives the reader actionable walkthrough steps tied to concrete Console routes.",
+            "The 'No active subscription' and Viewer-redirect behavior are faithfully derived from source."
+          ],
+          "problems": [
+            "Specific pricing tier percentages in the table (30% for $100–$1,000, 28% for $1,000–$4,000, 26% for $4,000–$10,000, 24% for $10,000–$15,000, 22% for $15,000–$25,000) are NOT present in any provided source file. The source references a `PricingThresholds` component whose implementation was not included. These are potentially invented numbers that readers will use for financial planning decisions.",
+            "Permissions table and introductory claim ('Both pages require at least Admin-level access — Viewers and Members cannot see or manage billing') are factually wrong. The source (BillingPage.tsx, SubscriptionPlansPage.tsx) only redirects VIEWER role to /overview. Developers and Members are not redirected — their access is not restricted at the page level. Claiming Developer=No and Member=No for 'View billing' is unsupported.",
+            "The `org:view-billing` permission cited in the permissions section ('access the costs and usage page') does not appear anywhere in the provided source files. Only `org:manage-billing` is grounded.",
+            "`<FlowDiagram>` is not a documented MDX component in the style guide or instructions. Using an undocumented component is risky — it may not render, and the review rubric flags unknown component usage.",
+            "Troubleshooting note says 'the Console polls for the updated subscription status over several seconds.' The source shows a single `refetch()` call via tRPC after the Paddle success callback — not a polling loop. Minor inaccuracy but may mislead a user who expects polling behavior when it does not resolve."
+          ],
+          "mandatoryFixes": [
+            "Remove or replace the entire pricing tier percentage table (30%/28%/26%/24%/22% thresholds). These specific numbers are not in any provided source file and are likely invented. Replace with a statement like 'A tiered percentage that decreases as your managed AWS spend increases — exact thresholds are shown on the /subscription-plans page in the Console' until the PricingThresholds component source is available for verification.",
+            "Correct the permissions section: remove the claim that 'Viewers and Members cannot see or manage billing.' Source only confirms Viewers are redirected. Revise the permissions table so Developers and Members are not shown as blocked from viewing billing — their view access is not restricted in the source. Only management (org:manage-billing) and Viewer redirect are grounded.",
+            "Remove the reference to `org:view-billing` permission throughout the page. This permission string does not appear in any provided source file. Only `org:manage-billing` is confirmed.",
+            "Replace `<FlowDiagram>` with a documented MDX component or plain numbered prose for the upgrade walkthrough. `<FlowDiagram>` is not listed in the style guide's component palette and may not render."
+          ],
+          "optionalImprovements": [
+            "Correct the troubleshooting note about polling: the source shows a single tRPC refetch after Paddle success, not a polling loop. Replace 'polls for the updated subscription status over several seconds' with 'triggers a single refresh of organization data after payment completes.'",
+            "The 'What this part of the Console does' section title is verbose. Given the page rhythm guidance, this could be dropped entirely and folded into the opening paragraph, keeping the intro lean.",
+            "FAQ answer for 'What counts as managed AWS costs' is accurate but could add a concrete example list (Lambda functions, containers, databases, buckets, load balancers) which the SubscriptionPlansPage tooltip text supports: 'Costs for AWS infrastructure that is managed by Stacktape.'",
+            "The page does not mention that the Flexible plan's 'Upgrade now' button and the Free plan's 'Downgrade to FREE' button are only visible when the user has `org:manage-billing` permission — users without that permission see nothing (no button). This could be clarified in the upgrade walkthrough to avoid confusion for non-admin users who see the plan page but no action buttons."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 6,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 5
+          },
+          "strengths": [
+            "The page has a clear high-level structure for a Console page: plans, upgrade flow, common tasks, permissions, troubleshooting, related links, and FAQ.",
+            "The plan comparison table is useful and scannable for readers comparing Free, Flexible, and Enterprise.",
+            "The draft correctly reflects several facts visible in source: Paddle is used, Viewers are redirected to `/overview`, Flexible uses `% of AWS costs`, Free is `$0`, Free has one team member and a `$100 / mo` AWS cost limit, and Enterprise includes SSO, SOC 2 compliance, and up to 24x7 premium support."
+          ],
+          "problems": [
+            "The opening paragraph is only about 36 words, below the required 40-75 word answer-first range, and includes unsupported claims such as changing plans and managing payment details without contacting support.",
+            "Several Console UI claims are not grounded in the provided source files: exact `/billing` and `/subscription-plans` routes, invoice fields, receipt links, newest-first sorting, billing email/currency/subscription ID display, inline checkout behavior, polling after checkout, and Paddle webhook delay.",
+            "Permission claims overreach the provided source. The source only shows Viewer redirect and `org:manage-billing` gating for billing actions; it does not support the full role matrix, Admin-level access wording, Developer/Member behavior, or `org:view-billing` details.",
+            "The draft says all plans include unlimited deployments and unlimited stacks, but the Enterprise plan source does not show those features. The claim is only grounded for Free and Flexible in the provided source.",
+            "Several H2 sections fail the self-contained-section requirement. `Walkthrough: upgrading to the Flexible plan`, `Common tasks`, `Troubleshooting`, `Related features`, and `FAQ` do not start with a self-contained paragraph explaining the section.",
+            "The upgrade walkthrough presents a detailed UI flow that is only partially supported. Source confirms the `Upgrade now` button calls `createPaddleSubscription`, but does not prove checkout overlay wording, payment form fields, page refresh, or final activation behavior.",
+            "The FAQ repeats unsupported or over-broad claims, including payment method support, resources counted as managed AWS costs, paid-plan seat rules, receipt downloads, and Free-plan deployment restrictions.",
+            "The page is practical in shape but not source-safe. A reader could act on UI details that may be wrong because the supporting components `BillingDetails`, `InvoicesList`, Paddle service helpers, and route definitions are not included in the source list."
+          ],
+          "mandatoryFixes": [
+            "Ground or remove every unsupported Console behavior claim. With the current source list, limit Billing page claims to: Viewers are redirected to `/overview`; `BillingDetails` receives `canManageBilling`; `InvoicesList` is rendered; and a `.paddle-checkout-container` div exists.",
+            "Revise permission coverage to match source exactly: Viewer users are redirected; billing management actions depend on `hasPermission('org:manage-billing')`. Do not publish a full role matrix unless role-permission source files are provided.",
+            "Remove or narrow unsupported plan claims. Do not say Enterprise includes unlimited deployments or unlimited stacks unless source supporting those Enterprise features is provided.",
+            "Rewrite the opening paragraph to 40-75 words and keep it self-contained, using only grounded facts from the source files.",
+            "Add self-contained opening paragraphs under each H2 section or merge/remove sections that cannot be grounded. `Walkthrough`, `Common tasks`, `Troubleshooting`, `Related features`, and `FAQ` need section-level context.",
+            "Replace detailed invoice, payment-detail, checkout, polling, webhook, receipt, and Free-plan enforcement claims with cautious wording or source-grounded facts from additional files such as `BillingDetails`, `InvoicesList`, `services/paddle`, route configuration, and permission definitions."
+          ],
+          "optionalImprovements": [
+            "If additional source files can be provided, include `BillingDetails.tsx`, `InvoicesList.tsx`, `Utils.tsx`, Paddle service helpers, route definitions, and permission/role mappings; those would make the page much more useful and verifiable.",
+            "Turn the plan comparison into a source-grounded table only: show values present in `SubscriptionPlansPage.tsx`, and omit cells not represented in source instead of filling them by inference.",
+            "Make the FAQ smaller and stricter. Keep questions that can be answered from the source, and link broader cost-management questions to existing cost docs only when those pages support the claims.",
+            "Shorten `Walkthrough: upgrading to the Flexible plan` to `Upgrade flow` and avoid unsupported step-by-step UI details unless route and Paddle helper sources are available."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the two visible Console entry points, but it overstates several UI flows, role mappings, and billing behaviors that are not present in the provided source. The main risks are unsupported Console details and access-control claims beyond the `VIEWER` redirect and `org:manage-billing` gating shown in source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Both pages require at least Admin-level access — Viewers and Members cannot see or manage billing\" and the permissions table says Developer, Member, and Viewer cannot view billing.",
+              "reason": "The provided Console page sources only redirect users whose role is exactly `VIEWER`. They do not show an Admin-only view requirement, and they do not show Developers or Members being blocked from viewing the Billing or Subscription Plans pages. Management controls are gated by `org:manage-billing`, but page visibility is only explicitly blocked for Viewers in these files.",
+              "suggestedFix": "Narrow the wording to what the source shows: Viewers are redirected to `/overview`; billing-management actions are shown only when `hasPermission('org:manage-billing')` is true. Do not claim that Members or Developers cannot view billing unless role-permission source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "const isViewer = role === 'VIEWER';\n  const canManageBilling = hasPermission('org:manage-billing');"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "if (isViewer) {\n    return <Navigate to=\"/overview\" replace />;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const isViewer = role === 'VIEWER';\n  const canManageBilling = hasPermission('org:manage-billing');"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "if (isViewer) {\n    return <Navigate to=\"/overview\" replace />;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"After cancellation, your organization reverts to Free plan limits (1 team member, $100/month AWS cost cap). Existing stacks are not deleted, but you may not be able to deploy if you exceed plan limits.\"",
+              "reason": "The source shows the Free plan card can call `cancelPaddleSubscription` with a cancellation URL and then refetch organization data. It does not show the post-cancellation lifecycle, whether existing stacks are retained, or whether deploys are restricted after exceeding Free plan limits.",
+              "suggestedFix": "Keep only the grounded action: clicking `Downgrade to FREE` calls the Paddle subscription cancellation flow and refetches the organization after success. Remove or qualify claims about existing stacks and deployment restrictions unless backed by deployment/billing enforcement source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "onClick={() =>\n                      cancelPaddleSubscription({\n                        cancelSubscriptionUrl: organization!.cancelSubscriptionUrl!,\n                        onSuccess: refetch\n                      })\n                    }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "text=\"Downgrade to FREE\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The upgrade walkthrough says Paddle checkout opens as an inline overlay, payment details are entered in that form, the organization plan updates to Flexible after successful payment, and the page refreshes to show the new status.",
+              "reason": "The page source shows an `Upgrade now` button that calls `createPaddleSubscription` with organization ID, email, and an `onSuccess` refetch callback. It also renders a `paddle-checkout-container`. The provided source does not show the checkout UI behavior, the exact form fields, the overlay/inline presentation, or the final plan transition semantics.",
+              "suggestedFix": "Write the walkthrough more narrowly: clicking `Upgrade now` starts `createPaddleSubscription`; the page includes a Paddle checkout container; on success, the organization query is refetched. Avoid describing checkout UI details not present in source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "onClick={() =>\n                      createPaddleSubscription({\n                        organizationId: organization!.id,\n                        onSuccess: refetch,\n                        email: loggedInUserEmail\n                      })\n                    }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<div className=\"paddle-checkout-container\" />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"After a successful Paddle checkout, the Console polls for the updated subscription status over several seconds.\"",
+              "reason": "The provided Subscription Plans source defines a `refetch` function and passes it as `onSuccess` to `createPaddleSubscription` and `cancelPaddleSubscription`. It does not show polling behavior over several seconds.",
+              "suggestedFix": "Replace with: after the Paddle subscription action succeeds, the Console refetches organization data and updates the selected organization from that response.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const refetch = () => {\n    organizationQuery.refetch().then((org) => setSelectedOrganization(org.data as any));\n  };"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "onSuccess: refetch"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft describes invoice UI details: invoices are sorted newest first, each invoice shows description, amount, tax, and receipt link, and empty state text is \"No invoices available.\"",
+              "reason": "The provided Billing page source only renders `<InvoicesList />`; the `InvoicesList` implementation is not included. The listed fields, sort order, and exact empty-state text are not grounded in the provided source files.",
+              "suggestedFix": "Limit this section to: the `/billing` page renders an invoices list. Add field, sort, and empty-state details only if `InvoicesList` source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "import { InvoicesList } from './InvoicesList';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<InvoicesList />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says the `/billing` page has an **Update** control that opens Paddle subscription management where users can change payment method, billing email, or address, and that the page shows customer name, billing email, currency, and subscription ID.",
+              "reason": "The provided Billing page source only renders `BillingDetails` and passes `organization`, `refetchOrganization`, and `canManageBilling`. It does not show an Update button, Paddle management overlay, editable fields, displayed fields, or exact empty-state text.",
+              "suggestedFix": "Describe only the grounded structure: `/billing` renders billing details and passes `canManageBilling` to that component. Do not name specific buttons, fields, or Paddle management actions without `BillingDetails` source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<BillingDetails\n        organization={organization as any}\n        refetchOrganization={organizationQuery.refetch}\n        canManageBilling={canManageBilling}\n      />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft states Paddle supports credit cards, debit cards, and PayPal in most regions, with options depending on billing country and currency.",
+              "reason": "The provided source only shows Paddle initialization and checkout/container integration. It does not document supported payment methods or regional availability.",
+              "suggestedFix": "Keep the grounded claim that Stacktape initializes Paddle for subscription checkout. Remove specific payment-method support unless supported by Paddle integration source or product docs included in the source list.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const paddle = ((globalThis as any) || (window as any)).Paddle;"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "paddle.Setup({ vendor: clientConfig.paddleVendorId });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Managed AWS costs are the infrastructure expenses for resources defined in your Stacktape configuration and deployed through Stacktape — Lambda functions, containers, databases, buckets, load balancers, and similar.\"",
+              "reason": "The source only defines managed AWS costs in the Flexible plan tooltip as AWS infrastructure managed by Stacktape and says Stacktape will not charge for other resources in the AWS account. It does not enumerate which resource categories count or tie the definition specifically to resources defined in Stacktape configuration.",
+              "suggestedFix": "Use the source wording: managed AWS costs are costs for AWS infrastructure managed by Stacktape, and Stacktape does not charge for other AWS account resources. Remove the unsourced resource-category list or back it with billing calculation source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<p key=\"1\">Costs for AWS infrastructure that is managed by Stacktape.</p>,\n                        <p key=\"2\">Stacktape WILL NOT charge you for other resources within your AWS account.</p>"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly names the two Console routes visible in source: `/subscription-plans` and `/billing`.",
+            "The plan names, core Free/Flexible/Enterprise feature rows, `Upgrade now`, `Downgrade to FREE`, and Enterprise meeting button are consistent with the Subscription Plans source.",
+            "The draft correctly avoids forbidden Stacktape config examples and does not introduce hand-authored YAML or `StacktapeConfig` style.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several Stacktape Console behavior claims that go beyond the provided Console source. The most important problems are role/access claims that contradict the visible route guards, pricing threshold values that are not present in the provided files, and detailed billing/invoice UI flows that are not grounded because the nested component source was not provided.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Both pages require at least Admin-level access — Viewers and Members cannot see or manage billing.” Similar claims also appear in the Info box, Permissions section, troubleshooting, and FAQ.",
+              "reason": "The provided page components only redirect users whose role is exactly `VIEWER`. The source does not show Members or Developers being blocked from viewing `/billing` or `/subscription-plans`; it only hides manage actions based on `org:manage-billing`. Claiming Members cannot see billing contradicts the visible route guard.",
+              "suggestedFix": "Narrow the access wording: Viewers are redirected from both pages. Billing management actions are shown only when `hasPermission('org:manage-billing')` is true. Do not map that permission to Owner/Admin/Developer/Member unless a permissions source file is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "const isViewer = role === 'VIEWER';\n  const canManageBilling = hasPermission('org:manage-billing');"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "if (isViewer) {\n    return <Navigate to=\"/overview\" replace />;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const isViewer = role === 'VIEWER';\n  const canManageBilling = hasPermission('org:manage-billing');"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "if (isViewer) {\n    return <Navigate to=\"/overview\" replace />;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Flexible plan pricing table lists exact thresholds and percentages: “$100–$1,000: 30%”, “$1,000–$4,000: 28%”, “$4,000–$10,000: 26%”, “$10,000–$15,000: 24%”, “$15,000–$25,000: 22%”, and “Greater than $25,000: Contact sales.”",
+              "reason": "The provided source renders a `PricingThresholds` component, but that component’s implementation is not included. The exact percentages and spend bands are not visible in the provided source files, so the draft cannot state them as grounded facts.",
+              "suggestedFix": "Either remove the exact pricing threshold table or replace it with cautious wording that the Flexible page shows percentage pricing for Stacktape-managed AWS costs. Include the exact bands only if the `PricingThresholds` source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "import { CurrentlyActiveText, OrganizationMembers, PricingThresholds, SubscriptionPlanItem } from './Utils';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<PricingThresholds />"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“After successful payment, your organization's plan updates to Flexible. The page refreshes to show the new status.” and “After a successful Paddle checkout, the Console polls for the updated subscription status over several seconds.”",
+              "reason": "The source shows `createPaddleSubscription` is called with `onSuccess: refetch`, and `refetch` updates the selected organization from the organization query. It does not show page refresh behavior or polling over several seconds.",
+              "suggestedFix": "Say that the subscription page calls Paddle checkout and refetches the organization data on success. Do not claim a page refresh or polling unless the Paddle service source shows that behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const refetch = () => {\n    organizationQuery.refetch().then((org) => setSelectedOrganization(org.data as any));\n  };"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "createPaddleSubscription({\n                        organizationId: organization!.id,\n                        onSuccess: refetch,\n                        email: loggedInUserEmail\n                      })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Billing page (at `/billing`) [is] where you view payment details and past invoices”, plus the Common tasks sections describing invoice sorting, invoice fields, receipt links, “No invoices available”, update-payment fields, and “No active subscription.”",
+              "reason": "The provided `BillingPage` source only renders `BillingDetails` and `InvoicesList`; the implementations of those components are not included. The detailed field names, empty states, sorting behavior, receipt links, and payment-management overlay behavior are not grounded in the provided source.",
+              "suggestedFix": "Keep only what the page component proves: `/billing` renders billing details and an invoices list, and passes `canManageBilling` into `BillingDetails`. Remove or qualify the detailed UI text unless `BillingDetails` and `InvoicesList` source files are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "import BillingDetails from './BillingDetails';\nimport { InvoicesList } from './InvoicesList';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<BillingDetails\n        organization={organization as any}\n        refetchOrganization={organizationQuery.refetch}\n        canManageBilling={canManageBilling}\n      />\n      <InvoicesList />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The checkout appears inline on the page” and “This opens the Paddle checkout overlay.”",
+              "reason": "The provided source includes a `.paddle-checkout-container` div and calls `createPaddleSubscription`, but the implementation of the Paddle service is not provided. The draft inconsistently claims both inline checkout and overlay behavior, and neither specific UI mode is proven by these files.",
+              "suggestedFix": "State only that the page initializes Paddle and provides a checkout container, and that clicking Upgrade calls `createPaddleSubscription`. Avoid “overlay” or “inline” unless the Paddle service source confirms the checkout mode.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const paddle = ((globalThis as any) || (window as any)).Paddle;"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "paddle.Setup({ vendor: clientConfig.paddleVendorId });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<div className=\"paddle-checkout-container\" />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Enterprise plan has custom pricing negotiated directly with the Stacktape team” and “Schedule a meeting through the Console's subscription page to discuss pricing.”",
+              "reason": "The source supports that Enterprise displays “Custom pricing” and renders `ScheduleMeetingButton`, but it does not state negotiation, direct discussion with the Stacktape team, or what the meeting covers.",
+              "suggestedFix": "Use the grounded wording: the Enterprise card shows Custom pricing and includes a schedule-meeting button. Avoid claiming negotiation details unless the meeting button source or billing copy source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "import { ScheduleMeetingButton } from '../../components/Misc/ScheduleMeetingButton';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "title: 'Enterprise',\n              price: <p css={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Custom pricing</p>,"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "button: <ScheduleMeetingButton />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape bills based on the AWS infrastructure costs your stacks generate — not per seat, per deployment, or per request.”",
+              "reason": "The source supports Flexible pricing as a percentage of AWS infrastructure managed by Stacktape and shows unlimited deployments/stacks for Free and Flexible. It does not support the broader claim that all Stacktape billing is not per seat, deployment, or request, especially because Enterprise is only shown as custom pricing.",
+              "suggestedFix": "Scope the statement to what is visible: the Flexible plan is shown as a percentage of Stacktape-managed AWS infrastructure costs, and Free/Flexible cards list unlimited deployments and stacks. Avoid global claims about all plans or all billing dimensions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<p css={{ fontSize: '1.1rem', fontWeight: 'bold' }}>% of AWS costs</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<p key=\"1\">Costs for AWS infrastructure that is managed by Stacktape.</p>,\n                        <p key=\"2\">Stacktape WILL NOT charge you for other resources within your AWS account.</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "title: 'Enterprise',\n              price: <p css={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Custom pricing</p>"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft says the Free plan is a good fit for “hobby projects,” but the source only labels it “For individuals” and describes it as “For individuals and small teams.”",
+              "reason": "This is plausible guidance, but “hobby projects” is not grounded in the provided source. It is low impact because it does not change configuration behavior.",
+              "suggestedFix": "Use the source wording: “individuals and small teams,” or make the guidance clearly editorial without implying a Console-stated plan category.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the two visible Console routes from the provided components: `/subscription-plans` and `/billing`.",
+            "The draft correctly states that the subscription page uses Paddle; the source imports Paddle helpers, initializes `Paddle`, and configures the vendor ID.",
+            "The draft correctly captures several visible plan-card facts: Free is `$0` with no credit card required, Free allows 1 team member and up to `$100 / mo` AWS costs, Flexible shows `% of AWS costs`, and Enterprise shows custom pricing, SSO, SOC 2 Compliance, and up to 24x7 premium support.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft has several source-grounding problems in Console UI and permission behavior. The largest issue is overclaiming role access: the provided Console source only redirects VIEWER users and gates management actions with org:manage-billing; it does not prove that Members or Developers cannot view billing, nor that Owner/Admin are the only billing managers.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Both pages require at least Admin-level access — Viewers and Members cannot see or manage billing.",
+              "reason": "The provided source only redirects users whose role is VIEWER. It does not redirect Members or Developers from either billing page. Management actions are gated by the org:manage-billing permission, not by an explicit Admin-level role check in these files.",
+              "suggestedFix": "Say: “Users with the VIEWER role are redirected to /overview. Billing management actions are shown only when the current user has org:manage-billing.” Avoid claiming Members or Developers cannot view billing unless role-permission source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "const isViewer = role === 'VIEWER';\nconst canManageBilling = hasPermission('org:manage-billing');\n...\nif (isViewer) {\n  return <Navigate to=\"/overview\" replace />;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const isViewer = role === 'VIEWER';\nconst canManageBilling = hasPermission('org:manage-billing');\n...\nif (isViewer) {\n  return <Navigate to=\"/overview\" replace />;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Developers, Members, and Viewers do not have access to billing management. / Developers, Members, and Viewers cannot view or change subscription plans.",
+              "reason": "The source supports only two behaviors: VIEWER users are redirected, and plan-change buttons are hidden unless canManageBilling is true. It does not establish Developer or Member viewing restrictions, nor map org:manage-billing exclusively to Owner/Admin.",
+              "suggestedFix": "Replace the role table with source-grounded behavior: “VIEWER users are redirected from /billing and /subscription-plans. Users without org:manage-billing can view the pages if not redirected, but management buttons are not rendered.” If role mappings are needed, add the permissions source file to the source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "button:\n  organization?.subscriptionPlanType === 'FLEXIBLE' ? (\n    <CurrentlyActiveText />\n  ) : canManageBilling ? (\n    <Button ... text=\"Upgrade now\" ... />\n  ) : null"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<BillingDetails\n  organization={organization as any}\n  refetchOrganization={organizationQuery.refetch}\n  canManageBilling={canManageBilling}\n/>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Flexible plan percentage decreases as spend increases: $100–$1,000 = 30%, $1,000–$4,000 = 28%, $4,000–$10,000 = 26%, $10,000–$15,000 = 24%, $15,000–$25,000 = 22%, greater than $25,000 = Contact sales.",
+              "reason": "The provided source renders a PricingThresholds component, but the component implementation is not included. The exact thresholds and percentages are not visible in the provided source files.",
+              "suggestedFix": "Either remove the exact threshold table or provide/source the PricingThresholds implementation. A grounded version from the current source can only say that the Flexible plan displays pricing thresholds and charges a percentage of Stacktape-managed AWS costs.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<p css={{ fontSize: '1.1rem', fontWeight: 'bold' }}>% of AWS costs</p>\n<Tooltip\n  tooltipText={[\n    <p key=\"1\">Costs for AWS infrastructure that is managed by Stacktape.</p>,\n    <p key=\"2\">Stacktape WILL NOT charge you for other resources within your AWS account.</p>\n  ]}\n/>\n...\n<PricingThresholds />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The /billing Invoices section lists all past payments sorted by date (newest first). Each invoice shows a description, amount, tax, and a link to the receipt. If no payments have been made, the page displays \"No invoices available.\"",
+              "reason": "BillingPage renders InvoicesList, but the InvoicesList implementation is not provided. Sorting, fields, receipt links, and empty-state text are not grounded in the supplied source.",
+              "suggestedFix": "Narrow the wording to: “The /billing page renders an invoices list.” Add the InvoicesList source file if the page needs details about sorting, displayed fields, or empty states.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "import { InvoicesList } from './InvoicesList';\n...\n<InvoicesList />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The /billing page shows your current subscription information: customer name, billing email, currency, and subscription ID. If no active subscription exists, the page shows \"No active subscription.\"",
+              "reason": "BillingPage renders BillingDetails with organization data, but BillingDetails source is not provided. The exact fields and empty-state text are not grounded.",
+              "suggestedFix": "Narrow the wording to: “The /billing page renders billing details for the selected organization.” Add BillingDetails source before documenting the exact fields or empty-state copy.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<BillingDetails\n  organization={organization as any}\n  refetchOrganization={organizationQuery.refetch}\n  canManageBilling={canManageBilling}\n/>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "After successful payment, your organization's plan updates to Flexible. The page refreshes to show the new status.",
+              "reason": "The source passes onSuccess: refetch to createPaddleSubscription. That supports refetching organization data, not a full page refresh. The exact post-payment status transition is handled outside the provided source.",
+              "suggestedFix": "Say: “After createPaddleSubscription succeeds, the Console refetches the organization and updates the selected organization data.” Avoid claiming a page refresh or final plan state unless the Paddle service source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const refetch = () => {\n  organizationQuery.refetch().then((org) => setSelectedOrganization(org.data as any));\n};\n...\ncreatePaddleSubscription({\n  organizationId: organization!.id,\n  onSuccess: refetch,\n  email: loggedInUserEmail\n})"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "This opens the Paddle checkout overlay. / The checkout appears inline on the page.",
+              "reason": "The page includes a paddle-checkout-container div and initializes Paddle, but the provided source for createPaddleSubscription is not included. The source does not show whether checkout opens as an overlay, inline checkout, redirect, or another Paddle flow.",
+              "suggestedFix": "Use cautious wording: “The Flexible plan button calls createPaddleSubscription and the page includes a Paddle checkout container.” Add services/paddle source before documenting the exact checkout presentation.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "createPaddleSubscription({\n  organizationId: organization!.id,\n  onSuccess: refetch,\n  email: loggedInUserEmail\n})"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<div css={{ marginTop: '25px', width: '100%' }}>\n  <div className=\"paddle-checkout-container\" />\n</div>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Paddle supports credit cards, debit cards, and PayPal in most regions. The specific payment options shown depend on your billing country and currency.",
+              "reason": "The provided source confirms Stacktape initializes Paddle and uses Paddle subscription helpers, but it does not document available payment methods or region/currency behavior.",
+              "suggestedFix": "Either remove this FAQ answer or keep it generic: “Stacktape uses Paddle for paid subscription checkout.” Add Paddle documentation or local payment-service source if payment method coverage is required.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const paddle = ((globalThis as any) || (window as any)).Paddle;\n...\npaddle.Setup({ vendor: clientConfig.paddleVendorId });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses the literal Console routes /subscription-plans and /billing that are represented by the supplied page components.",
+            "The draft correctly states that the Free card shows $0, no credit card required, 1 team member, up to $100/mo AWS costs, unlimited deployments, and unlimited stacks.",
+            "The draft correctly states that the Flexible card uses “% of AWS costs,” excludes AWS resources not managed by Stacktape, and shows unlimited team members, unlimited deployments, unlimited stacks, and hands-on support.",
+            "The draft correctly states that the Enterprise card uses custom pricing and lists SSO, SOC 2 Compliance, and up to 24x7 premium support."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\stacktape-console__billing-and-subscription\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded throughout: plan names, button labels ('Upgrade now', 'Downgrade to FREE'), Viewer redirect, and `org:manage-billing` permission checks all match the actual source files exactly.",
+            "Feature comparison table is concise and covers the three plans side-by-side — a first-timer can make a decision from it in seconds.",
+            "Walkthrough maps precisely to the real UI flow: Paddle checkout container, button states, and refetch-on-success behavior are all confirmed by source.",
+            "Permissions section doubles as a decision aid: the role/permission table tells developers whether to handle billing themselves or escalate to an owner.",
+            "FAQ covers all three required categories (Stacktape-specific, underlying-service, and choosing/comparison) and the answers are appropriately concise.",
+            "Troubleshooting items address genuinely common confusion points (button not visible, plan not updating after payment, 'no active subscription' message).",
+            "Console routes are cited as literal paths (`/billing`, `/subscription-plans`) which is exactly what a first-timer needs to navigate."
+          ],
+          "problems": [
+            "The 'Support' row in the comparison table assigns 'Community' to the Free plan. The source code's Free plan feature list shows only '1 team member', '$100/mo', 'Unlimited deployments', and 'Unlimited stacks' — no support tier label appears. 'Community' is inferred, not sourced.",
+            "The permissions table rows for Developer and Member ('Yes' for view, 'No' for manage) go beyond what the source explicitly confirms. The source only confirms: (a) Viewer is redirected to /overview, and (b) `canManageBilling` controls management buttons. No other role names or view-only permissions are enumerated in the provided source files.",
+            "The FAQ answer for 'What payment methods does Stacktape accept?' claims Paddle supports 'credit cards, debit cards, and PayPal in most regions'. This claim is not grounded in the provided source files (which only confirm Paddle is the processor, not which payment methods it accepts).",
+            "The FAQ answer for 'What happens if I exceed the Free plan's $100/month limit?' asserts the user 'need[s] to upgrade to the Flexible plan to continue using Stacktape's full capabilities'. The actual enforcement behavior at the limit (hard block, degraded service, warning only) is not described or confirmed in the provided source.",
+            "The H2 heading 'What this part of the Console does' is a full sentence rather than the preferred 1–5 word noun-form label. The style guide specifies H2s should be short, descriptive noun-form labels."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the 'Support' row from the comparison table, or replace 'Community' with '—' and add a footnote that support details are shown on the subscription plans page, since the source does not name a support tier for Free.",
+            "Narrow the permissions table to only what is directly confirmed by source: Viewer is redirected, and users without `org:manage-billing` cannot see management buttons. Either remove the Developer/Member rows or add a qualifier like 'varies by org configuration — exact role-to-permission mapping is set in team settings'.",
+            "Replace or remove the Paddle payment methods list in the FAQ. A safe alternative: 'Stacktape uses Paddle as its payment processor. Supported payment methods depend on your billing country; Paddle displays available options during checkout.'",
+            "Qualify the Free plan limit consequence: instead of claiming full capabilities are blocked, write 'If your managed AWS costs exceed $100/month on the Free plan, Stacktape will prompt you to upgrade. Navigate to `/subscription-plans` to upgrade.' This stays within what the source supports.",
+            "Shorten the H2 'What this part of the Console does' to a compact noun-form label such as 'Overview' or 'Console pages' to match the style guide's 1–5 word heading preference.",
+            "The walkthrough Step 3 says 'The page includes a Paddle checkout container for payment processing' as a parenthetical inside the step description. This reads as an internal implementation note rather than user-facing guidance — remove it from the walkthrough or rephrase as 'A Paddle checkout dialog opens in the page.'",
+            "Consider adding a one-sentence note in the Flexible plan section that the actual percentage tiers are visible on the `/subscription-plans` page but are not reproduced here (since `<PricingThresholds />` renders them dynamically and the specific numbers are not in the source files provided)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded plan feature rows: every cell in the FeatureComparisonTable (team members, AWS cost limit, SSO, SOC 2, support tier) matches text visible in SubscriptionPlansPage.tsx exactly.",
+            "VIEWER redirect and org:manage-billing permission gating are correctly identified from the source and explained at every relevant touchpoint (walkthrough, permission table, FAQ, troubleshooting).",
+            "Walkthrough accurately reflects the actual UI flow: Upgrade now button → Paddle checkout container → refetch org data on success, all confirmed in source.",
+            "FAQ covers all three required categories: Stacktape-specific (what counts as managed costs, how to downgrade), underlying AWS/service questions (payment methods), and comparison/decision questions (per-deployment fee, credit card requirement). Ten questions without obvious padding.",
+            "Downgrade flow accurately reflects cancelPaddleSubscription and the subsequent org refetch, and correctly ties Free plan limits to the post-downgrade state."
+          ],
+          "problems": [
+            "Permission table maps specific roles (Owner, Admin, Developer, Member) to org:manage-billing: Yes/No, but the provided source files contain only two facts: (1) VIEWER role is redirected, and (2) hasPermission('org:manage-billing') gates the management UI. The source does not enumerate which named roles hold org:manage-billing. Asserting 'Owner → Yes, Admin → Yes, Developer → No, Member → No' is unsupported by the provided source and will mislead an engineer debugging a permission issue.",
+            "The page routes /subscription-plans and /billing are stated as facts but do not appear in the provided source files. The source only shows Navigate redirects to /overview for VIEWERs and component display names (BillingPage, SubscriptionPlansPage). These route strings are inferred, not confirmed.",
+            "The sentence 'The BillingDetails component receives permission context and conditionally renders management options' is implementation prose that leaks internal component names into user-facing docs. It adds no actionable information for a reader and reads like a code comment."
+          ],
+          "mandatoryFixes": [
+            "Remove the role-to-permission mapping columns (Owner/Admin/Developer/Member → manage billing Yes/No) from the permissions table. Replace with source-grounded facts only: VIEWER is redirected to /overview; any user with org:manage-billing sees management controls; users without it can still view pages. Do not claim which named roles hold org:manage-billing — the provided source does not enumerate this.",
+            "Qualify the route paths /subscription-plans and /billing as approximate or remove them as authoritative URLs. The source files do not define these routes explicitly. Either write 'navigate to the Subscription Plans page in the Stacktape Console' without quoting a path, or add a caveat that the path may vary. Presenting inferred routes as literal facts causes hard-to-diagnose confusion when they don't match.",
+            "Remove or replace the sentence 'The BillingDetails component receives permission context and conditionally renders management options' — it exposes internal component names with no user value. Replace with a behavior-focused sentence: 'Payment management controls appear only when you have the org:manage-billing permission; otherwise the page is read-only.'"
+          ],
+          "optionalImprovements": [
+            "The 'What this part of the Console does' opening section and the intro paragraph have meaningful overlap (both state there are two pages and what they contain). Consider collapsing this into the intro paragraph and removing the section, or making the section add net-new information (e.g. what triggers the Paddle initialization on page load).",
+            "The Flexible plan section says 'see the /subscription-plans page in the Console for current rates' but PricingThresholds is a component in the source — if the tiers are known (even approximately), spelling them out here would save a round trip to the Console for readers evaluating costs. If the thresholds are intentionally unpublished, a sentence explaining why would help.",
+            "The troubleshooting entry for 'Plan not updating after payment' says 'Paddle webhook delivery can occasionally take a few seconds' — this claim about Paddle webhook latency has no source backing. Soften to 'if the plan still shows the old state, refresh the page manually' without speculating about Paddle internals.",
+            "The 'Viewing invoices' subsection is two sentences and does not explain what information the invoices list shows (amounts, dates, invoice IDs, download links). Even one source-grounded sentence about what InvoicesList renders would improve usefulness."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page is well structured for a Console guide, with clear sections for plan comparison, common tasks, permissions, troubleshooting, related links, and FAQ.",
+            "Routes, Viewer redirect behavior, Paddle usage, active-plan display, and permission-gated upgrade/downgrade controls are mostly tied to the provided Console source.",
+            "The plan comparison table is useful and scannable, and the FAQ covers practical billing questions a reader would likely ask."
+          ],
+          "problems": [
+            "The opening paragraph is under the required 40-75 word range and does not fully answer why billing and subscription management matters in a self-contained way.",
+            "Several Stacktape-specific claims are not grounded in the provided source files: tiered Flexible pricing that decreases with spend, current rates on `/subscription-plans`, AWS account requirement, AWS billing being separate, Paddle payment methods such as PayPal, and Free-plan overage consequences.",
+            "The plan comparison table claims Enterprise includes unlimited deployments and unlimited stacks, but the provided `SubscriptionPlansPage.tsx` source does not list those features for the Enterprise plan.",
+            "The page describes some implementation details that are not reader-oriented, such as `BillingDetails` receiving permission context and organization refetch internals, instead of translating the grounded behavior into user-facing guidance.",
+            "The FAQ includes unsupported or too-broad claims about what counts as managed AWS costs, including examples like Lambda functions, containers, databases, buckets, and load balancers that are not present in the provided Console source.",
+            "The page says billing management actions include updating payment details, but the provided source only shows `BillingDetails`, `canManageBilling`, and a Paddle checkout container; the exact update-payment UI flow is not visible in the source.",
+            "The troubleshooting claim that Paddle webhook delivery can take a few seconds is not grounded in the provided source files.",
+            "The permissions table assigns billing behavior to Owner, Admin, Developer, and Member roles, but the provided source only shows a VIEWER redirect and `org:manage-billing` permission checks; it does not map those roles to permissions."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported pricing claims. Keep only source-visible facts: Free is `$0` with no credit card required, Flexible is `% of AWS costs` with a tooltip saying Stacktape charges for AWS infrastructure managed by Stacktape and not other AWS resources, and Enterprise is custom pricing.",
+            "Correct the Enterprise row in the plan comparison table by removing unsupported `Unlimited deployments` and `Unlimited stacks` claims for Enterprise, unless additional source proves them.",
+            "Rewrite the permissions section so it only states source-grounded behavior: VIEWER users are redirected to `/overview`; billing management controls depend on `org:manage-billing`. Do not map Owner/Admin/Developer/Member unless source for that mapping is provided.",
+            "Remove unsupported payment-method details such as debit cards and PayPal, or replace with the grounded statement that the Console uses Paddle for subscription checkout.",
+            "Remove unsupported AWS account and separate AWS billing claims unless those facts are provided in source for this page.",
+            "Revise troubleshooting to remove the unsupported Paddle webhook timing claim and avoid asserting backend behavior not visible in the provided source.",
+            "Expand the first paragraph to 40-75 words and make it a self-contained answer to what the Billing and Subscription Console area is and why it matters."
+          ],
+          "optionalImprovements": [
+            "Replace implementation-oriented wording like `BillingDetails component receives permission context` with reader-facing phrasing such as `billing management controls appear only for users with billing-management permission`.",
+            "Make each H2 opening paragraph more extractable by naming the page or feature explicitly, especially `Common tasks`, `Permissions`, and `Troubleshooting`.",
+            "Add links around literal Console routes where the docs system supports Console deep links, or consistently phrase them as routes rather than navigation instructions.",
+            "Shorten some FAQ answers by removing unsupported examples and keeping each answer to one source-grounded idea."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the two Console source files for plan names, viewer redirects, Paddle usage, subscription buttons, and the rendered billing/subscription routes. The main factual risks are claims about billing details/payment-management behavior that are not visible in the provided BillingDetails source, plus a few over-specific claims about plan limits and payment methods that the supplied files do not prove.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“You can view invoices, update payment details, and change plans directly from the Console.” and “Updating payment details” says management controls are available on `/billing`.",
+              "reason": "The provided BillingPage source proves that `BillingDetails`, `InvoicesList`, and a Paddle checkout container are rendered, but it does not show any payment-details update control or flow. The missing `BillingDetails` implementation may contain it, but it is not in the supplied source list, so this user-facing Console action is unsupported here.",
+              "suggestedFix": "Narrow the claim to what the provided source proves: `/billing` renders billing details, an invoices list, and a Paddle checkout container. Remove or qualify “update payment details” unless `BillingDetails` source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "return (\n    <div>\n      <BillingDetails\n        organization={organization as any}\n        refetchOrganization={organizationQuery.refetch}\n        canManageBilling={canManageBilling}\n      />\n      <InvoicesList />\n      <div css={{ marginTop: '25px', width: '100%' }}>\n        <div className=\"paddle-checkout-container\" />\n      </div>\n    </div>\n  );"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Users with the VIEWER role are redirected to `/overview` when they attempt to access either page. Billing management actions (upgrading, downgrading, updating payment) are shown only when the current user has the `org:manage-billing` permission.”",
+              "reason": "The viewer redirect is supported for both pages, and upgrade/downgrade buttons are permission-gated in SubscriptionPlansPage. The “updating payment” management action is not shown in the provided source; BillingPage only passes `canManageBilling` into `BillingDetails`.",
+              "suggestedFix": "Split the supported facts: Viewers are redirected on both pages; subscription upgrade/downgrade buttons are gated by `org:manage-billing`; `/billing` passes `canManageBilling` to `BillingDetails`. Do not claim specific payment-update controls unless their component source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const canManageBilling = hasPermission('org:manage-billing');"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "button:\n                organization?.subscriptionPlanType === 'FLEXIBLE' ? (\n                  <CurrentlyActiveText />\n                ) : canManageBilling ? (\n                  <Button"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<BillingDetails\n        organization={organization as any}\n        refetchOrganization={organizationQuery.refetch}\n        canManageBilling={canManageBilling}\n      />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Free plan limits apply after downgrade (1 team member, $100/month managed AWS cost cap)” and similar wording says the Free plan “covers managed AWS infrastructure costs up to $100 per month.”",
+              "reason": "The source shows the Free plan card displays “1 team member” and “Up to $100 / mo AWS costs,” but it does not define enforcement behavior, what happens after downgrade, or whether this is a hard cap on “managed AWS infrastructure costs.”",
+              "suggestedFix": "Use display-level wording grounded in the page: “The Free plan card lists 1 team member and up to $100/mo AWS costs.” Avoid “limits apply,” “cap,” or “covers managed AWS infrastructure costs” unless enforcement source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<b>1</b> team member"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "Up to <span css={{ fontWeight: 'bold' }}>$100 / mo</span> AWS costs"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“What happens if I exceed the Free plan's $100/month limit? … you need to upgrade to the Flexible plan to continue using Stacktape's full capabilities.”",
+              "reason": "The provided source only shows plan-card copy saying “Up to $100 / mo AWS costs.” It does not describe exceedance behavior, capability restrictions, upgrade requirements, or enforcement.",
+              "suggestedFix": "Replace with a cautious answer: “The Console presents the Free plan as up to $100/mo AWS costs. The provided Console source does not describe the enforcement flow; use `/subscription-plans` to upgrade when Free plan usage no longer fits.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "Up to <span css={{ fontWeight: 'bold' }}>$100 / mo</span> AWS costs"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Paddle supports credit cards, debit cards, and PayPal in most regions. The specific payment options shown depend on your billing country and currency.”",
+              "reason": "The source proves Paddle is initialized and used for subscription creation/cancellation, but it does not document accepted payment methods, regional availability, country behavior, or currency behavior.",
+              "suggestedFix": "Keep only the source-grounded part: “Stacktape uses Paddle for checkout.” Remove specific payment method and regional/currency claims unless Paddle documentation is an allowed source for this page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "paddle.Setup({ vendor: clientConfig.paddleVendorId });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "createPaddleSubscription({\n                        organizationId: organization!.id,\n                        onSuccess: refetch,\n                        email: loggedInUserEmail\n                      })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All plans include unlimited deployments and unlimited stacks.”",
+              "reason": "The source shows unlimited deployments and stacks in the Free and Flexible feature groups. The Enterprise feature group shown in the provided source lists organization members, SSO, SOC 2 Compliance, and premium support, but not unlimited deployments or stacks.",
+              "suggestedFix": "Say “The Free and Flexible plan cards list unlimited deployments and unlimited stacks.” Do not extend that claim to Enterprise unless another source file provides it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "{ text: 'Unlimited deployments' },\n                  { text: 'Unlimited stacks' }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "featureGroups: [\n                [\n                  { text: <OrganizationMembers amount={Infinity} /> },\n                  { text: 'SSO' },\n                  { text: 'SOC 2 Compliance' },\n                  { text: 'Up to 24x7 premium support' }\n                ]\n              ]"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The permissions table says Owner and Admin can manage billing, while Developer and Member can view but not manage billing.",
+              "reason": "The page source checks `hasPermission('org:manage-billing')` and `role === 'VIEWER'`, but the supplied files do not define which non-viewer roles have the billing permission. The table may be correct elsewhere, but it is not grounded in these source files.",
+              "suggestedFix": "Replace the role matrix with source-grounded wording: “Viewer users are redirected. For other roles, management controls depend on `org:manage-billing`.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape bills based on the AWS infrastructure costs your stacks generate — not per seat, per deployment, or per request.”",
+              "reason": "The Flexible tooltip says pricing is for AWS infrastructure managed by Stacktape and that other AWS resources are not charged by Stacktape. The source also shows unlimited team members only for Flexible and Enterprise, not a general no-per-seat billing rule across all plans. “Per request” is not addressed in the provided source.",
+              "suggestedFix": "Ground the wording in the visible Console copy: “The Flexible plan is priced as a percentage of AWS infrastructure costs managed by Stacktape, and the Free and Flexible cards list unlimited deployments and stacks.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the two Console routes shown in the source: `/subscription-plans` and `/billing`.",
+            "The draft correctly states that users with role `VIEWER` are redirected to `/overview` on both billing-related pages.",
+            "The draft correctly describes the Free, Flexible, and Enterprise plan names and the visible plan-card features for team members, AWS costs, support, SSO, SOC 2 compliance, and premium support.",
+            "The draft correctly describes the Flexible plan upgrade button text, Free downgrade button text, Paddle checkout flow entry points, and organization refetch after subscription changes.",
+            "All markdown links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the two provided Console source files, especially for Paddle usage, viewer redirects, Free/Flexible plan controls, and visible plan features. The main problems are unsupported plan-feature claims for Enterprise, unsupported billing-detail/payment-method specifics, and a few UI-flow claims that go beyond the supplied components.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“All plans include unlimited deployments and unlimited stacks” and the comparison table lists Enterprise as having unlimited deployments and unlimited stacks.",
+              "reason": "The source explicitly lists unlimited deployments and unlimited stacks for Free and Flexible, but the Enterprise plan feature group in the supplied source lists only organization members, SSO, SOC 2 Compliance, and premium support. The draft extends Free/Flexible features to Enterprise without source support.",
+              "suggestedFix": "Write that the Free and Flexible plan cards list unlimited deployments and unlimited stacks. Do not claim those features for Enterprise unless another source file supports it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "featureGroups: [\n                [\n                  { text: <OrganizationMembers amount={Infinity} /> },\n                  { text: 'SSO' },\n                  { text: 'SOC 2 Compliance' },\n                  { text: 'Up to 24x7 premium support' }\n                ]\n              ]"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "{ text: 'Unlimited deployments' },\n                  { text: 'Unlimited stacks' }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Billing page (at `/billing`) shows payment details and past invoices,” “view invoices, update payment details,” and “billing management controls are available to users with the `org:manage-billing` permission.”",
+              "reason": "The supplied BillingPage source only shows that BillingPage renders `BillingDetails`, `InvoicesList`, and a Paddle checkout container, passing `canManageBilling` to `BillingDetails`. It does not show what `BillingDetails` renders, whether payment details can be updated, or what management controls are present.",
+              "suggestedFix": "Narrow the wording to what is visible: the Billing page renders billing details and an invoices list, and passes billing-management permission state into the billing details component. Avoid claiming payment-detail update controls unless `BillingDetails.tsx` is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<BillingDetails\n        organization={organization as any}\n        refetchOrganization={organizationQuery.refetch}\n        canManageBilling={canManageBilling}\n      />\n      <InvoicesList />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Paddle supports credit cards, debit cards, and PayPal in most regions. The specific payment options shown depend on your billing country and currency.”",
+              "reason": "The provided source supports that Stacktape uses Paddle, but it does not document accepted payment methods, region behavior, country behavior, or currency behavior.",
+              "suggestedFix": "Keep the sourced claim that Stacktape uses Paddle. Remove the specific payment-method and regional/currency claims unless Paddle configuration or billing UI source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "import { cancelPaddleSubscription, createPaddleSubscription } from '../../services/paddle';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "paddle.Setup({ vendor: clientConfig.paddleVendorId });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Paddle webhook delivery can occasionally take a few seconds.”",
+              "reason": "The source shows that the Console refetches organization data after a successful Paddle checkout or cancellation callback, but it does not mention webhooks or any timing behavior.",
+              "suggestedFix": "Remove the webhook timing sentence. A grounded troubleshooting note can say that the Console refetches organization data after the Paddle success callback, and the user may refresh if the displayed plan has not changed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const refetch = () => {\n    organizationQuery.refetch().then((org) => setSelectedOrganization(org.data as any));\n  };"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "createPaddleSubscription({\n                        organizationId: organization!.id,\n                        onSuccess: refetch,\n                        email: loggedInUserEmail\n                      })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No active subscription” on the billing page means the organization is on the Free plan with no Paddle subscription attached.",
+              "reason": "The provided BillingPage source does not include any text or condition for a “No active subscription” message. It only renders `BillingDetails`, so the draft is relying on behavior not visible in the supplied files.",
+              "suggestedFix": "Remove this troubleshooting item unless the `BillingDetails` source is available and contains this state. If kept, phrase only as a possible state shown by billing details when supported by source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "return (\n    <div>\n      <BillingDetails\n        organization={organization as any}\n        refetchOrganization={organizationQuery.refetch}\n        canManageBilling={canManageBilling}\n      />\n      <InvoicesList />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Owner” and “Admin” can manage billing, while “Developer” and “Member” can view but not manage billing.",
+              "reason": "The supplied source checks `hasPermission('org:manage-billing')` and `role === 'VIEWER'`, but it does not map Owner/Admin/Developer/Member roles to billing permissions. The role-permission table is therefore not grounded in the provided source.",
+              "suggestedFix": "Replace the role matrix with source-grounded wording: Viewers are redirected; billing management controls are controlled by the `org:manage-billing` permission. Link to the access-control page for role details without asserting the mapping here.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "const { hasPermission, role } = useCurrentUserPermissions();\n  const isViewer = role === 'VIEWER';\n  const canManageBilling = hasPermission('org:manage-billing');"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const { hasPermission, role } = useCurrentUserPermissions();\n  const isViewer = role === 'VIEWER';\n  const canManageBilling = hasPermission('org:manage-billing');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“What counts as managed AWS costs” includes “Lambda functions, containers, databases, buckets, load balancers, and similar.”",
+              "reason": "The source tooltip defines managed costs only as AWS infrastructure managed by Stacktape and says Stacktape does not charge for other AWS-account resources. It does not enumerate resource types counted toward billing.",
+              "suggestedFix": "Use the source wording: managed AWS costs are costs for AWS infrastructure managed by Stacktape. Avoid listing specific resource categories unless a billing source enumerates them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "tooltipText={[\n                        <p key=\"1\">Costs for AWS infrastructure that is managed by Stacktape.</p>,\n                        <p key=\"2\">Stacktape WILL NOT charge you for other resources within your AWS account.</p>\n                      ]}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft repeatedly states that the Console pages are at `/subscription-plans` and `/billing`.",
+              "reason": "The supplied page component files do not include route registration. The redirect target `/overview` is source-visible, but the page paths themselves are not proven by the provided source files.",
+              "suggestedFix": "If route configuration source is not available, phrase as “the Subscription Plans page” and “the Billing page,” or mention the routes only if confirmed by console routing source.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly states that users with role `VIEWER` are redirected to `/overview` on both billing-related pages.",
+            "The draft correctly grounds the Flexible plan checkout in Paddle subscription creation and the Free-plan downgrade in Paddle subscription cancellation.",
+            "The visible Free and Flexible plan features in the draft mostly match the SubscriptionPlansPage source: Free has one team member, up to $100/month AWS costs, unlimited deployments, and unlimited stacks; Flexible has unlimited team members, unlimited deployments, unlimited stacks, and hands-on support.",
+            "The draft’s related links all point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally aligned with the two Console pages, especially the Viewer redirect, Paddle checkout flow, active-plan indicator, and permission-gated plan buttons. The main problems are unsupported billing-management details and over-specific pricing/permission claims that are not present in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The permissions table claims Owner and Admin can manage billing, Developer and Member cannot, and all non-Viewer roles can view billing pages.",
+              "reason": "The source only proves two checks: users with role `VIEWER` are redirected to `/overview`, and billing controls depend on `hasPermission('org:manage-billing')`. It does not define which roles have that permission.",
+              "suggestedFix": "State only that Viewers are redirected and billing management controls require `org:manage-billing`. Link to team/access-control for role details without enumerating role-to-permission mappings unless source for that page is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "const isViewer = role === 'VIEWER';\nconst canManageBilling = hasPermission('org:manage-billing');"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const isViewer = role === 'VIEWER';\nconst canManageBilling = hasPermission('org:manage-billing');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You can view invoices, update payment details, and change plans directly from the Console.”",
+              "reason": "The source proves invoices are rendered and plan changes call Paddle subscription create/cancel helpers. It does not show payment-detail update behavior because `BillingDetails` implementation is not provided.",
+              "suggestedFix": "Change to: “The Billing page renders billing details and an invoices list. Plan changes are handled from the Subscription Plans page through Paddle.” Only mention updating payment details if `BillingDetails` source is added and confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<BillingDetails\n  organization={organization as any}\n  refetchOrganization={organizationQuery.refetch}\n  canManageBilling={canManageBilling}\n/>\n<InvoicesList />"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "createPaddleSubscription({\n  organizationId: organization!.id,\n  onSuccess: refetch,\n  email: loggedInUserEmail\n})"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All plans include unlimited deployments and unlimited stacks.”",
+              "reason": "The source lists unlimited deployments and stacks for Free and Flexible only. The Enterprise feature group in the provided source lists organization members, SSO, SOC 2 Compliance, and premium support, but not deployments or stacks.",
+              "suggestedFix": "Say Free and Flexible list unlimited deployments and stacks in the Console. Avoid extending that claim to Enterprise unless another source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "{ text: 'Unlimited deployments' },\n{ text: 'Unlimited stacks' }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "featureGroups: [\n  [\n    { text: <OrganizationMembers amount={Infinity} /> },\n    { text: 'SSO' },\n    { text: 'SOC 2 Compliance' },\n    { text: 'Up to 24x7 premium support' }\n  ]\n]"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Flexible plan charges a tiered percentage... The percentage decreases as your managed AWS spend increases.”",
+              "reason": "The source shows `% of AWS costs` and renders a `PricingThresholds` component, but the implementation of `PricingThresholds` is not provided. The source does not prove tiering or decreasing percentages.",
+              "suggestedFix": "Write cautiously: “The Flexible plan is shown as a percentage of Stacktape-managed AWS costs, with pricing details rendered on the Subscription Plans page.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<p css={{ fontSize: '1.1rem', fontWeight: 'bold' }}>% of AWS costs</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "<PricingThresholds />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Paddle supports credit cards, debit cards, and PayPal in most regions.”",
+              "reason": "The provided source only shows that Stacktape initializes Paddle and uses Paddle subscription helpers. It does not document accepted payment methods or regional availability.",
+              "suggestedFix": "Replace with: “Stacktape uses Paddle for checkout; the payment options shown are determined by Paddle during checkout.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "paddle.Setup({ vendor: clientConfig.paddleVendorId });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const paddle = ((globalThis as any) || (window as any)).Paddle;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If the plan still shows the old state, refresh the page manually. Paddle webhook delivery can occasionally take a few seconds.”",
+              "reason": "The source proves the Console refetches organization data after a successful subscription action. It does not mention webhook timing, eventual consistency, or manual refresh guidance.",
+              "suggestedFix": "Keep the grounded part: “After a successful Paddle action, the Console refetches organization data.” Omit webhook timing unless backend/Paddle integration source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "const refetch = () => {\n  organizationQuery.refetch().then((org) => setSelectedOrganization(org.data as any));\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No active subscription” on the billing page means your organization is on the Free plan with no Paddle subscription attached.",
+              "reason": "The provided `BillingPage` source renders `BillingDetails`, but the implementation and any “No active subscription” message are not included. The source does not prove this text or its meaning.",
+              "suggestedFix": "Remove this troubleshooting entry or replace it with a narrower statement about the Free plan being represented by `subscriptionPlanType === 'FREE'` on the Subscription Plans page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\BillingPage\\BillingPage.tsx",
+                  "quote": "<BillingDetails\n  organization={organization as any}\n  refetchOrganization={organizationQuery.refetch}\n  canManageBilling={canManageBilling}\n/>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "organization?.subscriptionPlanType === 'FREE' ? (\n  <CurrentlyActiveText />\n)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If your Stacktape-managed AWS costs exceed $100/month on the Free plan, you need to upgrade to the Flexible plan to continue using Stacktape's full capabilities.”",
+              "reason": "The source shows the Free plan includes “Up to $100 / mo AWS costs,” but it does not document enforcement behavior or what capabilities are restricted after exceeding that limit.",
+              "suggestedFix": "Say: “The Free plan is shown with an up-to-$100/month AWS cost limit. Upgrade to Flexible when your Stacktape-managed AWS costs are expected to exceed that limit.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\SubscriptionPlansPage\\SubscriptionPlansPage.tsx",
+                  "quote": "Up to <span css={{ fontWeight: 'bold' }}>$100 / mo</span> AWS costs"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the two relevant Console routes, `/subscription-plans` and `/billing`, from the provided page components.",
+            "The draft correctly states that Viewer users are redirected to `/overview` on both billing-related pages.",
+            "The draft correctly describes that plan-change buttons are conditionally rendered based on `org:manage-billing`.",
+            "The draft correctly captures the visible plan labels and several visible plan features: Free, Flexible, Enterprise, `$0`, `% of AWS costs`, custom pricing, one Free team member, unlimited Flexible team members, SSO, SOC 2 Compliance, and up to 24x7 premium support."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\stacktape-console\\billing-and-subscription.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 3, advisory high 1, verifier medium 17"
+}

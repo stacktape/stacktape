@@ -3,8 +3,8 @@
 Multi-agent pipeline that turns Stacktape's source code (`types/stacktape-config/*.d.ts`,
 `src/commands/**`, `console-app/**`) into MDX docs pages.
 
-For each page: a writer agent (Claude) drafts, three reviewer personas + an SEO reviewer score,
-two verifiers (Claude + Codex) plus a deterministic code-validator fact-check, and the loop
+For each page: `page-writer` drafts, three named reviewer agents score the page,
+three verifier/auditor agents check facts and coverage, and `code-block-validator` runs deterministic MDX/code checks. The loop
 revises until quality gates pass or the iteration cap is hit.
 
 You configure *what* it generates via [`pages.ts`](./pages.ts) and *how* via the per-section
@@ -19,13 +19,13 @@ rules in [`section-instructions.yml`](./section-instructions.yml), the project-w
 cd C:\Projects\stacktape\docs
 
 # Generate a single page
-bun run scripts/generate-docs/index.ts --onlyPage resources/compute/web-service
+bun run scripts/generate-docs/generate-pages.ts --onlyPage resources/compute/web-service
 
-# Generate every page that's still a placeholder, missing, or marked did-not-pass
-bun run scripts/generate-docs/index.ts --onlyPending
+# Generate every page that's still a placeholder, missing, stale, or marked did-not-pass
+bun run scripts/generate-docs/generate-pages.ts --onlyPending
 
 # See where things stand
-bun run scripts/generate-docs/index.ts --status
+bun run scripts/generate-docs/generate-pages.ts --status
 ```
 
 Output lands in [`docs/`](../../docs/) at the page's route. State per page (reviewer scores, verifier
@@ -35,7 +35,8 @@ issues, draft history) is at [`./.state/`](./.state/).
 
 ## Commands & flags
 
-Entry point: [`index.ts`](./index.ts). Run with `bun run scripts/generate-docs/index.ts <flags>`.
+Main entry point: [`generate-pages.ts`](./generate-pages.ts). Run with `bun run scripts/generate-docs/generate-pages.ts <flags>`.
+Section batch entry point: [`generate-section-batch.ts`](./generate-section-batch.ts). Use it when you want to generate the rest of a page scope from one already-passed anchor page.
 
 ### Generate
 
@@ -47,17 +48,96 @@ Entry point: [`index.ts`](./index.ts). Run with `bun run scripts/generate-docs/i
 | `--onlyStale` | Only re-run pages whose source files have changed since the last successful generation (content-hash drift). |
 | `--example <path>` | Use a finished page as a "section example" — the writer follows its structure/style for the rest of the section. |
 | `--maxIterations <n>` | Default `3`. Higher means more revision rounds before giving up. |
-| `--concurrency <n>` | Default `1`. Pages run sequentially; bump to parallelize at the cost of CLI rate limits. |
+| `--concurrency <n>` | Default `1`. Pages run sequentially; bump to parallelize at the cost of CLI rate limits. Each page internally runs reviewers and verifiers in parallel, so this multiplies agent calls. |
 | `--prepareOnly` | Seed placeholder MDX files for every entry in [`pages.ts`](./pages.ts). No LLM calls. |
+
+### Section batch generation
+
+```bash
+bun run scripts/generate-docs/generate-section-batch.ts \
+  --anchor resources/compute/web-service \
+  --scope resources/compute \
+  --maxPages 15 \
+  --concurrency 2
+```
+
+| Flag | Meaning |
+|---|---|
+| `--anchor <route>` | Required. Route of an already-passed, fresh page. Repeat it to run multiple scopes. Resource anchors scope to their category, e.g. `resources/compute`. |
+| `--scope <route-prefix>` | Optional explicit scope for one anchor. Use this to intentionally widen a batch, e.g. `--scope resources`. |
+| `--maxPages <n>` | Optional hard cap on attempted pages. Useful for short test runs. |
+| `--maxHours <n>` | Default `24`. Stop launching pages after this many hours. |
+| `--concurrency <n>` | Default `2`. Initial page concurrency. The batch runner backs off on rate-limit signals and increases after successful pages. |
+| `--dryRun` | Print the planned queue and exit without generating. |
+
+### Claude Opus/Sonnet section runs
+
+Use [`run-claude-generation.ts`](./run-claude-generation.ts) when you want a repeatable section batch with every model-backed agent explicitly assigned to Claude Opus or Claude Sonnet:
+
+```bash
+bun run gen:docs:claude
+```
+
+Default behavior:
+
+- `--anchor resources/compute/multi-container-workload`
+- `--scope resources`
+- `--maxPages 10`
+- `--concurrency 3`
+- `--profile balanced`
+
+Profiles:
+
+| Profile | Assignment |
+|---|---|
+| `balanced` | Opus for `page-writer`, `production-engineer-reviewer`, `factual-accuracy-verifier`, and `source-grounding-verifier`; Sonnet for the two reader reviewers and `api-completeness-auditor`. |
+| `quality` | Opus for writer, production review, and all verifier/auditor roles; Sonnet for the two reader reviewers. |
+| `economy` | Sonnet for writer/review/API coverage; Opus remains on strict factual and source-grounding gates. |
+
+You can still pass any batch flag through:
+
+```bash
+bun run gen:docs:claude --maxPages 25 --concurrency 3 --profile quality
+```
+
+You can also override model names or individual agent assignments:
+
+```bash
+bun run gen:docs:claude \
+  --opusModel claude-opus-4-7 \
+  --sonnetModel claude-sonnet-4-6 \
+  --apiCompletenessAuditorModel claude:claude-sonnet-4-6
+```
+
+### Agent model flags
+
+Each model-backed agent has a stable role name and an independent model override:
+
+| Flag | Agent role |
+|---|---|
+| `--writerModel <model>` | `page-writer` |
+| `--firstTimeUserReviewerModel <model>` | `first-time-user-reviewer` |
+| `--productionEngineerReviewerModel <model>` | `production-engineer-reviewer` |
+| `--aiConsumerReviewerModel <model>` | `ai-consumer-reviewer` |
+| `--reviewerModel <model>` | Convenience default for all three reviewers unless a reviewer-specific flag is set. |
+| `--factualAccuracyVerifierModel <model>` | `factual-accuracy-verifier` (Claude provider) |
+| `--sourceGroundingVerifierModel <model>` | `source-grounding-verifier` (Codex provider by default) |
+| `--apiCompletenessAuditorModel <model>` | `api-completeness-auditor` (Codex provider by default) |
+| `--codexVerifierModel <model>` | Convenience default for both Codex-backed verifier/auditor agents unless a specific flag is set. |
+
+Model values can include a provider prefix: `claude:claude-sonnet-4-6` or `codex:gpt-5.5`. Without a prefix, the agent uses its default provider.
+
+Compatibility aliases still work: `--factualVerifierModel` maps to `--factualAccuracyVerifierModel`, `--sourceVerifierModel` maps to `--sourceGroundingVerifierModel`, and `--pageAuditorModel` maps to `--apiCompletenessAuditorModel`.
 
 ### Inspect
 
 | Flag | Meaning |
 |---|---|
-| `--status` | Counts of passed / failed / placeholder / missing pages. Fast — no source-hash checks. |
+| `--status` | Counts of passed / needs-human-review / failed / placeholder / missing pages. Fast — no source-hash checks. |
 | `--statusWithStaleness` | Same, plus counts pages whose sources have drifted (`passed-stale`). Slower — recomputes hashes. |
 | `--listFailed` | List every page that failed. |
-| `--listPending` | List every page that hasn't been generated successfully (placeholder, missing, failed). |
+| `--listNeedsReview` | List every page marked `pipelineStatus: needs-human-review`. |
+| `--listPending` | List every page that still needs generation (placeholder, missing, failed, or stale). Pages marked `needs-human-review` are skipped until you explicitly regenerate them. |
 | `--listStale` | List every page where the source files changed after the last pass. Implies staleness check. |
 
 ### Maintenance
@@ -76,9 +156,10 @@ Entry point: [`index.ts`](./index.ts). Run with `bun run scripts/generate-docs/i
 | [`pages.ts`](./pages.ts) | The full page list — routes, source files, page kinds, per-page notes. The single source of truth for what the pipeline generates. |
 | [`section-instructions.yml`](./section-instructions.yml) | Per-section rules merged into every prompt. Keyed by the first URL segment (e.g. `resources:`, `getting-started:`). |
 | [`style-guide.md`](./style-guide.md) | Project-wide voice, canonical terminology, the canonical Stacktape config example shape, forbidden phrasings. Loaded into every prompt. |
-| [`backbones.ts`](./backbones.ts) | The hint list of H2 section names per page template (`resource`, `choosing`, `recipe`, `console`, `cli`, `general`). Hint only — the writer can deviate. |
+| [`backbones.ts`](./backbones.ts) | The hint list of H2 section names per page template (`resource`, `recipe`, `console`, `cli`, `general`). Hint only — the writer can deviate. |
 | [`prompts.ts`](./prompts.ts) | Writer / reviewer / verifier / SEO-reviewer prompt scaffolding. Hard rules and detection patterns live in `commonRules` and `sharedReviewerRequirements`. |
-| [`run-page.ts`](./run-page.ts) | Pass thresholds (`REVIEWER_GRAND_AVG_THRESHOLD`, `REVIEWER_MIN_SCORE_THRESHOLD`, `REVIEWER_PER_REVIEWER_AVG_THRESHOLD`, `SEO_PASS_THRESHOLD`) and the reviewer-personas list. |
+| [`run-page.ts`](./run-page.ts) | Pass thresholds (`REVIEWER_GRAND_AVG_THRESHOLD`, `REVIEWER_MIN_SCORE_THRESHOLD`, `REVIEWER_PER_REVIEWER_AVG_THRESHOLD`) and the reviewer/verifier agent wiring. |
+| [`agent-models.ts`](./agent-models.ts) | Stable agent role names and CLI model-override flag parsing. |
 | [`context.ts`](./context.ts) | Auto-augmentation of source files (which `@generated/ai-docs/*` to inject for which page kind, when to inject pricing summaries / DB engine versions). Per-source 80 KB truncation budget lives here too. |
 | [`pricing-summary.ts`](./pricing-summary.ts) | How `prices.json` is distilled into per-resource markdown summaries. Per-slug logic. |
 | [`code-validator.ts`](./code-validator.ts) | Deterministic check of `<CodeBlock intellisense>` blocks. Public-class whitelist falls back to `fallbackKnownExports` when `__release-npm/index.d.ts` is absent. |
@@ -90,7 +171,6 @@ Entry point: [`index.ts`](./index.ts). Run with `bun run scripts/generate-docs/i
 Pages are declared in [`pages.ts`](./pages.ts) using helpers:
 
 - `resourcePage({ slug, route, order, notes })` — for resource catalog pages. Pulls `sourceFiles` from `resourceInfo` automatically.
-- `choosingPage({ category, route, order, title, description, slugs })` — for "choose between X / Y / Z" decision pages.
 - `generalPage({ route, title, order, kind, template, description, sourceFiles, sourceGlobs, notes })` — for everything else.
 - `cliPage({ command, order })` — auto-generated, one per CLI command.
 
@@ -117,7 +197,7 @@ Use this for anything that applies to a whole section but not the whole project 
 
 ### Reviewer personas
 
-In [`run-page.ts`](./run-page.ts), the `reviewerPersonas` constant holds the three personas (startup-cto, smb-manager, developer-low-aws) and which model each runs on (`claude` or `codex`). Edit to change persona descriptions or model split.
+In [`run-page.ts`](./run-page.ts), the `reviewerPersonas` constant holds the three reviewer personas. Agent role names and model flag parsing live in [`agent-models.ts`](./agent-models.ts). Reviewers default to `claude-sonnet-4-6`; writer and verifier agents use their CLI defaults unless overridden by flags.
 
 ### Pass thresholds
 
@@ -128,7 +208,6 @@ Constants at the top of [`run-page.ts`](./run-page.ts):
 | `REVIEWER_GRAND_AVG_THRESHOLD` | `7.0` | Minimum overall average across all reviewers × all categories. |
 | `REVIEWER_MIN_SCORE_THRESHOLD` | `5` | No single category from any reviewer can be below this. |
 | `REVIEWER_PER_REVIEWER_AVG_THRESHOLD` | `6.5` | Each reviewer's own average must clear this — so a single very harsh reviewer can't be averaged away. |
-| `SEO_PASS_THRESHOLD` | `5` | Minimum SEO score (1–10). |
 | `MIN_REVIEWERS_REQUIRED` | `2` | Below this, the run can't pass even if scores are great (catches Codex-down + Claude-down failure modes). |
 
 A high-severity verifier issue from any verifier blocks passing regardless of scores.
@@ -159,7 +238,7 @@ Not strictly part of the pipeline, but the docs site's nav reads from [`../../co
 
 3. **Run**:
    ```bash
-   bun run scripts/generate-docs/index.ts --onlyPage resources/compute/web-service
+   bun run scripts/generate-docs/generate-pages.ts --onlyPage resources/compute/web-service
    ```
 
 4. **Read the output**:
@@ -192,14 +271,21 @@ Not strictly part of the pipeline, but the docs site's nav reads from [`../../co
 
 - `iterations[]` — one entry per attempt. Each has:
   - `draftPath` — path to the iteration's MDX draft (you can `diff` between iterations to see how feedback was applied).
-  - `reviewerResults[]` — each reviewer's `scores`, `strengths`, `problems`, `mandatoryFixes`, `optionalImprovements`.
-  - `verifierResults[]` — for `claude-verifier`, `codex-verifier`, and the deterministic `code-validator`. Each has `issues[]` with `severity` (`high`/`medium`/`low`), `type`, `statement`, `reason`, `suggestedFix`, `evidence` (file + quote pairs).
-  - `seoReviewResult` — SEO score + suggestions.
+  - `reviewerResults[]` — for `first-time-user-reviewer`, `production-engineer-reviewer`, and `ai-consumer-reviewer`; each includes `modelProvider`, `modelName`, `scores`, `strengths`, `problems`, `mandatoryFixes`, `optionalImprovements`.
+  - `verifierResults[]` — for `factual-accuracy-verifier`, `source-grounding-verifier`, `api-completeness-auditor`, and the deterministic `code-block-validator`. Each includes `modelProvider`, `modelName`, and `issues[]` with `severity` (`high`/`medium`/`low`), `type`, `statement`, `reason`, `suggestedFix`, `evidence` (file + quote pairs).
   - `passed` — boolean.
+  - `status` — `passed`, `needs-human-review`, or `failed` for newer runs.
+- `agentModelAssignments` — resolved agent role names and model display names for the most recent run.
 - `inputHashes` — SHA-1 of every source file at the time of last pass. Used by `--onlyStale` and `--statusWithStaleness`.
 - `completedAt` — set when a page passed.
 
-A failed final iteration writes the best draft to disk anyway, with `pipelineStatus: did-not-pass` and `pipelineFailureSummary` injected into the MDX frontmatter — search those keys to find pages that need a human eye.
+Final output status:
+
+- `passed` — no pipeline status marker is written; `completedAt` and source hashes are saved.
+- `needs-human-review` — the draft is readable and has no hard factual/code blocker, but reviewer or advisory verifier concerns remain. The MDX frontmatter gets `pipelineStatus: needs-human-review` and `pipelineReviewSummary`.
+- `failed` — the best draft is written with `pipelineStatus: did-not-pass` and `pipelineFailureSummary`.
+
+Hard blockers are high-severity factual/source-grounding issues that would mislead configuration, deterministic TypeScript/MDX failures, or very low reviewer scores. Reviewer polish, API-completeness concerns, and YAML-converter coverage gaps can route a page to human review instead of failing the batch.
 
 ---
 
@@ -208,39 +294,39 @@ A failed final iteration writes the best draft to disk anyway, with `pipelineSta
 ### First-time bulk generation
 ```bash
 # Seed every page as a placeholder so the dev server doesn't 404 anywhere
-bun run scripts/generate-docs/index.ts --prepareOnly
+bun run scripts/generate-docs/generate-pages.ts --prepareOnly
 
 # Then generate one section at a time, e.g. resources/compute first
-bun run scripts/generate-docs/index.ts --onlyPage resources/compute/lambda-function
-bun run scripts/generate-docs/index.ts --onlyPage resources/compute/web-service
+bun run scripts/generate-docs/generate-pages.ts --onlyPage resources/compute/lambda-function
+bun run scripts/generate-docs/generate-pages.ts --onlyPage resources/compute/web-service
 # … etc
 ```
 
 ### Iterating on prompts
 ```bash
 # After tweaking section-instructions.yml or style-guide.md, retry just the failed pages
-bun run scripts/generate-docs/index.ts --onlyFailed
+bun run scripts/generate-docs/generate-pages.ts --onlyFailed
 ```
 
 ### Source code changed, regenerate affected pages
 ```bash
-bun run scripts/generate-docs/index.ts --listStale         # see what drifted
-bun run scripts/generate-docs/index.ts --onlyStale         # regenerate just those
+bun run scripts/generate-docs/generate-pages.ts --listStale         # see what drifted
+bun run scripts/generate-docs/generate-pages.ts --onlyStale         # regenerate just those
 ```
 
 ### Generating a section using a "good" page as a style template
 ```bash
 # Once one page in a section is high-quality, use it as the example for the rest:
-bun run scripts/generate-docs/index.ts \
+bun run scripts/generate-docs/generate-pages.ts \
   --example docs/resources/compute/web-service.mdx
 # (the rest of resources/compute/* will be generated using web-service.mdx as a structural reference)
 ```
 
 ### Force-regenerate pages that violate style rules
 ```bash
-bun run scripts/generate-docs/index.ts --invalidatePassed --dryRun   # preview
-bun run scripts/generate-docs/index.ts --invalidatePassed             # do it
-bun run scripts/generate-docs/index.ts --onlyPending                  # regenerate
+bun run scripts/generate-docs/generate-pages.ts --invalidatePassed --dryRun   # preview
+bun run scripts/generate-docs/generate-pages.ts --invalidatePassed             # do it
+bun run scripts/generate-docs/generate-pages.ts --onlyPending                  # regenerate
 ```
 
 ---

@@ -1,0 +1,764 @@
+{
+  "pageId": "getting-started__deploy-your-first-stage",
+  "pageRoute": "getting-started/deploy-your-first-stage",
+  "startedAt": "2026-05-16T15:06:54.016Z",
+  "updatedAt": "2026-05-16T15:22:48.386Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\getting-started__deploy-your-first-stage\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear three-step linear structure (login → connect AWS → deploy) that a low-AWS-experience reader can follow without getting lost",
+            "Hot-swap mode is documented with concrete use-case framing — when it applies, what it skips, and why it's faster — rather than just listing the flag",
+            "The 'What gets created in AWS' table is well-suited for first-time deployers who wonder what Stacktape actually does to their account",
+            "Console URL pattern is source-confirmed (matches the deploy command source) and gives readers an immediate next destination post-deploy",
+            "FAQ section spans all three required categories: Stacktape-specific, underlying AWS service, and comparison/choosing questions — with appropriately concise 2-4 sentence answers",
+            "Troubleshooting subsection names real failure modes (no connected AWS accounts, CloudFormation rollback) with concrete causes, not generic advice",
+            "Multi-stage explanation (dev/staging/production isolation, each gets its own CloudFormation stack) gives the reader a correct mental model before they accidentally share resources across stages",
+            "The skip-ahead Info callout at the top satisfies the getting-started page requirement for returning users"
+          ],
+          "problems": [
+            "'Option A: Automatic connection during deploy (recommended)' is potentially ungrounded — none of the provided source files (deploy command, AwsAccountsPage) confirm that the CLI auto-detects local AWS credentials and prompts to connect automatically during `stacktape deploy`. Presenting this as the recommended path could send readers down a flow that doesn't exist or behaves differently than described.",
+            "The `<FlowDiagram>` MDX component is used to visualize deploy phases but is not listed in the style guide, the MDX component palette, or any provided source file. If the component doesn't exist in the docs system, this entire section renders as broken JSX with no readable fallback — worse than omitting the visualization entirely.",
+            "Login authentication options (Google, email, manual API key) are stated as concrete specific choices, but the underlying `runAuthFlow()` implementation is not in the provided source files — these details may be accurate, but they are unconfirmed and could mislead users if the actual options differ.",
+            "The page substantially exceeds the 400–800 word target for getting-started pages. The depth is appropriate for a reference page but reduces hands-on directness for a user who just wants to run their first deploy — the 'What happens during deploy' and 'What gets created in AWS' sections are detailed enough to belong on a reference page."
+          ],
+          "mandatoryFixes": [
+            "Verify that `<FlowDiagram>` is a defined MDX component in this docs system before shipping. If it is not, replace the deploy-phases section with a numbered prose list or a simple markdown table describing Package → Resolve → Upload → Deploy → Post-deploy. A silent render failure at this step in the getting-started flow is a critical usability break.",
+            "Ground the 'Option A: Automatic connection during deploy' claim in source code or remove it. The provided source (AwsAccountsPage.tsx and commandDeploy) does not confirm that the CLI auto-detects local credentials and initiates account connection during a deploy invocation. If this flow is unconfirmed, present only the Console-based flow (which IS confirmed by AwsAccountsPage.tsx) and describe the CLI credential path only if a concrete source reference can be cited. Do not label an ungrounded option as 'recommended'."
+          ],
+          "optionalImprovements": [
+            "Trim the page closer to 600–800 words by condensing the 'What happens during deploy' and 'What gets created in AWS' sections into shorter callouts or a single table — first-time readers need confidence to run the command, not a full audit of CloudFormation internals before they start",
+            "The login section mentions 'paste an existing API key' as an in-flow option but doesn't explain where to create one without leaving the page — add a one-sentence note pointing to the Console API keys page inline with the browser-flow description, not just in the `--apiKey` section",
+            "Consider adding a short concrete `stacktape.ts` snippet (even 4-5 lines showing a single LambdaFunction) near the top in a 'What you need' callout — readers arriving from step 1 may want to verify they have the right file format before running deploy, and a minimal visible example builds confidence",
+            "The FAQ answer for 'How long does a first deploy take?' presents specific time ranges (2-5 min, 1-2 min, 30-90 s) without caveats — add a one-sentence note that times vary by resource type and AWS region to prevent readers from filing bugs when their deploy takes longer",
+            "The 'Verifying the deploy' section mentions the Stacktape Console but doesn't link to the next getting-started step (Manage your app in the Console) — the 'Next →' link is only at the bottom. Consider adding a forward pointer in this section since checking the Console is exactly what step 4 covers"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All bash code blocks contain a single command each — no copy-button trap. Every command is immediately runnable.",
+            "Console URL pattern (`https://console.stacktape.com/projects/{project}/{stage}/overview`) is directly grounded in the deploy source code's `consoleUrl` variable.",
+            "Hot-swap mode is documented accurately: the source confirms parallel ECS + Lambda paths, the 'falls back to full deploy' warning matches `tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.')` in the source.",
+            "Login flow authentication options (Google, email signup, manual API key) match the source comment in `commandLogin`: 'Google, email signup, email login, or manual API key'.",
+            "The `--apiKey` flag for headless/CI environments is grounded — `globalStateManager.args.apiKey` is read and, if present, skips the interactive flow.",
+            "Stage name 10-character limit is stated accurately.",
+            "FAQ covers all three required categories: Stacktape-specific, AWS-use-case, and choosing/comparison questions.",
+            "Troubleshooting section addresses real failure modes (missing AWS account connection, CloudFormation rollback) rather than generic boilerplate.",
+            "No marketing language, no fenced YAML Stacktape config, no `StacktapeConfig` type pattern — all mandatory style requirements are clean.",
+            "The connection stack being required in eu-west-1 while projects can deploy to any region is called out explicitly, matching the Console source tooltip text verbatim."
+          ],
+          "problems": [
+            "Option A ('Automatic connection during deploy') is not grounded in the provided deploy source. `commandDeploy` in `src/commands/deploy/index.ts` calls `initializeAllStackServices` but that source is not provided, and the claim that 'Stacktape detects [local AWS credentials] automatically when you run your first deploy' and 'prompts you to connect using those credentials — no browser required' has no visible source support. If this flow doesn't work as described, users hit a dead end at the most critical step of the getting-started flow.",
+            "The `<FlowDiagram steps={[...]} />` component is not mentioned in the style guide, the writing instructions, or any of the provided source files. If this is not a valid MDX component in the docs system, the entire 'What happens during deploy' section renders broken or as raw MDX markup. This is a practical usefulness risk on a high-traffic page.",
+            "Page substantially exceeds the getting-started section target of 400–800 words plus code blocks. The prose alone is roughly 1,400+ words across multiple H2 sections. This is a section-instructions compliance issue: getting-started pages should be hands-on and concise, not comprehensive references.",
+            "The 'What gets created in AWS' table contains the claim 'CloudWatch log groups: Automatic log collection for every compute resource'. This is reasonable AWS behavior but is not sourced in the provided deploy source and is stated as a Stacktape guarantee rather than an AWS-side behavior.",
+            "The Prerequisites section says 'If you followed Use the dev mode, your config is already tested locally and ready for a real deployment.' This is valid flow-wise but slightly misleading — dev mode uses a different stack (marked with `isDevStack` metadata) that cannot be deployed to with `stacktape deploy` (the source explicitly throws `stpErrors.e141` if you try to deploy to an existing dev stack). A new stage name is required."
+          ],
+          "mandatoryFixes": [
+            "Verify and source-ground 'Option A: Automatic connection during deploy'. The claim that `stacktape deploy` detects local credentials and auto-connects an AWS account with no browser is not visible in the provided deploy source. If this mechanism lives in `initializeAllStackServices`, cite that explicitly or narrow the wording to 'the CLI will prompt you to connect' rather than asserting auto-detection. If the mechanism does not exist, remove Option A or fold it into Option B — misleading guidance at account-connection is a critical first-deploy blocker.",
+            "Verify that `<FlowDiagram steps={[...]} />` is a real, registered MDX component in the Stacktape docs system. If it is not, replace it with a numbered prose list or a markdown table describing the deploy phases (Package → Resolve → Upload → Deploy → Post-deploy). Do not leave an unverified component in a high-traffic getting-started page."
+          ],
+          "optionalImprovements": [
+            "Trim prose to closer to the 400–800 word target by condensing or moving the 'What gets created in AWS' table and the 'Deploying multiple stages' section to a more appropriate reference page, or at minimum collapsing them into shorter summaries. Getting-started pages should optimize for time-to-first-deploy, not comprehensive coverage.",
+            "Add a note in the Prerequisites or Step 3 section clarifying that the `--stage` name must be different from the dev-mode stage used with `stacktape dev` — because deploy will throw an error if it detects an existing dev stack. This prevents a confusing error for users who named their dev stage 'dev' and then try to deploy with `--stage dev`.",
+            "The 'What gets created in AWS' table's 'IAM roles and policies' row says 'auto-generated from connectTo'. This is accurate but terse — a one-sentence clarification that `connectTo` in the config drives least-privilege policy generation would help users who haven't read that page yet.",
+            "The `<Tip>` callout 'Connecting an AWS account is free' is useful but oddly placed inside the Option B sub-section. Moving it to just before the H3 heading 'What the connection stack creates' would make it visible regardless of which option the user reads.",
+            "The FAQ answer to 'What happens if I lose internet during a deploy?' recommends `stacktape info:stack` — consider linking that command to its CLI reference page `/cli/info-stack` for consistency with the pattern used for other commands on this page."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All CLI commands are correctly formatted — one per fenced block with no inline explanatory comments leaking into the copy buffer.",
+            "The 'What gets created in AWS' table cleanly maps Stacktape abstractions to concrete AWS resources (CloudFormation stack, S3 deployment bucket, IAM roles, log groups), which is exactly what a first-time deployer needs.",
+            "Hot-swap section is well-grounded in the deploy source: correctly identifies both Lambda and ECS container images as hotswap targets and accurately states the constraint that infrastructure template must be unchanged.",
+            "Skip-ahead `<Info>` link and terminal `Next →` navigation both satisfy the mandatory getting-started section requirements.",
+            "Console URL pattern `https://console.stacktape.com/projects/{projectName}/{stage}/overview` is verified against the source code's string interpolation in `commandDeploy`.",
+            "Option A / Option B structure gives users a clear mental model for the two AWS connection paths, with the recommended default called out explicitly.",
+            "FAQ mixes all three required categories — Stacktape-specific (delete a stage, API key in CI), AWS use-case (how long does deploy take, is AWS secure), and comparison/choosing (Stacktape cost vs AWS cost, any region)."
+          ],
+          "problems": [
+            "The first paragraph ends with 'This page walks you through login, AWS account connection, and your first deploy.' — the 'this page walks you through' clause is the forbidden meta-framing pattern. AI extractors pull the first paragraph verbatim; this sentence reads as navigation prose, not an answer.",
+            "Option A ('Automatic connection during deploy — the CLI detects local AWS credentials and prompts you to connect') is not grounded in any provided source file. The deploy source (`commandDeploy`) calls `initializeAllStackServices` but shows no auto-connect credential detection. The Console source only documents the Console flow. This is an unsupported claim that the source-grounding verifier will flag as high-severity.",
+            "The `<FlowDiagram steps={[...]} />` component is not an established MDX component in the documentation system. The MDX component palette documented in the instructions lists `<Info>`, `<Tip>`, `<Warning>`, `<CodeBlock>`, `<ApiReference>`, and `<ReferenceableParams>`. If `<FlowDiagram>` does not exist in the renderer, the 'What happens during deploy' section will fail to render, leaving a broken visual mid-page.",
+            "The page significantly exceeds the 400–800 word target specified in the getting-started section instructions. The troubleshooting section, the 'What gets created in AWS' table, the 'What happens during deploy' flow, the 'Deploying multiple stages' section, and 8 FAQ entries collectively push the page well past 1,200 words of prose. Getting-started pages should prioritise the happy path and link out rather than document every scenario inline.",
+            "No screenshots are included despite the section instructions explicitly calling for 'code blocks and screenshots' on getting-started pages. The 'What happens during deploy' and 'Verifying the deploy' sections in particular are natural screenshot locations."
+          ],
+          "mandatoryFixes": [
+            "Remove or rewrite the 'Option A: Automatic connection during deploy' section. The provided source files do not document a CLI auto-detect-and-connect flow; only the Console-based flow is sourced (`AwsAccountsPage.tsx`). Either remove Option A entirely and keep only the Console path, or add a one-line note that users with local AWS credentials may be prompted automatically but do not invent the mechanism as fact.",
+            "Replace `<FlowDiagram steps={[...]} />` with either a numbered prose list or an existing supported MDX component. No evidence in the source files or component documentation that `<FlowDiagram>` is a valid MDX component. A broken component leaves a blank section in the rendered page.",
+            "Rewrite the first paragraph's final sentence to eliminate the meta-framing. Replace 'This page walks you through login, AWS account connection, and your first deploy.' with a concrete outcome statement, e.g. 'By the end, a live CloudFormation stack is running in your AWS account.'"
+          ],
+          "optionalImprovements": [
+            "Trim the page to the 400–800 word target. The 'Deploying multiple stages' section can be condensed to two sentences pointing to the Console overview. The 'What gets created in AWS' table is high-value and should stay, but the troubleshooting section could be reduced to bullet points or moved to a dedicated troubleshooting page linked from here.",
+            "Add at least one screenshot — ideally the CLI deploy output showing resource URLs and the console link, and optionally the AWS CloudFormation Quick Create screen. Screenshots are called for by the section instructions and make 'Verifying the deploy' concrete.",
+            "The getting-started section instructions call out 'deploy + AWS account UX' as the showcase for this step. The page delivers the mechanic but doesn't show a visual of the Console overview the user lands on — a screenshot of the post-deploy Console stack page would fulfil the 'showcase' requirement.",
+            "FAQ is good but getting-started section instructions note 'Skip the FAQ entirely on pure narrative pages (Getting Started steps).' If the overall page is trimmed to word-count, the FAQ (8 Q&A pairs) may be disproportionately large; consider pruning to 4–5 highest-value entries or confirming FAQ is intentional here."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The draft is generally well-structured for a getting-started page. Login and deploy commands are well-grounded in source. The Console AWS connection flow aligns with the AwsAccountsPage source. Key issues are: unsupported timing claims in the FAQ, an \"Option A\" automatic CLI connection flow that isn't visible in any provided source, and a deploy FlowDiagram whose phases don't match the actual phase names in the deploy source code.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Option A: Automatic connection during deploy (recommended) — If you already have local AWS credentials configured (via ~/.aws/credentials or environment variables), Stacktape detects them automatically when you run your first deploy. The CLI prompts you to connect using those credentials — no browser required.",
+              "reason": "The provided deploy source (src/commands/deploy/index.ts) calls initializeAllStackServices but shows no AWS account connection logic, credential detection, or user prompting for account connection. The Console source shows the connection flow is initiated from the UI with a 'Connect AWS account' button. The automatic CLI-based connection flow described here is not visible in any provided source file.",
+              "suggestedFix": "Either remove Option A or soften the claim to acknowledge it may require running a separate CLI command. If this flow exists inside initializeAllStackServices, verify it before publishing. Consider making the Console flow (Option B) the recommended default since it's source-grounded.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await initializeAllStackServices({\n    commandRequiresDeployedStack: false,\n    commandModifiesStack: true,\n    loadGlobalConfig: true,\n    requiresSubscription: true\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "A first deploy typically takes 2-5 minutes. Lambda-only stacks are faster (1-2 minutes). Stacks with databases, container services, or custom domains take longer... Subsequent deploys that only change application code take 30-90 seconds with hot-swap enabled.",
+              "reason": "No source file provides deploy timing data. These specific numbers (2-5 min, 1-2 min, 30-90 seconds) are unsupported Stacktape-specific performance claims. While they may be roughly accurate from experience, presenting them as factual in documentation without source backing risks misleading readers if actual times differ.",
+              "suggestedFix": "Either remove specific timing numbers or use hedged language: 'First deploys usually take a few minutes depending on resource types. Hot-swap deploys complete significantly faster since they bypass CloudFormation.' If timing data exists in internal benchmarks, cite it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (!useHotswap) {\n    tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The automatic flow deploys a small CloudFormation stack in eu-west-1 that creates the cross-account IAM role. This takes about 60 seconds.",
+              "reason": "The 60-second timing claim has no source backing. The eu-west-1 region and CloudFormation stack creation are confirmed by the Console source tooltip, but the duration is not mentioned anywhere in the provided files.",
+              "suggestedFix": "Remove the '60 seconds' claim or replace with 'This typically takes a minute or two' without asserting a specific number.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AwsAccountsPage\\AwsAccountsPage.tsx",
+                  "quote": "The stack must be created in <b>eu-west-1</b> region."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "FlowDiagram steps: Package, Resolve, Upload, Deploy, Post-deploy (5 phases)",
+              "reason": "The deploy source uses 4 event phases: BUILD_AND_PACKAGE, UPLOAD, DEPLOY, POST_DEPLOY. The draft splits BUILD_AND_PACKAGE into two separate steps ('Package' and 'Resolve') which don't correspond to distinct phases in the source. The 'Resolve' step ('secrets, parameters, and directives are evaluated') actually happens within the BUILD_AND_PACKAGE phase as part of calculatedStackOverviewManager.resolveAllResources().",
+              "suggestedFix": "Either collapse Package and Resolve into a single step ('Build & Package' — covering bundling, resource resolution, and template preparation), or acknowledge the FlowDiagram is conceptual rather than mapping 1:1 to deploy phases.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "eventManager.setPhase('BUILD_AND_PACKAGE');\n  const [{ packagedWorkloads, abort, cfTemplateDiff }] = await Promise.all([\n    prepareArtifactsForStackDeployment(),"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The connection CloudFormation stack creates a single IAM role with cross-account trust.",
+              "reason": "The Console source confirms cross-account AssumeRole access but does not state it's a 'single IAM role'. The connection stack may create additional resources (policies, conditions). The word 'single' is not grounded.",
+              "suggestedFix": "Change to 'creates an IAM role with cross-account trust' (removing 'single') or 'creates resources including an IAM role with cross-account trust'.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AwsAccountsPage\\AwsAccountsPage.tsx",
+                  "quote": "Creating this CloudFormation stack gives Stacktape secure cross-account AssumeRole access. Stacktape uses the assumed role to interact with your AWS account (perform deployments, list logs, metrics, etc.)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Stage names must be at most 10 characters.",
+              "reason": "This constraint is not visible in any provided source file (types, deploy command source, or CLI config). It may exist in validation logic not included in the source set, but it cannot be verified from the provided files.",
+              "suggestedFix": "If this constraint is documented in the stage validation logic or CLI argument validators, keep it. Otherwise soften to 'Stage names should be short' or verify against the actual validation source before publishing.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await initializeAllStackServices({\n    commandRequiresDeployedStack: false,\n    commandModifiesStack: true,"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The login command behavior (Google auth, email signup, email login, API key) is correctly grounded in the login source's comment: 'Run interactive auth flow (Google, email signup, email login, or manual API key)'.",
+            "The --apiKey flag for non-interactive login is confirmed by the source: 'let apiKey = globalStateManager.args.apiKey'.",
+            "The Console URL pattern 'https://console.stacktape.com/projects/{project}/{stage}/overview' is exactly confirmed by the deploy source's consoleUrl template literal.",
+            "The hot-swap behavior description (updates Lambda code and ECS services directly, bypasses CloudFormation) is well-grounded: the source shows updateEcsService and updateFunctionCode calls with a fallback warning 'Hot-swap not possible; running full CloudFormation deploy.'",
+            "The Console 'Connect AWS account' button text matches the source exactly: text='Connect AWS account'.",
+            "The eu-west-1 requirement for the connection stack is confirmed by the Console tooltip: 'The stack must be created in eu-west-1 region. Your projects and stacks can be deployed to ANY region.'",
+            "The post-deploy steps (CDN invalidation, bucket sync) are confirmed by the source's conditional cloudfrontManager.invalidateCaches() and deploymentArtifactManager.syncBuckets() calls.",
+            "Cross-links are all valid routes in the documentation pages index.",
+            "The page correctly uses fenced bash blocks for CLI commands (not CodeBlock) and doesn't include hand-authored YAML Stacktape config — no forbidden patterns detected."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft has several Stacktape-specific claims that are not supported by the provided source files, mainly around automatic AWS account connection during deploy, deploy output/details, hot-swap behavior, and timing guarantees. Console-based account connection, login with --apiKey, eu-west-1 for the connection stack, project deploy regions, and the generated Console URL pattern are supported.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Option A: Automatic connection during deploy ... Stacktape detects [local AWS credentials] automatically when you run your first deploy. The CLI prompts you to connect using those credentials — no browser required.”",
+              "reason": "The provided deploy command source does not show any AWS account auto-connection flow, local AWS credential detection, or prompt to connect an AWS account during deploy. This would materially change what a first-time user expects from `stacktape deploy`.",
+              "suggestedFix": "Remove the automatic-connection path unless source for it is added. Present the Console connection flow as the grounded path, or phrase CLI behavior narrowly only if backed by initialization source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "export const commandDeploy = async () => {\n  await initializeAllStackServices({\n    commandRequiresDeployedStack: false,\n    commandModifiesStack: true,\n    loadGlobalConfig: true,\n    requiresSubscription: true\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The automatic flow deploys a small CloudFormation stack in `eu-west-1` ... This takes about 60 seconds.”",
+              "reason": "The source supports that the Console account-connection stack must be created in eu-west-1, but it does not support an automatic CLI flow, the stack being “small,” or the 60-second duration.",
+              "suggestedFix": "Keep the sourced facts: the connection stack must be created in `eu-west-1`, and project stacks can deploy to any region. Remove “automatic,” “small,” and “about 60 seconds” unless source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AwsAccountsPage\\AwsAccountsPage.tsx",
+                  "quote": "The stack must be created in <b>eu-west-1</b> region."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AwsAccountsPage\\AwsAccountsPage.tsx",
+                  "quote": "Your projects and stacks can be deployed to <b>ANY</b> region."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Code-only changes (no infrastructure modifications) can use hot-swap mode for faster iteration. Hot-swap bypasses CloudFormation and updates Lambda function code or ECS container images directly. It completes in seconds rather than minutes, but only works when the infrastructure template hasn't changed.”",
+              "reason": "The source supports the `--hotSwap` flag, fallback to full CloudFormation deploy when hot-swap is not possible, and direct update functions for ECS services and Lambda function code. It does not support the precise eligibility rule “only works when the infrastructure template hasn't changed” or the duration claim “seconds rather than minutes.”",
+              "suggestedFix": "Narrow this to: `--hotSwap` attempts a direct update for eligible Lambda functions and container workloads; if Stacktape determines hot-swap is not possible, it falls back to a full CloudFormation deploy.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (globalStateManager.args.hotSwap) {\n    const { isHotswapPossible = false, hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation = [] } =\n      stackManager.stackActionType !== 'create' &&\n      deployedStackOverviewManager.analyzeCloudformationTemplateDiff({\n        cfTemplateDiff\n      });\n    useHotswap = isHotswapPossible;\n    if (!useHotswap) {\n      // in this case we are falling back to standard Cloudformation deploy\n      tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.');"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const results = await Promise.all([\n    ...containerWorkloadsToBeUpdated.map(updateEcsService),\n    ...lambdaFunctionsToBeUpdated.map(updateFunctionCode)\n  ]);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape detects which resources changed and updates only those.”",
+              "reason": "The source shows Stacktape computes a CloudFormation template diff and performs either a full deploy or hot-swap. It does not support the broad claim that Stacktape itself updates only changed resources in all redeploys; CloudFormation determines changes during a full stack update.",
+              "suggestedFix": "Say Stacktape prepares a template diff and deploys the updated stack through CloudFormation, or uses hot-swap for eligible direct code updates when requested.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const cfTemplateDiff = templateManager.getOldTemplateDiff();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (useHotswap) {\n    await performHotswapDeploy();\n  } else {\n    await performFullDeploy();\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After a successful deploy, the CLI prints: Resource URLs ... Console link ...”",
+              "reason": "The deploy source supports that pending completion includes resource links and a Console URL, but `printShortStackInfo()` is added only when invoked from CLI. The draft says the CLI prints both categories unconditionally, which overstates the source.",
+              "suggestedFix": "Write cautiously: after a CLI deploy, Stacktape sets completion output with resource links and a Console URL; when invoked from the CLI, it also prints short stack info.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (globalStateManager.invokedFrom === 'cli') {\n    eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "tuiManager.setPendingCompletion({\n    success: true,\n    message: 'DEPLOYMENT SUCCESSFUL',\n    links: resourceLinks,\n    consoleUrl\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every Stacktape deploy creates or updates these in your AWS account: S3 deployment bucket ... IAM roles and policies ... CloudWatch log groups ...”",
+              "reason": "The provided deploy source supports artifact upload and CloudFormation deployment, but it does not support the universal list of AWS resources created on every deploy. Some listed resources depend on declared resources or external manager behavior not present in the source list.",
+              "suggestedFix": "Limit the table to sourced behavior: Stacktape uploads deployment artifacts and deploys a CloudFormation stack/template. For resource-specific IAM roles, log groups, and buckets, either add source files that generate them or phrase them as examples tied to declared resources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await deploymentArtifactManager.uploadAllArtifacts({ useHotswap });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape shows real-time progress with resource-level status updates throughout.”",
+              "reason": "The deploy source shows deployment notifications and event phases, but it does not show resource-level status updates throughout the deploy.",
+              "suggestedFix": "Narrow to the source: Stacktape reports deployment phases and sends progress/success notifications. Avoid “resource-level status updates” unless stack-monitoring source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "eventManager.setPhase('BUILD_AND_PACKAGE');"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await notificationManager.sendDeploymentNotification({\n    message: {\n      text: `Deploying stack ${globalStateManager.targetStack.stackName}${useHotswap ? ' (using hotswap)' : ''}.`,\n      type: 'progress'\n    }\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Timing claims: “First deploys typically take 2-5 minutes,” “Lambda-only stacks are faster (1-2 minutes),” and “Subsequent deploys that only change application code take 30-90 seconds with hot-swap enabled.”",
+              "reason": "No provided source file contains these deployment duration numbers. Because these claims set user expectations for deploy behavior, they should be removed or generalized unless supported by source.",
+              "suggestedFix": "Replace with qualitative wording: first deploys depend on the resources being provisioned; databases, custom domains, and container services often take longer than small Lambda-only stacks. Avoid exact minute ranges without source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "// @note this can take a long time, so we do it in parallel with other stack activities"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The `stacktape login --apiKey YOUR_API_KEY` example is supported by `globalStateManager.args.apiKey` in the login command.",
+            "The draft correctly links first mentions of `stacktape login`, `stacktape deploy`, `stacktape debug:logs`, `stacktape delete`, and `stacktape info:stack` to existing CLI routes in the navigation index.",
+            "The Console AWS-account connection flow is mostly grounded: the source includes a `Connect AWS account` button, opens a `quickCreateStackLink`, states the connection stack must be in `eu-west-1`, and says project stacks can deploy to any region.",
+            "The generated Console URL pattern `https://console.stacktape.com/projects/{project}/{stage}/overview` is directly supported by the deploy source.",
+            "The page avoids forbidden YAML Stacktape config examples, plain-object `StacktapeConfig`, and fenced TypeScript Stacktape config blocks."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API-completeness, union-variant, or CodeBlock demonstrativeness issues found for this Getting Started page. The page has no primary API type, no documented union-typed resource property, and no `<CodeBlock intellisense>` Stacktape configuration examples to audit.",
+          "issues": [],
+          "positiveFindings": [
+            "The page avoids hand-authored YAML Stacktape configuration and does not use the deprecated `StacktapeConfig` object style.",
+            "Shell commands are separated into one command per fenced block, which avoids the copy-button trap.",
+            "The page includes the required skip-ahead callout near the top and ends with a next-step link to `/getting-started/using-console-ui`.",
+            "The `stacktape debug:logs` command is linked to `/cli/debug-logs` on first mention."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\getting-started__deploy-your-first-stage\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Every bash command is in its own individually-fenced block with no inline `#` comments, making copy-paste error-free.",
+            "The two-path AWS account connection (inline during deploy vs. Console first) is explained with concrete tradeoffs, not just described as an option.",
+            "Hot-swap section gives the reader a decision signal ('useful during development when iterating on application code without changing infrastructure') rather than only configuration instructions.",
+            "The FlowDiagram section communicates the four deploy phases clearly, helping a low-AWS-experience reader understand what Stacktape is actually doing without requiring prior CloudFormation knowledge.",
+            "FAQ spans all three required categories: Stacktape-specific ('Can I preview changes?'), AWS-service-use-case ('What if internet drops during a deploy?'), and comparison/choosing ('Stages vs AWS accounts').",
+            "Skip-ahead `<Info>` at the top and the **Next →** link at the bottom correctly implement the required getting-started flow bookends.",
+            "Troubleshooting entries ('No connected AWS accounts', 'Deploy takes longer than expected', 'CloudFormation rollback') are grounded in realistic failure modes, not generic warnings.",
+            "The 'What gets created in AWS' table concretely answers the low-AWS-experience reader's unspoken question: 'What am I actually doing to my account?'"
+          ],
+          "problems": [
+            "The `<FlowDiagram steps={[...]} />` component is not listed in the documented Stacktape MDX component palette (which includes `<Info>`, `<Tip>`, `<Warning>`, `<CodeBlock>`, `<ApiReference>`, `<ReferenceableParams>`, `<FeatureComparisonTable>`). If this component does not exist, the entire 'What happens during deploy' section will fail to render, leaving a broken content block for the reader.",
+            "The page runs noticeably over the 400–800 word prose target set for getting-started pages. The 'What the connection creates', 'What gets created in AWS', and 'Redeploying after changes' sections each add genuine value but collectively push prose past ~1,100 words, which may cause the page to feel heavy for a first-time reader trying to follow the linear flow.",
+            "No screenshots are included. The getting-started section instructions explicitly mention 'code blocks and screenshots', and the AWS account connection flow in particular (two-step CloudFormation quick-create) benefits from a visual to reduce anxiety for low-AWS-experience readers.",
+            "The H2 heading 'Step 1: Log in to Stacktape' (and Steps 2–3) are longer than the 1-5 word noun-form style-guide recommendation. For getting-started pages the step format is defensible, but the style guide is explicit about H2 length, and these headings do make the TOC verbose.",
+            "The `--awsAccount` flag mentioned in the last FAQ entry ('deploy different stages to different AWS accounts by connecting multiple accounts and selecting one per deploy with `--awsAccount`') does not appear in the provided deploy source (`src/commands/deploy/index.ts`). This is a source-grounding risk."
+          ],
+          "mandatoryFixes": [
+            "Verify that `<FlowDiagram steps={[...]} />` is a real, registered MDX component in the Stacktape docs build. If it is not, replace it with a numbered list (`1. Build & Package — …`, `2. Upload — …`, etc.) or a markdown table using only documented components. A broken render here removes the clearest explanation of what `stacktape deploy` actually does, which is central to this page's purpose."
+          ],
+          "optionalImprovements": [
+            "Add a screenshot or animated GIF of the deploy terminal output (the resource-links + Console URL printed at the end) immediately after the 'Step 3: Deploy' command block. This is the 'wow moment' the getting-started instructions want step 3 to showcase, and a visual of the live URL appearing makes it concrete for first-time readers.",
+            "Trim the 'What the connection creates' subsection (currently 4 sentences) to 1-2 sentences. The essential fact is already captured in Option A: 'creates an IAM role with cross-account trust.' The repetition in the separate subsection adds length without new signal for the intended audience.",
+            "Either verify and cite the `--awsAccount` flag from a source file, or rephrase the FAQ answer to say 'You can connect multiple AWS accounts in the Console and select one per deployment' without naming the unverified flag.",
+            "Consider shortening H2 headings to 'Login', 'Connect AWS', 'Deploy' — the step numbers already provide sequence; the long 'Step N: Verb Noun' form makes the in-page TOC verbose and goes against the style guide's 1-5 word norm.",
+            "The 'Prerequisites' section mentions needing a 'Stacktape account (free — created during login)' — this is accurate but slightly confusing because the account is created *as part of* Step 1, not before it. Rephrase to: 'A Stacktape account — you'll create one during Step 1 if you don't have one.'"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Deploy phase breakdown (Build & Package → Upload → Deploy → Post-deploy) maps exactly to the `eventManager.setPhase()` calls in `src/commands/deploy/index.ts` — the page earns its authority on this claim.",
+            "Hot-swap fallback behavior is precisely grounded: the source explicitly emits `tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.')` when `isHotswapPossible` is false, and the page reflects this fallback accurately.",
+            "Console URL pattern (`https://console.stacktape.com/projects/{project}/{stage}/overview`) matches the string literal in `commandDeploy` exactly — one of the few places generated output is verifiable from source.",
+            "The troubleshooting item for dev-mode conflict is directly grounded: `commandDeploy` throws `stpErrors.e141` when `getStackMetadata(stackMetadataNames.isDevStack())` is truthy — the page's advice to stop dev mode first is accurate.",
+            "Login flow details (Google, email signup, email login, manual API key) match the `runAuthFlow` comment in `src/commands/login/index.ts` verbatim — no invented options.",
+            "AWS connection tooltip in `AwsAccountsPage.tsx` explicitly states 'The stack must be created in eu-west-1 region. Your projects and stacks can be deployed to ANY region' — the page's claim under 'What the connection creates' is accurate and important for readers who worry about regional restrictions.",
+            "FAQ spans all three required categories: Stacktape-specific, AWS service use-case, and comparison/choosing questions — 10 Q&A pairs, all substantive.",
+            "No forbidden patterns present: no raw YAML Stacktape config, no `StacktapeConfig` type import, no `defineConfig` in fenced TS blocks, no multi-command bash blocks, no explanatory `#` comments inside bash blocks."
+          ],
+          "problems": [
+            "Option A ('Connect during your first deploy') describes a specific interactive CLI flow — detecting local AWS credentials, then offering two choices (use detected credentials vs. connect via browser) — that is not shown in the provided `src/commands/deploy/index.ts`. The function calls `initializeAllStackServices` whose source is not provided. If this interactive pre-deploy account detection flow doesn't exist or works differently, the page's recommended path (the one labeled 'recommended') will mislead users on their very first deploy attempt.",
+            "The `<FlowDiagram>` MDX component is used in 'Step 3: Deploy' to render the four deploy phases. This component does not appear in the style guide's documented MDX palette, and its existence and rendering behavior cannot be confirmed from the provided sources. If it is not a registered MDX component, that section renders as an empty block with no content, silently dropping the most technically detailed section of the page.",
+            "The FAQ answer for 'stages vs AWS accounts' mentions `--awsAccount` as a per-deploy flag for deploying to a specific connected account. This flag name does not appear in the provided `src/commands/deploy/index.ts`. If the flag name is wrong, readers who follow this advice will get a CLI error.",
+            "The page never explains how a project name is determined during `stacktape deploy`. The `commandDeploy` source references `globalStateManager.targetStack.projectName` and uses it in the console URL and stack name, but the page's deploy commands only show `--stage` and `--region`. A reader whose project name is inferred from directory structure vs. a `--projectName` flag will be confused when the console URL doesn't match their expectation, or when a deploy errors on project name resolution."
+          ],
+          "mandatoryFixes": [
+            "Verify the Option A 'Connect during first deploy' interactive flow against the actual `initializeAllStackServices` implementation or another authoritative source. If the flow (credential detection → two-choice prompt) is accurate, add a note about what happens in non-TTY/CI environments where the interactive prompt cannot appear. If the flow is inaccurate, rewrite Option A to describe only what the source confirms, and demote or remove the 'recommended' label until the claim is grounded.",
+            "Either verify that `<FlowDiagram>` is a registered MDX component in the Stacktape docs framework and document its props contract, or replace it with a standard markdown table or numbered list using the four phase names and descriptions already present — content derived from `eventManager.setPhase()` calls in `commandDeploy`. A broken component silently drops the most informative structural section on the page.",
+            "Verify the `--awsAccount` flag name against the actual CLI argument definitions for `stacktape deploy`. If the flag is named differently (e.g., `--awsAccountName`, `--connectedAwsAccount`), correct the FAQ answer. If the flag does not exist as described, rewrite that FAQ answer to match what the source supports.",
+            "Add a sentence or note in 'Step 3: Deploy' explaining how the project name is determined — whether it defaults to the current directory name, requires an explicit `--projectName` flag, or is read from the config file. The console URL printed after deploy includes the project name, so a reader who doesn't know where it comes from cannot navigate to their stack in the Console."
+          ],
+          "optionalImprovements": [
+            "The troubleshooting section covers four scenarios but does not mention what happens when the CloudFormation stack reaches `UPDATE_FAILED` state. The deploy source explicitly handles this: `if (stackManager.existingStackDetails?.StackStatus === 'UPDATE_FAILED')` triggers `deleteArtifactsFixedDeploy()`. Users who interrupt a deploy and leave the stack in this state have no guidance here.",
+            "The 'Verifying the deploy' section mentions `--resourceName myApi` in the debug:logs example. For a first-time user who followed the guide from the beginning, `myApi` is an unfamiliar resource name — a brief clarifying phrase ('replace `myApi` with the name of a resource declared in your `stacktape.ts`') would prevent confusion.",
+            "The page does not surface that CDN cache invalidation happens post-deploy (`configManager.allResourcesWithCdnsToInvalidate` check in `commandDeploy`). For users with hosting buckets or CDN-fronted services, knowing that cache invalidation is automatic (not a separate manual step) saves time and confusion.",
+            "The 'Deploying multiple stages' section links to `/ci-cd-and-gitops/stacks-per-git-branch-pattern` but doesn't mention the Console's GitOps feature that the getting-started flow is building toward — a light forward reference here would reinforce why multiple stages matter before the reader reaches the CI/CD step."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Self-contained opening paragraph correctly grounds the page: 'Deploying a Stacktape stage takes your stacktape.ts configuration and provisions real AWS infrastructure — a CloudFormation stack' — exactly what an AI engine would extract verbatim.",
+            "AWS account connection options (Option A inline vs Option B Console-first) include concrete decision guidance: who each path is for, what each does, and when to prefer it. Decision support without circular language.",
+            "Hot-swap section provides genuine tradeoff content: what triggers a fallback to full CloudFormation deploy, when to use it during development vs production, and what 'significantly faster' means in context (no CloudFormation stack update).",
+            "Troubleshooting section maps directly to source-grounded errors — the dev-mode stack conflict error (stpErrors.e141) is explicitly handled in deploy/index.ts, making this section accurate rather than speculative.",
+            "All shell code blocks are single-command-per-block with no # comment labels inside. Copy button captures exactly what the user should type.",
+            "Console URL format is source-grounded: the deploy source confirms `https://console.stacktape.com/projects/${projectName}/${stage}/overview` verbatim.",
+            "The 'What gets created in AWS' table adds concrete, non-obvious items (deployment artifacts S3 bucket, auto-generated IAM roles from connectTo) that go beyond what the reader's config explicitly declares.",
+            "Skip-ahead link and next-step footer follow the getting-started section instructions correctly.",
+            "The connection CloudFormation stack in eu-west-1 restriction is correctly sourced from AwsAccountsPage.tsx tooltip content."
+          ],
+          "problems": [
+            "The <FlowDiagram> component is used in 'What happens during deploy' but is not in the documented MDX component palette (which includes Info, Tip, Warning, CodeBlock, ApiReference, ReferenceableParams, FeatureComparisonTable). If this component does not exist in the docs renderer, the section renders broken in production. No source file confirms the component exists.",
+            "The Troubleshooting section links to `stacktape rollback` at route `/cli/rollback`, but the git status shows the CLI docs file is `cf-rollback.mdx`, indicating the correct route is `/cli/cf-rollback` and the command is likely `stacktape cf:rollback`. This is a broken link and a wrong command name.",
+            "The FAQ is overwhelmingly Stacktape-specific (8 of 10 questions). The AEO/FAQ criteria require mixing three categories: (1) Stacktape-specific, (2) use-case questions about the underlying AWS service (e.g., 'How much does CloudFormation cost?', 'What are CloudFormation stack limits?', 'What IAM permissions does Stacktape require?'), and (3) choosing/comparison questions (e.g., 'Stacktape vs CDK vs Terraform — when should I use Stacktape?'). The current FAQ misses the high-intent AWS-service and comparison searches that would bring readers to this page.",
+            "Section instructions explicitly say 'code blocks and screenshots' — no screenshots are present despite the section instructions calling them out as expected content for getting-started pages.",
+            "Page substantially exceeds the 400–800 word target for getting-started pages. The combined weight of 'What gets created in AWS', 'Verifying the deploy', 'Redeploying after changes', and 'Deploying multiple stages' may be better placed on a dedicated how-it-works reference page rather than the onboarding flow itself. For a first-time deployer this length can be discouraging."
+          ],
+          "mandatoryFixes": [
+            "Verify whether <FlowDiagram> is a valid MDX component in this docs system. If it is not, replace the 'What happens during deploy' section with a numbered list or prose paragraphs (one per phase) using only confirmed components. Leaving an unresolved MDX component breaks the rendered page.",
+            "Fix the rollback CLI reference: the docs file is cf-rollback.mdx, so update the link from `/cli/rollback` to `/cli/cf-rollback` and the command text from `stacktape rollback` to `stacktape cf:rollback` (or whichever form the CLI source confirms). A wrong command name in a troubleshooting section directly misleads the reader."
+          ],
+          "optionalImprovements": [
+            "Add 2–3 AWS-service FAQ questions to satisfy the three-category requirement and capture high-intent searches. Strong candidates: 'How much does CloudFormation cost?' (it is free for stack operations; the user pays only for provisioned resources), 'What are the CloudFormation stack resource limits?' (500 resources per stack is a real constraint Stacktape users hit), and 'What IAM permissions does Stacktape need in my AWS account?' (links to the permissions reference page).",
+            "Add at least one choosing/comparison FAQ such as 'How does Stacktape compare to AWS CDK or Terraform?' — this is a top-of-funnel search query and the getting-started deploy page is where undecided readers land.",
+            "Add a screenshot of the CLI deploy output after a successful first deploy. The section instructions call out screenshots explicitly, and the deploy output (resource links table, console URL) is the 'wow moment' that motivates new users to continue.",
+            "Consider extracting 'What gets created in AWS' into a sidebar or a linked explainer page (e.g., /concepts/how-it-works) and replacing it here with a one-paragraph summary plus a link. The table is useful for curious readers but may be noise for first-time deployers focused on getting something running.",
+            "In the FAQ answer for 'Does Stacktape cost money', explicitly state the free tier exists and what it includes (or link to the pricing page). 'There is a free tier to start with' is vague — readers want to know if they can finish this getting-started flow without entering payment details.",
+            "The 'Deploy output' subsection under Step 3 would benefit from being a top-level callout or screenshot caption rather than a prose paragraph, since it names the console URL pattern — this is something first-time users specifically look for after deploy completes."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "summary": "The draft is well-grounded overall. The four deploy phases, hot-swap behavior, Console URL pattern, login flow, and AWS account connection mechanics all match the source code accurately. All cross-links verified against the navigation index. Three issues found: one medium-severity omission in login auth options, and two low-severity unverifiable claims about CLI flags and deploy-time connection flow.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "You can authenticate with Google, sign up with email, or enter an existing API key.",
+              "reason": "The login source lists four interactive auth options in a code comment: Google, email signup, email login, and manual API key. The draft omits 'email login' — an existing user with an email+password account would not know they can log in through the interactive flow without an API key. The draft conflates the three non-API-key options into two.",
+              "suggestedFix": "Change to: 'You can authenticate with Google, sign up or log in with email, or enter an existing API key.'",
+              "evidence": [
+                {
+                  "file": "src/commands/login/index.ts",
+                  "quote": "// Run interactive auth flow (Google, email signup, email login, or manual API key)"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "by connecting multiple accounts and selecting one per deploy with `--awsAccount`",
+              "reason": "The `--awsAccount` CLI flag is not referenced anywhere in the provided deploy command source (`src/commands/deploy/index.ts`). The deploy source accesses `globalStateManager.args.hotSwap` and `globalStateManager.args.showSensitiveValues` but never `awsAccount`. The flag may exist in CLI argument definitions not provided here, but it cannot be verified from the available source files. If the flag does not exist or is named differently, the FAQ answer would send users down a dead end.",
+              "suggestedFix": "Verify the flag name exists in the CLI argument definitions. If unverifiable, rephrase to: 'by connecting multiple accounts to your organization and selecting the target account at deploy time' without naming a specific flag.",
+              "evidence": [
+                {
+                  "file": "src/commands/deploy/index.ts",
+                  "quote": "if (globalStateManager.args.hotSwap) {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "If you have local AWS credentials configured (via `~/.aws/credentials` or environment variables like `AWS_ACCESS_KEY_ID`), the CLI offers two choices: 1. Use detected credentials ... 2. Connect via browser",
+              "reason": "The Option A description claims a specific two-choice interactive flow during deploy when no AWS account is connected. The deploy command source calls `initializeAllStackServices` but the AWS account connection logic inside that function is not provided. The specific behavior (detecting local credentials, offering two choices) cannot be verified from the available source. This is the primary recommended path for new users, so inaccuracy here would cause real confusion.",
+              "suggestedFix": "If the exact flow cannot be verified, simplify to: 'When you run `stacktape deploy` and no AWS account is connected yet, the CLI guides you through the connection process interactively.' Omit the specific two-choice detail unless it can be confirmed in the initialization source.",
+              "evidence": [
+                {
+                  "file": "src/commands/deploy/index.ts",
+                  "quote": "await initializeAllStackServices({\n    commandRequiresDeployedStack: false,\n    commandModifiesStack: true,\n    loadGlobalConfig: true,\n    requiresSubscription: true\n  });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Deploy phases (BUILD_AND_PACKAGE, UPLOAD, DEPLOY, POST_DEPLOY) exactly match the `eventManager.setPhase()` calls in the deploy source — accurate and well-ordered.",
+            "Console URL pattern `https://console.stacktape.com/projects/{project}/{stage}/overview` is a verbatim match to the source code template literal.",
+            "Hot-swap behavior accurately described: the fallback from hot-swap to full CloudFormation deploy matches the `isHotswapPossible` check and the warning message in source.",
+            "Dev mode conflict check correctly reflects the `isDevStack()` metadata check that throws `stpErrors.e141` in the deploy command.",
+            "All 22 cross-links verified against the navigation index — no invented routes.",
+            "AWS account connection mechanics (eu-west-1 deployment, cross-account AssumeRole, Quick Create link, free connection) match the Console source's tooltip text and mutation logic.",
+            "Login command behavior (API key save via `globalStateManager.saveApiKey`, user and organization name display) matches the source precisely.",
+            "Post-deploy behavior (CDN cache invalidation via `cloudfrontManager.invalidateCaches()`, bucket sync via `deploymentArtifactManager.syncBuckets()`) matches source.",
+            "The claim that first deploys create resources while subsequent deploys diff matches the `stackManager.stackActionType === 'create'` branching in source.",
+            "The FlowDiagram step descriptions accurately summarize what each deploy phase does based on the source code function calls within each phase."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided login, deploy, and AWS account Console sources, but it contains several Stacktape-specific deployment/account-connection claims that are either unsupported by the provided source or contradicted by the Console source. The highest-impact fixes are around first-deploy AWS account connection behavior, CLI flags, CloudFormation-stack naming/ownership claims, and unsupported deploy-output/details claims.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“When you run `stacktape deploy` and no AWS account is connected yet, the CLI detects this and walks you through connection interactively… offers two choices… If no local credentials are found, the CLI opens the browser-based flow directly.”",
+              "reason": "The provided `deploy` command source does not show any AWS-account connection detection or interactive connection flow. The only provided source for account connection is the Console page, which creates a connected AWS account through the Console modal and opens a Quick Create link. This CLI behavior would materially change how readers prepare for first deploys.",
+              "suggestedFix": "Remove or narrow the CLI-first connection flow unless a source file for deploy initialization/account connection supports it. Ground the page in the provided Console flow: connect the AWS account in the Stacktape Console before deploying, or state only that deploy initialization requires the needed configured account if that is sourced elsewhere.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await initializeAllStackServices({\n    commandRequiresDeployedStack: false,\n    commandModifiesStack: true,\n    loadGlobalConfig: true,\n    requiresSubscription: true\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AwsAccountsPage\\AwsAccountsPage.tsx",
+                  "quote": "<Button\n              visualType=\"primary\"\n              width={300}\n              onClick={async (e) => {\n                trackProductAnalyticsEvent('aws account connection started', { source: 'console' });\n                e.preventDefault();\n                const unconnectedAccount = await connectAwsAccountMutation.mutateAsync({\n                  name: accountName!,\n                  organizationId: selectedOrg!.id,\n                  connectionMode: 'PRIVILEGED'\n                });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Open the Stacktape Console, click **Connect AWS account**, enter a name for the connection…”",
+              "reason": "The Console source labels the main page action as “Connect AWS account”, but inside the modal the name field is labeled “Account name”, not a generic “name for the connection.” More importantly, the draft says to click “Connect AWS account” and then follow a guided flow; the actual modal’s final action is “Connect account in AWS console”, which opens the AWS Quick Create link. This is a concrete UI-flow mismatch.",
+              "suggestedFix": "Use the exact sourced UI wording: open the connected AWS accounts page, use **Connect AWS account**, enter an **Account name**, then choose **Connect account in AWS console** to open the Quick Create stack in AWS.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AwsAccountsPage\\AwsAccountsPage.tsx",
+                  "quote": "text=\"Connect AWS account\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AwsAccountsPage\\AwsAccountsPage.tsx",
+                  "quote": "label=\"Account name\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AwsAccountsPage\\AwsAccountsPage.tsx",
+                  "quote": "text=\"Connect account in AWS console\""
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“In non-TTY environments (CI), you must connect an account via the Console first, then use `--apiKey` for authentication.”",
+              "reason": "The provided sources support `stacktape login --apiKey`, but they do not support a deploy-time non-TTY AWS-account connection rule. The deploy source does not expose this behavior, and the Console source only documents the Console account connection UI.",
+              "suggestedFix": "Keep the sourced API-key login guidance, but remove the non-TTY account-connection rule unless the relevant initialization/account-connection source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\login\\index.ts",
+                  "quote": "let apiKey = globalStateManager.args.apiKey;\n\n  if (!apiKey) {\n    // Run interactive auth flow (Google, email signup, email login, or manual API key)\n    const authResult = await runAuthFlow();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await initializeAllStackServices({\n    commandRequiresDeployedStack: false,\n    commandModifiesStack: true,\n    loadGlobalConfig: true,\n    requiresSubscription: true\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `--stage` flag names this deployment… Stage names must be at most 10 characters.”",
+              "reason": "The provided deploy source uses `globalStateManager.targetStack.stage`, but none of the supplied source files define the deploy command flags or the 10-character stage-name limit. This is a Stacktape-specific constraint and CLI flag description that needs grounding in CLI config or validation code.",
+              "suggestedFix": "Remove the 10-character limit and avoid documenting CLI flag semantics beyond commands shown in the provided sources, or cite the CLI command/validation source that defines `--stage` and its limit.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "stackName: globalStateManager.targetStack.stackName,\n      stage: globalStateManager.targetStack.stage"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `--region` flag sets the AWS region where resources are provisioned… specify `--configPath`… select one per deploy with `--awsAccount`.”",
+              "reason": "The provided deploy source does not define or validate the `--region`, `--configPath`, or `--awsAccount` CLI flags. The documentation page includes multiple concrete flag names and semantics without the required CLI command source.",
+              "suggestedFix": "Either provide and verify against the deploy command definition source, or narrow the draft to the sourced `stacktape deploy` behavior without unsupported flag semantics. If retaining examples, avoid explaining flags as authoritative unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "export const commandDeploy = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape never provisions resources outside your AWS account. Everything appears in your AWS console under the CloudFormation stack name, and you own it entirely.”",
+              "reason": "The sources support that Stacktape uses a connected AWS account and that deployment resources are managed through CloudFormation, but they do not support the absolute claim that Stacktape never provisions anything outside the AWS account. The deploy source also uses Stacktape platform APIs, notifications, budgets, and undeployed-stage records, so the absolute wording is overbroad.",
+              "suggestedFix": "Narrow to the deployable infrastructure: “The AWS resources declared by your config are deployed as a CloudFormation stack in the connected AWS account.” Avoid absolute ownership/provisioning claims about all Stacktape-side records.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await notificationManager.sendDeploymentNotification({\n    message: {\n      text: `Deploying stack ${globalStateManager.targetStack.stackName}${useHotswap ? ' (using hotswap)' : ''}.`,\n      type: 'progress'\n    }\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await Promise.all([\n      stackManager.refetchStackDetails(globalStateManager.targetStack.stackName),\n      budgetManager.loadBudgets(),\n      stacktapeTrpcApiManager.deleteUndeployedStage()\n    ]);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape processes your configuration in four phases: Build & Package, Upload, Deploy, Post-deploy… resolves resource configuration, evaluates directives and secrets, and generates the CloudFormation template.”",
+              "reason": "The phase names are grounded by `eventManager.setPhase`, and several actions are grounded, but “evaluates directives and secrets” is not shown in the cited deploy flow. The source shows missing secrets/SSM params are ensured before build/package, and directives are invalidated during hotswap, not that secrets are evaluated as part of the Build & Package phase.",
+              "suggestedFix": "Keep the sourced phases, but revise the first phase to match the code: package workloads, resolve resources, populate stack metadata, prepare the CloudFormation template, and compute the old-template diff. Mention secret/SSM preflight separately if needed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await ensureMissingSecretsCreated();\n  await ensureMissingSsmParamsCreated();\n\n  eventManager.setPhase('BUILD_AND_PACKAGE');"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: true });\n  await calculatedStackOverviewManager.resolveAllResources();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await calculatedStackOverviewManager.populateStackMetadata();\n  await templateManager.prepareForDeploy();\n\n  const cfTemplateDiff = templateManager.getOldTemplateDiff();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every Stacktape deploy creates or updates a CloudFormation stack… Deployment artifacts: An S3 bucket stores packaged Lambda zips and CloudFormation templates… IAM roles and policies: Least-privilege roles auto-generated from your `connectTo` declarations… Log groups: CloudWatch log groups for each compute resource that produces logs.”",
+              "reason": "The provided deploy source supports CloudFormation deployment, artifact upload, and a CloudFormation template URL, but it does not support the full inventory of created AWS resources, the S3 bucket details, least-privilege IAM generated specifically from `connectTo`, or log group creation for every compute resource. These are Stacktape-specific behavior claims that need config/resource generator sources.",
+              "suggestedFix": "Keep the grounded CloudFormation and artifact-upload wording, and remove or qualify the specific resource inventory unless the resource-generation sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await deploymentArtifactManager.uploadAllArtifacts({ useHotswap });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `stacktape debug:logs` and links it to `/cli/debug-logs`, matching the required canonical command route.",
+            "The login section is mostly grounded: the source supports `stacktape login`, `--apiKey`, Google/email/manual API-key authentication, local credential saving, and printed user/organization details.",
+            "The hotswap section is broadly grounded: the deploy source checks `globalStateManager.args.hotSwap`, analyzes whether hotswap is possible, warns and falls back to full CloudFormation deploy when it is not, and updates eligible Lambda and container workloads when hotswap is used.",
+            "The connection-stack region and cross-account AssumeRole description are supported by the Console source, including the `eu-west-1` requirement, any-region project deploy note, free connection statement, and revocation via Console or deleting the CloudFormation connection stack."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API-completeness, union-variant, or demonstrativeness issues found within this auditor scope. The page is a Getting Started page with no primary API type and no Stacktape config `<CodeBlock intellisense>` examples to validate.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft does not contain hand-authored YAML Stacktape configuration.",
+            "Shell snippets use one command per fenced bash block.",
+            "The first log-viewing command uses the documented `stacktape debug:logs` command and links to `/cli/debug-logs`.",
+            "No `<ApiReference>` mismatch is present because the page has no primary `typeName` and does not include an API reference block."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\getting-started\\deploy-your-first-stage.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.8, hard blockers 6, advisory high 0, verifier medium 3"
+}

@@ -1,0 +1,170 @@
+---
+title: 'Build Runners'
+order: 107
+seoTitle: 'Build Runners: EC2 vs CodeBuild for Deployments | Stacktape Docs'
+seoDescription: 'Compare EC2 runners and CodeBuild for Stacktape deployments. EC2 runners cache dependencies and are 2-5x faster. CodeBuild has zero idle costs. Choose the right runner for your team.'
+---
+
+# Build Runners
+
+Every deployment triggered through the Stacktape Console — whether via [GitOps](/ci-cd-and-gitops/gitops-with-console) or a manual Console action — executes on a build runner. The runner clones your repository, installs dependencies, and runs the Stacktape CLI to deploy your stack. Stacktape offers two runner types: **EC2 runners** (recommended) and **CodeBuild runners**.
+
+## EC2 runners vs CodeBuild
+
+Stacktape supports two runner types. EC2 runners are the default for new projects and are recommended for most teams. CodeBuild runners are a simpler alternative for teams that deploy infrequently.
+
+<FeatureComparisonTable
+  columns={["EC2 runner", "CodeBuild"]}
+  features={[
+    { name: "Recommended for", values: { "EC2 runner": "Most teams — frequent deploys, fast iteration", "CodeBuild": "Infrequent deploys, minimal infrastructure" } },
+    { name: "Caching", values: { "EC2 runner": "Dependencies cached on disk between deploys", "CodeBuild": "Fresh container each deploy — re-downloads everything" } },
+    { name: "Deploy speed", values: { "EC2 runner": "2–5× faster than CodeBuild (cached deps + warm instance)", "CodeBuild": "Slower — cold start + full dependency install each time" } },
+    { name: "Idle behavior", values: { "EC2 runner": "Auto-hibernates after 15 min idle, wakes in ~10 seconds", "CodeBuild": "No idle state — container destroyed after each build" } },
+    { name: "Cost model", values: { "EC2 runner": "~$3/month storage (always) + compute only while deploying", "CodeBuild": "~$0.02/min build time, no idle charges" } },
+    { name: "Configuration scope", values: { "EC2 runner": "Per-project (instance type)", "CodeBuild": "Global across all projects (compute type, image, install commands)" } },
+    { name: "Pre-installed runtimes", values: { "EC2 runner": "Node.js, Bun, Python, Java, Go, Ruby, PHP, Docker", "CodeBuild": "Depends on base Docker image" } }
+  ]}
+/>
+
+## When to use EC2 runners
+
+EC2 runners are the right choice for teams that deploy more than a few times per week. Because the instance stays warm and caches dependencies on its EBS volume, repeated deploys skip the dependency-install step entirely. A deploy that takes 4–5 minutes on CodeBuild often finishes in 1–2 minutes on an EC2 runner.
+
+The ~$3/month baseline cost for the 50 GB EBS volume is negligible compared to the time saved on repeated builds. If your team deploys daily — or multiple times per day during active development — the EC2 runner pays for itself after the first few deploys.
+
+EC2 runners also come with a broad set of pre-installed runtimes (Node.js 18/20/22/24, Bun, Python, Java 11/17/21, Go, Ruby, PHP 8.1–8.3, Docker, and standard build tools), so most projects work without custom setup.
+
+## When to use CodeBuild
+
+CodeBuild runners are appropriate when you deploy rarely — perhaps once a week or less. With no idle infrastructure, you pay nothing between deploys. Each build starts a fresh container, installs dependencies, runs the deployment, and tears down. There is no persistent state to manage or pay for.
+
+CodeBuild is also a reasonable starting point if you want to evaluate Stacktape before committing to any persistent infrastructure. You can switch to an EC2 runner later from the project settings without redeploying — the change takes effect on the next deployment.
+
+The trade-off is speed. Every CodeBuild deploy re-downloads dependencies from scratch, which adds minutes to each build. For active development, this overhead adds up quickly.
+
+## EC2 runner configuration
+
+EC2 runner settings are configured **per project** in the Stacktape Console. You choose the runner type and instance size when creating a project, and you can change them at any time from the project's runner configuration modal.
+
+### Instance types
+
+The instance type controls how much CPU and memory the runner has during builds. Larger instances build faster but cost more per minute.
+
+| Instance type | vCPU | Memory | Approx. cost |
+|---------------|------|--------|--------------|
+| `m6a.large` | 2 | 8 GB | ~$0.001/min |
+| `m6a.xlarge` | 4 | 16 GB | ~$0.003/min |
+| `c7a.xlarge` | 4 | 8 GB | ~$0.003/min |
+| `c7a.2xlarge` | 8 | 16 GB | ~$0.006/min |
+| `c7a.4xlarge` | 16 | 32 GB | ~$0.011/min |
+| `c7a.8xlarge` | 32 | 64 GB | ~$0.023/min |
+
+The default instance type is `c7a.2xlarge` (8 vCPU, 16 GB). This is a good balance of build speed and cost for most projects. The `m6a` instances offer more memory per vCPU — useful if your build process is memory-heavy (large TypeScript compilations, Docker image builds). The `c7a` instances prioritize CPU — better for compute-bound builds with many parallel tasks.
+
+For small projects with simple builds, `m6a.large` keeps costs minimal. For monorepos or projects with heavy Docker builds, `c7a.4xlarge` or `c7a.8xlarge` can cut build times significantly.
+
+### Hibernation and wake-up
+
+EC2 runners auto-hibernate after 15 minutes of inactivity. Hibernation preserves the instance's memory state and EBS volume, so when the next deployment triggers, the runner wakes up in approximately 10 seconds — far faster than provisioning a new instance.
+
+While hibernated, you pay only for the EBS storage (~$3/month for the 50 GB volume). Compute charges stop during hibernation. This means a team that deploys a few times per day pays for a few minutes of compute plus the flat storage cost — comparable to or cheaper than CodeBuild for the same number of deploys, but with significantly faster build times.
+
+### AMI updates
+
+Stacktape automatically keeps EC2 runner AMIs up to date. When a new AMI version is available (with updated runtimes, security patches, or tooling), idle runners are terminated and reprovisioned with the latest image on their next deployment. Running runners are not interrupted — the update happens the next time the runner is idle.
+
+### Runner region
+
+Each EC2 runner is provisioned in a specific AWS region. The runner region is selected when creating the project and determines where the EC2 instance and its EBS volume live. AWS pricing for the instance and storage is billed at that region's rates.
+
+<Tip>
+Choose a runner region close to where your stacks are deployed. Cross-region data transfer between the runner and your deployment target adds latency and can incur additional AWS transfer costs.
+</Tip>
+
+### Changing the instance type
+
+You can change the EC2 runner instance type at any time from the project's runner configuration in the Stacktape Console. The change takes effect on the next deployment — the current instance is replaced with one matching the new instance type.
+
+## CodeBuild configuration
+
+CodeBuild settings are configured **globally** — they apply to all projects in the organization that use CodeBuild runners. You configure them from the Projects page in the Stacktape Console.
+
+### Compute types
+
+CodeBuild compute types determine the resources available during the build:
+
+| Compute type | vCPU | Memory |
+|-------------|------|--------|
+| BUILD_GENERAL1_SMALL | 2 | 4 GB |
+| BUILD_GENERAL1_MEDIUM | 4 | 8 GB |
+| BUILD_GENERAL1_LARGE | 8 | 16 GB |
+| BUILD_GENERAL1_XLARGE | 16 | 32 GB |
+| BUILD_GENERAL1_2XLARGE | 72 | 144 GB |
+
+CodeBuild pricing is per build minute and varies by compute type and region. The smaller compute types are cheaper per minute but may result in longer builds.
+
+### Base Docker image
+
+You can specify a custom Docker image for CodeBuild builds. This is useful when your project needs specific system-level dependencies or runtime versions not available in the default CodeBuild image. The image must be accessible from the AWS account where the build runs.
+
+### Additional install commands
+
+CodeBuild supports additional install commands — bash commands that run before the Stacktape deploy command. Use these for pre-build setup: installing system packages, configuring build tools, or running custom scripts that prepare the build environment.
+
+## Switching runner types
+
+You can switch between EC2 and CodeBuild runners at any time from the project's runner configuration in the Stacktape Console. The switch takes effect on the next deployment. No redeployment of your existing stacks is needed — the runner type only affects how the deployment process executes, not the deployed infrastructure.
+
+When switching from EC2 to CodeBuild, the EC2 instance is eventually terminated and the EBS volume released after the idle timeout passes. When switching from CodeBuild to EC2, the first deployment provisions a new EC2 instance (which takes longer than subsequent deploys while the instance starts for the first time).
+
+## Build runners and CI/CD
+
+Build runners are used by [GitOps deployments](/ci-cd-and-gitops/gitops-with-console) and Console-triggered actions. When you use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd), your CI system's own runners execute the Stacktape CLI directly — the build runner configuration does not apply.
+
+The [`codebuild:deploy`](/cli/codebuild-deploy) CLI command is a separate mechanism that offloads a local deployment to AWS CodeBuild. It uses its own CodeBuild project and is independent of the Console's runner configuration.
+
+| Deployment method | Uses build runners? | Runner configured in |
+|-------------------|---------------------|---------------------|
+| GitOps (Console) | Yes | Project settings in Console |
+| Manual Console deploy | Yes | Project settings in Console |
+| `stacktape deploy` (CLI) | No — runs locally | N/A |
+| `stacktape codebuild:deploy` (CLI) | No — uses its own CodeBuild project | CLI flags |
+| Custom CI/CD pipeline | No — runs on CI's infrastructure | CI provider |
+
+## FAQ
+
+### Should I use an EC2 runner or CodeBuild?
+
+Use an EC2 runner unless you deploy less than once a week. EC2 runners cache dependencies between deploys, making repeat deployments 2–5× faster. The ~$3/month EBS storage cost is negligible for active projects. CodeBuild is better for projects with very infrequent deployments where you want zero idle costs.
+
+### How much does an EC2 runner cost?
+
+An EC2 runner has two cost components: a flat ~$3/month for the 50 GB EBS volume (billed even when hibernated), plus per-minute compute charges only while the instance is running. With the default `c7a.2xlarge`, compute costs approximately $0.006/min. A team deploying 10 times per day with 2-minute builds would pay roughly $3 storage + $3.60 compute = ~$6.60/month.
+
+### How fast does an EC2 runner wake up from hibernation?
+
+An EC2 runner auto-hibernates after 15 minutes of inactivity and wakes up in approximately 10 seconds when the next deployment triggers. Hibernation preserves the instance's memory and disk state, so the warm-up is much faster than a cold start.
+
+### Can I use different runner types for different stages?
+
+Runner type is configured per project, not per stage. All stages within a project use the same runner type and instance size. If you need different runner configurations for different environments, create separate projects.
+
+### Do build runners affect my deployed infrastructure?
+
+No. Build runners only affect how the deployment process executes — they are the machines that run the Stacktape CLI on your behalf. The resulting deployed infrastructure (Lambda functions, containers, databases, etc.) is identical regardless of which runner type you use.
+
+### What runtimes are pre-installed on EC2 runners?
+
+EC2 runners include Node.js (18, 20, 22, 24 via fnm), Bun, Python 3.x, Java (Corretto 11, 17, 21), Go, Ruby (3.3, 3.4 via rbenv), PHP (8.1, 8.2, 8.3), Docker, Docker Compose, AWS CLI v2, and standard build tools like Maven, Gradle, and Composer. The AMI is updated automatically to keep these runtimes current.
+
+### Can I customize the EC2 runner's build environment?
+
+The EC2 runner AMI comes pre-configured with a broad set of runtimes and tools. Organization-level additional build commands can be configured to run setup steps before each deployment. For deeper customization of the build environment, CodeBuild with a custom Docker image may be more appropriate.
+
+### How does CodeBuild pricing compare to EC2 runner pricing?
+
+CodeBuild charges ~$0.02/min with no idle costs. An EC2 runner charges ~$0.006/min (default instance) plus ~$3/month storage. For a 3-minute deploy, CodeBuild costs $0.06 vs EC2's $0.018 in compute. At 30 deploys/month, CodeBuild costs ~$1.80 vs EC2's ~$3.54 (compute) + $3 (storage) = ~$6.54. CodeBuild becomes cheaper only at very low deploy frequencies — roughly below 5–10 deploys per month — and even then the speed difference may matter more than the dollar savings.
+
+### What happens if my EC2 runner fails or gets stuck?
+
+Stacktape monitors runner state automatically. Runners stuck in a transitional state (starting or stopping) for more than 30 minutes are reset and reprovisioned. Deployments that appear stalled for more than 2 hours are marked as failed. If a runner enters a failed state, it is reprovisioned on the next deployment attempt.

@@ -132,7 +132,6 @@ function NestedPropertyRow({ property, onClick }: { property: NormalizedProperty
         css={{
           display: 'flex',
           alignItems: 'baseline',
-          gap: '8px',
           flexWrap: 'wrap',
           minWidth: 0
         }}
@@ -148,9 +147,22 @@ function NestedPropertyRow({ property, onClick }: { property: NormalizedProperty
         >
           {property.name}
         </code>
-        <span css={{ color: tokens.syntax.punct, fontFamily: tokens.monoFamily, flexShrink: 0 }}>:</span>
+        <span
+          css={{
+            color: tokens.syntax.punct,
+            fontFamily: tokens.monoFamily,
+            flexShrink: 0,
+            marginRight: '8px'
+          }}
+        >
+          :
+        </span>
         {property.required && (
-          <span css={{ color: tokens.required, fontSize: '10.5px', fontWeight: 600, flexShrink: 0 }}>req</span>
+          <span
+            css={{ color: tokens.required, fontSize: '10.5px', fontWeight: 600, flexShrink: 0, marginRight: '8px' }}
+          >
+            req
+          </span>
         )}
         <span css={{ minWidth: 0, fontSize: '12.5px' }}>
           <TypeView typeInfo={property.typeInfo} />

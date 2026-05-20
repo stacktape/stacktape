@@ -18,14 +18,15 @@ door; everything else is reached *after* the user has shipped something.
    - `packaging/function/*` — Lambda packaging (Stacktape buildpack, custom artifact, language-specific config).
    - `packaging/containers/*` — container packaging (Stacktape buildpack, custom Dockerfile, prebuilt image, Nixpacks, external buildpack).
 6. **Deploying & lifecycle** — deploys, previews, gradual deployments, rollbacks, multi-region, destroy, deploy-time params.
-7. **Operations** *(merged)* — monitoring (logs / metrics / alarms / issues / alert channels / notifications / log forwarding) + cost (dashboards / budgets / per-resource cost / optimization) + governance (guardrails).
-8. **CI/CD & GitOps** — overview, GitOps with Console, build runners, self-hosted GitHub Actions runners, custom CI/CD, stacks-per-branch.
-9. **Local development** — dev mode, debugging Lambda + containers, local databases, debug commands.
-10. **Using with AI** — overview, agent mode in dev, AI config generation, coding-assistant integrations, MCP server (preview).
-11. **Stacktape Console** — overview, AWS accounts, projects/stages, visual config editor, API keys, team & access, billing.
-12. **Recipes** — REST API + DB, GraphQL, Next.js, background jobs, scheduled tasks, static website, monorepo, migrations, multi-tenant, PR previews.
-13. **Reference** — configuration schema, directives, referenceable parameters, connectTo env vars, AWS permissions; troubleshooting (now under `reference/troubleshooting/`).
-14. **CLI Reference** — one page per CLI command at `/cli/<command-name>`. Auto-generated.
+7. **Observability** — logs, metrics, alarms, issues, alert channels, notifications, alert history, log forwarding.
+8. **Managing Costs** — cost dashboards, budgets, per-resource breakdown, optimization tips.
+9. **Guardrails** — overview, deployment guardrails, security & data-protection guardrails, resource-limit guardrails, database guardrails.
+10. **CI/CD & GitOps** — overview, GitOps with Console, build runners, self-hosted GitHub Actions runners, custom CI/CD, stacks-per-branch.
+11. **Local development** — dev mode, debugging Lambda + containers, local databases, debug commands.
+12. **Using with AI** — overview, agent mode in dev, AI config generation, coding-assistant integrations, MCP server (preview).
+13. **Stacktape Console** — overview, AWS accounts, projects/stages, visual config editor, API keys, team & access, billing.
+14. **Recipes** — REST API + DB, GraphQL, Next.js, background jobs, scheduled tasks, static website, monorepo, migrations, multi-tenant, PR previews.
+15. **CLI Reference** — one page per CLI command at `/cli/<command-name>`. Auto-generated.
 
 ## Getting Started (section 2) — design notes
 
@@ -74,38 +75,41 @@ moved as follows:
 - Authentication → covered by `resources/security/user-auth-pool` (the resource page is the canonical doc).
 - The cross-cutting overview hub page was dropped — no replacement.
 
-## Operations (section 7) — design notes
+## Observability, Managing Costs, Guardrails (sections 7-9) — design notes
 
-This section is the merger of three previously-separate top-level sections in the old structure:
+These were briefly merged into a single "Operations" section but split back out because they answer
+different questions and the merged page list became unwieldy:
 
-- monitoring-and-observability (logs, metrics, alarms, issues, alert channels, notifications, log forwarding)
-- cost-management (cost dashboards, budgets, per-resource cost, optimization)
-- governance (guardrails of all kinds)
+- **Observability** answers "what is my stack doing right now / what went wrong?" — logs, metrics,
+  alarms, issues, notifications, log forwarding.
+- **Managing Costs** answers "what am I spending and how do I control it?" — dashboards, budgets,
+  per-resource breakdown, optimization.
+- **Guardrails** answers "how do I prevent the team from doing the wrong thing?" — preventive policy
+  on deployments, security defaults, resource limits, database shapes. Promoted to top-level because
+  guardrails are organization-wide policy controls, not a sub-concern of monitoring.
 
-They merged because users think of them together once a stack is in production. Within the Operations
-section, sub-pages stay logically grouped (alarms next to issues, budgets next to dashboards, guardrails
-together).
-
-## Using with AI (section 10) — note on MCP
+## Using with AI (section 12) — note on MCP
 
 The MCP server is currently in active development. The `using-with-ai/mcp-server-setup` page is generated
 as a preview / "in active development" page rather than as a finished setup guide. Revisit this when MCP
 ships.
 
-## Reference (section 13) — note on troubleshooting
+## Reference section retired — folded into Configuration
 
-Troubleshooting was previously its own top-level section. It moved under Reference because it's
-lookup-only — users hit it only when something breaks, and Reference is where lookup material lives.
+The old top-level Reference section was merged into Configuration because most of its content
+duplicated or sat next to a Configuration concept page:
 
-The full reference layout:
-- `reference/configuration-schema`
-- `reference/directives-reference`
-- `reference/referenceable-parameters`
-- `reference/environment-variables-injected-by-connectto`
-- `reference/aws-permissions-needed`
-- `reference/troubleshooting/*` (5 pages)
+- `reference/configuration-schema` — dropped. The config shape is documented in
+  `configuration/configuration-files`, and the JSON Schema is auto-generated.
+- `reference/directives-reference` — folded into `configuration/directives`. One page covers both
+  the concept and the full directive list.
+- `reference/environment-variables-injected-by-connectto` — folded into
+  `configuration/connecting-resources`. One page covers both the concept and the env-var table.
+- `reference/referenceable-parameters` — moved to `configuration/referenceable-parameters`.
+- `reference/aws-permissions-needed` — moved to `stacktape-console/aws-permissions` (it's a Console
+  setup concern, not a config-time one).
 
-## CLI Reference (section 14)
+## CLI Reference (section 15)
 
 One auto-generated page per CLI command at `/cli/<command-name>`. Lifted out of Reference into its
 own top-level section because the per-command list is long and would dominate Reference's nav.

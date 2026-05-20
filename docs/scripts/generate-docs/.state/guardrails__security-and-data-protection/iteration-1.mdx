@@ -1,0 +1,256 @@
+---
+title: 'Security and Data Protection Guardrails'
+order: 102
+seoTitle: 'Security & Data Protection Guardrails | Stacktape Docs'
+seoDescription: 'Enforce organization-wide security policies with Stacktape guardrails. Require VPC databases, deletion protection, WAF, dead-letter queues, and custom domains before deployment.'
+---
+
+# Security and Data Protection Guardrails
+
+Stacktape security guardrails enforce organization-wide security policies that prevent deployments violating your team's data-protection and network-security standards. Configured in the Stacktape Console at the organization level, these guardrails run before any infrastructure changes reach AWS — a deployment that violates a guardrail fails immediately with a clear error message.
+
+## How security guardrails work
+
+Security guardrails are preventive policies — they block non-compliant deployments before any AWS resources are created or modified. This is different from [alarms](/observability/alarms), which reactively notify you when a running system behaves unexpectedly.
+
+Guardrails are:
+
+- **Organization-scoped** — configured once in the Stacktape Console, enforced across all projects and stages in the organization.
+- **Pre-deployment** — validated before CloudFormation operations begin. A violation stops the deployment immediately.
+- **Enforced on four commands** — `deploy`, `codebuild:deploy`, `preview-changes`, and `delete`. Other commands like `dev` do not enforce guardrails.
+
+When a guardrail is violated, Stacktape throws a clear error identifying the offending resource and the policy it violates. No infrastructure changes are made.
+
+## When to use security guardrails
+
+Enable security guardrails when your team needs to enforce compliance requirements without relying on code reviews to catch misconfigurations. They are useful for:
+
+- Teams with multiple developers deploying independently — guardrails prevent anyone from accidentally deploying an internet-exposed database.
+- Organizations subject to compliance frameworks (SOC 2, HIPAA, PCI-DSS) that mandate specific network isolation or data-protection controls.
+- Platform teams providing Stacktape to internal customers who shouldn't need to memorize security baselines.
+
+## When NOT to use security guardrails
+
+Skip guardrails in early prototyping or single-developer projects where speed matters more than governance. Guardrails add friction to every deployment — for a solo developer who understands the tradeoffs, they slow iteration without adding safety. You can always enable them later when the team grows or the project reaches production.
+
+## Require VPC databases
+
+The `require-vpc-databases` guardrail mandates that all relational databases and OpenSearch domains use VPC-only network accessibility. When enabled, databases with the default `internet` accessibility mode are blocked from deploying.
+
+**What it enforces:** Every database must have its `accessibilityMode` set to `vpc` or `scoping-workloads-in-vpc`. The default accessibility mode for databases is `internet`, which allows connections from outside the VPC — this guardrail prevents that.
+
+**When to enable:** Enable this guardrail in production environments or any organization handling sensitive data. VPC-only databases are unreachable from the public internet, which eliminates an entire class of attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for debugging.
+
+A compliant configuration looks like this:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres16 } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres16({
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    }),
+    accessibility: {
+      accessibilityMode: 'vpc'
+    },
+    deletionProtection: true
+  });
+
+  return {
+    resources: { mainDatabase }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+If this guardrail is enabled and a database uses `internet` accessibility, the deployment fails with:
+
+```
+Database "mainDatabase" has accessibility mode "internet". All databases must use VPC-only accessibility (vpc or scoping-workloads-in-vpc).
+```
+
+The guardrail also applies to OpenSearch domains — they must similarly use VPC-only accessibility.
+
+## Require deletion protection
+
+The `require-deletion-protection` guardrail requires all relational databases to have `deletionProtection` set to `true`. This prevents accidental data loss from stack deletion or configuration drift that removes a database.
+
+**What it enforces:** Every [relational database](/resources/databases/relational-database) in the stack must have `deletionProtection: true`. Without this property, deleting a stack permanently destroys the database and all its data.
+
+**When to enable:** Enable for any environment where data loss is unacceptable — production, staging with real data, or shared development databases. The tradeoff is minor: you must explicitly disable deletion protection before intentionally removing a database, which adds one deliberate step to prevent accidents.
+
+If violated, the error is:
+
+```
+Database "mainDatabase" does not have deletionProtection enabled. All relational databases must have deletion protection.
+```
+
+## Require dead-letter queue
+
+The `require-dead-letter-queue` guardrail ensures that every [SQS queue](/resources/messaging/sqs-queue) in the stack has a `redrivePolicy` (dead-letter queue) configured. Dead-letter queues capture messages that fail processing repeatedly, preventing silent data loss in message-driven architectures.
+
+**What it enforces:** Every SQS queue must have a `redrivePolicy` configured, which specifies a dead-letter queue and a maximum receive count before messages are moved there.
+
+**When to enable:** Enable when your system processes messages that represent real business events (orders, payments, notifications) where losing a message means losing data. Skip for ephemeral or best-effort queues where occasional message loss is acceptable (e.g., analytics event buffers).
+
+A compliant SQS queue configuration:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, SqsQueue } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const deadLetterQueue = new SqsQueue({});
+
+  const orderQueue = new SqsQueue({
+    redrivePolicy: {
+      deadLetterQueue: 'deadLetterQueue',
+      maxReceiveCount: 3
+    }
+  });
+
+  return {
+    resources: { deadLetterQueue, orderQueue }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+If violated:
+
+```
+SQS queue "orderQueue" does not have a redrivePolicy (dead-letter queue) configured. All SQS queues must have a dead-letter queue.
+```
+
+## Require WAF
+
+The `require-waf` guardrail requires all [application load balancers](/resources/networking/application-load-balancer) to have a [web application firewall](/resources/security/web-application-firewall) attached. AWS WAF protects against common web exploits like SQL injection, cross-site scripting, and bot traffic.
+
+**What it enforces:** Every application load balancer must have `useFirewall` set to a configured [web-app-firewall resource](/resources/security/web-application-firewall).
+
+**When to enable:** Enable for public-facing applications that handle user input or sensitive data. WAF adds per-request cost but provides protection against OWASP top-10 threats. Skip for internal-only load balancers or development stages where the cost isn't justified.
+
+If violated:
+
+```
+Application load balancer "mainAlb" does not have a web application firewall (useFirewall) configured.
+```
+
+## Require custom domain
+
+The `require-custom-domain` guardrail ensures that all public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) have a custom domain configured instead of using auto-generated AWS URLs.
+
+**What it enforces:** Every web service and hosting bucket in the stack must have at least one entry in its `customDomains` array.
+
+**When to enable:** Enable for production environments where branding, TLS certificate control, and URL stability matter. Auto-generated AWS URLs change across redeployments and expose implementation details (like the AWS region) in the URL. Custom domains also let you control TLS certificates and set up proper HTTPS.
+
+**When to skip:** Skip for development or staging stages where custom domains add DNS propagation delay and certificate provisioning time without adding value.
+
+If violated:
+
+```
+Web service "api" does not have a custom domain configured.
+```
+
+Or for static hosting:
+
+```
+Hosting bucket "frontend" does not have a custom domain configured.
+```
+
+## Resource type restriction (security use)
+
+The `resource-type-restriction` guardrail blocks specified resource types from being deployed. While covered in detail on the [deployment guardrails](/guardrails/deployment) page, it has a clear security application: blocking resource types that don't meet your compliance requirements.
+
+For example, you might block `open-search-domain` (complex to secure), `redis-cluster` (no encryption at rest by default on older instance types), or `bastion` (if you don't want SSH jump hosts in your environment). The blocked resource type list is configured in the Stacktape Console.
+
+If a blocked resource type is used:
+
+```
+Resource "search" uses type "open-search-domain" which is blocked. Blocked resource types: open-search-domain, redis-cluster.
+```
+
+## Combining security guardrails
+
+Most production organizations enable multiple security guardrails together. A typical production-security baseline includes:
+
+| Guardrail | Purpose | Recommended for |
+|-----------|---------|-----------------|
+| `require-vpc-databases` | Network isolation | All production stages |
+| `require-deletion-protection` | Prevent data loss | All stages with persistent data |
+| `require-dead-letter-queue` | Message durability | Event-driven architectures |
+| `require-waf` | Application-layer protection | Public-facing APIs |
+| `require-custom-domain` | URL stability and TLS control | Production web services |
+| `resource-type-restriction` | Block non-compliant resources | Compliance-regulated environments |
+
+These guardrails complement each other. VPC databases prevent network-level attacks. WAF prevents application-level attacks. Deletion protection and dead-letter queues prevent data loss. Custom domains ensure TLS and branding control.
+
+## Guardrails vs alarms
+
+Guardrails and [alarms](/observability/alarms) serve different purposes in your security posture:
+
+| Aspect | Guardrails | Alarms |
+|--------|-----------|--------|
+| **Timing** | Pre-deployment (preventive) | Runtime (reactive) |
+| **Scope** | Organization-wide policy | Per-resource monitoring |
+| **Action** | Blocks deployment | Sends notification |
+| **Configuration** | Stacktape Console | Stacktape config or Console |
+| **Use case** | "Never deploy X" | "Alert me when Y happens" |
+
+Use guardrails to prevent insecure configurations from reaching AWS. Use alarms to detect unexpected runtime behavior in already-deployed infrastructure.
+
+## FAQ
+
+### How do I configure security guardrails?
+
+Security guardrails are configured in the Stacktape Console at the organization level. They apply to all projects and stages within that organization. Individual projects cannot override or disable organization-level guardrails — this is intentional, as guardrails represent organizational policy.
+
+### Which commands enforce guardrails?
+
+Guardrails are validated during four CLI commands: [`deploy`](/cli/deploy), `codebuild:deploy`, [`preview-changes`](/cli/preview-changes), and [`delete`](/cli/delete). The [`dev`](/cli/dev) command does not enforce guardrails, so local development remains unblocked by organization policies.
+
+### What happens when a guardrail is violated?
+
+The deployment fails immediately with a descriptive error message naming the specific resource that violated the policy. No AWS infrastructure changes are made — the failure happens before any CloudFormation operations begin. The error message tells you exactly which resource to fix and what the policy requires.
+
+### Can I have different guardrails for different stages?
+
+Guardrails apply uniformly across all stages in an organization. To differentiate policies between production and development, use the `stage-restriction` guardrail on the [deployment guardrails](/guardrails/deployment) page to control which stages exist, and set up separate organizations for environments that need fundamentally different security policies.
+
+### What is VPC-only database accessibility?
+
+VPC-only accessibility means the database is only reachable from within your AWS VPC — it has no public IP address and cannot be accessed from the internet. Workloads within the same VPC (or connected via VPC peering) can connect normally. To access a VPC-only database for debugging, use a [bastion host](/resources/security/bastion-host) or the [`bastion:tunnel`](/cli/bastion-tunnel) CLI command.
+
+### Does require-vpc-databases apply to all database types?
+
+The guardrail applies to all relational databases and OpenSearch domains. It checks that the `accessibilityMode` is either `vpc` (fully private) or `scoping-workloads-in-vpc` (accessible to VPC-connected workloads). DynamoDB tables are not affected because they use IAM-based access control rather than network-level accessibility.
+
+### How does require-waf relate to CDN firewalls?
+
+The `require-waf` guardrail specifically requires application load balancers to have `useFirewall` configured. CDN-level WAF (configured via `cdn.useFirewall` on web services) is a separate attachment path and is not enforced by this guardrail. If you need both ALB and CDN protection, configure them independently.
+
+### What is the cost impact of enabling these guardrails?
+
+Guardrails themselves have no cost — they're policy checks that run before deployment. However, the configurations they require may have cost implications: VPC databases need NAT gateways (~$32/month per AZ) if workloads also need internet access, WAF charges per rule and per million requests evaluated (~$5/month base + $0.60/million requests), and custom domains require hosted zones ($0.50/month each). Factor these costs into your stage design.
+
+### Can guardrails prevent accidental stack deletion?
+
+Yes, through two mechanisms. The `require-deletion-protection` guardrail ensures databases survive even if the stack is deleted (the database is retained rather than destroyed). The `command-restriction` guardrail on the [deployment guardrails](/guardrails/deployment) page can block the `delete` command entirely for specific stages. Used together, they provide both resource-level and command-level protection against accidental deletion.

@@ -1,0 +1,711 @@
+{
+  "pageId": "resources__security__bastion-host",
+  "pageRoute": "resources/security/bastion-host",
+  "startedAt": "2026-05-17T12:55:48.738Z",
+  "updatedAt": "2026-05-17T13:19:43.084Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__security__bastion-host\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no forbidden YAML blocks or fenced TypeScript Stacktape config anywhere on the page.",
+            "Defaults are source-grounded throughout: t3.micro default, ~$4/month pricing from the JSDoc, log retention values (30/180/365 days) taken directly from the BastionLogging type definitions.",
+            "The bastion:session vs bastion:tunnel distinction is clearly drawn with concrete CLI examples and a 'when to use which' conclusion sentence, which is exactly what first-time users need.",
+            "The <Warning> callout for runCommandsAtLaunch instance replacement is well-placed and sourced from the JSDoc warning.",
+            "Both script types (bastion-script and local-script-with-bastion-tunneling) are named, sourced, and explained with their key difference — this is the right level of depth for a first-time user.",
+            "FAQ is comprehensive with 10 well-chosen questions spanning all three required categories: Stacktape-specific, AWS service behavior, and choosing/comparison. No padding.",
+            "The tunnel target table (resource type → example use case) is highly practical and scannable; it covers all five types listed in TunnelTargetInfo.targetStpName JSDoc.",
+            "Single <ApiReference definitionName=\"BastionProps\" /> at the bottom matches the source interface name exactly."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION: H2 heading 'Running scripts through a bastion' is 6 words + preposition and reads as a sentence fragment when a compact label would serve better. Style guide mandates H2s at 1–5 words; this exceeds that and triggers a scannability penalty.",
+            "The claim that 'the bastion runs Amazon Linux, so use yum or dnf' is not grounded in the provided source files. The bastion.d.ts JSDoc only says commands run at launch as root; OS identity is inferred, not stated.",
+            "CLI flags --bastionResource (bastion:session command) and --resourceName (bastion:tunnel command) used in shell examples are not verifiable from the provided source files. The config property is bastionResource (confirmed in BastionScriptProps) but the CLI flag name may differ. This risks sending users to try flags that don't exist or are named differently."
+          ],
+          "mandatoryFixes": [
+            "Shorten H2 'Running scripts through a bastion' to a compact label — 'Bastion scripts' or 'Scripts' fits the style guide's 1–5 word limit and matches the pattern of other H2s on the page (Instance size, Startup commands, Logging). Penalizes scannability by 1 point per the mandatory heading-length rule."
+          ],
+          "optionalImprovements": [
+            "Shorten 'Connecting to private resources' to 'Tunneling' — it's currently 4 words + preposition and could be more compact, matching the short-label convention used by 'Instance size' and 'Logging'.",
+            "The Amazon Linux OS claim and yum/dnf package examples are plausible but ungrounded in the provided source. Either add a caveat ('the default AMI is Amazon Linux, which uses yum/dnf — adjust if you customized the instance image') or replace the specific package manager with a generic instruction ('install database clients using the instance's package manager').",
+            "Verify --bastionResource and --resourceName CLI flag names against the actual CLI reference source (bastion-session.mdx and bastion-tunnel.mdx) before publication. If the flag is named differently (e.g., --resource), the shell examples will fail for users copying them.",
+            "The 'When NOT to use' bullet about 'High-bandwidth data transfer' recommends 'AWS Direct Connect or a VPN instead' — this is sensible but not sourced from the provided files. Either soften to 'a dedicated network link' or note it's general AWS guidance rather than a Stacktape-specific recommendation."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All three BastionProps (instanceSize, runCommandsAtLaunch, logging) are covered accurately and completely against the source types.",
+            "Logging section includes a precise table with correct defaults (30/180/365 days) and the full set of valid retentionDays values, both grounded in BastionLogging source.",
+            "Tunnel targets table is accurate and complete per the TunnelTargetInfo source: relational-database, redis-cluster, mongo-db-atlas-cluster, application-load-balancer, and private-service with ALB.",
+            "Both bastion-facing script types (bastion-script and local-script-with-bastion-tunneling) are documented with the bastionResource property, matching source.",
+            "FAQ has strong category mix: Stacktape-specific questions, AWS service mechanics (cost, always-on cost model), and comparison/choosing questions (session vs. tunnel, when a bastion is not needed).",
+            "Decision support is concrete and opinionated throughout — 'When NOT to use' gives three distinct scenarios, each actionable and non-circular.",
+            "No mandatory style violations detected: all Stacktape config examples use CodeBlock with defineConfig + class-based resources; no YAML config blocks; single command per bash block; no explanatory comments inside code blocks.",
+            "The Warning callout for runCommandsAtLaunch instance replacement is accurate and well-placed — exactly what a production engineer needs to know before applying a change.",
+            "ApiReference uses definitionName='BastionProps' which matches the interface name in the source type file."
+          ],
+          "problems": [
+            "The statement 'The bastion runs Amazon Linux, so use yum or dnf for package installation' is not supported by the provided source files. The BastionProps JSDoc says only 'commands run as root — no sudo needed'; it does not specify the OS. While Amazon Linux is almost certainly the underlying OS, making an ungrounded OS-specific claim could mislead users if Stacktape ever changes the base image.",
+            "Minor JSDoc discrepancy: the bastion.d.ts JSDoc says 'Connect with stacktape bastion:ssh' but the page consistently uses bastion:session. The page is almost certainly correct (the CLI docs file bastion-session.mdx exists), but the mismatch could confuse readers if they encounter the JSDoc elsewhere and try the wrong command."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace 'The bastion runs Amazon Linux, so use yum or dnf' with a source-neutral alternative like 'Use the package manager appropriate for your base image (yum for Amazon Linux / RHEL, apt for Debian/Ubuntu)' or simply remove the OS-specific guidance and let the example stand alone with a prose note that it uses Amazon Linux.",
+            "In the startup commands section, consider noting that commands run only at launch — if you need to apply a new package after deployment, you either need to re-deploy (which replaces the instance) or connect via bastion:session and install manually. This avoids a common confusion about when startup commands take effect.",
+            "The FAQ 'Is the bastion always running?' answer could mention that stopping the instance via the AWS Console is possible to save cost for rarely-used dev stacks, and that Stacktape will restart it on the next tunnel/session command (or not — clarify the actual behavior if known). As written it implies users have no cost-reduction option short of deleting the resource.",
+            "Add a brief note in the logging section that BastionLogging extends LogForwardingBase, meaning all standard log forwarding targets (Datadog, Logtail, etc.) are available on each log stream — not just CloudWatch retention. The current text mentions the link but does not call out that this applies per-stream, which is a non-obvious fact."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening paragraph with clear purpose, key AWS mechanism, and relevant private-resource examples.",
+            "Good early decision guidance: When to use and When NOT to use are practical and distinct.",
+            "Stacktape config examples use class-based TypeScript inside <CodeBlock intellisense tabs={[...]} /> with the correct TypeScript tab label.",
+            "The page includes useful operational sections for instance size, startup commands, logging, scripts, and tunneling, plus a broad FAQ."
+          ],
+          "problems": [
+            "The page repeatedly documents `stacktape bastion:session`, but the provided Bastion source names `stacktape bastion:ssh` and `stacktape bastion:tunnel`. This is a likely wrong CLI command and a high-impact practical issue.",
+            "Several CLI details are not grounded in the provided source files: `--bastionResource`, `--resourceName`, the claim that the tunnel command prints the local endpoint, and the exact `bastion:session` command shape.",
+            "The pricing line adds “No additional Stacktape charge,” which is not present in the provided source. The source only supports approximately $4/month for the default `t3.micro`.",
+            "The page claims the bastion runs Amazon Linux and recommends `yum` or `dnf`, but the provided Bastion type only says startup commands run as root. The OS/package-manager claim is unsupported by the supplied source.",
+            "The page claims `t3.micro` handles dozens of concurrent tunnel sessions. The source only says `t3.micro` is sufficient for SSH tunneling and basic admin tasks, so the concurrency number is invented.",
+            "The page says Stacktape uses AWS Systems Manager Session Manager and no open inbound ports are needed. The source supports AWS Systems Manager and no SSH keys, but does not specifically name Session Manager or inbound-port behavior.",
+            "The FAQ claim about sharing a bastion across multiple stacks via `stackConfig.vpc.reuseVpc` is too strong. The source supports VPC reuse configuration, but does not explicitly say a bastion can tunnel to resources in either stack after VPC sharing.",
+            "The resource page has no <ReferenceableParams resource=\"...\" /> component, but the provided source does not expose a Bastion referenceable parameter type, so this is probably acceptable."
+          ],
+          "mandatoryFixes": [
+            "Replace every `stacktape bastion:session` mention with the source-grounded command name `stacktape bastion:ssh`, or remove the session command details if the CLI source for the exact syntax is not provided.",
+            "Remove or source-ground the unsupported CLI flags and behavior claims: `--bastionResource`, `--resourceName`, and “the command prints the local endpoint.” Use only claims present in the provided source unless CLI source is added.",
+            "Remove “No additional Stacktape charge” from the pricing line unless a provided source file supports it.",
+            "Remove or narrow the Amazon Linux / `yum` / `dnf` startup-command guidance unless runtime source confirms the bastion OS.",
+            "Replace “handles dozens of concurrent tunnel sessions” with the sourced wording that `t3.micro` is sufficient for SSH tunneling and basic admin tasks.",
+            "Narrow the Systems Manager wording to “uses AWS Systems Manager instead of SSH keys” unless source is added for Session Manager and inbound-port behavior."
+          ],
+          "optionalImprovements": [
+            "Add a small table comparing `bastion:ssh`, `bastion:tunnel`, `bastion-script`, and `local-script-with-bastion-tunneling`; this would make the access modes easier to scan.",
+            "In the startup commands example, explain that changing `runCommandsAtLaunch` replaces the instance before the code block, not only in the Warning after it.",
+            "Tighten the FAQ by linking the final answers to the most relevant docs pages where possible, especially hooks and scripts, VPC configuration, and the CLI references.",
+            "Consider moving the CLI command examples into separate subsections only after verifying the exact CLI syntax from `src/commands/**/index.ts`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Bastion and script type sources, but it contains several unsupported or contradicted operational claims around the shell command name, command behavior, installed OS/package manager, tunnel output, and cross-stack usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft repeatedly documents `stacktape bastion:session` / `bastion:session` as the interactive bastion shell command.",
+              "reason": "The provided Bastion source names the interactive command as `stacktape bastion:ssh`, not `stacktape bastion:session`. The documentation navigation includes a `/cli/bastion-session` route, but no CLI command source was provided to override the Bastion type source.",
+              "suggestedFix": "Either change the command references to `stacktape bastion:ssh` or verify against the actual CLI command source before publishing. If the current CLI really is `bastion:session`, add/consult the CLI source and update the Bastion JSDoc separately.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Uses keyless SSH via AWS Systems Manager — no SSH keys to manage. Connect with `stacktape bastion:ssh`\n * or create port-forwarding tunnels with `stacktape bastion:tunnel`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If your stack has multiple bastion resources, specify which one to connect to with `--bastionResource`.”",
+              "reason": "The provided sources document `bastionResource` as a script property, but they do not document a `--bastionResource` CLI flag for the interactive command. CLI flag names must be verified against CLI source, which was not included.",
+              "suggestedFix": "Remove the flag name or phrase cautiously: “If your stack has multiple bastion resources, see the CLI reference for selecting a bastion.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface BastionScriptProps extends ScriptEnvProps {\n  /**\n   * #### Bastion Resource Name\n   *\n   * ---\n   *\n   * The name of the bastion resource on which the commands will be executed.\n   */\n  bastionResource?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface LocalScriptWithBastionTunnelingProps extends LocalScriptProps {\n  /**\n   * #### Bastion Resource Name\n   *\n   * ---\n   *\n   * The name of the bastion resource to use for tunneling to protected resources.\n   */\n  bastionResource?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command prints the local endpoint to your terminal so you know which port to connect to.”",
+              "reason": "The provided source confirms that `bastion:tunnel` creates port-forwarding tunnels and that environment variables can be adjusted to tunneled endpoints, but it does not describe terminal output or printed local endpoint behavior.",
+              "suggestedFix": "Remove the terminal-output claim unless CLI source confirms it. Keep the supported behavior: the command creates a tunnel from the local machine to the target resource.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "A local script with secure tunneling through a bastion host.\n *\n * ---\n *\n * This script type runs locally but tunnels connections to resources through a bastion server."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The target resource to connect to through the tunnel. Environment variables passed to the script are automatically adjusted to use the tunneled endpoints."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The bastion runs Amazon Linux, so use `yum` or `dnf` for package installation.”",
+              "reason": "The Bastion source says startup commands run as root and can install CLI tools, database clients, or dependencies, but it does not identify the AMI or operating system. The package manager guidance depends on that unsupported OS claim.",
+              "suggestedFix": "Narrow the wording to the sourced fact: “Use `runCommandsAtLaunch` to install tools when the instance starts. Commands run as root, so `sudo` is not needed.” Avoid naming Amazon Linux, `yum`, or `dnf` unless runtime source confirms the AMI.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Shell commands to run when the instance starts (as root — no `sudo` needed)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Use to install CLI tools, database clients, or other dependencies."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For most teams, `t3.micro` is the right choice: it handles dozens of concurrent tunnel sessions and costs the least.”",
+              "reason": "The source supports `t3.micro` as the default and says it is sufficient for SSH tunneling and basic admin tasks. It does not support the “dozens of concurrent tunnel sessions” capacity claim or the “costs the least” claim across all valid EC2 instance types.",
+              "suggestedFix": "Keep the grounded recommendation without the unsupported capacity claim: “For most teams, start with the default `t3.micro`; the source describes it as sufficient for SSH tunneling and basic admin tasks.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "EC2 instance type. `t3.micro` is sufficient for SSH tunneling and basic admin tasks.\n   *\n   * @default t3.micro"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Open a shell on the bastion, use an installed database client, and query directly” and “Once connected, you can run any command on the bastion: query a database, ping internal endpoints, inspect network routes...”",
+              "reason": "The source supports scripts executing commands on a bastion and the Bastion JSDoc mentions keyless SSH, but it does not establish the runtime shell environment details or guarantee that any command can be run interactively. This is stronger than the provided evidence.",
+              "suggestedFix": "Narrow to: “Use an interactive bastion command for ad-hoc access, and install needed tools with `runCommandsAtLaunch`.” Avoid “any command” and specific shell capability claims unless CLI/session source confirms them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Uses keyless SSH via AWS Systems Manager — no SSH keys to manage."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Use to install CLI tools, database clients, or other dependencies."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“To access resources in another stack, both stacks need to share a VPC — configure this with `stackConfig.vpc.reuseVpc` ... Once the VPC is shared, the bastion can tunnel to resources in either stack.”",
+              "reason": "The source supports `stackConfig.vpc.reuseVpc` for sharing a VPC with another stack, but it does not state that a bastion in one stack can tunnel to resources in another stack. The tunnel target source describes a target resource name, which implies a resource in the current configuration/stack, not arbitrary resources across shared VPCs.",
+              "suggestedFix": "Remove the cross-stack tunnel claim or make it cautious: “`reuseVpc` can place stacks in a shared VPC, but cross-stack bastion tunneling is not documented in the provided Bastion sources.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Share a VPC with another Stacktape stack or use an existing VPC.\n   *\n   * ---\n   *\n   * Useful when this stack needs to access VPC-protected resources (databases, Redis)\n   * from another stack."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The name of the target resource to connect to through the tunnel. Environment variables passed to the script are automatically adjusted to use the tunneled endpoints."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For development stacks you don't use daily, consider deleting the bastion resource and re-adding it when needed.”",
+              "reason": "The source supports the ongoing EC2 cost and the default price, but it does not document operational safety or lifecycle implications of repeatedly removing and re-adding the Bastion resource. The recommendation could cause needless infrastructure churn without a sourced Stacktape behavior basis.",
+              "suggestedFix": "Replace with a narrower cost tradeoff: “Because the bastion is an EC2 instance, it has an ongoing instance cost while deployed. Use it only in stacks where interactive private access is worth that cost.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Costs ~$4/month (t3.micro)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "EC2 instance type. `t3.micro` is sufficient for SSH tunneling and basic admin tasks.\n   *\n   * @default t3.micro"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses class-based `defineConfig` examples inside `<CodeBlock intellisense>` and does not hand-author Stacktape YAML.",
+            "`<ApiReference definitionName=\"BastionProps\" />` matches the source type name.",
+            "The default `t3.micro` instance size, approximate ~$4/month pricing, `runCommandsAtLaunch` root execution, instance replacement warning, CloudWatch log paths, default retention periods, and allowed `retentionDays` values are grounded in `bastion.d.ts`.",
+            "The script type descriptions for `bastion-script` and `local-script-with-bastion-tunneling` are broadly grounded in `__helpers.d.ts`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Bastion and script types, but it makes several Stacktape-specific claims that are either contradicted by the provided source or go beyond it. The biggest risks are CLI command naming, unsupported claims about CloudWatch logging defaults, Amazon Linux/package manager details, and cross-stack VPC usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“After deploying, use [`bastion:session`](/cli/bastion-session) to open an interactive shell…” and the later section “The [`bastion:session`](/cli/bastion-session) command opens an interactive shell…”",
+              "reason": "The provided Bastion type documentation names `stacktape bastion:ssh` as the interactive command, not `stacktape bastion:session`. CLI source was not provided to verify a rename, so the draft’s command name is contradicted by the available source.",
+              "suggestedFix": "Use the command name from the source, or if the current CLI really uses `bastion:session`, add CLI source evidence in the source pack. Based only on provided files, revise to `stacktape bastion:ssh` and avoid linking to a command whose behavior is not present in the source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Uses keyless SSH via AWS Systems Manager — no SSH keys to manage. Connect with `stacktape bastion:ssh`\n * or create port-forwarding tunnels with `stacktape bastion:tunnel`. Costs ~$4/month (t3.micro)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No additional Stacktape charge.”",
+              "reason": "The provided pricing source only states the AWS-side approximate cost for a `t3.micro` bastion. It does not say anything about Stacktape subscription or platform charges for this resource.",
+              "suggestedFix": "Remove the sentence or narrow it to the sourced pricing context: “Costs approximately ~$4/month for the default `t3.micro`, varying by AWS region.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Costs ~$4/month (t3.micro)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A bastion host requires no configuration — all properties are optional. The defaults create a `t3.micro` instance with CloudWatch logging enabled for system, security, and audit logs.”",
+              "reason": "The source supports optional Bastion properties and the default `t3.micro`, and it supports default retention periods for each log type. It does not explicitly say that all three log streams are enabled by default. The `disabled` property default is false, but that alone does not prove automatic creation/enabling of every stream.",
+              "suggestedFix": "Keep the supported defaults, but narrow the logging claim: “The `logging` block can configure CloudWatch retention for system, security, and audit logs; the documented default retention is 30, 180, and 365 days respectively.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "interface BastionProps {\n  /**\n   * #### EC2 instance type. `t3.micro` is sufficient for SSH tunneling and basic admin tasks.\n   *\n   * @default t3.micro\n   */\n  instanceSize?: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "#### Log retention settings for system, security, and audit logs. Logs are sent to CloudWatch."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "#### Disable this log type. Stops sending to CloudWatch.\n   * @default false"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The bastion runs Amazon Linux, so use `yum` or `dnf` for package installation.”",
+              "reason": "The provided Bastion source documents startup commands and that they run as root, but it does not identify the operating system or available package managers.",
+              "suggestedFix": "Remove the Amazon Linux/package-manager assertion, or phrase the example as illustrative without claiming the base OS: “Use `runCommandsAtLaunch` to install the tools your bastion image supports.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Shell commands to run when the instance starts (as root — no `sudo` needed)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Use to install CLI tools, database clients, or other dependencies."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The value accepts any valid EC2 instance type string — `t3.micro`, `t3.small`, `t3.medium`, `m5.large`, etc.”",
+              "reason": "The type is `string`, and the JSDoc says it is an EC2 instance type, but the source does not state validation accepts any valid EC2 instance type or list examples beyond `t3.micro`. The broad acceptance claim could mislead readers about validation and supported instance families.",
+              "suggestedFix": "Narrow to the type-backed fact: “`instanceSize` is a string for the EC2 instance type. The documented default is `t3.micro`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "#### EC2 instance type. `t3.micro` is sufficient for SSH tunneling and basic admin tasks.\n   *\n   * @default t3.micro\n   */\n  instanceSize?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For most teams, `t3.micro` is the right choice: it handles dozens of concurrent tunnel sessions and costs the least.”",
+              "reason": "The source supports `t3.micro` as sufficient for SSH tunneling and basic admin tasks, but it does not support the “dozens of concurrent tunnel sessions” capacity claim or “costs the least” across all instance types.",
+              "suggestedFix": "Keep the recommendation without unsupported capacity/cost specifics: “For most teams, start with the documented default `t3.micro`; increase it only if commands run on the bastion need more CPU or memory.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "EC2 instance type. `t3.micro` is sufficient for SSH tunneling and basic admin tasks."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command prints the local endpoint to your terminal so you know which port to connect to.”",
+              "reason": "The provided tunnel-related types document supported target resources and endpoint substitution for scripts, but they do not describe CLI terminal output behavior.",
+              "suggestedFix": "Remove the output claim unless CLI command source is added. A safer sentence is: “Use the tunnel command to map the remote endpoint to a local connection endpoint.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The name of the target resource to connect to through the tunnel. Environment variables passed to the script are automatically adjusted to use the tunneled endpoints."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“To access resources in another stack, both stacks need to share a VPC — configure this with `stackConfig.vpc.reuseVpc`… Once the VPC is shared, the bastion can tunnel to resources in either stack.”",
+              "reason": "The source supports VPC reuse for accessing VPC-protected resources from another stack, but the tunnel target type only accepts a target resource name and describes targets in the current configuration context. The source does not support the claim that a bastion can tunnel to resources in either stack after VPC sharing.",
+              "suggestedFix": "Narrow the FAQ answer to the sourced VPC-reuse fact and avoid claiming cross-stack tunnel support: “`stackConfig.vpc.reuseVpc` can share a VPC with another Stacktape stack when resources need network access across stacks. The provided bastion tunnel source only documents tunneling to named target resources.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Useful when this stack needs to access VPC-protected resources (databases, Redis)\n   * from another stack. By default, each stack gets its own VPC."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The name of the target resource to connect to through the tunnel."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `defineConfig` and the `Bastion` class in `<CodeBlock intellisense>` examples, with no hand-authored Stacktape YAML.",
+            "`<ApiReference definitionName=\"BastionProps\" />` matches the provided `BastionProps` type name.",
+            "The draft correctly grounds `instanceSize`, `runCommandsAtLaunch`, `logging`, log retention values, supported tunnel target resource types, and the two script types in the provided type files.",
+            "The `When to use` and `When NOT to use` sections are peer H2 sections, not incorrectly nested."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit passed for BastionProps. The draft covers all primary BastionProps fields that most users would touch, does not leave a documented union variant unacknowledged in a way that would mislead readers, and each Stacktape config CodeBlock demonstrates its nearby section topic.",
+          "issues": [],
+          "positiveFindings": [
+            "All primary BastionProps fields are covered: instanceSize, runCommandsAtLaunch, and logging.",
+            "The page includes exactly one ApiReference with the correct definitionName, BastionProps.",
+            "The Stacktape config examples use CodeBlock intellisense with a TypeScript tab and demonstrate the relevant property in each section.",
+            "The script section names both bastion-specific script modes from the source: bastion-script and local-script-with-bastion-tunneling.",
+            "The logging section covers the three documented log streams and the retentionDays union values."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__security__bastion-host\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Zero mandatory style violations — all Stacktape config examples correctly use <CodeBlock intellisense> with TypeScript class syntax and focus markers; no YAML Stacktape config blocks anywhere.",
+            "Strong decision-support structure: 'When to use' and 'When NOT to use' are correctly placed as peer H2 sections with concrete, opinionated guidance (not generic filler).",
+            "The tunnel target table pairs each supported resource type with a real-world use case, which is exactly what a first-time reader needs to understand why they would use tunneling.",
+            "Ten-question FAQ with strong category coverage: Stacktape-specific questions, AWS use-case questions (cost, 'is it always running'), and a head-to-head comparison question (bastion vs VPN).",
+            "The Warning callout about runCommandsAtLaunch replacing the EC2 instance is a critical gotcha surfaced at exactly the right moment, directly following the code example.",
+            "Logging section presents the three log types in a table with retention defaults and source paths — scannable and immediately actionable for compliance-sensitive readers.",
+            "`<ApiReference definitionName=\"BastionProps\" />` matches the source type name exactly, and there is only one ApiReference on the page.",
+            "The 'Scripts' section correctly identifies both bastion-script and local-script-with-bastion-tunneling types, matching the union in the source, and explains when to choose each."
+          ],
+          "problems": [
+            "The 'Supported tunnel targets' table omits `mongo-db-atlas-cluster`. The `TunnelTargetInfo.targetStpName` JSDoc in `__helpers.d.ts` explicitly lists `mongo-db-atlas-cluster` as a supported target alongside relational databases, Redis, ALBs, and private services. Omitting it creates a false impression that the tunnel command only works with the four listed types.",
+            "The opening paragraph lists 'OpenSearch domains' as a resource the bastion provides access to (consistent with the `bastion.d.ts` JSDoc). However, the tunnel target table does not include OpenSearch, and the `TunnelTargetInfo` source does not list it as a supported `bastion:tunnel` target. This creates a subtle gap: a reader who wants to tunnel to OpenSearch will find no guidance, and may be confused about whether the intro claim applies to both shell access and tunnel access or only to shell access."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a `mongo-db-atlas-cluster` row to the 'Supported tunnel targets' table. The `TunnelTargetInfo` source lists it alongside relational databases and Redis. Example row: `[MongoDB Atlas cluster](/resources/databases/mongodb-atlas) | Connect Compass, mongosh, or a migration runner to a private Atlas cluster`.",
+            "Resolve the OpenSearch access ambiguity. Either: (a) add a brief sentence to the 'Connecting to private resources' intro noting that OpenSearch is accessible via the interactive shell but not via `bastion:tunnel`; or (b) add an OpenSearch row to the tunnel table if the CLI actually supports it (verify against CLI source). The current page implies access without clarifying the mechanism.",
+            "The 'Scripts' section explains both script types in prose but provides no code example. A first-time user who wants to wire a bastion-script to an `afterDeploy` hook has no copyable config to start from. Even a minimal 5-line `<CodeBlock>` showing a bastion-script with `executeCommand` would significantly improve practical usefulness for that audience.",
+            "Consider adding the `--projectName` flag to the CLI example commands (`bastion:ssh` and `bastion:tunnel`). Readers who followed a basic deploy example will have a `--projectName` in their mental model; omitting it from the bastion commands may cause confusion at the terminal."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Self-contained 40–75 word intro paragraph — reads well as a standalone AI snippet, names the resource, the AWS mechanism, and the cost in one breath.",
+            "Logging table is excellent: per-log-type source path, default retention, and what it captures — all verified against source defaults (30/180/365 days).",
+            "Warning callout for `runCommandsAtLaunch` instance-replacement behavior matches the source JSDoc warning verbatim, which is the kind of production gotcha this audience most needs.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with exactly `label: 'TypeScript'`; no forbidden YAML or fenced TypeScript blocks.",
+            "`<ApiReference definitionName=\"BastionProps\" />` matches the type name in the source exactly, placed at the right spot.",
+            "FAQ spans all three required categories: Stacktape-specific (SSH keys, startup-command replacement), AWS use-case (cost, always-running vs scale-to-zero), and comparison (bastion vs VPN).",
+            "No marketing language; concrete tradeoff guidance throughout ('most stacks with a private database benefit… costs very little').",
+            "Correct omission of a `<ReferenceableParams>` section — `Bastion` is correctly absent from the `StacktapeResourceReferenceableParam` union in the source."
+          ],
+          "problems": [
+            "Missing `mongo-db-atlas-cluster` as a supported tunnel target. The `TunnelTargetInfo` JSDoc in `__helpers.d.ts` explicitly lists five supported target types: `relational-database`, `redis-cluster`, `mongo-db-atlas-cluster`, `application-load-balancer`, and `private-service`. The page's tunnel table and both FAQ answers about tunnel targets omit `mongo-db-atlas-cluster`. A user with a MongoDB Atlas cluster would incorrectly conclude that tunneling to it is unsupported."
+          ],
+          "mandatoryFixes": [
+            "Add `mongo-db-atlas-cluster` to the tunnel targets table in the 'Tunnels' section (e.g., 'MongoDB Atlas cluster — Connect Compass or `mongosh` to a private Atlas cluster'). Also update the FAQ answer for 'What resources can I tunnel to?' to include MongoDB Atlas clusters alongside the four resources currently listed. This is a source-grounded omission, not a style issue."
+          ],
+          "optionalImprovements": [
+            "The 'Scripts' section could note that `bastion-script` supports either `executeCommand` (single command) or `executeCommands` (sequential list), but not both simultaneously — the source marks this explicitly and it affects how users configure multi-step migration scripts.",
+            "The `cwd` property for `bastion-script` (defaults to `/`) is worth a one-liner in the Scripts section since users running database tools often need to set a working directory for relative paths.",
+            "Consider linking to the MongoDB Atlas cluster resource page when mentioning it as a tunnel target, for parity with how relational databases and Redis clusters are linked throughout."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and grounded in the Bastion type comments.",
+            "The page uses TypeScript class-based Stacktape config examples inside <CodeBlock intellisense tabs={[...]}/> and avoids forbidden YAML config examples.",
+            "The page gives useful decision guidance for when to use a bastion and when to choose scripts, VPN, or other access patterns instead.",
+            "Logging is well structured with a table that captures source paths, default retention periods, and log purpose.",
+            "FAQ has a good mix of Stacktape-specific, AWS-use-case, and choosing/comparison questions."
+          ],
+          "problems": [
+            "Several CLI details are not grounded in the provided source files. The sources only mention `stacktape bastion:ssh` and `stacktape bastion:tunnel`; they do not provide the exact flags `--region`, `--stage`, `--resourceName`, `--bastionResource`, terminal output behavior, or Ctrl+C lifecycle.",
+            "The tunnel target list is incomplete against the provided `TunnelTargetInfo` source. The source lists `mongo-db-atlas-cluster` as a supported target, but the page omits MongoDB Atlas clusters.",
+            "The Basic example says the defaults create CloudWatch logging enabled for all three streams. The source says logs are sent to CloudWatch and gives retention defaults, but the exact creation behavior when `logging` is omitted is only implied; this should be phrased more cautiously.",
+            "The Startup commands section says to adjust the package manager and package names to match the bastion's base image, but the provided source does not identify the base image or supported operating system. The example uses `yum`, which may be practical but is not grounded by the provided types.",
+            "Some paragraphs contain unsupported operational claims, such as “The command prints the tunneled endpoints to the terminal” and “all endpoints are tunneled automatically” for Redis in a CLI context. The latter is supported for `TunnelTargetInfo`, but the terminal output behavior is not.",
+            "The page is useful, but the CLI usage sections are close to recipe-level documentation without the CLI source needed to verify the exact command shape."
+          ],
+          "mandatoryFixes": [
+            "Add `mongo-db-atlas-cluster` / MongoDB Atlas clusters to the supported tunnel targets list, or explicitly explain why the page intentionally excludes it despite the source listing it.",
+            "Remove or narrow unsupported CLI flag and behavior claims unless CLI source is provided. Keep the grounded command names, or phrase exact flags as “see the CLI reference” rather than documenting unverified syntax.",
+            "Rephrase the Basic example logging sentence to avoid overclaiming omitted-property behavior, e.g. say the Bastion logging config supports CloudWatch retention defaults for `messages`, `secure`, and `audit` logs rather than asserting all streams are always created from an empty config.",
+            "Remove the unsupported base-image/package-manager guidance or phrase it cautiously without implying a documented OS/package manager."
+          ],
+          "optionalImprovements": [
+            "Add a compact table comparing `bastion:ssh`, `bastion:tunnel`, `bastion-script`, and `local-script-with-bastion-tunneling`; this would make the access-mode decision easier to scan.",
+            "In the FAQ, link the first mention of `stacktape bastion:ssh` and `stacktape bastion:tunnel` consistently, as done elsewhere on the page.",
+            "Consider adding one short “Access modes” section before the detailed shell/tunnel subsections so readers can quickly choose between shell, tunnel, and scripts."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well grounded in the provided Bastion and script type sources. I found a few Stacktape-specific claims that overstate or narrow behavior beyond the source, plus one supported tunnel target omitted from the draft.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If your database accepts public connections and your workloads are all publicly accessible, a bastion adds no value.”",
+              "reason": "The source describes bastions as a secure jump box for accessing private resources in a VPC. It does not support the broader claim that a bastion has no value whenever resources are public; a user might still use one for controlled admin access or scripts. The recommendation is directionally reasonable, but the wording is absolute.",
+              "suggestedFix": "Narrow the claim: “If you do not need interactive access to private VPC resources, skip the bastion. For public-only stacks, deployment scripts or direct client access are usually simpler.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts",
+                  "quote": "Secure jump box for accessing private resources (databases, Redis, OpenSearch) in your VPC."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft lists supported tunnel targets as relational database, Redis cluster, application load balancer, and private service, but omits MongoDB Atlas clusters.",
+              "reason": "The provided TunnelTargetInfo source explicitly includes `mongo-db-atlas-cluster` as a supported target resource. Omitting it makes the target list incomplete and could lead readers to think MongoDB Atlas tunneling is unsupported.",
+              "suggestedFix": "Add MongoDB Atlas cluster to the supported tunnel targets table and the FAQ answer about tunnel targets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**Supported Target Resources:**\n   * - `relational-database`\n   * - `redis-cluster`\n   * - `mongo-db-atlas-cluster`\n   * - `application-load-balancer`\n   * - `private-service` (with an Application Load Balancer)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command prints the tunneled endpoints to the terminal so you know which local port to connect to.”",
+              "reason": "The source defines tunnel target metadata and resolved remote target fields, but it does not document the CLI output behavior. This is a Stacktape-specific CLI behavior claim and the CLI implementation source was not provided.",
+              "suggestedFix": "Remove the output claim or phrase it cautiously: “Use the `bastion:tunnel` CLI reference for the command’s current output and options.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface TunnelTargetInfo {\n  /**\n   * #### Bastion Resource Name\n   *\n   * ---\n   *\n   * The name of the bastion resource (as defined in your configuration) to use for the tunnel."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The tunnel stays open until you interrupt it (Ctrl+C).”",
+              "reason": "The provided source documents that tunnel targets are supported and that script environment variables can be adjusted for tunneled endpoints, but it does not document process lifetime or Ctrl+C behavior for `stacktape bastion:tunnel`. This CLI behavior needs CLI command source to verify.",
+              "suggestedFix": "Remove the sentence unless the CLI source is available. A safe alternative is: “Run `stacktape bastion:tunnel` when you need a local port-forwarding session to a supported private target.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The name of the target resource to connect to through the tunnel. Environment variables passed to the script are automatically adjusted to use the tunneled endpoints."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The commands above are illustrative — adjust the package manager and package names to match your bastion's base image.”",
+              "reason": "The source says `runCommandsAtLaunch` runs shell commands as root, but it does not document the bastion AMI or base image. The example uses `yum`; advising readers to adjust package manager is cautious, but “base image” is not a sourced Stacktape concept for Bastion.",
+              "suggestedFix": "Use source-grounded wording: “The commands above are illustrative; `runCommandsAtLaunch` accepts shell commands, so use commands that are valid for the operating system on the bastion instance.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the required class-based `defineConfig` examples inside `<CodeBlock intellisense>` with a `TypeScript` tab and does not hand-author YAML Stacktape config.",
+            "`<ApiReference definitionName=\"BastionProps\" />` matches the page’s resource props type from `bastion.d.ts`.",
+            "The pricing line, default `t3.micro`, Systems Manager keyless access, `runCommandsAtLaunch` root execution, replacement warning, log paths, default log retention values, and allowed `retentionDays` values are grounded in the provided sources.",
+            "The script section correctly describes `bastion-script` and `local-script-with-bastion-tunneling` behavior, including `bastionResource` and adjusted `connectTo` environment variables."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Bastion and script type sources. The main factual gaps are around the supported bastion tunnel target list and a migration-script alternative that implies `connectTo` alone can replace a bastion for private VPC access.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The tunnel target table and FAQ say `bastion:tunnel` supports relational databases, Redis clusters, application load balancers, and private services, but omit MongoDB Atlas clusters from the supported target list.",
+              "reason": "The source explicitly lists `mongo-db-atlas-cluster` as a supported tunnel target. Presenting the table as \"Supported tunnel targets\" without MongoDB Atlas makes the supported set incomplete.",
+              "suggestedFix": "Add a MongoDB Atlas row to the supported tunnel targets table and FAQ, or narrow the wording to say the table lists common targets rather than all supported targets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**Supported Target Resources:**\n   * - `relational-database`\n   * - `redis-cluster`\n   * - `mongo-db-atlas-cluster`\n   * - `application-load-balancer`\n   * - `private-service` (with an Application Load Balancer)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If you only need to run migrations during deploys, use deployment scripts or lifecycle hooks with `connectTo` — they inject connection details automatically without a persistent EC2 instance.\"",
+              "reason": "The provided script sources support `connectTo` injecting connection details, but they do not show that `connectTo` gives local or hook scripts network access to private VPC resources without a bastion. The sources describe `local-script-with-bastion-tunneling` and `bastion-script` as the script types for private-resource access through or on a bastion.",
+              "suggestedFix": "Narrow the alternative: say scripts with `connectTo` are fine when the target is publicly reachable or the runner already has network access. For private VPC resources, use `local-script-with-bastion-tunneling` or `bastion-script`, which require a bastion.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "This script type runs locally but tunnels connections to resources through a bastion server.\n * It provides a secure, encrypted connection to resources that are only accessible within the VPC,\n * such as private databases or Redis clusters."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Bastion scripts are executed on a bastion server within your VPC, not on your local machine."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "A list of resources the script needs to interact with. Stacktape automatically injects environment variables with connection details for each specified resource."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `defineConfig` and class-based `Bastion` examples inside `<CodeBlock intellisense>` with a visible `TypeScript` tab, and it does not hand-author YAML Stacktape configuration.",
+            "`<ApiReference definitionName=\"BastionProps\" />` matches the provided `BastionProps` type name.",
+            "The documented `instanceSize`, `runCommandsAtLaunch`, and logging retention defaults match the `bastion.d.ts` source.",
+            "The warning that changing `runCommandsAtLaunch` replaces the instance and loses old instance data is directly supported by the source."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the full primary BastionProps surface: instanceSize, runCommandsAtLaunch, and logging are all documented with demonstrative examples, and the API reference uses the correct BastionProps definitionName. I found one completeness issue in the tunnel target list.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Supported tunnel targets: relational database, Redis cluster, application load balancer, and private service.",
+              "reason": "The draft presents a closed list of supported bastion tunnel targets but omits MongoDB Atlas clusters, which are listed in the source type for TunnelTargetInfo. Readers with private MongoDB Atlas resources would incorrectly conclude tunneling is not supported for that target type.",
+              "suggestedFix": "Add MongoDB Atlas cluster to the supported tunnel target table and FAQ answer, with cautious wording such as: \"MongoDB Atlas cluster | Connect local MongoDB tools to a private MongoDB Atlas cluster through the bastion.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**Supported Target Resources:**\n   * - `relational-database`\n   * - `redis-cluster`\n   * - `mongo-db-atlas-cluster`\n   * - `application-load-balancer`\n   * - `private-service` (with an Application Load Balancer)"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page documents every property on the primary BastionProps type: instanceSize, runCommandsAtLaunch, and logging.",
+            "Each Stacktape configuration example uses <CodeBlock intellisense> with a TypeScript tab and demonstrates the section topic directly.",
+            "The logging section includes the three log streams, their source paths, default retentions, disabled behavior, and allowed retentionDays values from the source.",
+            "The page includes exactly one <ApiReference definitionName=\"BastionProps\" /> component, matching the page metadata."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\security\\bastion-host.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T13:19:43.084Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\bastion.d.ts": "6c0613247ba520cdea6135cf4e9ccf7c443582f5",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

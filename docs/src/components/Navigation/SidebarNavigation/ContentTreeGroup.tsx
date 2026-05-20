@@ -1,9 +1,74 @@
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight } from 'react-feather';
 import { colors, fontFamily } from '../../../styles/variables';
 import { ContentTreeNode } from './ContentTreeNode';
+import { buildGuidePath, flattenVisibleItems } from './guide-path';
 import type { NavGroup } from './navigation-data';
 
 const COLLAPSE_DURATION_MS = 220;
+
+// Measures each *visible* row's center y relative to the container. ContentTreeNode renders all
+// descendants unconditionally — collapsed branches stay in the DOM, clamped via
+// `grid-template-rows: 0fr` and tagged `aria-hidden="true"`. We walk up each row's ancestors and
+// skip it if anything between row and container is hidden, so the measurement count matches the
+// flattened visible list (without this filter, collapsed grandchildren inflate the count and the
+// curve fails to render). Uses getBoundingClientRect because nested expansion `<ul>` wrappers
+// create their own offsetParents — bounding rects are absolute, so subtracting the container
+// origin sidesteps the offsetParent chain.
+const isRowVisible = (row: HTMLElement, container: HTMLElement) => {
+  let el: HTMLElement | null = row.parentElement;
+  while (el && el !== container) {
+    if (el.getAttribute('aria-hidden') === 'true') return false;
+    el = el.parentElement;
+  }
+  return true;
+};
+
+const measureRows = (container: HTMLElement) => {
+  const containerTop = container.getBoundingClientRect().top;
+  const rows = container.querySelectorAll<HTMLElement>('[data-guide-row]');
+  const centers: number[] = [];
+  let totalHeight = 0;
+  rows.forEach((row) => {
+    if (!isRowVisible(row, container)) return;
+    const r = row.getBoundingClientRect();
+    centers.push(r.top + r.height / 2 - containerTop);
+    totalHeight = Math.max(totalHeight, r.top + r.height - containerTop);
+  });
+  return { centers, totalHeight };
+};
+
+const useGuidePath = (
+  containerRef: React.RefObject<HTMLDivElement>,
+  flat: { depth: number }[],
+  deps: unknown[]
+) => {
+  const [measured, setMeasured] = useState<{ centers: number[]; totalHeight: number }>({
+    centers: [],
+    totalHeight: 0
+  });
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setMeasured(measureRows(el));
+    // ResizeObserver catches font load, scrollbar shifts, and any layout change inside the
+    // container. Without it the curve can lag behind row-height changes that happen post-mount.
+    const ro = new ResizeObserver(() => setMeasured(measureRows(el)));
+    ro.observe(el);
+    el.querySelectorAll<HTMLElement>('[data-guide-row]').forEach((row) => ro.observe(row));
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return useMemo(() => {
+    if (flat.length === 0 || measured.centers.length !== flat.length) return null;
+    return buildGuidePath(
+      flat.map((it, i) => ({ depth: it.depth, centerY: measured.centers[i] })),
+      measured.totalHeight
+    );
+  }, [flat, measured]);
+};
 
 export function ContentTreeGroup({
   group,
@@ -18,7 +83,17 @@ export function ContentTreeGroup({
   const isExpanded = expandedItems[groupKey] ?? group.defaultOpen;
   const isRootGroup = group.id === '__root';
 
+  const flat = useMemo(
+    () => flattenVisibleItems(group.children, isRootGroup ? 0 : 1, expandedItems),
+    [group.children, expandedItems, isRootGroup]
+  );
+
+  const childrenContainerRef = useRef<HTMLDivElement>(null);
+  const guide = useGuidePath(childrenContainerRef, flat, [flat]);
+
   // Root group (catch-all for the index page) renders without a header and is always expanded.
+  // No guide curve here — the root group is just the Introduction entry, where a guide line would
+  // look out of place since there are no nested branches to organize.
   if (isRootGroup) {
     return (
       <div css={{ display: 'block', padding: 0, marginBottom: '8px' }}>
@@ -79,23 +154,23 @@ export function ContentTreeGroup({
         }}
       >
         <div
+          ref={childrenContainerRef}
           css={{
             position: 'relative',
             overflow: 'hidden',
             minHeight: 0,
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              left: '22px',
-              top: '4px',
-              bottom: '4px',
-              width: '1px',
-              background:
-                'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 14%, rgba(255,255,255,0.1) 86%, rgba(255,255,255,0) 100%)',
-              pointerEvents: 'none'
-            }
+            marginLeft: '10px'
           }}
         >
+          {guide && (
+            <svg
+              width={guide.width}
+              height={guide.height}
+              css={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', overflow: 'visible' }}
+            >
+              <path d={guide.d} stroke={colors.borderColorLight} strokeWidth={1} fill="none" />
+            </svg>
+          )}
           {group.children.map((child) => (
             <ContentTreeNode
               key={child.key}

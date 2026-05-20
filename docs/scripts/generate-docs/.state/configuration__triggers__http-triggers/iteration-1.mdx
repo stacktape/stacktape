@@ -1,0 +1,235 @@
+---
+title: 'HTTP Triggers'
+order: 19
+seoTitle: 'HTTP Triggers for Lambda & Containers | Stacktape Docs'
+seoDescription: 'Route HTTP requests to Lambda functions and containers using HTTP API Gateway or ALB triggers in Stacktape. Compare options, configure routing, and add authorization.'
+---
+
+# HTTP Triggers
+
+HTTP triggers route incoming web requests to your Stacktape [Lambda functions](/resources/compute/lambda-function) and [container workloads](/resources/compute/web-service). Two integration types are available: [HTTP API Gateway](/resources/networking/http-api-gateway) for serverless routing by method and path, and [Application Load Balancer](/resources/networking/application-load-balancer) for advanced content-based routing with headers, hosts, and query parameters.
+
+Each incoming HTTP request triggers exactly one function or container invocation — there is no batching. For an overview of all trigger types (including non-HTTP sources like queues, schedules, and streams), see [Triggers overview](/configuration/triggers/overview).
+
+## Choosing an HTTP trigger type
+
+Stacktape offers two ways to route HTTP traffic to your compute resources. The right choice depends on your routing complexity, cost model, and whether you need built-in authorization at the gateway level.
+
+<FeatureComparisonTable
+  columns={["HTTP API Gateway", "Application Load Balancer"]}
+  features={[
+    { name: "Best for", values: { "HTTP API Gateway": "Serverless APIs, simple routing", "Application Load Balancer": "Complex routing, container workloads" } },
+    { name: "Route dimensions", values: { "HTTP API Gateway": "Method + path", "Application Load Balancer": "Method, path, headers, query params, hosts, source IPs" } },
+    { name: "Route evaluation", values: { "HTTP API Gateway": "Specificity-based (most specific wins)", "Application Load Balancer": "Priority-based (lowest number wins)" } },
+    { name: "Built-in authorization", values: { "HTTP API Gateway": true, "Application Load Balancer": false } },
+    { name: "Payload format options", values: { "HTTP API Gateway": "1.0 and 2.0", "Application Load Balancer": "ALB event format only" } },
+    { name: "Works with Lambda functions", values: { "HTTP API Gateway": true, "Application Load Balancer": true } },
+    { name: "Works with container workloads", values: { "HTTP API Gateway": true, "Application Load Balancer": true } },
+    { name: "Pricing model", values: { "HTTP API Gateway": "Per-request (~$1/million)", "Application Load Balancer": "Hourly + capacity units" } }
+  ]}
+/>
+
+**Use HTTP API Gateway** when you want pay-per-request pricing and your routing needs are limited to method and path matching. This is the standard choice for most serverless APIs — you pay nothing at zero traffic, and per-request costs stay low until you reach high volumes.
+
+**Use an Application Load Balancer** when you need to route based on headers, query parameters, hostnames, or source IP addresses. ALBs are also the right choice when you want to serve both Lambda functions and container workloads behind a single endpoint, or when you need persistent connections. ALBs charge hourly regardless of traffic, making them better suited to workloads with steady request volumes.
+
+<Info>
+Stacktape also supports [Network Load Balancers](/resources/networking/network-load-balancer) for TCP and TLS (Layer 4) traffic. NLB integrations work with container workloads only and are not covered on this page.
+</Info>
+
+## HTTP API Gateway integration
+
+An HTTP API Gateway integration triggers a [Lambda function](/resources/compute/lambda-function) or container workload when an incoming request matches a specified HTTP method and URL path. You define the [HTTP API Gateway](/resources/networking/http-api-gateway) as a separate resource and reference it by name in the integration. The gateway evaluates routes by specificity — exact paths take priority over parameterized paths, which take priority over greedy (catch-all) paths.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  HttpApiGateway,
+  HttpApiIntegration,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const apiGateway = new HttpApiGateway({});
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    events: [
+      new HttpApiIntegration({
+        httpApiGatewayName: 'apiGateway',
+        method: '*',
+        path: '/{proxy+}'
+      })
+    ]
+  });
+
+  return {
+    resources: { apiGateway, api }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+In this example, `method: '*'` matches any HTTP method and `path: '/{proxy+}'` is a greedy path that catches all incoming requests. The `httpApiGatewayName` must match the key used for the gateway in the `resources` object — here, `'apiGateway'`. This is the most common pattern: a single catch-all Lambda function that uses a framework like Hono, Express, or Fastify to handle routing internally.
+
+### Route matching
+
+HTTP API Gateway routes are matched by specificity, not by declaration order. When multiple routes could match a request, the most specific route wins:
+
+1. **Exact paths** (`/users`) match first.
+2. **Parameterized paths** (`/users/{id}`) match next. The parameter value is available in the Lambda event at `event.pathParameters.id`.
+3. **Greedy paths** (`/users/{proxy+}`) match last. A greedy path catches all sub-paths — `/users/123`, `/users/123/posts`, etc.
+
+The `method` property accepts `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, or `*` (any method). When the same path is registered with different methods, each method is matched independently — a `GET /users` integration and a `POST /users` integration can point to different Lambda functions.
+
+To route different paths to different functions, create multiple Lambda functions each with their own `HttpApiIntegration` pointing to the same gateway. Alternatively, use a single catch-all route (`/{proxy+}` with method `*`) and handle routing inside your application code.
+
+### Payload format
+
+The `payloadFormat` property controls the shape of the event object your Lambda function receives. Two versions are available:
+
+- **`'1.0'`** (default) — the original API Gateway payload format. Wraps the request in a detailed event envelope with `requestContext`, `headers`, `multiValueHeaders`, and `queryStringParameters`.
+- **`'2.0'`** — a simplified format with a flatter structure. Automatically merges cookies into a dedicated field and simplifies header and query parameter handling.
+
+You can set `payloadFormat` on an individual integration to override the gateway-level default. Most web frameworks (Hono, Express, Fastify) handle both formats transparently, so this choice mainly matters when writing raw Lambda handlers. If you are starting a new project, `'2.0'` has a simpler structure.
+
+### Authorization
+
+HTTP API Gateway integrations support an optional `authorizer` to protect individual routes. When configured, unauthorized requests are rejected with a `401 Unauthorized` response before they reach your function — saving invocation costs and reducing attack surface. For details on setting up authorizers, see [User auth pools](/resources/security/user-auth-pool).
+
+Application Load Balancer integrations do not support built-in authorizers. If you use an ALB, handle authentication in your application code or a middleware layer.
+
+## Application Load Balancer integration
+
+An [Application Load Balancer](/resources/networking/application-load-balancer) integration triggers a Lambda function or container workload when a request matches a combination of routing conditions: paths, HTTP methods, hostnames, headers, query parameters, and source IP addresses. Unlike HTTP API Gateway, ALB routes are evaluated by an explicit numeric `priority` — the lowest number is evaluated first, and the first matching rule handles the request.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  ApplicationLoadBalancer,
+  ApplicationLoadBalancerIntegration,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const alb = new ApplicationLoadBalancer({});
+
+  const usersApi = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/users.ts'
+    }),
+    events: [
+      new ApplicationLoadBalancerIntegration({
+        loadBalancerName: 'alb',
+        priority: 10,
+        paths: ['/users', '/users/*'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE']
+      })
+    ]
+  });
+
+  return {
+    resources: { alb, usersApi }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+In this example, the `usersApi` function handles GET, POST, PUT, and DELETE requests to `/users` and any path under `/users/*`. The `loadBalancerName` must match the key used for the ALB resource — here, `'alb'`. The `priority: 10` determines where this rule sits in the evaluation order relative to other rules on the same load balancer.
+
+### Routing conditions
+
+ALB integrations support six routing conditions. All specified condition types on a rule must match for the rule to fire (AND logic between condition types). Within a single condition, values are matched with OR logic — for example, `paths: ['/users', '/posts']` matches requests to either path.
+
+| Condition | Description | Matching behavior |
+|-----------|-------------|-------------------|
+| `paths` | URL paths (e.g., `/users`, `/api/*`) | Case-sensitive. Supports `*` and `?` wildcards. |
+| `methods` | HTTP methods (e.g., `GET`, `POST`) | Exact match. |
+| `hosts` | Hostnames from the `Host` header | Supports `*` and `?` wildcards (e.g., `*.example.com`). |
+| `headers` | HTTP header name + allowed values | Case-insensitive value comparison. |
+| `queryParams` | Query parameter name + allowed values | Case-insensitive value comparison. |
+| `sourceIps` | Client IP addresses in CIDR notation | Matches the proxy IP if the client is behind a proxy. |
+
+Header conditions use the `headerName` and `values` fields — all header conditions must be met for routing. Query parameter conditions use `paramName` and `values` with the same AND logic. This lets you build precise routing rules like "match `/api/*` with a `X-Tenant` header of `acme` or `globex`".
+
+### Rule priority
+
+The `priority` property is required for every ALB integration and must be unique across all rules on the same listener. Load balancer rules are evaluated from the lowest priority number to the highest — the first rule that matches an incoming request handles it.
+
+When designing priority assignments, leave gaps between numbers (e.g., 10, 20, 30) so you can insert new rules later without renumbering existing ones. If the load balancer uses custom listeners, specify `listenerPort` to target a specific listener. When omitted, the integration attaches to the default listener.
+
+## Using HTTP triggers with container workloads
+
+Container workload integrations (for [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload)) use the same HTTP API Gateway and Application Load Balancer trigger types as Lambda functions, with one addition: the `containerPort` property specifies which port inside the container receives the routed traffic.
+
+For example, if your container listens on port `3000`, add `containerPort: 3000` to the integration properties. The gateway or load balancer forwards matched requests to that specific port. All other routing properties (`method`, `path`, `priority`, `paths`, `methods`, `hosts`, `headers`, `queryParams`, `sourceIps`) work identically to their Lambda function counterparts.
+
+Container workloads support three additional integration types for internal networking that are not external HTTP triggers:
+
+- **`service-connect`** — opens a container port for connections from other compute resources in the same stack. Supports an optional `alias` for service discovery (e.g., `http://my-service:8080`) and protocol declaration (`http`, `http2`, or `grpc`) for protocol-specific metrics.
+- **`workload-internal`** — opens a container port for connections from other containers within the same workload only.
+- **`network-load-balancer`** — routes TCP/TLS traffic from a [Network Load Balancer](/resources/networking/network-load-balancer) to a container port. Operates at Layer 4, not HTTP.
+
+## FAQ
+
+### Can I use both HTTP API Gateway and Application Load Balancer in the same stack?
+
+Yes. HTTP API Gateways and Application Load Balancers are independent resources. You can define multiple gateways and load balancers in the same stack, routing different functions or workloads through each. This is useful when some routes benefit from pay-per-request pricing (API Gateway) while others need advanced routing or persistent connections (ALB).
+
+### How do I route different URL paths to different Lambda functions?
+
+Create multiple Lambda functions, each with its own HTTP trigger integration pointing to the same gateway or load balancer. With HTTP API Gateway, each function specifies a unique `method` and `path` combination — the gateway matches by specificity. With ALB, each function specifies different `paths` and a unique `priority` value. See [Lambda functions](/resources/compute/lambda-function) for configuration details.
+
+### What is the difference between payload format 1.0 and 2.0?
+
+Payload format `'1.0'` wraps the HTTP request in a detailed event envelope with `requestContext`, `multiValueHeaders`, and `multiValueQueryStringParameters`. Payload format `'2.0'` uses a flatter structure with simpler header and query parameter handling. The default is `'1.0'`. Most web frameworks handle both transparently, so this mainly matters for raw Lambda handlers.
+
+### How much does AWS HTTP API Gateway cost?
+
+AWS HTTP API Gateway uses pay-per-request pricing (~$1 per million requests) with no minimum fees or idle costs. This makes it cost-effective for low-traffic, bursty, or early-stage APIs where you want to avoid paying for capacity you don't use. For exact pricing by region, check the AWS API Gateway pricing page.
+
+### When should I use HTTP API Gateway instead of an Application Load Balancer?
+
+Choose HTTP API Gateway for serverless APIs where you route by method and path and want per-request pricing with zero idle cost. Choose an Application Load Balancer when you need routing by headers, query parameters, hostnames, or source IPs, or when you run persistent container workloads. ALBs charge hourly regardless of traffic, making them more economical at steady, high request volumes.
+
+### Can I add authentication to my HTTP trigger routes?
+
+HTTP API Gateway integrations support an `authorizer` property that rejects unauthorized requests at the gateway level before they reach your function. ALB integrations do not have built-in authorizer support — implement authentication in your application code instead. See [User auth pools](/resources/security/user-auth-pool) for setting up Cognito-based authorization with API Gateway.
+
+### What is the maximum request payload size for HTTP API Gateway?
+
+AWS HTTP API Gateway accepts request and response payloads up to 10 MB. For larger payloads, use an Application Load Balancer (which does not have this limit) or upload files directly to an [S3 bucket](/resources/storage/s3-bucket) using presigned URLs. Most REST and GraphQL APIs stay well within the 10 MB boundary.
+
+### Can I use a custom domain with HTTP triggers?
+
+Yes. Both HTTP API Gateways and Application Load Balancers support [custom domains](/resources/networking/custom-domains). Attach your domain to the gateway or load balancer resource, and all routes served through it become available under your domain name. This is configured on the gateway or load balancer resource, not on individual trigger integrations.
+
+### What is the difference between an Application Load Balancer and a Network Load Balancer?
+
+An ALB operates at Layer 7 (HTTP/HTTPS) and can route based on request content — paths, headers, query parameters, hostnames, and source IPs. A [Network Load Balancer](/resources/networking/network-load-balancer) operates at Layer 4 (TCP/TLS) and routes raw connections without inspecting request content. In Stacktape, NLB integrations work with container workloads only, not Lambda functions. Use an NLB for non-HTTP protocols or raw TCP/TLS services.
+
+### How do I view logs for my HTTP-triggered functions?
+
+Use [`stacktape debug:logs`](/cli/debug-logs) to stream or tail logs from any Lambda function or container workload. Logs include your function's standard output and error output. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview). For HTTP API Gateway access logs (request IDs, status codes, latency), enable logging on the [HTTP API Gateway resource](/resources/networking/http-api-gateway) itself.

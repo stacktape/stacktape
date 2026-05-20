@@ -1,0 +1,364 @@
+---
+title: 'Database Guardrails'
+order: 104
+seoTitle: 'Database Guardrails - Restrict Engines & Shapes | Stacktape Docs'
+seoDescription: 'Control which database engines, instance sizes, and network modes your team can deploy. Stacktape database guardrails block non-compliant relational databases before any infrastructure changes.'
+---
+
+# Database Guardrails
+
+Stacktape database guardrails are preventive policies that block deployments containing [relational databases](/resources/databases/relational-database) (or [OpenSearch domains](/resources/databases/opensearch)) that violate your organization's rules. They restrict which engines, instance sizes, and accessibility modes your team can use — catching policy violations before any infrastructure changes happen.
+
+<Info>
+Guardrails are **preventive** — they block non-compliant deployments before anything is provisioned. They are distinct from [alarms](/observability/alarms), which are **reactive** and notify you about runtime problems after deployment.
+</Info>
+
+## How database guardrails work
+
+Database guardrails are organization-level policies configured in the [Stacktape Console](/stacktape-console/console-overview). They apply across all projects and stages in your organization. Stacktape validates every deployment against active guardrails before any CloudFormation operations begin. If a [relational database](/resources/databases/relational-database) or [OpenSearch domain](/resources/databases/opensearch) in your config violates a guardrail, the deployment fails immediately with a clear error message naming the offending resource and the violated rule.
+
+Guardrails are enforced during [`deploy`](/cli/deploy), [`codebuild:deploy`](/cli/codebuild-deploy), [`preview-changes`](/cli/preview-changes), and [`delete`](/cli/delete) commands. They cannot be bypassed from the project config — only organization administrators can change guardrail settings.
+
+Stacktape supports four database-specific guardrails:
+
+| Guardrail | Type | What it controls |
+|---|---|---|
+| [Engine restriction](#engine-restriction) | `database-engine-restriction` | Which database engines are allowed |
+| [Instance restriction](#instance-restriction) | `database-instance-restriction` | Which instance sizes are blocked |
+| [VPC-only databases](#vpc-only-databases) | `require-vpc-databases` | Network accessibility mode |
+| [Deletion protection](#deletion-protection) | `require-deletion-protection` | Accidental deletion safeguard |
+
+For other guardrail categories, see [deployment guardrails](/guardrails/deployment), [security guardrails](/guardrails/security-and-data-protection), and [resource limit guardrails](/guardrails/resource-limits).
+
+## Engine restriction
+
+The `database-engine-restriction` guardrail limits which database engine types your team can provision. You define an allowlist of permitted engines — any database using an engine not on the list is blocked. This is the most common database guardrail, typically used to standardize on PostgreSQL across an organization or to prevent teams from spinning up expensive Oracle or SQL Server instances.
+
+The guardrail checks the `engine.type` property of every [relational database](/resources/databases/relational-database) in the stack config. The following engine types are available:
+
+| Category | Engine types |
+|---|---|
+| **RDS (single-instance)** | `postgres`, `mysql`, `mariadb`, `oracle-ee`, `oracle-se2`, `sqlserver-ee`, `sqlserver-ex`, `sqlserver-se`, `sqlserver-web` |
+| **Aurora (clustered)** | `aurora-postgresql`, `aurora-mysql` |
+| **Aurora Serverless v1** | `aurora-postgresql-serverless`, `aurora-mysql-serverless` |
+| **Aurora Serverless v2** | `aurora-postgresql-serverless-v2`, `aurora-mysql-serverless-v2` |
+
+**When to enable:** You want to standardize your organization on a single database family (e.g., PostgreSQL-based engines only) or prevent use of commercially licensed engines (Oracle, SQL Server) that carry additional AWS costs.
+
+**When to skip:** Small teams or early-stage projects where flexibility matters more than standardization. If your team already has a strong convention, a guardrail may be unnecessary overhead.
+
+For example, an organization restricting to PostgreSQL-based engines would set `allowedEngines` to `['postgres', 'aurora-postgresql', 'aurora-postgresql-serverless-v2']`. A deployment using `mysql` would fail with:
+
+```
+Database "myDb" uses engine "mysql" which is not allowed. Allowed engines: postgres, aurora-postgresql, aurora-postgresql-serverless-v2.
+```
+
+The following database config uses `aurora-postgresql-serverless-v2` and would pass this guardrail.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: {
+      masterUserName: 'admin',
+      masterUserPassword: '$Secret(\'db-password\')'
+    },
+    engine: {
+      type: 'aurora-postgresql-serverless-v2',
+      properties: {
+        version: '16.4',
+        minCapacity: 0.5,
+        maxCapacity: 8
+      }
+    }
+  });
+
+  return {
+    resources: { mainDb }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+<Tip>
+If you're standardizing on PostgreSQL, include all three PostgreSQL-based engine types (`postgres`, `aurora-postgresql`, `aurora-postgresql-serverless-v2`) in the allowlist so teams can choose the right deployment model for their workload.
+</Tip>
+
+## Instance restriction
+
+The `database-instance-restriction` guardrail blocks specific RDS or Aurora instance sizes to prevent teams from provisioning oversized (or undersized) database instances. Unlike engine restriction, this guardrail uses a **blocklist** — you specify which instance sizes are forbidden rather than which are allowed.
+
+The guardrail checks instance sizes from the database engine configuration: the primary instance and any read replicas for RDS engines, and all instances in the cluster for Aurora provisioned engines. Aurora Serverless engines (v1 and v2) are exempt because they have no fixed instance sizes — capacity scales automatically.
+
+**When to enable:** You want to prevent cost surprises from developers choosing large instance classes like `db.r6g.8xlarge` (~$2,500/month) when `db.t4g.medium` (~$50/month) would suffice. Also useful for blocking undersized instances that might cause production issues.
+
+**When to skip:** Teams with mature cost review processes or small organizations where every deployment is reviewed anyway. Also unnecessary if you only use Aurora Serverless, which has no fixed instance sizes.
+
+A guardrail blocking large memory-optimized instances would set `blockedInstanceSizes` to `['db.r5.4xlarge', 'db.r6g.4xlarge', 'db.r5.8xlarge', 'db.r6g.8xlarge']`. A deployment using any of these would fail with:
+
+```
+Database "analytics" uses instance size "db.r5.4xlarge" which is blocked. Blocked instance sizes: db.r5.4xlarge, db.r6g.4xlarge, db.r5.8xlarge, db.r6g.8xlarge.
+```
+
+The following config uses `db.t4g.micro` and would pass this guardrail.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const appDb = new RelationalDatabase({
+    credentials: {
+      masterUserName: 'admin',
+      masterUserPassword: '$Secret(\'db-password\')'
+    },
+    engine: {
+      type: 'postgres',
+      properties: {
+        version: '16',
+        primaryInstance: {
+          instanceSize: 'db.t4g.micro'
+        }
+      }
+    }
+  });
+
+  return {
+    resources: { appDb }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+<Warning>
+The blocklist applies to every instance in the database config — including read replicas. If you add a read replica with a blocked instance size, the deployment will fail even if the primary instance is compliant.
+</Warning>
+
+## VPC-only databases
+
+The `require-vpc-databases` guardrail enforces that all databases use VPC-only network accessibility — blocking databases exposed to the public internet. This is a common compliance requirement for production environments handling sensitive data.
+
+When enabled, the guardrail checks the `accessibility.accessibilityMode` property on every [relational database](/resources/databases/relational-database) and [OpenSearch domain](/resources/databases/opensearch) in the config. The default accessibility mode is `internet`, which means databases are publicly accessible (protected only by credentials). The guardrail requires either `vpc` or `scoping-workloads-in-vpc` mode.
+
+| Mode | Compliant | Description |
+|---|---|---|
+| `internet` (default) | No | Publicly accessible with credentials |
+| `vpc` | Yes | Accessible only within the VPC |
+| `scoping-workloads-in-vpc` | Yes | Accessible only by resources that list the database in their `connectTo` |
+| `whitelisted-ips-only` | No | Accessible from specified IP addresses only |
+
+**When to enable:** Production environments, regulated industries, or any organization that handles PII, financial data, or health records. Most compliance frameworks (SOC 2, HIPAA, PCI-DSS) require databases to be unreachable from the public internet.
+
+**When to skip:** Development-only organizations or projects where developers need to connect to databases directly from their local machines. Consider enabling this guardrail only for production stages using [stage-specific guardrails](/guardrails/deployment).
+
+**Tradeoff:** VPC-only databases require consuming workloads ([Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), etc.) to join the VPC via `joinDefaultVpc: true`. Lambda functions in a VPC lose direct internet access (they can still reach S3 and DynamoDB through VPC endpoints). Use a [bastion host](/resources/security/bastion-host) for local access to VPC databases.
+
+A deployment with a database using the default `internet` mode would fail with:
+
+```
+Database "users" has accessibility mode "internet". All databases must use VPC-only accessibility (vpc or scoping-workloads-in-vpc).
+```
+
+The `scoping-workloads-in-vpc` mode is the recommended choice — it places the database in the VPC and automatically grants network access to any resource that lists it in `connectTo`.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const usersDb = new RelationalDatabase({
+    credentials: {
+      masterUserName: 'admin',
+      masterUserPassword: '$Secret(\'db-password\')'
+    },
+    engine: {
+      type: 'aurora-postgresql-serverless-v2',
+      properties: {
+        version: '16.4',
+        minCapacity: 0.5,
+        maxCapacity: 4
+      }
+    },
+    accessibility: {
+      accessibilityMode: 'scoping-workloads-in-vpc'
+    }
+  });
+
+  return {
+    resources: { usersDb }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+## Deletion protection
+
+The `require-deletion-protection` guardrail enforces that all [relational databases](/resources/databases/relational-database) have `deletionProtection` set to `true`. Deletion protection prevents accidental data loss by making it impossible to delete a database through CloudFormation stack operations — you must explicitly disable the flag before removing the database.
+
+The guardrail checks the `deletionProtection` property on every relational database. This property defaults to `false`, so all databases in the stack must explicitly set it to `true` to comply.
+
+**When to enable:** Any production environment, or as a blanket policy once your organization has had (or wants to prevent) an accidental database deletion. The cost of losing production data far outweighs the minor inconvenience of explicitly disabling protection before a planned removal.
+
+**When to skip:** Early development stages where databases are ephemeral and frequently recreated. Enabling deletion protection on dev/test databases adds friction without meaningful benefit.
+
+**Tradeoff:** When you genuinely want to remove a database, you must first update the config to set `deletionProtection: false`, deploy that change, then remove the database resource and deploy again. This two-step process is intentional — it prevents both accidental `stacktape delete` and accidental resource removal from the config.
+
+A deployment without `deletionProtection` enabled would fail with:
+
+```
+Database "orders" does not have deletionProtection enabled. All relational databases must have deletion protection.
+```
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const ordersDb = new RelationalDatabase({
+    credentials: {
+      masterUserName: 'admin',
+      masterUserPassword: '$Secret(\'db-password\')'
+    },
+    engine: {
+      type: 'postgres',
+      properties: {
+        version: '16',
+        primaryInstance: {
+          instanceSize: 'db.t4g.small'
+        }
+      }
+    },
+    deletionProtection: true
+  });
+
+  return {
+    resources: { ordersDb }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+## Combining database guardrails
+
+Database guardrails work together. You can enable all four simultaneously to enforce a comprehensive database policy: standardize on PostgreSQL, block oversized instances, require VPC isolation, and prevent accidental deletion.
+
+The following config shows a production-ready database that complies with all four database guardrails.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, RelationalDatabase, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const prodDb = new RelationalDatabase({
+    credentials: {
+      masterUserName: 'app_admin',
+      masterUserPassword: '$Secret(\'prod-db-password\')'
+    },
+    engine: {
+      type: 'aurora-postgresql-serverless-v2',
+      properties: {
+        version: '16.4',
+        minCapacity: 0.5,
+        maxCapacity: 8
+      }
+    },
+    accessibility: {
+      accessibilityMode: 'scoping-workloads-in-vpc'
+    },
+    deletionProtection: true
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: [prodDb],
+    joinDefaultVpc: true
+  });
+
+  return {
+    resources: { prodDb, api }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+This config passes all four database guardrails because it:
+
+- Uses `aurora-postgresql-serverless-v2` — a PostgreSQL-based engine (passes engine restriction)
+- Has no fixed instance sizes — Aurora Serverless v2 scales automatically (exempt from instance restriction)
+- Uses `scoping-workloads-in-vpc` accessibility — database is VPC-only (passes VPC guardrail)
+- Sets `deletionProtection: true` — database cannot be accidentally deleted (passes deletion protection)
+
+The Lambda function sets `joinDefaultVpc: true` because VPC-only databases require consuming workloads to be in the same VPC.
+
+## FAQ
+
+### Where do I configure database guardrails?
+
+Database guardrails are organization-level policies configured in the [Stacktape Console](/stacktape-console/console-overview), not in your project's `stacktape.ts` config file. This means individual developers cannot bypass or override guardrails — only organization administrators can change them. See the [guardrails overview](/guardrails/overview) for setup details.
+
+### What happens when a deployment violates a database guardrail?
+
+The deployment fails immediately with a descriptive error message before any CloudFormation operations run. The error names the specific resource that violated the guardrail and explains what's required. No infrastructure changes are made — the deployment is blocked at the validation stage.
+
+### Do database guardrails apply to DynamoDB, Redis, or MongoDB Atlas?
+
+The engine restriction and instance restriction guardrails apply only to [relational databases](/resources/databases/relational-database) (RDS and Aurora). The VPC-only guardrail (`require-vpc-databases`) also applies to [OpenSearch domains](/resources/databases/opensearch). [DynamoDB](/resources/databases/dynamodb), [Redis](/resources/databases/redis), and [MongoDB Atlas](/resources/databases/mongodb-atlas) are not covered by these guardrails.
+
+### Does the instance restriction apply to Aurora Serverless?
+
+No. Aurora Serverless v1 and v2 engines have no fixed instance sizes — they scale capacity automatically. The `database-instance-restriction` guardrail only checks provisioned instance sizes on RDS engines and Aurora provisioned clusters. If your organization uses only Aurora Serverless, this guardrail has no effect.
+
+### How is the engine restriction different from the resource type restriction?
+
+The `resource-type-restriction` guardrail (covered in [resource limits](/guardrails/resource-limits)) blocks entire resource types — for example, blocking `relational-database` entirely. The `database-engine-restriction` guardrail is more granular: it allows relational databases but limits which engines can be used. Use engine restriction when you want databases but need to standardize on specific engines.
+
+### What's the difference between guardrails and alarms for database governance?
+
+[Guardrails](/guardrails/overview) are **preventive** — they block non-compliant deployments before infrastructure changes happen. [Alarms](/observability/alarms) are **reactive** — they monitor runtime metrics (CPU usage, connection count, storage) and notify you when thresholds are crossed. Use guardrails to enforce policy at deploy time; use alarms to monitor health at runtime. They complement each other but serve different purposes.
+
+### Can I restrict databases to specific AWS Availability Zones?
+
+Database guardrails do not control Availability Zone placement. AZ selection for RDS and Aurora is managed by AWS based on the chosen region and high-availability settings (like `multiAz` for RDS). To control which AWS regions your team can deploy to, use the [region restriction guardrail](/guardrails/deployment).
+
+### Should I enable all database guardrails for production?
+
+For most production environments, enabling VPC-only databases and deletion protection provides the highest-value safety net with minimal friction. Engine restriction is worth enabling once your organization has standardized on a database engine family. Instance restriction is most useful for cost control in larger teams where developers have autonomy to choose instance sizes. Start with VPC and deletion protection, then add the others as your team's conventions solidify.

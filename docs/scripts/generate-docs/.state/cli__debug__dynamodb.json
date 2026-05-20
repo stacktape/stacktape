@@ -1,0 +1,657 @@
+{
+  "pageId": "cli__debug__dynamodb",
+  "pageRoute": "cli/debug-dynamodb",
+  "startedAt": "2026-05-17T22:46:37.777Z",
+  "updatedAt": "2026-05-17T22:53:42.825Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__debug__dynamodb\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Every operation gets its own H3 section with a realistic, copyable example that includes all required flags — a first-time user can copy and run immediately.",
+            "Default values are correctly documented from source (operation defaults to `sample`, limit defaults to `100`), helping readers avoid unnecessary flag research.",
+            "The scan vs. query tradeoff ('scans are expensive on large tables — prefer query when you know the partition key') gives the target audience the most useful piece of decision guidance on this page.",
+            "The intro paragraph is concise, self-contained, and reads well as an AEO snippet.",
+            "The `<CliCommandsApiReference>` component is used for the authoritative flags table, not hand-authored YAML or a bespoke table replacement."
+          ],
+          "problems": [
+            "Agent mode section claims output is 'JSONL format' but the source code (`JSON.stringify({...}, null, 2)`) emits a single pretty-printed multi-line JSON object, not newline-delimited JSONL. This is a factual mismatch with the source.",
+            "The 'Important flags' table is hand-authored and partially redundant with the auto-generated `<CliCommandsApiReference>` section that follows it. It covers only the DynamoDB-specific flags and omits universal required flags (`--stage`, `--region`), which could mislead a reader scanning just that table into thinking those aren't required.",
+            "The Related commands section lists 5 commands; the CLI section instructions specify 1-3 closest siblings. The list includes `debug:aws-sdk` which is a much broader escape-hatch tool and not a close sibling in the same way the database-specific debug commands are."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the agent mode claim: replace 'structured JSON (JSONL format)' with 'a single JSON object' since the source emits `JSON.stringify({...}, null, 2)` — one pretty-printed object, not NDJSON.",
+            "Either remove the 'Important flags' table or expand it to include all required flags (`--stage`, `--region`, `--resourceName`) so it can stand alone as a quick-reference. As-is, it creates a false impression that only the five listed flags matter.",
+            "Trim Related commands to 2-3 closest siblings (e.g., `debug:sql`, `debug:redis`, `debug:opensearch`). `debug:aws-sdk` and `debug:logs` are less directly related and dilute the list.",
+            "Add a one-sentence note about IAM permissions — the command uses the deploying user's AWS credentials (or a debug agent role) and needs `dynamodb:Scan`, `dynamodb:Query`, `dynamodb:GetItem`, and `dynamodb:DescribeTable` on the target table. Readers deploying into restrictive accounts will hit access-denied errors without this context.",
+            "The `--region` flag is missing from the 'Important flags' table but is required per source (`requiredArgs: ['region', 'stage', 'resourceName']`). If the table is kept, add `--region` with a note that it can be set as a default via `defaults:configure`."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Every operation (scan, query, get, schema, sample) has its own H3 with a purpose statement and a copyable, realistic bash example — the query section even shows three variants (basic, with sort key, with secondary index), all in separate blocks following the one-command-per-block rule.",
+            "Defaults are grounded in source: operation defaults to `sample` and limit defaults to `100` both match `src/commands/debug-dynamodb/index.ts` exactly.",
+            "Agent mode gets its own short section explaining the output format change — useful for teams building automation.",
+            "Related commands section correctly links all four sibling debug commands plus `debug:aws-sdk`, giving the reader a clear mental map of the debug:* surface.",
+            "The lead paragraph is self-contained, names all five operations, and explains the practical reason to reach for this command (no SDK code, no AWS Console)."
+          ],
+          "problems": [
+            "The 'Important flags' table omits `--stage` and `--region`, both of which are listed as required in the source (`requiredArgs: ['region', 'stage', 'resourceName']`). A reader who uses only the table as a reference will see only `--resourceName` marked required and may try running the command without `--stage` or `--region`, causing a confusing error.",
+            "The 'Important flags' table duplicates a subset of `<CliCommandsApiReference>` that appears just below it. The intermediate table adds modest value for the DynamoDB-specific flags (`--pk`, `--sk`, `--index`) but its incompleteness (missing required `--region` / `--stage`) makes it subtly misleading. The section instructions say to use the auto-generated component and not hand-author the flags table.",
+            "The page structure places the full 'Operations' section (which functions as the examples block) before both the flags table and the auto-generated reference. This is acceptable, but the recommended CLI rhythm is: intro → usage → auto-generated reference → non-obvious examples → related commands. Inserting a redundant intermediate flags table between the examples and `<CliCommandsApiReference>` creates visual clutter without adding net information.",
+            "No FAQ section. While CLI pages have narrower scope, the source-grounded guidance still recommends FAQ for reference pages. Even four focused Q&As (e.g. 'Does scan read the entire table?', 'When should I use query vs scan?', 'Do I need special IAM permissions?', 'What happens if the resource is not a DynamoDB table?') would meaningfully improve AEO discoverability for searches about DynamoDB inspection from the command line."
+          ],
+          "mandatoryFixes": [
+            "Fix the 'Important flags' table: add `--stage` (required) and `--region` (required) as rows, or remove the table entirely and rely solely on `<CliCommandsApiReference>`. As written, marking only `--resourceName` as required contradicts the source definition and will mislead users trying to use the table as a quick reference."
+          ],
+          "optionalImprovements": [
+            "Remove or narrow the 'Important flags' hand-authored table. If kept, limit it to the DynamoDB-specific flags (`--pk`, `--sk`, `--index`, `--operation`, `--limit`) and add a note that `--stage` and `--region` are also required (linking to the full flags reference below). This avoids duplicating the auto-generated component while still surfacing the unique flags.",
+            "Add a short FAQ section (4-6 entries). Suggested questions grounded in real user confusion: 'Does `scan` read the entire table and affect cost?'; 'When should I use `query` instead of `scan`?'; 'What IAM permissions does this command need?'; 'What happens if the resource is not a DynamoDB table?'; 'Can I use `--index` with the `get` operation?' (answer: no, only `query` supports `--index` per source code).",
+            "In the `scan` operation prose, briefly note the AWS cost implication: scan reads every item in the table and consumes read capacity units proportional to table size. This is non-obvious for users on provisioned-capacity tables and directly affects whether someone should prefer `query`."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is self-contained, concrete, and within the target length for answer extraction.",
+            "Usage examples are realistic, one command per shell block, and include the required `--stage`, `--region`, and `--resourceName` flags.",
+            "The page clearly names the five supported operations and gives practical examples for `sample`, `schema`, `scan`, `query`, and `get`.",
+            "Related commands are relevant and useful for someone debugging deployed data resources."
+          ],
+          "problems": [
+            "The page hand-authors an `Important flags` table even though CLI pages must use the generated `<CliCommandsApiReference command=\"debug:dynamodb\" ... />` component for flags instead of manual flags tables.",
+            "The `Agent mode` prose says the command outputs JSONL, but `src/commands/debug-dynamodb/index.ts` emits `JSON.stringify(..., null, 2)` in agent mode for this command. The generated shared `--agent` description may say JSONL generally, but the command implementation is the stronger source for this page.",
+            "The page says `--resourceName` must match a `dynamodb-table` resource, while the command implementation checks for `resource.resourceType !== 'dynamo-db-table'`. The wording should match the source spelling or avoid naming the internal type.",
+            "The `Operations` section could be more scannable as a table because it compares five operation modes, their required flags, and intended use.",
+            "The page has no FAQ. CLI pages do not always need long FAQs, but this command has likely search questions around scans vs queries, read-only safety, required keys, index querying, and large-table cost/performance.",
+            "The `schema` operation description claims it describes key schema, attribute definitions, and indexes. That is plausible but not directly shown in the command source; if `db-client` source is not provided, narrow the wording to table structure/schema.",
+            "The `scan` section says scans are expensive on large tables, which is a useful DynamoDB fact, but the page could explain the practical Stacktape implication more directly: prefer `query` when the partition key is known and use `--limit` for inspection."
+          ],
+          "mandatoryFixes": [
+            "Remove the hand-authored `Important flags` table. Use only `<CliCommandsApiReference command=\"debug:dynamodb\" sortedArgs={...} />` for the flags table on this CLI page.",
+            "Correct the `Agent mode` section to match the command implementation. Say agent mode returns structured JSON for automation, but do not claim JSONL for `debug:dynamodb` unless the implementation is changed or a higher-priority source proves JSONL output for this command.",
+            "Replace `dynamodb-table` with the source-grounded `dynamo-db-table` internal resource type, or phrase it as “a deployed DynamoDB table resource” to avoid exposing an internal type name incorrectly."
+          ],
+          "optionalImprovements": [
+            "Convert `Operations` into a compact table with columns for operation, purpose, required flags, and best use case, then keep the detailed examples below it.",
+            "Add a short FAQ with 4-6 useful questions, such as “Is debug:dynamodb read-only?”, “When should I use query instead of scan?”, “How do I query a secondary index?”, and “Does debug:dynamodb require AWS SDK code?”.",
+            "Move non-obvious examples into an `Examples` section after the generated flags reference to match the CLI page structure: intro, usage, reference, examples, related commands.",
+            "Narrow unsupported implementation details, especially around `schema`, unless the db-client source is added to the source set.",
+            "Mention that `--limit` defaults to `100` near the relevant operations, because that default is grounded in `src/commands/debug-dynamodb/index.ts`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation, especially required flags, supported operations, default operation, `--pk` requirements, `--limit` default, and related CLI links. The main issues are a wrong resource type spelling, an agent-mode output claim that conflicts with the command implementation, and a few output/behavior details that are more specific than the provided source supports.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“The `--resourceName` must match the name of a `dynamodb-table` resource in your deployed stack.”",
+              "reason": "The command implementation checks for the resource type string `dynamo-db-table`, not `dynamodb-table`. The draft uses the wrong Stacktape resource type spelling.",
+              "suggestedFix": "Change the sentence to: “The `--resourceName` must match the name of a deployed `dynamo-db-table` resource.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "if (resource.resourceType !== 'dynamo-db-table')"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "'debug:dynamodb supports dynamo-db-table resources only'"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“When running with `--agent`, the command outputs structured JSON (JSONL format) instead of human-readable text.”",
+              "reason": "The specific `debug:dynamodb` implementation emits pretty-printed JSON with indentation in agent mode, not JSONL/NDJSON one-object-per-line output. The generic flag description says agent mode implies JSONL, but source priority says the command implementation is authoritative for command behavior.",
+              "suggestedFix": "Narrow the section to say that `--agent` switches the command to structured JSON output. Do not call it JSONL unless the implementation changes to emit one JSON object per line.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ ok: true, resource: resourceName, operation, ...result }, null, 2));\n  } else {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Describes the table's key schema, attribute definitions, and indexes.”",
+              "reason": "The provided command sources only show that a `schema` operation exists and calls `dynamoDbSchema(conn)`. They do not include the implementation or document the exact fields returned by the schema operation.",
+              "suggestedFix": "Use narrower wording grounded in the command source, such as: “Runs the `schema` operation for the deployed table. Use it before `query` when you need to inspect the table structure.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "case 'schema':\n      result = await dynamoDbSchema(conn);\n      break;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Supports operations: scan, query, get, schema, sample. All operations are read-only."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Reads items sequentially across the entire table (up to `--limit`).”",
+              "reason": "The source confirms the `scan` operation and the default/pass-through `limit`, but does not document sequential reading or full-table traversal semantics for Stacktape’s `dynamoDbScan` wrapper.",
+              "suggestedFix": "Phrase this as DynamoDB background rather than Stacktape-specific behavior, or narrow it to: “Runs the `scan` operation and passes `--limit` to the DynamoDB scan helper.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "case 'scan':\n      result = await dynamoDbScan(conn, { limit });\n      break;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "const { resourceName, operation = 'sample', pk, sk, index, limit = 100 } = args;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Fetches items matching a specific partition key. This is the most efficient way to look up data when you know the key. Use `--index` to query a secondary index instead of the primary key.”",
+              "reason": "The source confirms that `query` requires `--pk` and passes `pk`, optional `sk`, `index`, and `limit` to `dynamoDbQuery`. It does not document matching semantics or that `--index` queries a secondary index, although the flag description says “secondary index to query.” The efficiency sentence is general DynamoDB guidance, but should not read as a Stacktape-specific guarantee.",
+              "suggestedFix": "Keep the `--pk` and `--index` behavior, and frame efficiency as general DynamoDB guidance: “In DynamoDB, query is usually the right read path when you know the partition key.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "result = await dynamoDbQuery(conn, { pk: pkObj, sk: skObj, index, limit });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "longDescription: \"<p>Index name. For DynamoDB: secondary index to query. For OpenSearch: index to search.</p>\\n\""
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists the supported operations: `scan`, `query`, `get`, `schema`, and `sample`.",
+            "The draft correctly states that `debug:dynamodb` requires `--region`, `--stage`, and `--resourceName`.",
+            "The draft correctly states that omitted `--operation` defaults to `sample` and omitted `--limit` defaults to `100`.",
+            "The draft correctly documents that `--pk` is required for `query` and `get`, and that invalid `--pk` or `--sk` JSON produces an error.",
+            "The `<CliCommandsApiReference command=\"debug:dynamodb\" ... />` component uses the correct command name, and all related-command links point to routes present in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation: required flags, supported operations, default operation, `--pk` requirement for query/get, `--limit` default, and related links are largely grounded. I found several issues where the draft overstates output shape, uses the wrong DynamoDB resource type spelling, or misstates agent-mode output formatting.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`The --resourceName must match the name of a dynamodb-table resource in your deployed stack.`",
+              "reason": "The implementation checks for resource type `dynamo-db-table`, not `dynamodb-table`. This is a Stacktape-specific resource type string, so the docs should use the source-backed spelling.",
+              "suggestedFix": "Change `dynamodb-table` to `dynamo-db-table`, or avoid the raw type string and say `a DynamoDB table resource`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "if (resource.resourceType !== 'dynamo-db-table') {\n    throw new ExpectedError(\n      'CLI',\n      `Resource \"${resourceName}\" is not a DynamoDB table (type: ${resource.resourceType})`,\n      'debug:dynamodb supports dynamo-db-table resources only'\n    );"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`When running with --agent, the command outputs structured JSON (JSONL format) instead of human-readable text.`",
+              "reason": "The command implementation prints one pretty-formatted JSON object with `JSON.stringify(..., null, 2)`. That is structured JSON, but it is not JSONL/NDJSON for this command implementation.",
+              "suggestedFix": "Say that `--agent` outputs structured JSON for programmatic consumption. Do not call the `debug:dynamodb` command output JSONL unless the implementation changes.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ ok: true, resource: resourceName, operation, ...result }, null, 2));\n  } else {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`schema` \"Describes the table's key schema, attribute definitions, and indexes.\"",
+              "reason": "The provided command source only shows that `schema` calls `dynamoDbSchema(conn)`. The provided sources do not define the returned fields, so the specific claim about key schema, attribute definitions, and indexes is not grounded in the supplied source files.",
+              "suggestedFix": "Narrow the wording to the source-backed behavior, such as: `Runs the schema operation for the deployed DynamoDB table so you can inspect table structure before querying.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "case 'schema':\n      result = await dynamoDbSchema(conn);\n      break;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Supports operations: scan, query, get, schema, sample. All operations are read-only."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`scan` \"Reads items sequentially across the entire table (up to --limit).\"",
+              "reason": "The command source confirms the `scan` operation and that `limit` is passed to `dynamoDbScan`, but the provided source files do not specify sequential reading behavior or full-table traversal semantics for Stacktape's implementation.",
+              "suggestedFix": "Keep the practical warning but ground the behavior narrowly: `Runs the scan operation with the provided --limit. Scans can be costly on large DynamoDB tables, so prefer query when you know the partition key.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "case 'scan':\n      result = await dynamoDbScan(conn, { limit });\n      break;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`query` \"Fetches items matching a specific partition key\" and \"Use --index to query a secondary index instead of the primary key.\"",
+              "reason": "The implementation validates that `--pk` exists, parses `--pk`/`--sk` as JSON, and passes `index` through to `dynamoDbQuery`. It does not specify the exact query semantics or that `--index` targets a secondary index; only the generated flag description says `index` is a database index and, for DynamoDB, a secondary index to query.",
+              "suggestedFix": "Ground the wording in the implementation and flag description: `query requires --pk, accepts optional --sk, and passes optional --index as the DynamoDB secondary index name.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "const pkObj = JSON.parse(pk);\n        const skObj = sk ? JSON.parse(sk) : undefined;\n        result = await dynamoDbQuery(conn, { pk: pkObj, sk: skObj, index, limit });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "index: dbIndex.optional(),"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`get` \"Retrieves a single item by its exact primary key.\"",
+              "reason": "The implementation confirms that `get` requires `--pk`, parses optional `--sk`, and calls `dynamoDbGet`. The provided source does not explicitly state single-item or exact-primary-key behavior, even though that is normal DynamoDB terminology.",
+              "suggestedFix": "Use implementation-grounded wording: `Runs the get operation with --pk and optional --sk. Use --sk when the table key includes a sort key.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "case 'get':\n      if (!pk) {\n        throw new ExpectedError(\n          'CLI',\n          'Missing required flag: --pk for get operation',"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "const pkObj = JSON.parse(pk);\n        const skObj = sk ? JSON.parse(sk) : undefined;\n        result = await dynamoDbGet(conn, { pk: pkObj, sk: skObj });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists the supported operations: `scan`, `query`, `get`, `schema`, and `sample`.",
+            "The draft correctly states that `--region`, `--stage`, and `--resourceName` are required for `debug:dynamodb`.",
+            "The draft correctly states that omitting `--operation` defaults to `sample` and that omitting `--limit` uses `100`.",
+            "The draft correctly states that `query` and `get` require `--pk`, and that invalid `--pk` or `--sk` JSON produces an error.",
+            "The `<CliCommandsApiReference command=\"debug:dynamodb\" ... />` component matches the documented command, and all markdown links point to routes present in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page covers the required command, required flags, supported operations, and uses the generated CLI API reference. The main API-completeness risks are two source-level accuracy problems: the resource type spelling and the command-specific agent-mode output format.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The `--resourceName` must match the name of a `dynamodb-table` resource in your deployed stack.”",
+              "reason": "The command implementation checks for the deployed resource type string `dynamo-db-table`, not `dynamodb-table`. The page should not introduce a different resource type spelling.",
+              "suggestedFix": "Write: “The `--resourceName` must match the name of a deployed `dynamo-db-table` resource.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "if (resource.resourceType !== 'dynamo-db-table')"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "'debug:dynamodb supports dynamo-db-table resources only'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“When running with `--agent`, the command outputs structured JSON (JSONL format) instead of human-readable text.”",
+              "reason": "The command-specific implementation emits a pretty-printed JSON string in agent mode. The generic `--agent` flag reference mentions JSONL, but this page’s source for `debug:dynamodb` does not show JSONL output for the command result.",
+              "suggestedFix": "Narrow the command-specific prose to: “When running with `--agent`, the command emits structured JSON for programmatic consumption.” Avoid saying JSONL unless the implementation is changed to emit one JSON object per line.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ ok: true, resource: resourceName, operation, ...result }, null, 2));\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft names all five supported operations: `scan`, `query`, `get`, `schema`, and `sample`.",
+            "The usage example includes all required command flags: `--stage`, `--region`, and `--resourceName`.",
+            "The page uses `<CliCommandsApiReference command=\"debug:dynamodb\" ... />` instead of hand-authoring the full flag reference.",
+            "The documented `query` and `get` examples demonstrate the relevant `--pk`, `--sk`, and `--index` flags rather than reusing a generic scaffold."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__debug__dynamodb\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Each of the five operations gets its own subsection with a concise description and a complete, copyable example command — no hand-waving.",
+            "The `query` operation has three distinct examples (partition-key-only, with sort key, with GSI) that cover the realistic variants a new user will encounter.",
+            "Defaults are accurately grounded in source: `--operation` defaults to `sample`, `--limit` defaults to 100 — both stated in the right places and verified against the runtime code.",
+            "The `<Info>` callout explaining the JSON format for `--pk`/`--sk` is well-placed immediately after the `get` section where it's most likely to be needed.",
+            "The page correctly states that a config file is not required (matching `commandRequiresConfig: false` in source) — a detail many CLI pages get wrong.",
+            "FAQ covers all three required categories: Stacktape-specific questions, DynamoDB use-case questions (query vs scan efficiency), and choosing/comparison questions.",
+            "The intro paragraph is self-contained, names all five operations, and gives the reader enough context to decide whether to keep reading — good AEO opening.",
+            "Related commands section is complete and links exactly the right sibling commands without over-including."
+          ],
+          "problems": [
+            "The `sample` subsection says it returns 'a small number of items' but doesn't mention that `--limit` applies (defaulting to 100). The scan section documents this default but `sample` silently inherits it. A first-time user may not know they can control the output size.",
+            "The 'Agent mode' section describes output as containing 'metadata such as the resource name and operation type, wrapped in a single JSON object' — vague enough that a developer integrating programmatically won't know what fields to expect. The actual shape from source is `{ ok: true, resource, operation, ...result }` and spelling this out would be more useful.",
+            "The scan operation prose says scans 'can be costly on large tables' without giving even a rough sense of the mechanism (reads every item in the table, billed per read capacity unit consumed). This leaves a low-AWS-experience reader unsure whether 'costly' means slow, expensive, or both.",
+            "No mandatory style violations were found. All bash blocks are single-command. No YAML Stacktape config. No StacktapeConfig type imports. No PropertiesTable. No multiple ApiReference blocks."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the `sample` subsection, add one sentence noting that `--limit` controls how many items are returned (default 100), consistent with how the scan section handles this.",
+            "In the 'Agent mode' section, show the actual output shape from source — `{ ok: true, resource: \"<resourceName>\", operation: \"<operation>\", ... }` — so developers integrating with scripts or AI tools know exactly what fields to parse.",
+            "Expand the scan cost warning from 'can be costly on large tables' to something like 'DynamoDB scans read every item in the table partition by partition; on large tables this consumes significant read capacity and can be slow — prefer `query` whenever you know the partition key.' This gives the low-AWS reader enough to act on.",
+            "Consider adding a one-sentence note in the `query` subsection that the `--index` flag is only valid for the `query` operation, not `get` — this prevents a common misuse.",
+            "The FAQ answer for '--limit defaults to?' says 'This applies to scan, query, and sample operations' but the source default in `dynamoDbSample` may not use the same limit path as scan. If the sample operation uses its own default, consider verifying and narrowing the claim to 'scan and query' or confirming sample honors the same flag."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All five operations are documented individually with realistic, copyable examples — no operation is treated as a one-liner afterthought.",
+            "Defaults are correctly stated and source-grounded: `sample` as the default operation and `100` as the default limit both match the runtime source.",
+            "The FAQ mixes Stacktape-specific, AWS-level, and comparison questions well (query vs scan tradeoff, GSI usage, JSON format for keys) — directly addresses what a developer would search for.",
+            "The command correctly uses `<CliCommandsApiReference>` with a complete `sortedArgs` list; no hand-authored flag table.",
+            "Agent mode is documented with its output shape described accurately against the tuiManager.info call in the source.",
+            "The 'Related commands' section links the four closest sibling debug commands, giving the reader a clear navigation path.",
+            "No mandatory style violations: no hand-authored YAML, no StacktapeConfig import pattern, no multi-command bash blocks, no marketing language."
+          ],
+          "problems": [
+            "The agent mode section describes the output as 'wrapped in a single JSON object' but the --agent flag's longDescription (included in sortedArgs) states it uses 'strict JSONL/NDJSON output (one JSON object per line)'. These two descriptions conflict and could mislead a developer building tooling on top of the output. The runtime code calls tuiManager.info with a single stringified object, but the flag definition implies NDJSON — the page should acknowledge this discrepancy or clarify what actually comes out.",
+            "The `## Usage` section shows the minimal invocation and explains the required flags, but does not explicitly state what output the user sees when they run the default `sample` operation — a developer running this for the first time won't know if they'll get a table, a JSON blob, or something else. One sentence on the expected output shape would reduce friction.",
+            "The `operation` flag's auto-generated shortDescription in sortedArgs reads 'Database Operation' with longDescription 'The operation to perform (varies by database type).' — a developer reading only the flags table gets no indication of which values are valid for DynamoDB. The page does cover this in the Operations section, but the flags table entry could benefit from the supported values being listed in the component data (allowedValues array is absent for `operation`)."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Clarify the agent mode output format: confirm whether `--agent` produces a single JSON object or NDJSON for this command, then align the prose with the actual runtime behavior. If the result is always a single object (because debug:dynamodb produces one logical result), say so explicitly and contrast it with commands that stream multiple lines.",
+            "Add one sentence to the `## Usage` section describing the default output shape (e.g. 'The output is a JSON object containing the items returned and metadata about the operation') so a first-time user knows what to expect before running the command.",
+            "Add `allowedValues: ['scan', 'query', 'get', 'schema', 'sample']` to the `operation` entry in the `sortedArgs` passed to `<CliCommandsApiReference>` so the flags table itself surfaces the valid values — readers who jump straight to the reference will find them without scrolling up.",
+            "The `scan` prose warns about cost on large tables and recommends preferring `query` — consider adding a similar note in the scan FAQ answer or a brief callout, since this is a real production gotcha that a developer hitting a large table will encounter.",
+            "The `get` section does not mention that `--limit` has no effect on `get` (single-item retrieval by exact key). A one-liner noting this would prevent confusion for developers who habitually add `--limit` to all debug commands."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly states what `debug:dynamodb` does and why a developer would use it.",
+            "The page follows the requested CLI-page rhythm: short command purpose, usage example, generated flags reference, examples, related commands, and FAQ.",
+            "Command examples are realistic, one command per shell block, and include the required `--stage`, `--region`, and `--resourceName` flags.",
+            "The operations section gives practical decision guidance for `query` versus `scan`, including a useful DynamoDB cost-efficiency warning.",
+            "No forbidden Stacktape config patterns are present: no YAML Stacktape config, no `StacktapeConfig`, and no fenced TypeScript config examples."
+          ],
+          "problems": [
+            "Several technical claims go beyond the provided source. The draft says the command reads the deployed stack directly from AWS, uses a config file only for project context, returns table key structure from `schema`, and validates JSON with a hint; the provided runtime source only proves `commandRequiresConfig: false`, deployed resource lookup, JSON parsing, and specific thrown errors.",
+            "The `--agent` section is potentially inaccurate or over-specific. The runtime source shows `tuiManager.info(JSON.stringify(..., null, 2))`, while the generated flag text says JSONL/NDJSON; the draft's 'single JSON object' wording may be acceptable but should be narrowed to the command's actual behavior or sourced from shared output-format code if available.",
+            "The FAQ claims the Stacktape MCP server exposes DynamoDB debugging as a tool, but the provided sources only show the `mcp` and `mcp:add` command descriptions, not the actual MCP tool surface.",
+            "The page says `--limit` applies to `query`, `scan`, and `sample`, which is source-grounded, but the operations prose only mentions the default in `scan`; users may miss that `sample` and `query` also receive `limit`.",
+            "The `Operations` section is useful but could be easier to scan as a compact table before the detailed examples, especially because the page compares five operation modes.",
+            "The `Related commands` list has five items, exceeding the section instruction's 1-3 closest siblings. Some are relevant, but the instruction explicitly asks for 1-3 closest siblings."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported source-grounding claims: do not claim the command reads the deployed stack directly from AWS, uses a config file for project context, or that `schema` reveals exact key structure unless those behaviors are grounded in provided source files.",
+            "Remove or source the FAQ claim that the Stacktape MCP server exposes DynamoDB debugging as a tool. The provided source only supports that `mcp` starts a local MCP server with Stacktape tools and documentation, not this specific tool.",
+            "Reduce `Related commands` to 1-3 closest siblings as required by the CLI page instructions."
+          ],
+          "optionalImprovements": [
+            "Add a compact operations table with columns for operation, required flags, optional flags, and best use case. Keep the existing examples underneath for copyable commands.",
+            "Clarify `--limit` once near the operations table: the runtime default is `100`, and the value is passed to `sample`, `scan`, and `query`.",
+            "Tighten the agent-mode wording to avoid conflict with the generated flag description. For example, say `--agent` is intended for programmatic output and the command includes `ok`, `resource`, and `operation` in the JSON payload.",
+            "Link the first mention of `--agent` or `outputFormat` to any existing CLI output-format documentation if available.",
+            "Consider moving the JSON format note for `--pk` and `--sk` directly under both `query` and `get`, because those are the only operations where the runtime requires `--pk` and parses `--sk`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the command definition and implementation. The main factual risk is one unsupported Stacktape-specific claim about MCP exposing DynamoDB debugging directly; the core command behavior, required flags, operations, defaults, JSON parsing errors, and related routes are otherwise consistent with the provided sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape MCP server also exposes DynamoDB debugging as a tool, so agents like Claude Code or Cursor can query your tables without manual CLI invocations.”",
+              "reason": "The provided MCP command source says the MCP server provides tools for searching docs, managing deployments, and debugging infrastructure, but it does not specifically document a DynamoDB debugging tool or table-query capability. This is a Stacktape-specific capability claim and should not be stated without MCP tool source evidence.",
+              "suggestedFix": "Remove the DynamoDB-specific MCP sentence, or narrow it to: “For broader agent workflows, see the Stacktape MCP server setup.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "The server communicates over stdio using the MCP protocol. It is spawned by MCP-compatible clients (Claude Code, Cursor, etc.) and provides tools for searching Stacktape docs, managing deployments, and debugging infrastructure."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly identifies `region`, `stage`, and `resourceName` as required flags for `debug:dynamodb`.",
+            "The documented operations `scan`, `query`, `get`, `schema`, and `sample` match the command implementation and generated CLI summary.",
+            "The draft correctly states that `sample` is the default operation and that `limit` defaults to 100.",
+            "The `--pk` requirement for `query` and `get`, optional `--sk`, optional `--index`, and invalid JSON error behavior are grounded in `src/commands/debug-dynamodb/index.ts`.",
+            "The `<CliCommandsApiReference command=\"debug:dynamodb\" ... />` component uses the correct command name, and all internal documentation links point to routes present in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and runtime implementation. The main factual risk is over-describing agent-mode output as a single JSON object, while the generated flag reference says agent mode uses JSONL/NDJSON. A few other claims add behavior not visible in the provided source, but most core command facts are correct.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“When running with `--agent`, the command emits structured JSON for programmatic consumption … The output includes the operation result along with metadata such as the resource name and operation type, wrapped in a single JSON object.”",
+              "reason": "The draft says agent mode is a single JSON object, but the CLI argument reference describes `--agent` as strict JSONL/NDJSON output with one JSON object per line. The runtime currently calls `tuiManager.info(JSON.stringify(..., null, 2))`, but the page itself also includes the generated flag reference saying JSONL/NDJSON, so the prose conflicts with the command’s documented output-format semantics.",
+              "suggestedFix": "Say that `--agent` selects programmatic output and implies `--outputFormat jsonl`; avoid promising that the complete output is wrapped in a single JSON object. If you mention the command payload, narrow it to the result payload fields shown in runtime: `ok`, `resource`, `operation`, and the operation result.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "agent: agent.optional(),"
+                },
+                {
+                  "file": "Draft page / Flags reference",
+                  "quote": "Uses strict JSONL/NDJSON output (one JSON object per line)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape MCP server also exposes DynamoDB debugging as a tool, so agents like Claude Code or Cursor can query your tables without manual CLI invocations.”",
+              "reason": "The provided source only says the MCP server provides tools for searching docs, managing deployments, and debugging infrastructure. It does not specifically state that MCP exposes a DynamoDB debugging tool or that Claude Code/Cursor can query DynamoDB tables through it.",
+              "suggestedFix": "Remove the DynamoDB-specific MCP claim, or narrow it to the sourced general statement: “The Stacktape MCP server is intended for coding agents and provides debugging infrastructure tools.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "The server communicates over stdio using the MCP protocol. It is spawned by MCP-compatible clients (Claude Code, Cursor, etc.) and provides tools for searching Stacktape docs, managing deployments, and debugging infrastructure."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command does not require a configuration file — it reads the deployed stack directly from AWS. … If you do have a config file in the working directory, Stacktape uses it to resolve project context, but it is not required.”",
+              "reason": "The runtime source supports `commandRequiresConfig: false`, but it does not state that the command reads the deployed stack directly from AWS, nor does it show that a local config file is used to resolve project context when present. The command initializes services for working with a deployed stack and then uses `deployedStackOverviewManager`, but the exact project-context resolution behavior is not shown in the provided source.",
+              "suggestedFix": "Keep the supported part and remove the unsupported resolution detail: “The command does not require a Stacktape configuration file; the runtime initializes services for working with an already deployed stack.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: false,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Run `--operation schema` first if you are unsure of the index's key attributes.” and “Use `schema` to inspect the table's key structure.”",
+              "reason": "The source confirms there is a `schema` operation, but it does not describe the structure of the schema result or state that it includes index key attributes. That may be true in the lower-level DynamoDB debug client, but that file was not provided.",
+              "suggestedFix": "Narrow the wording to what is sourced: “Use `schema` to inspect schema information returned by the command before choosing `--pk`, `--sk`, or `--index`.” Avoid promising index key details unless the db-client source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "case 'schema':\n      result = await dynamoDbSchema(conn);\n      break;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Supports operations: scan, query, get, schema, sample. All operations are read-only."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Query a global secondary index” / “Can I query a global secondary index (GSI)? Yes.”",
+              "reason": "The CLI option description only says `index` is a secondary index to query. The provided source does not restrict or identify the index as a global secondary index. DynamoDB also has local secondary indexes, so saying GSI specifically is narrower than the source supports.",
+              "suggestedFix": "Use “secondary index” instead of “global secondary index” throughout, unless a provided DynamoDB client source proves only GSIs are supported.",
+              "evidence": [
+                {
+                  "file": "Draft page / Flags reference",
+                  "quote": "Index name. For DynamoDB: secondary index to query. For OpenSearch: index to search."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "result = await dynamoDbQuery(conn, { pk: pkObj, sk: skObj, index, limit });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“When `--limit` is not provided, the command defaults to returning up to 100 items. This applies to `scan`, `query`, and `sample` operations.”",
+              "reason": "The runtime default `limit = 100` is passed to `sample`, `scan`, and `query`, but the `get` and `schema` branches do not use `limit`. The statement is mostly correct, but it should be precise that the default value is set at argument destructuring and is only passed to those three operations.",
+              "suggestedFix": "Rewrite as: “The runtime defaults `--limit` to `100`; Stacktape passes that limit to `sample`, `scan`, and `query`. `get` and `schema` do not use `--limit`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "const { resourceName, operation = 'sample', pk, sk, index, limit = 100 } = args;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-dynamodb\\index.ts",
+                  "quote": "case 'sample':\n      result = await dynamoDbSample(conn, { limit });\n      break;\n\n    case 'scan':\n      result = await dynamoDbScan(conn, { limit });\n      break;\n\n    case 'query':"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly identifies `region`, `stage`, and `resourceName` as required arguments for `debug:dynamodb`.",
+            "The operation list `scan`, `query`, `get`, `schema`, and `sample` matches both the CLI command definition and runtime implementation.",
+            "The draft correctly states that `operation` defaults to `sample` and `limit` defaults to `100`, both of which are visible in the runtime source.",
+            "The `--pk` requirement for `query` and `get`, JSON parsing behavior, and malformed JSON error guidance are grounded in the runtime implementation.",
+            "All internal documentation links used in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the command's required flags, all documented DynamoDB operations, and uses demonstrative one-command shell examples. I found no API-completeness, union-variant, or code-example-demonstrativeness issues within the auditor scope.",
+          "issues": [],
+          "positiveFindings": [
+            "All required arguments for `debug:dynamodb` are shown in the primary usage example: `--stage`, `--region`, and `--resourceName`.",
+            "The page names and explains all five supported operations from the runtime source: `scan`, `query`, `get`, `schema`, and `sample`.",
+            "The `query` and `get` examples demonstrate the relevant operation-specific flags, including `--pk`, `--sk`, and `--index` where appropriate.",
+            "The page includes the required `<CliCommandsApiReference command=\"debug:dynamodb\" ... />` component instead of hand-authoring the full flags table.",
+            "Shell examples follow the one-command-per-block rule and include required flags."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\debug-dynamodb.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 8.0, hard blockers 1, advisory high 0, verifier medium 6"
+}

@@ -41,6 +41,7 @@ export const verifierSchema = {
     summary: { type: 'string' },
     issues: {
       type: 'array',
+      maxItems: 8,
       items: {
         type: 'object',
         additionalProperties: false,
@@ -73,12 +74,3 @@ export const verifierSchema = {
   }
 } as const;
 
-export const seoReviewerSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['score', 'suggestions'],
-  properties: {
-    score: { type: 'number' },
-    suggestions: { type: 'array', items: { type: 'string' } }
-  }
-} as const;

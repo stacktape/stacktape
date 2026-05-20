@@ -1,0 +1,649 @@
+{
+  "pageId": "cli__deploy",
+  "pageRoute": "cli/deploy",
+  "startedAt": "2026-05-15T23:50:22.443Z",
+  "updatedAt": "2026-05-16T00:05:21.021Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__deploy\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, accurate intro paragraph that immediately tells the reader what the command does and when to use it.",
+            "Important flags are broken out with prose explanations, code examples, and caveats — far more useful than a table-only reference.",
+            "Hot-swap warning callout is exactly right for a first-timer who might assume it's safe on production.",
+            "All required flags are shown in every example command — no reader will copy a broken command.",
+            "The 'Dev stacks cannot be deployed' section surfaces a real gotcha that would otherwise produce a confusing error.",
+            "The CliCommandsApiReference sortedArgs matches the source command definition exactly — no invented flags."
+          ],
+          "problems": [
+            "<FlowDiagram> is not part of the documented MDX component palette. It appears nowhere in the style guide or any provided source. If the component does not exist in the docs system, the 'What happens during deploy' section will render as nothing (or an error), leaving a silent content gap for the reader.",
+            "Related commands table has 7 entries. The CLI section instructions explicitly say 'linking to the 1-3 closest siblings'. Seven entries dilutes the signal — readers lose the sense of which commands are truly adjacent.",
+            "'All flags' (CliCommandsApiReference) is placed after 'Examples', reversing the prescribed CLI page structure (usage → auto-generated reference → examples → related commands). The important flags prose section also sits between Usage and the full reference, further fragmenting the flow.",
+            "Missing FAQ section. The general instructions require exactly 10 Q&A pairs on reference pages. A CLI reference page is a reference page and is not exempted by the section-specific instructions, which only say what to include, not that FAQ is prohibited."
+          ],
+          "mandatoryFixes": [
+            "Remove or replace <FlowDiagram steps={[...]} /> with a short prose paragraph or an ordered markdown list describing the deploy phases. FlowDiagram is not a documented MDX component and will silently fail to render if it does not exist in the docs system.",
+            "Trim the Related commands table to the 3 closest siblings. Per CLI section instructions the limit is 1-3. Recommended: codebuild:deploy (remote build alternative), preview-changes (safe pre-flight), and delete (lifecycle complement). The others (rollback, cf:rollback, dev, debug:logs) can be mentioned inline in prose where relevant, as they already are.",
+            "Reorder sections to match the prescribed CLI structure: (1) intro paragraph, (2) Usage, (3) All flags / CliCommandsApiReference, (4) Examples, (5) Related commands. The current order buries the auto-generated reference after Examples. The 'Important flags' narrative block can remain as an optional middle section between Usage and the full reference, but the reference must precede Examples."
+          ],
+          "optionalImprovements": [
+            "Add a 10-question FAQ section covering: Stacktape-specific questions (can I deploy multiple stages in parallel? what does a deploy cost?), AWS-level questions (what is CloudFormation? how long does a first deploy take?), and comparison questions (deploy vs codebuild:deploy? when should I use hotswap?). This is required on reference pages and drives significant search traffic.",
+            "Rename the H2 'Important flags' to 'Key flags' or 'Common flags' — 'Important' implies the others are unimportant, which may confuse readers consulting the full reference.",
+            "The 'What happens during deploy' section could note that the post-deploy step also prints resource URLs in the terminal — this is confirmed in the source (tuiManager.setPendingCompletion with resourceLinks) and is a key thing first-timers want to know.",
+            "The --disableDriftDetection section would benefit from one sentence on *when* drift detection is most likely to fire — e.g., after manual console edits during incident response — so the reader understands this isn't an everyday concern.",
+            "Consider explicitly noting the --stage maximum length of 12 characters (confirmed in the sortedArgs longDescription) somewhere in the Usage section, since it trips up first-timers who use long descriptive stage names."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Hot-swap section correctly captures the automatic fallback to full CloudFormation deploy when a change is not hot-swappable — grounded directly in the source code's warn path.",
+            "The 'Dev stacks cannot be deployed' gotcha is grounded in stpErrors.e141 and is easy to miss in real use; surfacing it explicitly prevents a confusing error.",
+            "Warning callout restricting --hotSwap to development stages is appropriately placed and adds real production safety context.",
+            "--disableAutoRollback explanation correctly distinguishes UPDATE_FAILED state from normal rollback, and links to cf:rollback for recovery — this is exactly the information a user stuck in a broken deploy needs.",
+            "Examples section covers all common invocation patterns (CI/CD, dev hot-swap, remote build) with copyable commands."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` component used in 'What happens during deploy' does not appear in any documented component palette in the style guide. If this component does not exist in the docs renderer, this entire section silently fails or errors. The content itself is valuable but the component is unverified.",
+            "`templateId` appears in the `sortedArgs` passed to `<CliCommandsApiReference>` with a description ('The ID of the template to download… available templates on the Config Builder page') that is semantically unrelated to deploying a stack. This description belongs to the `init` command. Including it in the deploy reference will confuse users about what flags actually affect a deploy.",
+            "The `--agent` flag is omitted from the 'Important flags' prose. The source documents it as enabling JSONL/NDJSON output, disabling interactive UI, and automatically confirming operations — behavior materially different from `--autoConfirmOperation` alone. Teams building automation pipelines over the CLI need this distinction.",
+            "Section instruction specifies the order: intro → usage → CliCommandsApiReference → examples → related commands. The page places CliCommandsApiReference at the end ('All flags') after the Examples section, inverting the prescribed structure for CLI reference pages.",
+            "Related commands table lists 7 entries; section instruction specifies 1-3 closest siblings. Several entries (debug:logs, dev) are only loosely related to the deploy flow."
+          ],
+          "mandatoryFixes": [
+            "Verify that `<FlowDiagram>` is a real, renderable component in this docs system. If it is not, replace the 'What happens during deploy' section with a numbered prose list or a plain markdown ordered list — the underlying content is valuable and should be preserved, just in a valid form.",
+            "Remove `templateId` from the `sortedArgs` array passed to `<CliCommandsApiReference command=\"deploy\">`, or confirm it is intentionally exposed on deploy and add a brief note explaining what it does in that context. As written, the 'download a template from the Config Builder' description is misleading on a deploy reference page."
+          ],
+          "optionalImprovements": [
+            "Add `--agent` to the 'Important flags' section. The source documents three distinct behaviors: strict JSONL output (one object per line), disabled interactive UI, and implicit auto-confirm. This is the correct flag for scripted callers and LLM agents, not `--autoConfirmOperation`.",
+            "Move `<CliCommandsApiReference>` to just after the Usage section, per the CLI section instruction. The 'Important flags' H3 subsections can follow as elaboration on specific flags, but the authoritative reference should appear earlier for readers who just want to look up a flag.",
+            "Trim related commands to 3-4 most operationally adjacent entries (preview-changes, delete, codebuild:deploy, rollback/cf:rollback). debug:logs and dev are loosely related and dilute the signal.",
+            "Add one sentence of prose context for `--disableDockerRemoteCache`. The source confirms it controls ECR-backed Docker layer cache reuse — disabling it forces a full layer rebuild, which matters for teams debugging broken image caches or testing clean builds.",
+            "The `--preserveTempFiles` flag saves CloudFormation templates and packaged resources to `.stacktape/[invocation-id]` per the source. One sentence in the Important flags section or a brief mention in the post-deploy context would help users who want to audit the generated template without running compile-template separately."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first opening paragraph is concise (~46 words), self-contained, and directly answers 'what is this and when do I use it' — highly extractable by AI engines.",
+            "The 'Important flags' section gives each key flag its own subsection with a realistic command example AND decision-support prose (when to enable, what the tradeoff is). The `--hotSwap` Warning callout is exactly the right level of emphasis for a production risk.",
+            "The 'Dev stacks cannot be deployed' section is grounded directly in `stpErrors.e141` from the source and surfaces a non-obvious gotcha that will save readers real debugging time.",
+            "Examples section covers five distinct realistic scenarios (new production stage, CI/CD, hot-swap dev, remote build, preview-before-deploy) — all copy-paste runnable with no placeholders.",
+            "The `<CliCommandsApiReference sortedArgs={...}>` component is used correctly and the sortedArgs list is complete and correctly reflects the deploy command's flag definitions from the source.",
+            "Related commands table is useful and well-formatted; each entry has a concrete one-sentence description distinguishing it from `deploy`."
+          ],
+          "problems": [
+            "FAQ section is entirely absent. CLI reference pages are reference pages and MUST include a 10-question FAQ mixing Stacktape-specific questions, underlying AWS service behavior (CloudFormation deployment mechanics, rollback behavior, artifact storage, drift detection), and comparison questions (deploy vs codebuild:deploy, deploy vs dev, when to use hotSwap). This is a required section for the persona.",
+            "`<FlowDiagram steps={[...]} />` component is not in the documented MDX component palette (style guide or section instructions). Its existence as a real rendered component is unverified. If it does not render, the 'What happens during deploy' section becomes broken MDX with invisible content.",
+            "Structure deviates from the CLI page section instruction order: the prescribed order is 'short paragraph → usage example → auto-generated reference → examples → related commands'. The draft inserts 'What happens during deploy', 'Important flags', and 'Dev stacks cannot be deployed' before the auto-generated reference, pushing `<CliCommandsApiReference>` to after the Examples section. The auto-generated reference should appear before examples.",
+            "Related commands table links to 7 commands. Section instructions state 'linking to the 1-3 closest siblings'. The extra links (`rollback`, `dev`, `debug:logs`) are tangential to the deploy flow; the table is useful but oversized.",
+            "`templateId` appears in `sortedArgs` but is not listed explicitly in the deploy command's own arg definitions in `commands.ts` — it is defined for the `init` command. This may be inherited via `configDependentArgs` but cannot be confirmed from the provided source; if it is not actually valid for `deploy`, it is a factual error in the flags table."
+          ],
+          "mandatoryFixes": [
+            "Add a FAQ section with exactly 10 Q&A pairs. Required coverage: (1) Stacktape-specific — 'What files does deploy look for by default?', 'Can I deploy without confirming?', 'What does hot-swap update?', 'How do I deploy to a specific AWS profile?'; (2) AWS behavior — 'How does CloudFormation rollback work?', 'What is stack drift and when does it block deployment?', 'Where are Lambda artifacts stored between deploys?'; (3) Comparison — 'When should I use codebuild:deploy instead of deploy?', 'deploy vs dev — which should I use locally?', 'When should I use hotSwap vs a full deploy?'.",
+            "Verify `<FlowDiagram>` is a valid, rendered MDX component in the Stacktape docs system. If it is not, replace the 'What happens during deploy' section with a numbered list or prose paragraph describing the five deploy phases — the content is valuable, the component wrapping it is unverified.",
+            "Move the `<CliCommandsApiReference>` block ('All flags') to appear immediately after the 'Usage' section, before 'Important flags' and 'Examples', to match the CLI page section instruction order: 'short paragraph → usage → auto-generated reference → examples → related commands'. Alternatively, if the current order is intentional, confirm it against a real example page.",
+            "Verify whether `templateId` is a valid argument for the `deploy` command (check what `configDependentArgs` includes in `src/config/cli/options.ts`). If `templateId` is not a real deploy flag, remove it from the `sortedArgs` array in `<CliCommandsApiReference>`."
+          ],
+          "optionalImprovements": [
+            "Trim the related commands table to the 3 closest siblings (codebuild:deploy, preview-changes, delete) and move dev and debug:logs to inline links in prose where they are first mentioned.",
+            "The 'What happens during deploy' flow diagram has good structural bones but the 'Build & package' step could be more precise: it should mention that Lambda packaging uses local buildpack/Dockerfile and container images are pushed to ECR. The current description ('Caches artifacts when possible') is too vague to be a citation target.",
+            "The `--disableDockerRemoteCache` flag is present in the `sortedArgs` but is not covered in the 'Important flags' section. Developers running large Docker image builds on slow connections will want to know ECR is used as a remote cache layer by default. Consider a brief mention.",
+            "Consider adding a one-liner about the `--agent` flag near `--autoConfirmOperation` — both are relevant to CI/CD and programmatic use. `--agent` also auto-confirms and switches to JSONL output, which many CI pipelines need.",
+            "The 'Dev stacks cannot be deployed' section could link to `stacktape dev` and `stacktape delete` inline rather than relying only on the reader finding them in the related commands table."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Stacktape looks for a configuration file (`stacktape.ts` or `stacktape.yml`) in the current directory.",
+              "reason": "The deploy command description in the source only mentions `stacktape.yml`: 'This command requires a valid Stacktape configuration file (`stacktape.yml`) in the current directory'. While the broader product supports TypeScript configs, the deploy command source text does not explicitly mention `stacktape.ts`.",
+              "suggestedFix": "Change to 'Stacktape looks for a configuration file (`stacktape.ts`, `stacktape.yml`, or `stacktape.yaml`) in the current directory' or match the source wording exactly. Alternatively, verify the full file-resolution logic and cite that source instead.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "This command requires a valid Stacktape configuration file (`stacktape.yml`) in the current directory, or you can specify a path using the `--configPath` option."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Hot-swap works only when every change in the stack is code-only (no infrastructure changes like new resources, permission changes, or environment variable updates).",
+              "reason": "The parenthetical enumeration 'new resources, permission changes, or environment variable updates' is the draft's interpretation of 'code-only changes'. The source says 'Hotswap will only be used if all stack changes are hot-swappable' without listing specific non-hot-swappable change types. The specific mention of 'environment variable updates' as non-hot-swappable is not confirmed by the source — the ECS hot-swap path in deploy/index.ts does update task definitions (which contain env vars), so env-var-only changes may actually be hot-swappable for container workloads.",
+              "suggestedFix": "Simplify to: 'Hot-swap works only when all changes in the stack are hot-swappable (code changes to Lambda functions and container workloads). If any change requires infrastructure modification, Stacktape falls back to a full CloudFormation deploy automatically.' Drop the speculative enumeration.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const containerWorkloadsToBeUpdated = (\n    await Promise.all(configManager.allContainerWorkloads.map((workload) => getECSHotswapInformation({ workload })))\n  ).filter(({ ecsTaskDefinition, ecsService }) => ecsTaskDefinition.needsUpdate || ecsService.needsUpdate);"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The `--stage` and `--region` required args correctly match the source: `requiredArgs: ['stage', 'region'] as const`.",
+            "The `--hotSwap` description accurately reflects the source behavior: falls back to full CloudFormation deploy when not all changes are hot-swappable, and the warning about development-only usage matches the source's 'recommended only for development stacks'.",
+            "The `--disableAutoRollback` description correctly matches the source's longDescription about `UPDATE_FAILED` state behavior and rollback default.",
+            "The `--disableDriftDetection`, `--noCache`, `--disableLayerOptimization`, and `--showSensitiveValues` flag descriptions all accurately reflect their source definitions.",
+            "The 'Dev stacks cannot be deployed' section is grounded in the source: `deploy/index.ts` checks `isDevStack()` metadata and throws `stpErrors.e141`.",
+            "The FlowDiagram steps (Validate, Build & package, Upload, Deploy, Post-deploy) accurately map to the deploy command's execution phases in the source code.",
+            "All cross-links point to valid routes in the documentation navigation index.",
+            "The `<CliCommandsApiReference>` sortedArgs data includes all flags from the deploy command definition (universalArgs + stackArgs + configDependentArgs + deploy-specific flags) with correct aliases, types, and required status.",
+            "The `<FlowDiagram>` component is confirmed to exist in the MDX component registry with the correct `steps` prop shape (title, description).",
+            "The Related commands table accurately describes sibling commands with correct route links."
+          ],
+          "summary": "The deploy CLI page is well-grounded in the source files. The command description, required arguments, flag behaviors, and deployment flow all match the source code in `commands.ts` and `deploy/index.ts`. Only two minor issues found: (1) the prose mentions `stacktape.ts` as a config file format alongside `stacktape.yml`, but the deploy command's source description only mentions `stacktape.yml`; (2) the hot-swap section enumerates specific non-hot-swappable change types (environment variable updates) that aren't explicitly listed in the source. All cross-links resolve to valid documentation routes. The CliCommandsApiReference data is complete and correct. The FlowDiagram component is confirmed valid."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the deploy command definition and implementation, especially required args, hotswap fallback, drift detection, rollback flag, and post-deploy bucket/CDN behavior. The main problems are a few unsupported or contradictory details in command behavior, plus an invented MDX component not listed in the allowed component checks.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"If you need to manually recover a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state, use [`cf:rollback`](/cli/cf-rollback).\"",
+              "reason": "The source says `cf:rollback` recovers CloudFormation stacks in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`, but the `disableAutoRollback` flag description says that without auto-rollback a failed deployment remains in `UPDATE_FAILED` and can be fixed by redeploying or manually rolling back using `stacktape rollback`, not `cf:rollback`. The draft's advice in the `--disableAutoRollback` section contradicts the flag description for the immediate recovery path.",
+              "suggestedFix": "In the `--disableAutoRollback` section, say the failed stack remains in `UPDATE_FAILED`; after debugging, fix and redeploy or manually roll back using [`rollback`](/cli/rollback). Keep `cf:rollback` only for CloudFormation native rollback recovery as described in its own command section.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "<li><strong>Without auto-rollback:</strong> If a deployment fails, the stack remains in the <code>UPDATE_FAILED</code> state. You can then either fix the issues and redeploy or manually roll back using the <code>stacktape rollback</code> command.</li>"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "This is useful if a stack update fails and leaves the stack in an `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. This uses CloudFormation's native rollback mechanism."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape looks for a configuration file (`stacktape.ts` or `stacktape.yml`) in the current directory.\"",
+              "reason": "The deploy command description in the provided source only states that `stacktape.yml` is required in the current directory, with `--configPath` available for another path. The provided source does not support the claim that `stacktape.ts` is also discovered by default for this command.",
+              "suggestedFix": "Narrow the wording to the sourced behavior, for example: \"The command requires a valid Stacktape configuration file in the current directory, or a file path passed with `--configPath`.\" If naming a default file from the provided source, name only `stacktape.yml`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "This command requires a valid Stacktape configuration file (`stacktape.yml`) in the current directory, or you can specify a path using the `--configPath` option."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"After a successful deploy, Stacktape prints the URLs and endpoints of your resources.\"",
+              "reason": "The implementation schedules `deployedStackOverviewManager.printShortStackInfo()` and separately prepares `resourceLinks` for TUI completion, but the provided source does not state that the CLI prints all URLs and endpoints. The command source supports that stack information or resource links are shown, not the precise guarantee in the draft.",
+              "suggestedFix": "Write more cautiously: \"After a successful deploy, Stacktape prints short stack information and shows resource links in the terminal completion output when available.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const resourceLinks = deployedStackOverviewManager.getResourceLinks();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Hot-swap skips CloudFormation and updates Lambda functions and container workloads directly.\"",
+              "reason": "The command definition says hotswap updates `functions` and `multi-container-workloads` directly. The deploy implementation also includes web-services, private-services, and worker-services via `configManager.allContainerWorkloads`, but the broad phrase \"container workloads\" can imply every container-based resource, including workload types not evidenced here. This is especially risky because the generated flag description names a narrower set.",
+              "suggestedFix": "Use the implementation-backed wording: \"Hot-swap skips CloudFormation and directly updates eligible Lambda functions plus eligible ECS-backed workloads, including web services, private services, worker services, and multi-container workloads.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "attempts a faster deployment for code-only changes by updating <code>functions</code> and <code>multi-container-workloads</code> directly, without using CloudFormation."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "// this includes web-services, private-services and worker-services\n  const containerWorkloadsToBeUpdated = ("
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"This makes code-only deploys significantly faster — seconds instead of minutes.\"",
+              "reason": "The source supports that hotswap is a faster deployment path for code-only changes, but it does not provide timing guarantees or typical timing ranges. \"Seconds instead of minutes\" is an unsupported numeric performance claim.",
+              "suggestedFix": "Remove the timing claim or make it non-numeric: \"This is intended for faster code-only deploys during development.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "If <code>true</code>, attempts a faster deployment for code-only changes by updating <code>functions</code> and <code>multi-container-workloads</code> directly, without using CloudFormation."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Dev stacks cannot be deployed... If you attempt this, Stacktape returns an error recommending you use a different stage name for production deploys.\"",
+              "reason": "The implementation clearly throws error `e141` when deploying to an existing dev stack, but the provided source does not include the error message or any recommendation to use a different stage name for production deploys. The recommendation text is not grounded in the provided command implementation or error-message source.",
+              "suggestedFix": "Keep the grounded behavior and remove the unsupported recommendation: \"If the target stack is marked as a dev stack, `deploy` throws an error instead of updating it.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "// Check if trying to deploy to an existing dev stack\n  if (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack())) {\n    throw stpErrors.e141({"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "`<FlowDiagram steps={[ ... ]} />`",
+              "reason": "The draft uses an MDX component that does not appear in the available MDX component examples or checks provided in the prompt. The source list does not include a component registry, so this is a component sanity concern rather than a proven factual error.",
+              "suggestedFix": "Replace the flow diagram with plain Markdown bullets or confirm `FlowDiagram` is an available docs component before publishing.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly documents `--stage` and `--region` as required for `deploy`.",
+            "The `CliCommandsApiReference` uses `command=\"deploy\"`, matching the one-command CLI page requirement.",
+            "The draft correctly links only to routes present in the provided documentation navigation index.",
+            "The hotswap fallback claim is grounded: the implementation warns and runs a full CloudFormation deploy when hotswap is not possible.",
+            "The draft correctly describes post-deploy bucket sync and CDN invalidation as conditional post-deploy actions."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page is broadly complete for the `deploy` CLI surface: it shows required usage, includes realistic invocations, and uses the generated `<CliCommandsApiReference command=\"deploy\" />` with the full argument set. I found no API-completeness, union-variant, or code-example demonstrativeness issues under the requested checks.",
+          "issues": [],
+          "positiveFindings": [
+            "The required `--stage` and `--region` arguments are documented in the usage example and match `requiredArgs: ['stage', 'region']` for `deploy`.",
+            "The draft includes the required generated flags table via `<CliCommandsApiReference command=\"deploy\" sortedArgs={...} />` instead of hand-authoring a flags reference.",
+            "Important deploy options surfaced by the command definition are either covered in prose/examples or present in the generated API reference, including `hotSwap`, `autoConfirmOperation`, `disableAutoRollback`, `disableDriftDetection`, `noCache`, `configPath`, `profile`, `projectName`, `agent`, and `outputFormat`.",
+            "No `<CodeBlock intellisense>` examples are present, so there are no Stacktape configuration example demonstrativeness issues to flag."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__deploy\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The 'What happens during deploy' section is genuinely valuable for first-timers — it demystifies the deploy lifecycle (validate, build, upload, deploy, post-deploy) in concrete terms rather than hand-waving about 'provisioning infrastructure'.",
+            "Per-flag prose in 'Important flags' goes well beyond the API reference table: each flag gets a realistic example invocation, a plain-English explanation of when to use it, and (for --hotSwap) an explicit warning about production risk.",
+            "The <Warning> callout for --hotSwap correctly scopes the risk to development stages and explains *why* — stack state drift — rather than just saying 'be careful'.",
+            "The 'Dev stacks cannot be deployed' section addresses a real gotcha that would be deeply confusing to someone who ran `stacktape dev` first; surfacing it here is the right call.",
+            "Examples section covers every materially different use case (basic, profiled, hotswap, CI/CD, debug-failing, preview, remote build) with correct flag combinations. These are all copy-pasteable without modification.",
+            "Related commands table is concise and accurate; links to codebuild:deploy, preview-changes, and delete are the correct three closest siblings.",
+            "The <CliCommandsApiReference> component is used correctly — no hand-authored flags table.",
+            "No forbidden patterns: no YAML blocks with `resources:`, no StacktapeConfig import, no fenced TypeScript with defineConfig, no PropertiesTable, no duplicate ApiReference."
+          ],
+          "problems": [
+            "The prescribed CLI page rhythm (lead paragraph → usage → auto-generated reference → examples → related) is inverted: 'What happens during deploy' and 'Important flags' appear before the <CliCommandsApiReference>, meaning a first-timer has to scroll past ~600 words before reaching the complete flags table. This is a rhythm deviation, not a factual error, but it buries the reference.",
+            "No FAQ section. General instructions mandate 10 Q&A pairs on reference pages. The CLI section instructions don't explicitly exclude FAQ, and the general rules say to add it on 'resource, concept, and reference pages'. CLI pages are reference pages. A deploy-specific FAQ (when to use hotswap vs full deploy, what to do when CloudFormation rolls back, cost of a deploy operation, when to use codebuild:deploy) would capture high-intent searches.",
+            "The '--disableLayerOptimization' flag is described in prose ('useful if you need to inspect the full function package') but has no accompanying command-line example, unlike every other Important flag. Inconsistent depth within the section.",
+            "The '--showSensitiveValues' flag lacks an inline example command, again inconsistent with the pattern established for all other flags in that section.",
+            "The 'Important flags' section does not cover '--profile', '--projectName', '--awsAccount', or '--currentWorkingDirectory'. These are genuinely useful for teams running multi-account or monorepo setups. At minimum, a one-line mention directing readers to the API reference for these would prevent confusion."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a 10-pair FAQ section before 'Related commands'. Good questions: (1) What happens if a deploy fails mid-way? (2) How do I roll back to a previous version? (3) Does deploy cost anything on its own? (4) When should I use --hotSwap vs full deploy? (5) How do I deploy from CI/CD without interactive prompts? (6) What's the difference between deploy and codebuild:deploy? (7) How do I deploy to multiple AWS accounts? (8) Can I preview what will change before deploying? (9) How long does a deploy take? (10) How do I deploy from a monorepo?",
+            "Reorder sections to match the prescribed CLI rhythm: lead paragraph → usage → (optionally a collapsed/callout 'How it works') → <CliCommandsApiReference> → Important flags / Examples → Related commands. Moving the reference higher lets readers who just want a flag description find it faster, while keeping the explanatory prose below for those who need it.",
+            "Add a bash example to '--disableLayerOptimization' (e.g. `stacktape deploy --stage dev --region eu-west-1 --disableLayerOptimization`) to match the pattern of every other flag in that section.",
+            "Add a bash example to '--showSensitiveValues' with a note pointing to the security caveat about CI/CD logs.",
+            "Consider a one-line mention of '--profile', '--projectName', and '--awsAccount' near the end of 'Important flags' (or a subsection 'Identity flags') so multi-account users are not surprised when they see them for the first time in the API reference table.",
+            "The 'What happens during deploy' section is valuable but dense as a numbered list. Converting it to a brief prose paragraph or a compact table (Phase | What happens | Skipped if) would reduce vertical space while retaining the information.",
+            "The rollback cross-link at the end of '--disableAutoRollback' correctly links to both /cli/rollback and /cli/cf-rollback. Consider adding a one-sentence 'when to use which' distinction inline — the current text links them without explaining the rollback vs cf:rollback split, which is subtle."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is self-contained and immediately actionable — states what the command does, when it creates vs updates, and what it requires.",
+            "Five-phase deploy breakdown (Validate → Build → Upload → Deploy → Post-deploy) is grounded in the actual source code and gives readers a mental model for debugging failures and understanding timing.",
+            "The --hotSwap Warning callout is appropriately placed and correctly states the fallback behavior (full CF deploy when not all changes are hot-swappable) — matched against source.",
+            "Dev-stack guard is documented as a concrete gotcha ('deploy throws an error instead of updating it') with the correct fix path, sourced from stpErrors.e141 in the command file.",
+            "Examples are realistic and copy-pasteable, covering the key scenarios: first deploy, CI/CD, debug failure, preview before deploy, remote build offload.",
+            "CliCommandsApiReference component is used correctly per CLI section instructions — flags are not hand-authored.",
+            "disableAutoRollback section accurately describes both the failure state (UPDATE_FAILED) and the recovery paths (redeploy or rollback or cf:rollback), all cross-linked."
+          ],
+          "problems": [
+            "Missing FAQ section. Global documentation requirements mandate exactly 10 Q&A pairs on reference pages. A CLI reference page is a reference page. The FAQ omission leaves high-intent searches unanswered ('What happens if stacktape deploy fails?', 'Can I deploy without interrupting traffic?', 'How do I deploy from CI/CD?', 'How does stacktape deploy differ from codebuild:deploy?').",
+            "The --disableLayerOptimization subsection lacks a usage example, creating an inconsistency — every other important flag section includes a bash snippet.",
+            "Drift detection timing is not mentioned. In practice, CloudFormation drift detection can add several minutes to a deploy on large stacks. Engineers planning production pipelines will hit this silently and wonder why their deploy is slow. This is a missing operational caveat.",
+            "The templateId flag appears in the sortedArgs passed to CliCommandsApiReference but templateId is not listed in the deploy command's explicit arg definition in commands.ts and is only present in the init command. If templateId is not a valid deploy flag, this is incorrect metadata surfaced in the flags table — readers would see a flag that does nothing."
+          ],
+          "mandatoryFixes": [
+            "Add a ## FAQ section with exactly 10 Q&A pairs. Required for reference pages per global documentation rules. Cover Stacktape-specific questions ('Can I skip the confirmation prompt?', 'What happens when deploy fails mid-way?', 'How do I deploy to multiple stages?'), AWS-behavior questions ('How long does CloudFormation take to provision resources?', 'What is CloudFormation drift?', 'Can I roll back a failed deploy automatically?'), and comparison questions ('When should I use deploy vs codebuild:deploy?', 'When is hotSwap safe to use?')."
+          ],
+          "optionalImprovements": [
+            "Add a bash snippet under --disableLayerOptimization for consistency with all other important flag subsections.",
+            "Add a one-sentence note under --disableDriftDetection that drift detection can add several minutes to a deploy on large stacks — engineers will notice this in production pipelines and benefit from the heads-up.",
+            "Verify whether templateId belongs in the sortedArgs for the deploy command. If it does not appear in the deploy command's args in commands.ts (only in init), remove it from the sortedArgs to prevent surfacing a non-functional flag.",
+            "Consider adding --disableDockerRemoteCache to the Important flags section for teams with Docker-heavy stacks — remote ECR caching is on by default and disabling it is a meaningful tradeoff (slower builds, avoids stale layer issues) worth calling out.",
+            "The --currentWorkingDirectory flag is useful for monorepo setups where the config file and source root differ; a one-sentence mention in the --configPath section would help monorepo users."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 6,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent 5-phase deploy process breakdown — concrete, ordered, and accurately reflects the source code flow (validate → build/package → upload → deploy → post-deploy).",
+            "Decision support for --hotSwap is strong: explains when to use it, when it falls back automatically, and includes an opinionated Warning callout restricting it to dev stages.",
+            "Examples section covers realistic scenarios (CI/CD, fast dev iteration, debugging failed deploys) with copyable bash commands that include all required flags.",
+            "Correct use of <CliCommandsApiReference> for the flags table — no hand-authored flags prose in the wrong place.",
+            "Cross-links to sibling commands (codebuild:deploy, preview-changes, delete, rollback, cf:rollback) are well-placed and contextually accurate.",
+            "The --disableAutoRollback section clearly distinguishes it from rollback and cf:rollback with correct scoping — avoids a common reader confusion."
+          ],
+          "problems": [
+            "Two H2 headings read as full sentences rather than compact noun-form labels: 'What happens during deploy' and 'Dev stacks cannot be deployed'. Per heading discipline rules, both should be shortened to 1-5 word labels (e.g., 'Deploy phases', 'Dev stack restriction'). This triggers the mandatory scannability penalty.",
+            "The 'Important flags' H2 has no introductory paragraph. When extracted as a snippet by an AI engine, it provides zero context — the reader jumps directly into ### --hotSwap with no framing sentence explaining which flags are covered or why they're called out.",
+            "Missing FAQ section. This is a CLI reference page, which is classified as a reference page requiring exactly 10 Q&A pairs. Common deploy questions (how to deploy to multiple regions, what to do when a deploy is stuck, how to pass secrets, how to integrate into GitHub Actions) are left unanswered.",
+            "Inconsistent depth across Important flags: --hotSwap and --disableAutoRollback get rich explanations with alternatives and code examples; --disableLayerOptimization and --showSensitiveValues have prose-only coverage with no code examples, making the section feel uneven.",
+            "The 'Dev stacks cannot be deployed' section heading is a full declarative sentence — triggers the mandatory heading-length rule."
+          ],
+          "mandatoryFixes": [
+            "Shorten full-sentence H2 headings to compact noun-form labels. 'What happens during deploy' → 'Deploy phases' (or 'How deploy works'). 'Dev stacks cannot be deployed' → 'Dev stack restriction'. Keep most H2s to 1-5 words per heading discipline rules.",
+            "Add an introductory sentence to the 'Important flags' (or renamed equivalent) H2 section so it is self-contained when extracted. For example: 'The flags below control deploy behavior and are the ones most commonly tuned in practice. The full set is in the flags table below.' This anchors the section for AI extractors that pull H2-level snippets."
+          ],
+          "optionalImprovements": [
+            "Add a 10-question FAQ section covering: (1) Stacktape-specific questions (how to skip confirmation in CI, what --configPath accepts, how to deploy multiple stages), (2) AWS-behavior questions (what happens to data during a stack update, how CloudFormation rollback works, how long a first deploy takes), and (3) comparison questions (deploy vs codebuild:deploy, when to use --hotSwap vs full deploy, deploy vs dev command).",
+            "Add a code example for --disableLayerOptimization to match the depth of the other Important flags subsections. The prose-only treatment leaves it feeling underdeveloped compared to --hotSwap.",
+            "Add a code example for --showSensitiveValues and explicitly mention that the output should not be captured by CI logs — the current 'Handle with care' is too vague for the audience.",
+            "Consider adding a one-sentence intro to the 'Examples' section naming what the subsections cover so AI engines can index into it (e.g., 'The examples below show common deploy patterns including CI/CD, hot-swap, and failure debugging.').",
+            "The --disableDockerRemoteCache flag is in the full flags table but silently omitted from Important flags with no explanation of when it matters. A one-sentence callout in the Important flags intro (or a brief note in the Build and package phase description) would help teams seeing slow Docker builds."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "claude",
+          "modelName": "cli-default",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "validates guardrails, and ensures referenced secrets and SSM parameters exist in your AWS account",
+              "reason": "The function names `ensureMissingSecretsCreated` and `ensureMissingSsmParamsCreated` indicate these steps interactively create missing secrets/SSM params rather than merely validating their existence. The phrase 'ensures...exist' technically covers this but may mislead readers into thinking the command only checks pre-existing values rather than potentially prompting for new ones.",
+              "suggestedFix": "Rephrase to 'validates guardrails, and creates any referenced secrets or SSM parameters that don't yet exist in your AWS account (prompting interactively if needed)' or similar wording that conveys the creation behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await ensureMissingSecretsCreated();\n  await ensureMissingSsmParamsCreated();"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "A deploy runs through five phases",
+              "reason": "The source code sets four named phases via eventManager.setPhase: BUILD_AND_PACKAGE, UPLOAD, DEPLOY, and POST_DEPLOY. The 'Validate' step described in the draft happens before any phase is set. Calling it 'five phases' is a reasonable user-facing simplification but doesn't precisely match the implementation's phase model.",
+              "suggestedFix": "Either call them 'five steps' instead of 'five phases' (since only four are internal phases), or note that validation is a pre-phase step. This is cosmetic and does not affect reader behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "eventManager.setPhase('BUILD_AND_PACKAGE');"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The --hotSwap description accurately reflects source behavior: the code shows it updates allContainerWorkloads (which includes web-services, private-services, and worker-services per the code comment) and allLambdasEligibleForHotswap, falling back to full CloudFormation deploy when isHotswapPossible is false.",
+            "The --disableAutoRollback section correctly distinguishes between `rollback` (previous deployment version) and `cf:rollback` (CloudFormation native rollback for UPDATE_FAILED state), matching the source descriptions of both commands.",
+            "The dev-stack guard is accurately described — the source shows `stpErrors.e141` is thrown when the stack has the `isDevStack` metadata flag set.",
+            "All cross-links point to valid routes in the documentation navigation index.",
+            "The CliCommandsApiReference sortedArgs data is consistent with the command definition in the source (deploy requires stage and region, includes universalArgs/stackArgs/configDependentArgs plus the specific deploy flags).",
+            "The --agent flag description correctly states JSONL output, disabled interactive UI, and auto-confirms operations — matching the source longDescription without incorrectly including the HTTP server behavior which is dev-command only.",
+            "The warning about --hotSwap and CloudFormation state drift accurately reflects production guidance consistent with the source's fallback-to-full-deploy logic."
+          ],
+          "summary": "The draft is well-grounded in the source files with no high or medium severity issues. All CLI flags, their descriptions, required/optional status, and behavioral claims accurately reflect the source code in commands.ts and deploy/index.ts. The two low-severity issues identified are: (1) a slight imprecision in describing secret/SSM parameter handling as validation rather than creation, and (2) calling the deploy workflow 'five phases' when the source code has four named internal phases. Neither would cause a reader to misconfigure anything. Cross-links are all valid, the CliCommandsApiReference data matches the source, and the hotSwap/rollback/drift-detection behavioral descriptions are correctly characterized."
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the deploy command definition and implementation, but it overstates several Stacktape-specific behaviors that are not supported by the provided deploy sources. The most important fixes are around hotswap scope, the default config filename, CI/CD prompting, and preserving temp files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Hot-swap skips CloudFormation and directly updates eligible Lambda functions plus eligible ECS-backed workloads, including web services, private services, worker services, and multi-container workloads.”",
+              "reason": "The deploy command description says hotswap updates functions and multi-container-workloads directly. The implementation does include container workloads, but the explicit CLI source only names functions and multi-container-workloads. Listing web/private/worker services as direct hotswap targets goes beyond the command reference and may mislead readers about which resource types are supported by the public CLI contract.",
+              "suggestedFix": "Narrow the sentence to: “Hot-swap attempts a faster code-only deploy by updating functions and multi-container workloads directly, without CloudFormation. In the implementation, Stacktape also evaluates container workloads for ECS hotswap.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "If `true`, attempts a faster deployment for code-only changes by updating `functions` and `multi-container-workloads` directly, without using CloudFormation. This is recommended only for development stacks. Hotswap will only be used if all stack changes are hot-swappable."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "// this includes web-services, private-services and worker-services\n  const containerWorkloadsToBeUpdated = (\n    await Promise.all(configManager.allContainerWorkloads.map((workload) => getECSHotswapInformation({ workload })))\n  ).filter(({ ecsTaskDefinition, ecsService }) => ecsTaskDefinition.needsUpdate || ecsService.needsUpdate);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“It validates your configuration, builds and packages your code, uploads artifacts, and provisions infrastructure through CloudFormation.” and the five-phase deploy sequence presented as complete behavior.",
+              "reason": "The implementation supports guardrail validation, secret/SSM preflight, packaging, upload, deploy, and post-deploy work, but the draft presents a simplified fixed sequence and says “validates your configuration.” The provided deploy source specifically calls `validateGuardrails`, not a general configuration validation function in this command body.",
+              "suggestedFix": "Change to cautious wording: “During deploy, Stacktape initializes and loads the stack configuration, validates guardrails, checks referenced secrets and SSM parameters, packages workloads, uploads deployment artifacts, and then performs a hotswap or CloudFormation deploy.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });\n\n  const issueDetectionPolicy = configManager.issueDetectionPolicy;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "await ensureMissingSecretsCreated();\n  await ensureMissingSsmParamsCreated();\n\n  eventManager.setPhase('BUILD_AND_PACKAGE');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Uploads packaged artifacts (zips, container images) to S3 and ECR in your AWS account.”",
+              "reason": "The provided deploy implementation only shows `uploadAllArtifacts`; it does not identify S3 or ECR as the upload destinations for the local deploy command. S3/ECR may be true elsewhere, but it is not grounded in the supplied source files.",
+              "suggestedFix": "Use source-grounded wording: “Uploads deployment artifacts before the stack update.” Avoid naming S3 and ECR unless artifact-manager source is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "eventManager.setPhase('UPLOAD');\n  await deploymentArtifactManager.uploadAllArtifacts({ useHotswap });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The command requires a valid Stacktape configuration file (`stacktape.yml`) in the current directory…”",
+              "reason": "The source description says `stacktape.yml`, but the docs style guide and page requirements explicitly document TypeScript config as the current source of truth. The draft later uses `./infra/stacktape.ts`, so saying `stacktape.yml` as the required default is misleading for this documentation set.",
+              "suggestedFix": "Phrase it as “a valid Stacktape configuration file in the current directory, or a file path passed with `--configPath`.” If you mention examples, include TypeScript: `stacktape.ts`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "This command requires a valid Stacktape configuration file (`stacktape.yml`) in the current directory, or you can specify a path using the `--configPath` option."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\deploy.md",
+                  "quote": "If the stack doesn't exist, it creates a new one. If it already exists, it updates it. This command requires a valid Stacktape configuration file (`stacktape.yml`) in the current directory, or you can specify a path using the `--configPath` option."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After a successful deploy, you can view the deployed stack in the Stacktape Console.”",
+              "reason": "The deploy implementation constructs a Console URL after successful deploy, but the provided source does not support a general Console workflow. The claim is probably fine at a high level, but should be tied to the actual behavior: Stacktape sets a completion link to the Console project/stage overview.",
+              "suggestedFix": "Change to: “After a successful deploy, Stacktape includes a Console URL for the deployed project and stage when reporting completion.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.stage}/overview`;\n  const resourceLinks = deployedStackOverviewManager.getResourceLinks();"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "tuiManager.setPendingCompletion({\n    success: true,\n    message: 'DEPLOYMENT SUCCESSFUL',\n    links: resourceLinks,\n    consoleUrl\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Required for CI/CD pipelines and non-interactive environments.” for `--autoConfirmOperation`.",
+              "reason": "The source says `--autoConfirmOperation` automatically confirms prompts during deploy/delete; it does not say the flag is required for CI/CD or all non-interactive environments. The implementation also has an `--agent` flag that implies auto-confirm, so “required” is too strong.",
+              "suggestedFix": "Use: “Use `--autoConfirmOperation` in CI/CD or other non-interactive runs when you want Stacktape to skip manual confirmation prompts. `--agent` also automatically confirms operations.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\boundariescommands.ts",
+                  "quote": "If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Automatically confirms operations (equivalent to --autoConfirmOperation)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“These files are saved to `.stacktape/[invocation-id]`.” in the generated flags table for `--preserveTempFiles`.",
+              "reason": "The provided source for the generated flag table claims this path, but this path is not visible in the authoritative deploy implementation shown. Because the draft embeds a generated table, verify the component will generate from current source rather than freezing potentially stale serialized flag data.",
+              "suggestedFix": "Keep `<CliCommandsApiReference command=\"deploy\" />` or regenerate `sortedArgs` from current CLI source during build. If hand-embedding sortedArgs is required, confirm the path against the temp-file implementation source before publishing.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "import { fsPaths } from '@shared/naming/fs-paths';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "if (configManager.stackInfoDirPath) {\n    await saveDetailedStackInfoMap({\n      detailedStackInfo,\n      outFormat: 'json',\n      filePath: fsPaths.stackInfoPath({\n        dirPath: configManager.stackInfoDirPath,\n        stackName: globalStateManager.targetStack.stackName\n      })\n    });\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Prompt for CI/CD setup after deploy” is omitted from the deploy flow, while the draft says post-deploy only syncs buckets, invalidates CDN caches, and prints stack information.",
+              "reason": "The implementation adds a final CI/CD setup prompt after successful creation of a new stack in CLI mode. The draft’s “Post-deploy” phase is framed as complete, so this omission makes the phase description too narrow.",
+              "suggestedFix": "Add a cautious sentence: “For newly created stacks in CLI mode, Stacktape can also add a final CI/CD setup prompt.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\deploy\\index.ts",
+                  "quote": "// Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode)\n  if (stackManager.stackActionType === 'create' && globalStateManager.invokedFrom === 'cli') {\n    eventManager.addFinalAction(() => promptCiCdSetupAfterDeploy());\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses the correct command route and documents exactly one CLI command.",
+            "The usage examples include both required flags, `--stage` and `--region`, matching the command definition.",
+            "The `<CliCommandsApiReference command=\"deploy\" ... />` command name matches the page command.",
+            "Links used in the draft point to routes present in the provided navigation index.",
+            "The dev-stack restriction is grounded in `commandDeploy`, which throws when an existing target stack is marked as a dev stack."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness audit found no publication-blocking completeness issues for /cli/deploy. The page documents the deploy command, includes required usage with --stage and --region, uses the generated CliCommandsApiReference for the full flag table, and the examples demonstrate the main deploy invocation patterns.",
+          "issues": [],
+          "positiveFindings": [
+            "The page uses <CliCommandsApiReference command=\"deploy\" /> instead of hand-authoring the full flags table.",
+            "Required deploy arguments are shown in the usage examples and match the source definition: stage and region.",
+            "Important deploy flags such as hotSwap, autoConfirmOperation, disableAutoRollback, noCache, disableDriftDetection, configPath, agent, disableLayerOptimization, and showSensitiveValues are documented in prose with command examples where appropriate.",
+            "No Stacktape configuration examples are present, so the forbidden YAML/plain-object/fenced-TypeScript config patterns are avoided.",
+            "The page links to closely related CLI commands: codebuild:deploy, preview-changes, delete, rollback, cf:rollback, and dev."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
+    "factual-accuracy-verifier": "claude:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\deploy.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 1, advisory high 0, verifier medium 5"
+}

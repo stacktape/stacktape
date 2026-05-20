@@ -1,36 +1,37 @@
 ---
 title: 'Batch Job'
 order: 35
-seoTitle: 'Batch Job: Run Containers to Completion | Stacktape Docs'
-seoDescription: 'Deploy batch jobs on AWS with Stacktape. Configure CPU, memory, and GPU compute. Automatic retries, Spot savings, and triggers from schedules, S3, SQS, and API events.'
+seoTitle: 'Batch Job | Stacktape Docs'
+seoDescription: 'Run containerized batch jobs on AWS with Stacktape. Configure CPU, memory, GPUs, retries, Spot capacity, triggers, packaging, and logs.'
 ---
 
 # Batch Job
 
-A batch job runs a container on AWS to completion and exits — for data processing, ML training, video encoding, ETL pipelines, and any task with a defined start and end. Stacktape provisions EC2 compute via AWS Batch matching your CPU, memory, and GPU requirements. You pay only for the duration each job runs.
+A Stacktape batch job runs one containerized task to completion for data processing, ML training, video encoding, imports, and similar work. Use a batch job when the workload has a clear end, may run for a long time, needs CPU, memory, or GPU sizing, and should start from a schedule, event, queue message, or HTTP request.
 
-**Pricing**: Billed per vCPU and memory for the duration each job runs — no charges between runs. Spot instances (`useSpotInstances`) can reduce costs by up to 90% for interruptible workloads.
+**Pricing context:** Batch jobs use Fargate-style vCPU and memory pricing while they run: approximately ~$7.29/month per 0.25 vCPU and ~$1.60/month per 512 MB when running continuously in us-east-1. Actual cost depends on job duration, resource size, and run frequency.
 
 ## When to use
 
-**Use a batch job when:**
+A Stacktape batch job is the right choice when work should start, run, and finish instead of staying online as a service. Common use cases:
 
-- Your task has a defined start and end — it processes data and then stops
-- You need GPU compute (ML training, inference, video encoding)
-- You want automatic retries with configurable backoff on failure
-- You need container-level control over the runtime environment
+- **Scheduled processing** — nightly imports, report generation, cleanup tasks, and periodic data syncs triggered with a schedule
+- **File-driven processing** — video transcoding, image processing, or document parsing triggered by S3 object events
+- **Event-driven jobs** — heavier work started by SQS, SNS, Kinesis, DynamoDB streams, CloudWatch logs, EventBridge, HTTP API Gateway, or an Application Load Balancer
+- **Compute-heavy jobs** — CPU- or GPU-sized work where `resources.cpu`, `resources.memory`, and optionally `resources.gpu` describe the job requirements
+- **Retryable tasks** — workloads that can safely run again after failure, timeout, or Spot interruption
 
-**Use something else when:**
+## When NOT to use
 
-| Situation | Better option |
-|-----------|---------------|
-| Event-driven request/response handlers | [Lambda function](/resources/compute/lambda-function) — scales to zero, pay per invocation |
-| Always-on API or web app | [Web service](/resources/compute/web-service) — container with a public HTTPS URL |
-| Continuous background processing | [Worker service](/resources/compute/worker-service) — always-on container without a public URL |
+- **Always-on HTTP services** — use [web-service](/resources/compute/web-service) when a container should continuously serve public HTTPS traffic.
+- **Internal always-on services** — use [private-service](/resources/compute/private-service) when other resources need a stable VPC-only endpoint.
+- **Long-running background consumers** — use [worker-service](/resources/compute/worker-service) when a process should stay alive and continuously poll or process work.
+- **Brief event handlers** — use a [Lambda function](/resources/compute/lambda-function) for brief event handlers that fit the Lambda runtime model. Use a batch job for containerized work, larger CPU or memory requirements, GPU workloads, or jobs modeled as run-to-completion containers.
+- **Non-idempotent side effects without safeguards** — avoid automatic retries and Spot capacity for jobs that charge cards, send emails, or mutate external systems in ways that cannot be safely repeated.
 
 ## Basic example
 
-This configures a batch job that processes data using a Node.js script:
+This example runs a containerized export job every night. The `resources` block asks for 2 vCPUs and 3840 MB of memory; the memory value is intentionally below 4096 MB because the source recommends using slightly less than powers of 2 to avoid over-provisioning when AWS reserves memory for system processes.
 
 <CodeBlock
   intellisense
@@ -38,24 +39,41 @@ This configures a batch job that processes data using a Node.js script:
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const processor = new BatchJob({
+  const nightlyExport = new BatchJob({
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
-        entryfilePath: './src/process.ts'
-      })
+      packaging: new CustomDockerfilePackaging({
+        buildContextPath: './jobs/nightly-export',
+        dockerfilePath: './Dockerfile',
+        command: ['node', 'dist/export.js']
+      }),
+      environment: [{ name: 'EXPORT_FORMAT', value: 'parquet' }]
     },
     resources: {
       cpu: 2,
-      memory: 4096
-    }
+      memory: 3840
+    },
+    timeout: 3600,
+    retryConfig: {
+      attempts: 3,
+      retryIntervalSeconds: 30,
+      retryIntervalMultiplier: 2
+    },
+    events: [
+      {
+        type: 'schedule',
+        properties: {
+          scheduleRate: 'cron(0 2 * * ? *)'
+        }
+      }
+    ]
   });
 
   return {
-    resources: { processor }
+    resources: { nightlyExport }
   };
 });
 // [!code focus-end]`
@@ -63,64 +81,27 @@ export default defineConfig(() => {
   ]}
 />
 
-```typescript
-// src/process.ts
-async function main() {
-  console.info('Starting data processing...');
-  // your processing logic here
-  console.info('Job complete');
-}
+`timeout` is the maximum runtime in seconds; when the job exceeds it, Stacktape kills the job and retries it if `retryConfig` is set. `retryIntervalMultiplier: 2` turns the retry delay into exponential backoff, so a 30-second interval becomes 30 seconds, 60 seconds, 120 seconds, and so on. AWS cron expressions in `scheduleRate` use UTC, so convert local business times before scheduling production jobs.
 
-main().catch((err) => {
-  console.error('Job failed:', err);
-  process.exit(1);
-});
-```
+## Container
 
-Your container receives `STP_TRIGGER_EVENT_DATA` (the trigger event payload), `STP_CURRENT_ATTEMPT` (1-indexed attempt number), and `STP_MAXIMUM_ATTEMPTS` (total configured attempts) as environment variables.
+The `container` block defines the image and runtime environment for a Stacktape batch job. A batch job has one container, unlike a [multi-container-workload](/resources/compute/multi-container-workload). Use `environment` for static job settings, and prefer [`$Secret()`](/configuration/secrets), [`$ResourceParam()`](/configuration/referenceable-parameters), or `connectTo` for credentials and resource connection details.
 
-The Stacktape image buildpack builds a container image from your source code automatically. For other packaging options (custom Dockerfile, prebuilt image, Nixpacks, external buildpack), see [container packaging](/packaging/containers/).
+Batch jobs support five container packaging modes: [Stacktape image buildpack](/packaging/containers/stacktape-buildpack), [custom Dockerfile](/packaging/containers/custom-dockerfile), [prebuilt image](/packaging/containers/prebuilt-image), [Nixpacks](/packaging/containers/nixpacks), and [external buildpack](/packaging/containers/external-buildpack). Most teams should start with the Stacktape image buildpack; use a custom Dockerfile or prebuilt image when the runtime environment is already standardized outside Stacktape.
 
-## CPU, memory, and GPU
+| Mode | When to use |
+|------|-------------|
+| [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) | Build an image from source with minimal container configuration |
+| [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Control the operating system packages, build steps, runtime image, and startup command |
+| [Prebuilt image](/packaging/containers/prebuilt-image) | Run an image that already exists in a registry and optionally override its command |
+| [Nixpacks](/packaging/containers/nixpacks) | Let Nixpacks detect the app and build an image from a source directory |
+| [External buildpack](/packaging/containers/external-buildpack) | Use Cloud Native Buildpacks with optional builder or buildpack selection |
 
-The `resources` property sets CPU, memory, and optional GPU for the job. Stacktape provisions EC2 instances through AWS Batch based on these requirements.
+## Compute resources
 
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
+The `resources` block tells Stacktape how much compute the batch job needs. `cpu` and `memory` are required, while `gpu` is optional. Stacktape lets AWS select matching capacity from those requirements, so most batch-job configs should describe CPU, memory, and optional GPU needs instead of choosing infrastructure directly.
 
-export default defineConfig(() => {
-  const processor = new BatchJob({
-    container: {
-      packaging: new StacktapeImageBuildpackPackaging({
-        entryfilePath: './src/process.ts'
-      })
-    },
-    // [!code focus-start]
-    resources: {
-      cpu: 4,
-      memory: 7680
-    }
-    // [!code focus-end]
-  });
-
-  return {
-    resources: { processor }
-  };
-});`
-    }
-  ]}
-/>
-
-<Tip>AWS reserves some memory on each instance for system processes. Request slightly less than a power of 2 — for example, use `7680` instead of `8192` to fit on a standard 8 GB instance without over-provisioning.</Tip>
-
-### GPU
-
-Set `gpu` to run on a GPU-capable instance. AWS Batch selects from GPU instance families (`p4d` for A100, `g5` for A10G) based on your requirements. Omit `gpu` for CPU-only workloads.
+Use more CPU for parallel processing, compression, rendering, or model inference that can use multiple cores. Use more memory for large in-memory transforms, batch aggregation, model loading, and jobs that process large files. Use `gpu` only for jobs that need GPU-backed compute, such as ML training or GPU-accelerated inference.
 
 <CodeBlock
   intellisense
@@ -131,10 +112,11 @@ Set `gpu` to run on a GPU-capable instance. AWS Batch selects from GPU instance 
       code: `import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
 
 export default defineConfig(() => {
-  const training = new BatchJob({
+  const trainer = new BatchJob({
     container: {
       packaging: new CustomDockerfilePackaging({
-        buildContextPath: './ml-training'
+        buildContextPath: './ml-training',
+        dockerfilePath: './Dockerfile'
       })
     },
     // [!code focus-start]
@@ -146,196 +128,19 @@ export default defineConfig(() => {
     // [!code focus-end]
   });
 
-  return {
-    resources: { training }
-  };
+  return { resources: { trainer } };
 });`
     }
   ]}
 />
 
-## Environment variables
-
-Use `container.environment` to inject custom environment variables into your job. Values can be static strings, `$ResourceParam()` references, or `$Secret()` directives.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const processor = new BatchJob({
-    container: {
-      packaging: new StacktapeImageBuildpackPackaging({
-        entryfilePath: './src/process.ts'
-      }),
-      // [!code focus-start]
-      environment: [
-        { name: 'BATCH_SIZE', value: '1000' },
-        { name: 'API_KEY', value: '$Secret(my-api-key)' }
-      ]
-      // [!code focus-end]
-    },
-    resources: {
-      cpu: 2,
-      memory: 4096
-    }
-  });
-
-  return {
-    resources: { processor }
-  };
-});`
-    }
-  ]}
-/>
-
-Variables from `connectTo` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`) are added automatically alongside any custom variables you define here. Stacktape also injects `STP_TRIGGER_EVENT_DATA`, `STP_CURRENT_ATTEMPT`, and `STP_MAXIMUM_ATTEMPTS` at runtime via the Step Functions state machine that orchestrates each job run.
-
-## Spot instances
-
-Enable `useSpotInstances` to use spare AWS EC2 capacity at up to 90% discount. If AWS reclaims the capacity, your container receives a `SIGTERM` signal and has 120 seconds to shut down gracefully before being terminated.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const importer = new BatchJob({
-    container: {
-      packaging: new StacktapeImageBuildpackPackaging({
-        entryfilePath: './src/import.ts'
-      })
-    },
-    resources: {
-      cpu: 2,
-      memory: 4096
-    },
-    // [!code focus-start]
-    useSpotInstances: true,
-    retryConfig: {
-      attempts: 3,
-      retryIntervalSeconds: 30
-    }
-    // [!code focus-end]
-  });
-
-  return {
-    resources: { importer }
-  };
-});`
-    }
-  ]}
-/>
-
-**Use Spot when** your job can safely restart from the beginning — data imports, image processing, ML training with checkpoints.
-
-**Avoid Spot when** your job has non-repeatable side effects (sending emails, charging payments) or must finish within a strict deadline.
-
-<Tip>Always pair `useSpotInstances` with `retryConfig` so interrupted jobs are automatically resubmitted.</Tip>
-
-## Retries
-
-Configure `retryConfig` to automatically retry jobs on failure, timeout, or Spot interruption.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const etl = new BatchJob({
-    container: {
-      packaging: new StacktapeImageBuildpackPackaging({
-        entryfilePath: './src/etl.ts'
-      })
-    },
-    resources: {
-      cpu: 2,
-      memory: 4096
-    },
-    // [!code focus-start]
-    retryConfig: {
-      attempts: 5,
-      retryIntervalSeconds: 10,
-      retryIntervalMultiplier: 2
-    }
-    // [!code focus-end]
-  });
-
-  return {
-    resources: { etl }
-  };
-});`
-    }
-  ]}
-/>
-
-The `retryIntervalMultiplier` scales wait times linearly with the attempt number. The wait before attempt *n* is `retryIntervalSeconds × n × retryIntervalMultiplier`. With the config above:
-
-- Before retry 1: 10 × 1 × 2 = 20s
-- Before retry 2: 10 × 2 × 2 = 40s
-- Before retry 3: 10 × 3 × 2 = 60s
-- Before retry 4: 10 × 4 × 2 = 80s
-
-Defaults: `attempts: 1`, `retryIntervalSeconds: 0`, `retryIntervalMultiplier: 1`.
-
-Your container receives `STP_CURRENT_ATTEMPT` and `STP_MAXIMUM_ATTEMPTS` environment variables so you can implement checkpoint/resume logic. Make your jobs idempotent so retries produce the same result.
-
-## Timeout
-
-Set `timeout` to limit how long a job can run, in seconds. If the job exceeds this limit, it is terminated. If `retryConfig` is set, the job is retried automatically after a timeout.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const etl = new BatchJob({
-    container: {
-      packaging: new StacktapeImageBuildpackPackaging({
-        entryfilePath: './src/etl.ts'
-      })
-    },
-    resources: {
-      cpu: 2,
-      memory: 4096
-    },
-    // [!code focus-start]
-    timeout: 3600,
-    // [!code focus-end]
-    retryConfig: {
-      attempts: 3
-    }
-  });
-
-  return {
-    resources: { etl }
-  };
-});`
-    }
-  ]}
-/>
-
-When `timeout` is omitted, the job runs until it completes or fails on its own. Use `timeout` as a safety net for jobs where runaway execution could waste resources.
+The `memory` value is in MB. The source recommends using slightly less than exact powers of 2 where possible; for example, `7680` MB can fit an 8 GB shape after AWS reserves memory for system processes. Omit `gpu` for CPU-only jobs so Stacktape can use non-GPU capacity.
 
 ## Triggers
 
-Batch jobs are started by events. Use the `events` property to configure what triggers the job.
+BatchJobProps accepts integration shapes used for schedules, HTTP API Gateway, S3, SNS, SQS, Kinesis, DynamoDB streams, CloudWatch logs, Application Load Balancer, and EventBridge events. Choose the trigger based on how work enters your system, then keep the batch-job handler idempotent because event retries can happen at the trigger layer or job layer.
+
+Use a schedule for periodic work, S3 for file-driven processing, SQS for job queues, EventBridge for domain events, and HTTP API Gateway only when callers should directly start a job. For the detailed shape of each event source, see the [triggers overview](/configuration/triggers/overview) and the dedicated trigger pages.
 
 <CodeBlock
   intellisense
@@ -343,71 +148,49 @@ Batch jobs are started by events. Use the `events` property to configure what tr
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging, HttpApiGateway } from 'stacktape';
+      code: `import { defineConfig, BatchJob, Bucket, CustomDockerfilePackaging } from 'stacktape';
 
 export default defineConfig(() => {
-  const gateway = new HttpApiGateway({});
+  const uploads = new Bucket({});
 
-  const report = new BatchJob({
+  const processor = new BatchJob({
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
-        entryfilePath: './src/generate-report.ts'
+      packaging: new CustomDockerfilePackaging({
+        buildContextPath: './jobs/process-upload',
+        dockerfilePath: './Dockerfile'
       })
     },
-    resources: {
-      cpu: 2,
-      memory: 4096
-    },
+    resources: { cpu: 2, memory: 3840 },
     // [!code focus-start]
     events: [
       {
-        type: 'schedule',
+        type: 's3',
         properties: {
-          scheduleRate: 'rate(1 day)'
-        }
-      },
-      {
-        type: 'http-api-gateway',
-        properties: {
-          httpApiGatewayName: 'gateway',
-          method: 'POST',
-          path: '/reports/generate'
+          bucketArn: '$ResourceParam(uploads, arn)',
+          s3EventType: 's3:ObjectCreated:*',
+          filterRule: {
+            prefix: 'incoming/',
+            suffix: '.csv'
+          }
         }
       }
     ]
     // [!code focus-end]
   });
 
-  return {
-    resources: { gateway, report }
-  };
+  return { resources: { uploads, processor } };
 });`
     }
   ]}
 />
 
-The `http-api-gateway` trigger requires a separate [HTTP API Gateway](/resources/networking/http-api-gateway) resource defined in your config. The `httpApiGatewayName` must match the resource name — here, `'gateway'` matches the key in `resources: { gateway, report }`.
+`s3EventType: 's3:ObjectCreated:*'` starts the job for object-created events. `filterRule.prefix` and `filterRule.suffix` narrow the trigger to relevant objects, which is usually better than starting expensive batch work for every file in a bucket.
 
-Batch job event types include:
+## Retries and timeouts
 
-| Trigger | Use case |
-|---------|----------|
-| `schedule` | Periodic jobs — daily reports, hourly data syncs |
-| `http-api-gateway` | On-demand jobs triggered by API calls |
-| `s3` | Process files on upload (images, CSVs, videos) |
-| `sqs` | Process queue messages |
-| `sns` | React to published notifications |
-| `kinesis-stream` | Process streaming data |
-| `dynamo-db-stream` | React to database changes |
-| `cloudwatch-log` | Process log events |
-| `application-load-balancer` | Start a job from an ALB integration rule |
-| `event-bus` | React to EventBridge events |
+Batch-job retries are useful when failures are transient, interruptions are expected, or the job can safely be repeated from the beginning. `retryConfig.attempts` defaults to 1, `retryIntervalSeconds` defaults to 0, and `retryIntervalMultiplier` defaults to 1 when the properties are omitted.
 
-See the API reference below for the required properties of each trigger type.
-
-## Connecting to other resources
-
-Use `connectTo` to grant your batch job access to databases, buckets, queues, and other resources in your stack. Stacktape automatically grants IAM permissions, opens network access where needed, and injects environment variables with connection details.
+Set `timeout` when a stuck job should be terminated instead of running indefinitely. If the timeout is exceeded, Stacktape kills the job and retries it when retry configuration is present. Keep retries conservative for jobs that mutate external systems, and make job handlers idempotent before increasing retry attempts.
 
 <CodeBlock
   intellisense
@@ -415,56 +198,197 @@ Use `connectTo` to grant your batch job access to databases, buckets, queues, an
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging, RelationalDatabase } from 'stacktape';
+      code: `import { defineConfig, BatchJob, PrebuiltImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
-  const db = new RelationalDatabase({
-    engine: {
-      type: 'postgres',
-      properties: { version: '16.4' }
-    },
-    sizing: {
-      type: 'serverless-v2',
-      properties: { minCapacity: 0.5, maxCapacity: 2 }
-    }
-  });
-
-  const migrator = new BatchJob({
+  const importer = new BatchJob({
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
-        entryfilePath: './src/migrate.ts'
+      packaging: new PrebuiltImagePackaging({
+        image: 'public.ecr.aws/example/importer:2026-05-01'
       })
     },
-    resources: {
-      cpu: 1,
-      memory: 2048
-    },
+    resources: { cpu: 4, memory: 7680 },
     // [!code focus-start]
-    connectTo: ['db']
+    timeout: 7200,
+    retryConfig: {
+      attempts: 4,
+      retryIntervalSeconds: 60,
+      retryIntervalMultiplier: 2
+    }
     // [!code focus-end]
   });
 
-  return {
-    resources: { db, migrator }
-  };
+  return { resources: { importer } };
 });`
     }
   ]}
 />
 
-Environment variables are injected in the format `STP_[RESOURCE_NAME]_[PARAM]`. For example, connecting to a relational database named `db` injects `STP_DB_CONNECTION_STRING`, `STP_DB_HOST`, and `STP_DB_PORT`.
+`PrebuiltImagePackaging` uses an existing container image, and the batch-job packaging type supports a `command` override when the image's Dockerfile `CMD` should not be used. Use prebuilt images when your CI pipeline already builds and publishes immutable images; use Stacktape-managed image builds when you want deployment to build the image from source.
 
-For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
+## Spot capacity
 
-For permissions not covered by `connectTo` (e.g., AWS Rekognition, Textract, Bedrock), use `iamRoleStatements` to add raw IAM policy statements.
+`useSpotInstances` tells Stacktape to use discounted spare AWS capacity for a batch job. The source documents savings up to 90%, but Spot jobs can be interrupted; when interruption happens, the container receives `SIGTERM` and has 120 seconds to shut down gracefully.
+
+Enable Spot for restartable jobs such as imports, image processing, and ML training with checkpoints. Keep regular capacity for strict deadlines, irreversible side effects, or jobs that cannot tolerate being restarted from the beginning. Combining Spot with `retryConfig` is the practical default when the job is idempotent.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, BatchJob, NixpacksPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const imageResizer = new BatchJob({
+    container: {
+      packaging: new NixpacksPackaging({
+        sourceDirectoryPath: './jobs/image-resizer',
+        startCmd: 'node dist/resize.js'
+      })
+    },
+    resources: { cpu: 2, memory: 3840 },
+    retryConfig: { attempts: 5, retryIntervalSeconds: 30 },
+    // [!code focus-start]
+    useSpotInstances: true
+    // [!code focus-end]
+  });
+
+  return { resources: { imageResizer } };
+});`
+    }
+  ]}
+/>
+
+`useSpotInstances` defaults to `false`, so omitting it keeps the job on regular capacity. In this example, `NixpacksPackaging` builds from `sourceDirectoryPath`, and `startCmd` overrides the command Nixpacks would otherwise infer.
+
+<Warning>Spot interruption is not a graceful deploy signal. Treat interrupted jobs as failed attempts, persist checkpoints outside the container, and design the handler so running the same input twice does not corrupt data.</Warning>
+
+## Connecting to other resources
+
+Use `connectTo` on a batch job when the job needs access to other Stacktape resources. Stacktape uses `connectTo` to grant modeled access and inject environment variables such as bucket names, bucket ARNs, queue URLs, topic ARNs, database connection details, and BatchJob reference parameters documented in [connecting resources](/configuration/connecting-resources).
+
+Prefer `connectTo` for Stacktape-managed resources because the relationship is readable and Stacktape can add the corresponding permissions or connection details. Use `iamRoleStatements` for AWS permissions that are not modeled as Stacktape resource connections, such as direct access to services like Textract, Rekognition, or Bedrock.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, BatchJob, Bucket, CustomDockerfilePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const exportsBucket = new Bucket({});
+
+  const reportJob = new BatchJob({
+    // [!code focus-start]
+    connectTo: ['exportsBucket'],
+    iamRoleStatements: [
+      {
+        Action: ['textract:StartDocumentAnalysis'],
+        Resource: ['*']
+      }
+    ],
+    // [!code focus-end]
+    container: {
+      packaging: new CustomDockerfilePackaging({
+        buildContextPath: './jobs/build-report',
+        dockerfilePath: './Dockerfile'
+      })
+    },
+    resources: { cpu: 2, memory: 3840 }
+  });
+
+  return { resources: { exportsBucket, reportJob } };
+});`
+    }
+  ]}
+/>
+
+Because the example resource is named `exportsBucket`, injected variables follow the `STP_EXPORTS_BUCKET_*` pattern, including bucket `NAME` and `ARN`. The `iamRoleStatements` example adds a separate IAM policy statement alongside the generated permissions; keep these statements narrow in real stacks instead of using broad resources unless the AWS API requires it.
 
 ## Logging
 
-Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with `stacktape logs`. Set `logging.retentionDays` to adjust retention, or `logging.disabled: true` to disable logging entirely.
+Batch-job logging controls container `stdout` and `stderr` sent to CloudWatch. `logging.disabled` defaults to `false`, and `logging.retentionDays` defaults to 90. Supported retention values include short windows such as 1, 3, and 7 days as well as long windows up to 3653 days.
 
-Batch job logging also supports forwarding logs to external destinations — Datadog, Highlight.io, or any HTTPS endpoint — via the `logging.logForwarding` property. Forwarding uses Kinesis Data Firehose (~$0.03/GB) with automatic S3 backup for failed deliveries. See [log forwarding](/operations/log-forwarding) for configuration details.
+Keep logging enabled for production jobs because failures often happen after the triggering request has already returned. Shorten retention for noisy, frequent jobs to control log storage cost. Disable logging only for low-value jobs where the loss of debugging history is an acceptable tradeoff. The source documents `stacktape logs` as the command for viewing container logs.
 
-## API reference
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, BatchJob, ExternalBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const cleanup = new BatchJob({
+    container: {
+      packaging: new ExternalBuildpackPackaging({
+        sourceDirectoryPath: './jobs/cleanup'
+      })
+    },
+    resources: { cpu: 1, memory: 1920 },
+    // [!code focus-start]
+    logging: {
+      retentionDays: 30
+    }
+    // [!code focus-end]
+  });
+
+  return { resources: { cleanup } };
+});`
+    }
+  ]}
+/>
+
+`retentionDays: 30` keeps one month of logs instead of the default 90 days. Use a shorter value for high-volume jobs whose logs are only useful during immediate incident response, and keep the default when failed job investigation often happens days or weeks later.
+
+## FAQ
+
+### What is a Stacktape batch job?
+
+A Stacktape batch job is a containerized task that runs to completion instead of staying online as a service. The BatchJob resource is designed for data processing, ML training, video encoding, imports, and similar work that has a beginning and an end. Use [web-service](/resources/compute/web-service) or [worker-service](/resources/compute/worker-service) for always-on containers.
+
+### How do I trigger a Stacktape batch job?
+
+A Stacktape batch job accepts `schedule`, `http-api-gateway`, `s3`, `sns`, `sqs`, `kinesis-stream`, `dynamo-db-stream`, `cloudwatch-log`, `application-load-balancer`, and `event-bus` event integrations. Pick the trigger that matches how work enters your system: schedules for periodic work, S3 for file events, SQS for queued jobs, and EventBridge for domain events. See [triggers overview](/configuration/triggers/overview).
+
+### Can a Stacktape batch job use a GPU?
+
+Yes. Set `resources.gpu` when the batch job needs GPU-backed compute, and omit `gpu` for CPU-only work. The active BatchJob resource shape exposes CPU, memory, and optional GPU requirements, then Stacktape lets AWS match capacity.
+
+### How do retries work for Stacktape batch jobs?
+
+`retryConfig` controls automatic retries after failure, timeout, or Spot interruption. `attempts` defaults to 1, `retryIntervalSeconds` defaults to 0, and `retryIntervalMultiplier` defaults to 1. Increase retries only for idempotent jobs that can safely run the same input again.
+
+### Should I use Spot capacity for a Stacktape batch job?
+
+Use `useSpotInstances: true` when the batch job can be interrupted and restarted from the beginning, such as image processing or ML training with checkpoints. The source documents savings up to 90%, but interrupted containers receive `SIGTERM` and only 120 seconds to shut down gracefully. Keep regular capacity for strict deadlines or non-repeatable side effects.
+
+### How much does a Stacktape batch job cost?
+
+The provided pricing source maps `batch-job` to Fargate-style vCPU and memory billing while the job runs. It lists approximately ~$7.29/month per 0.25 vCPU and ~$1.60/month per 512 MB when running continuously in us-east-1, with ARM around 20% cheaper where supported. For cost visibility, use [per-resource breakdown](/managing-costs/per-resource-breakdown).
+
+### Batch job vs Lambda function: which should I use?
+
+Use a [Lambda function](/resources/compute/lambda-function) for brief event handlers that fit the Lambda runtime model. Use a batch job for containerized work, larger CPU or memory requirements, GPU workloads, or jobs that are better modeled as a run-to-completion container. Batch jobs are usually the clearer fit for heavy data or media processing.
+
+### Batch job vs worker service: which should I use?
+
+Use a [worker-service](/resources/compute/worker-service) when a container should remain running and continuously process background work. Use a batch job when each unit of work should start a fresh container run, complete, and stop. Batch jobs are a cleaner fit for scheduled jobs, event-triggered processing, and workloads where idle containers would waste cost.
+
+### Where do Stacktape batch job logs go?
+
+Batch-job `stdout` and `stderr` are controlled by the `logging` block and sent to CloudWatch unless `logging.disabled` is set. `retentionDays` defaults to 90 and can be set to one of the supported CloudWatch retention values. The BatchJob source documents `stacktape logs` as the command for viewing container logs.
+
+### Can another resource reference a batch job?
+
+Resources and scripts that expose `connectTo` can connect to a BatchJob target. The source documents BatchJob reference values `JOB_DEFINITION_ARN` and `STATE_MACHINE_ARN`; the BatchJob resource also exposes `jobDefinitionArn`, `stateMachineArn`, and `logGroupArn` as referenceable parameters. See [connecting resources](/configuration/connecting-resources) and [referenceable parameters](/configuration/referenceable-parameters).
+
+## API Reference
 
 <ApiReference definitionName="BatchJobProps" />
 

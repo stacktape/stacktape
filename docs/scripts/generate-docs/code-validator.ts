@@ -471,7 +471,7 @@ export const validateMdxComponents = ({
       severity: 'medium',
       statement: `Page has ${apiReferenceCount} <ApiReference> components; resource pages should have exactly one.`,
       reason: 'Nested types render through the root <ApiReference>’s drill-down; extra <ApiReference> blocks duplicate work and split search/filter state.',
-      suggestedFix: 'Keep one <ApiReference definitionName="..." /> at the bottom; rely on its drill-down for nested types.'
+      suggestedFix: 'Keep exactly one <ApiReference definitionName="..." /> on the page (the writer picks its position — top, middle, or bottom); rely on its drill-down for nested types.'
     });
   }
 
@@ -496,7 +496,7 @@ export const validateMdxComponents = ({
         severity: 'high',
         statement: '<PropertiesTable> is no longer a public docs component.',
         reason: 'Resource pages must use <ApiReference /> for the API reference; <PropertiesTable> has been removed from the writer surface.',
-        suggestedFix: `Use <ApiReference definitionName="${replacementDefinitionName}" /> at the bottom of the page.`
+        suggestedFix: `Use <ApiReference definitionName="${replacementDefinitionName}" /> placed wherever fits the page's flow (top, middle, or bottom).`
       });
       continue;
     }
@@ -518,6 +518,17 @@ export const validateMdxComponents = ({
           suggestedFix: suggestion
             ? `Use <ApiReference definitionName="${suggestion}" />.`
             : 'Use a definitionName that exists in @generated/schemas/config-schema.json.'
+        });
+      }
+      // When the page metadata provides a canonical typeName, the ApiReference MUST use it
+      // exactly. Catches the recurring "ContainerWorkload" vs "ContainerWorkloadProps" bug
+      // where the writer drops the Props suffix and the validator's schema-existence check
+      // doesn't notice because both names exist as separate schema entries.
+      if (page.typeName && definitionName !== page.typeName) {
+        pushMdxIssue(issues, {
+          statement: `<ApiReference definitionName="${definitionName}" /> does not match the page's canonical typeName "${page.typeName}".`,
+          reason: `Resource pages must use the exact typeName from pages.ts (always ending in "Props"). "${definitionName}" is a different type — even if it exists in the schema, it's not the root type for this page.`,
+          suggestedFix: `Use <ApiReference definitionName="${page.typeName}" />.`
         });
       }
     }
@@ -570,6 +581,92 @@ export const validateMdxComponents = ({
     }
   }
 
+  // Heading hierarchy: "When NOT to use" must be a peer H2 of "When to use", never nested
+  // as H3 under it. Same TOC-breaking pattern shows up reliably across resource page drafts;
+  // catching it deterministically is cheaper than asking the LLM verifier to enforce.
+  if (/^###\s+When\s+NOT\s+to\s+use\b/mi.test(draft)) {
+    pushMdxIssue(issues, {
+      statement: '"When NOT to use" is nested as `### When NOT to use` (H3); should be `## When NOT to use` (H2).',
+      reason: '"When to use" and "When NOT to use" are PEER H2 decisions on resource pages. Nesting "When NOT to use" as H3 under "When to use" breaks the TOC and hides the negative-case guidance.',
+      suggestedFix: 'Promote `### When NOT to use` to `## When NOT to use`.'
+    });
+  }
+
+  return issues;
+};
+
+// Heuristic: detect fenced bash/sh code blocks that contain multiple alternative shell commands
+// separated by `# comment` labels (the copy-button trap). One copy of the block produces a multi-
+// command string with comment lines that don't run as input.
+const findCommandLikeLineCounts = (blockBody: string): { commandCount: number; hasInternalCommentLabels: boolean } => {
+  const lines = blockBody.split(/\r?\n/);
+  let commandCount = 0;
+  let hasInternalCommentLabels = false;
+  let prevLineWasContinuation = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      prevLineWasContinuation = false;
+      continue;
+    }
+    if (trimmed.startsWith('#')) {
+      // Internal comment. Skip shebangs (`#!/...`) — those are part of the script.
+      const isShebang = i === 0 && trimmed.startsWith('#!');
+      if (!isShebang) hasInternalCommentLabels = true;
+      prevLineWasContinuation = false;
+      continue;
+    }
+    if (prevLineWasContinuation) {
+      // Continuation of the previous command — don't count it as a new command.
+      prevLineWasContinuation = trimmed.endsWith('\\');
+      continue;
+    }
+    // Any non-comment, non-continuation, non-empty line in a shell block counts as a command
+    // start. We don't try to disambiguate "command vs output" because that's surprisingly
+    // error-prone (e.g. `stacktape` starts with `stack` which would false-positive as a stack
+    // trace marker). The cost of over-flagging is low — the writer can split the block, and
+    // the rare case of legitimate output goes in a separate fenced block anyway.
+    const looksLikeCommand = trimmed.length > 0;
+    if (looksLikeCommand) {
+      commandCount += 1;
+    }
+    prevLineWasContinuation = trimmed.endsWith('\\');
+  }
+  return { commandCount, hasInternalCommentLabels };
+};
+
+export const validateShellCommandBlocks = ({ draft }: { draft: string }): CodeValidationIssue[] => {
+  const issues: CodeValidationIssue[] = [];
+  const fenceRegex = /```(?:bash|sh|shell|zsh)\s*\r?\n([\s\S]*?)\r?\n```/g;
+  let blockIndex = 0;
+  for (const match of draft.matchAll(fenceRegex)) {
+    blockIndex += 1;
+    const body = match[1];
+    const { commandCount, hasInternalCommentLabels } = findCommandLikeLineCounts(body);
+    if (commandCount >= 2 && hasInternalCommentLabels) {
+      // The "two commands + label comments" combo is the copy-button trap.
+      issues.push({
+        severity: 'medium',
+        type: 'incorrect-claim',
+        statement: `Shell code block #${blockIndex}: multiple alternative commands grouped in one fenced block with \`#\` comment labels (copy-button trap).`,
+        reason:
+          'Copy-button copies the entire block as a single string; the user pastes two commands + comment lines and the second invocation fails. Each alternative invocation deserves its own fenced block with prose between them.',
+        suggestedFix:
+          'Split into one fenced bash block per command. Move the explanatory `# comment` labels out of the block into a prose sentence above each block.'
+      });
+    } else if (commandCount >= 1 && hasInternalCommentLabels) {
+      issues.push({
+        severity: 'low',
+        type: 'ambiguous-claim',
+        statement: `Shell code block #${blockIndex}: contains \`#\` comment label inside the block to explain the command.`,
+        reason:
+          'Comments inside a shell snippet leak into the copy buffer. Explanations belong in prose outside the block.',
+        suggestedFix: 'Move the explanation out of the code block into a prose sentence directly above it.'
+      });
+    }
+  }
   return issues;
 };
 
@@ -631,45 +728,52 @@ export const validateStacktapeConfigExamples = async ({ draft }: { draft: string
       });
     }
 
-    const formattedCode = await formatStacktapeExample(block.rawCode);
-    if (block.rawCode.trim() !== formattedCode.trim()) {
+    // Prettier formatting is auto-applied via autoFormatStacktapeBlocksInDraft before the
+    // draft hits reviewers/verifiers, so a residual mismatch here means the auto-format
+    // couldn't parse the block. Surface as low severity, not high — never block on this.
+    let formattedCode: string | null = null;
+    try {
+      formattedCode = await formatStacktapeExample(block.rawCode);
+    } catch {
+      // Parser already raised a high-severity syntax issue above; skip.
+    }
+    if (formattedCode !== null && block.rawCode.trim() !== formattedCode.trim()) {
       issues.push({
-        severity: 'high',
-        type: 'incorrect-claim',
-        statement: `${blockLabel}: TypeScript config example is not Prettier-formatted.`,
-        reason:
-          'Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.',
-        suggestedFix: 'Format the full code string with Prettier using the TypeScript parser.'
+        severity: 'low',
+        type: 'ambiguous-claim',
+        statement: `${blockLabel}: code is not Prettier-formatted (auto-format may have skipped it).`,
+        reason: 'Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.',
+        suggestedFix: 'Fix any TypeScript syntax errors; auto-format will then handle the formatting.'
       });
     }
 
     const generatedYaml = convertTypescriptToYaml(block.code);
     if (!generatedYaml) {
       issues.push({
-        severity: 'high',
-        type: 'incorrect-claim',
+        severity: 'medium',
+        type: 'ambiguous-claim',
         statement: `${blockLabel}: cannot generate YAML tab from TypeScript source.`,
         reason:
-          'Every Stacktape config example must use the supported class-based defineConfig shape so CodeBlock can derive a YAML tab automatically.',
+          'The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.',
         suggestedFix:
-          'Rewrite the example as `export default defineConfig(() => { const resource = new ResourceClass({...}); return { resources: { resource } }; });` without unsupported TypeScript expressions in resource properties.'
+          'If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape.'
       });
     } else {
       const roundTripTypescript = convertYamlToTypescript(generatedYaml);
       if (!roundTripTypescript) {
         issues.push({
-          severity: 'high',
-          type: 'incorrect-claim',
+          severity: 'medium',
+          type: 'ambiguous-claim',
           statement: `${blockLabel}: generated YAML tab cannot convert back to TypeScript.`,
           reason:
-            'The generated YAML must stay compatible with the docs YAML conversion helper and Stacktape config schema.',
+            'The generated YAML must stay compatible with the docs YAML conversion helper and Stacktape config schema, but this can be a converter limitation rather than a page-quality failure.',
           suggestedFix: 'Simplify the example or fix the YAML conversion helper for the config shape used here.'
         });
       } else {
         for (const diag of typeCheckStacktapeExample({ ...block, code: roundTripTypescript })) {
           issues.push({
-            severity: 'high',
-            type: 'incorrect-claim',
+            severity: 'medium',
+            type: 'ambiguous-claim',
             statement: `${blockLabel}: generated YAML tab does not round-trip to type-correct TypeScript.`,
             reason: formatDiagnostic(diag),
             suggestedFix:
@@ -739,4 +843,34 @@ export const validateStacktapeConfigExamples = async ({ draft }: { draft: string
   }
 
   return issues;
+};
+
+// Auto-format every Stacktape <CodeBlock intellisense> code field in the draft using Prettier.
+// Called by the pipeline before reviewers/verifiers see the draft, so the writer never has to
+// produce Prettier-perfect code (LLMs are unreliable at this) and the code-block-validator's
+// prettier check stays as a low-severity safety net for blocks that fail to parse.
+export const autoFormatStacktapeBlocksInDraft = async (
+  draft: string
+): Promise<{ draft: string; formattedBlockCount: number }> => {
+  const blocks = extractCodeBlocks(draft);
+  let result = draft;
+  let formattedBlockCount = 0;
+  for (const block of blocks) {
+    let formatted: string;
+    try {
+      formatted = await formatStacktapeExample(block.rawCode);
+    } catch {
+      // Block has syntax errors — let the validator surface those as high-severity issues.
+      continue;
+    }
+    if (formatted.trim() === block.rawCode.trim()) continue;
+    // Replace the first occurrence of the original rawCode substring with the formatted one.
+    // rawCode is multi-line and contains the full template-literal body, so collisions are
+    // extremely unlikely in practice.
+    const idx = result.indexOf(block.rawCode);
+    if (idx === -1) continue;
+    result = result.slice(0, idx) + formatted + result.slice(idx + block.rawCode.length);
+    formattedBlockCount += 1;
+  }
+  return { draft: result, formattedBlockCount };
 };

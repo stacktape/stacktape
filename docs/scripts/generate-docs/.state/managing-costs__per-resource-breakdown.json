@@ -1,0 +1,824 @@
+{
+  "pageId": "managing-costs__per-resource-breakdown",
+  "pageRoute": "managing-costs/per-resource-breakdown",
+  "startedAt": "2026-05-17T17:15:56.165Z",
+  "updatedAt": "2026-05-17T17:32:50.586Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\managing-costs__per-resource-breakdown\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong first paragraph — self-contained, states the billing model (AWS charges separate from Stacktape subscription) immediately, and is accurate to source.",
+            "Console UI workflows are faithfully grounded in source: page headline 'Costs per stack', account + month selectors, default sort by highest cost (confirmed by `defaultSortColumnIndex={3}` and `sort((a, b) => b.total - a.total)`), 4-decimal rounding (confirmed by `roundNumber(resource.cost!, 4)`) — all verifiable.",
+            "FAQ covers all three required categories (Stacktape-specific, underlying AWS service behavior, comparison/choosing) and uses the correct format.",
+            "The 'Using cost data effectively' section delivers opinionated, actionable advice (compare stages, track trends, link to budgets) rather than restating configuration.",
+            "Cost allocation tags table is a high-value addition for readers who use AWS Cost Explorer or third-party tools — accurately signals these are standard AWS tags."
+          ],
+          "problems": [
+            "The 'How cost attribution works' section presents a detailed implementation table (Physical Resource ID matching, CloudFormation logical ID, ECS cluster tag `aws:ecs:clusterName`, AutoScaling group tag `stp:asg-name`, Stack-level fallback) and specific tag names (`stp:project-name`, `stp:stack-name`, `stp:globally-unique-stack-hash`) that cannot be verified from the two provided source files. The Console source shows the UI only — the backend attribution logic is not in scope. These claims may be accurate but are ungrounded relative to the provided source.",
+            "The month history description 'going back roughly two years' overstates what `getSelectableMonths()` actually generates: it produces the current year's months through the current month, plus all 12 months of the previous year — giving 13–24 months depending on the current month in the year, not consistently 'roughly two years'.",
+            "H2 heading forms are inconsistent: 'How cost attribution works' (how-clause), 'Viewing costs per stack' / 'Viewing costs per resource' (gerund), 'Stack-level vs. resource-level costs' / 'Cost allocation tags' (noun-form). Mixed forms reduce scannability and hurt AEO extraction for subsequent sections.",
+            "The 'How cost attribution works' section leads with internal implementation details (tag matching strategies, fallback logic) rather than the user-facing outcome. A first-time user reading this page wants to know 'where do I look?' not 'how does the pipeline match cost line items to CloudFormation resources?' — the technical content buried before the 'Viewing costs' sections creates a friction point for the target audience."
+          ],
+          "mandatoryFixes": [
+            "Audit the attribution pipeline table and tag name list ('stp:project-name', 'stp:stage', 'stp:stack-name', 'stp:globally-unique-stack-hash', 'aws:ecs:clusterName', 'stp:asg-name') against source files that actually contain this logic (likely a backend service or tagging utility). If those source files are not in scope for this page, replace the implementation details with a user-facing summary: 'Stacktape tags every resource with project, stage, and stack identifiers; AWS Cost and Usage Reports use these tags to attribute charges back to each resource in the Console.' Remove the matching-strategy table unless it is grounded.",
+            "Fix 'going back roughly two years' to accurately reflect what `getSelectableMonths()` produces — current year's months up to the current month, plus all 12 months of the previous year. Use 'the current month and the previous calendar year' or 'up to roughly 13–24 months of history'."
+          ],
+          "optionalImprovements": [
+            "Reorder content for the first-time user: move 'How cost attribution works' after the two 'Viewing costs' walkthrough sections, or collapse it into a short callout. A user who has just deployed their first stack needs to see the screenshots and table walkthrough before the technical attribution explanation.",
+            "Normalize H2 heading forms to noun-form labels consistent with other Stacktape docs pages: 'Cost attribution', 'Costs per stack', 'Costs per resource', 'Stack-level costs', 'Cost allocation tags', 'Effective cost management'. This also improves AEO extraction per-section.",
+            "The 'Using cost data effectively' H3 subsections ('Identify expensive resources', 'Compare stages', 'Track cost trends', 'Set up budget alerts') would scan faster and be more citable as a single markdown table: Resource strategy | When to use it | Link. Four short H3 sections work but the table form is more scannable.",
+            "Add a one-sentence orientation in the intro noting that cost data requires no configuration — it appears automatically once a stack is deployed — since first-time users may wonder if they need to enable something."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Correctly identifies the Console page title as 'Costs per stack' (grounded in PageHeadline headline prop), column headers (Project name, Stage, Region, Month-to-date costs), and both filter controls (AWS account, month) — all confirmed by CostsAndUsagePage.tsx source.",
+            "Correctly states per-resource table shows Resource name, Type, and Costs columns — confirmed by Costs.tsx columnHeaders.",
+            "Correctly notes costs displayed rounded to 4 decimal places — directly confirmed by `roundNumber(resource.cost!, 4)` in Costs.tsx.",
+            "Correctly states total is displayed at the top of the per-resource table — confirmed by the headerElement div containing the reduce-sum in Costs.tsx.",
+            "Clearly and accurately separates AWS billing charges from the Stacktape subscription fee, fulfilling the section-level requirement.",
+            "FAQ section spans Stacktape-specific, AWS-service, and comparison questions. The currency FAQ is grounded in the dynamic `currencyCode` from source.",
+            "No forbidden style violations: no YAML config blocks, no StacktapeConfig type, no fenced TypeScript defineConfig blocks, no marketing language."
+          ],
+          "problems": [
+            "The month-range claim 'going back roughly two years' directly contradicts getSelectableMonths() in CostsAndUsagePage.tsx. The function generates (thisMonth+1) entries for the current year plus 12 entries for the previous year — a range of 13 months (January) to 24 months (December), not 'roughly two years' for most of the calendar.",
+            "The 'Cost attribution strategy' table listing four matching strategies (Physical Resource ID, CloudFormation logical ID, ECS cluster tag, AutoScaling group tag) is not grounded in any provided source file. The source files are frontend UI components; no backend attribution logic or tag-matching strategy is present.",
+            "The cost allocation tags table listing specific tag names (`stp:project-name`, `stp:stage`, `stp:stack-name`, `stp:globally-unique-stack-hash`, `stp:asg-name`) is not grounded in any provided source file. A production user configuring AWS Cost Explorer filters based on these tag names could misconfigure their setup if the actual tag names differ.",
+            "The claim 'These tags are activated as AWS Cost Allocation Tags automatically' is not grounded in the provided source files.",
+            "The enumerated categories of non-attributed costs (edge functions, data transfer, shared infrastructure) are speculative — the source only shows `costAndUsageBreakdown?.attributed?.stacks` without documenting the specific non-attributed categories.",
+            "The `<Tip>` about `stp:globally-unique-stack-hash` ensuring correct attribution in multi-region deployments is doubly ungrounded: the tag name itself is not in source, and the multi-region behavior claim has no source support."
+          ],
+          "mandatoryFixes": [
+            "Fix the month-range description to match getSelectableMonths() behavior: the dropdown covers the current calendar year (months 1 through the current month) and all 12 months of the previous calendar year. Replace 'roughly two years' with an accurate description such as 'going back to January of the previous year' or 'the current year and the previous year'.",
+            "Remove the 'How cost attribution works' H2 section entirely, or heavily rewrite it to remove all ungrounded technical implementation details. The attribution strategy table (Physical Resource ID, CloudFormation logical ID, ECS cluster tag, AutoScaling group tag, stack-level fallback) has no basis in the provided source files and could actively mislead production users configuring external cost tools.",
+            "Remove the 'Cost allocation tags' H2 section with the specific tag-name table (`stp:project-name`, `stp:stage`, `stp:stack-name`, `stp:globally-unique-stack-hash`). None of these tag names appear in the provided source files. If this section is retained, it must be explicitly marked as 'see your Stacktape configuration for actual tag names' or sourced from actual backend code not provided here.",
+            "Remove the `<Tip>` about `stp:globally-unique-stack-hash` — it depends on an ungrounded tag name and an ungrounded multi-region attribution claim."
+          ],
+          "optionalImprovements": [
+            "Add a note that clicking a row on the Costs per stack table navigates to the per-resource breakdown — this navigation is explicitly coded in the rowActions handler (`navigate('/projects/${...}/${item.stage}/costs')`) and is useful for readers learning the Console flow.",
+            "Note that the stack total displayed in the per-resource table header is rounded to 2 decimal places (from `roundNumber(..., 2)`) while individual resource rows show 4 decimal places — the distinction is minor but grounded in source and useful for readers comparing totals.",
+            "The 'no data' message in Costs.tsx says 'cost reports are generated daily' without the 'up to one day' framing the page uses. The page's FAQ answer is slightly more precise than the actual in-app message, but both are consistent enough. No change needed, but worth noting.",
+            "The 'Using cost data effectively' section cross-links to /managing-costs/budgets, /resources/databases/relational-database, /resources/compute/web-service, and /observability/overview. These links provide real value but should be verified against actual doc routes before publication."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly separates AWS infrastructure charges from Stacktape subscription fees.",
+            "Headings are compact and scannable, and the page uses tables and FAQ entries effectively for extractability.",
+            "The Console viewing flows are mostly aligned with the provided React source: Costs per stack has AWS account and time range selectors, month-to-date cost columns, and row drill-down; the stage cost view has resource name, type, cost, total, and time range.",
+            "The page distinguishes viewing cost data from budget alerts and optimization at a high level, which fits the managing-costs section intent."
+          ],
+          "problems": [
+            "Large parts of the attribution mechanics are unsupported by the provided source files, including automatic tag activation, daily AWS Cost and Usage Report processing, matching by physical resource ID/logical ID/ECS cluster/AutoScaling group, stack-level fallback behavior, and non-attributed cost semantics.",
+            "The claim that month filtering goes back \"roughly two years\" is not supported by `getSelectableMonths()`, which returns months from the current year plus all months from the previous year.",
+            "The currency FAQ is unsupported and partly conflicts with the source: the stack table uses `costAndUsageBreakdown?.currencyCode || 'USD'`, while the per-resource table hard-codes `$`. The source does not prove AWS billing currency behavior.",
+            "Several optimization recommendations are not grounded in the supplied source, including ARM Lambda switching, reserved capacity, Aurora Serverless v2 cost behavior, and specific reasons databases dominate bills.",
+            "The page describes screenshots and captions, but the provided source only proves table structure and labels, not the existence or exact content of `/static/screenshots/...` assets.",
+            "The FAQ is useful but includes multiple claims not grounded in source files, especially AWS Cost Explorer tag reuse, third-party tools, and detailed attribution internals."
+          ],
+          "mandatoryFixes": [
+            "Replace the unsupported attribution pipeline section with wording grounded in the Console source: the Console queries `awsAccountCostReports` for account/month/year and shows `breakdown.attributed.stacks`; the per-stage view queries `costsAndUsageResourceBreakdown` by account, stack-with-region, organization, month, and year.",
+            "Correct the time-range wording: say the selector includes months from the current calendar year and all 12 months of the previous year, or avoid stating the lookback period if you do not want the page to depend on implementation details.",
+            "Remove or narrow unsupported tag and matching claims unless backend source files proving those tags and attribution strategies are added to the source set.",
+            "Rewrite the currency FAQ to match the source: stack-level costs use the report currency code when present and fall back to USD; the provided per-resource view source renders dollar-prefixed amounts. Do not claim the currency is determined by AWS billing settings without source.",
+            "Remove or qualify unsupported optimization details. Keep only the source-grounded workflow: use the Console cost views to identify high-cost stacks/resources, then link to budget and optimization pages without inventing specific techniques from absent sources."
+          ],
+          "optionalImprovements": [
+            "Add a small table that cleanly separates viewing costs, controlling costs, and reducing costs, since the section instructions explicitly ask for that distinction.",
+            "Make the H2 first paragraphs slightly more self-contained by naming \"Stacktape Console cost reports\" rather than relying on nearby context.",
+            "If backend cost-attribution source files are available, include them in the source set before documenting tags, matching strategies, non-attributed costs, and daily report generation in detail.",
+            "Trim screenshot alt/caption claims to only what is proven by the Console source, or verify the screenshot assets before describing their exact contents."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is useful and matches the visible Console views in a few places, but it contains several detailed claims about the attribution backend, tags, matching strategies, retention, and currencies that are not grounded in the provided Console source. The highest-risk fixes are to narrow the page to what the provided source actually shows: selectable AWS account/month, costs-per-stack table, per-resource table, daily report availability, sorting, displayed columns, and rounding behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically tags every AWS resource it creates with metadata including the project name, stage, and stack identifier… Stacktape's billing attribution system matches each cost line item back to the originating CloudFormation resource using these tags and resource identifiers.”",
+              "reason": "The provided source only shows Console queries and rendered tables. It does not show resource tagging behavior, AWS Cost and Usage Report processing, CloudFormation matching, or the backend attribution algorithm.",
+              "suggestedFix": "Replace the backend implementation explanation with cautious UI-grounded wording, such as: “The Console receives cost report data grouped by stack and by resource. In the costs-per-stack view, Stacktape displays project name, stage, AWS region, and month-to-date cost for each attributed stack.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "const awsAccountCostReportsQuery = trpc.awsAccountCostReports.useQuery(\n    {\n      organizationId: selectedOrg.id,\n      awsAccountConnectionId: selectedAccountId!,\n      month: +selectedMonth.split(' / ')[0],\n      year: +selectedMonth.split(' / ')[1]\n    }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "const resourcesBreakdownQuery = trpc.costsAndUsageResourceBreakdown.useQuery({\n    accountConnectionId,\n    stackNameWithRegion: `${stackName}-${region}`,\n    organizationId: selectedOrg.id,\n    month: +selectedMonth.split(' / ')[0],\n    year: +selectedMonth.split(' / ')[1]\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The attribution strategy table claims matching by Physical Resource ID, CloudFormation logical ID, ECS cluster tag, AutoScaling group tag, and Stack-level fallback, with examples such as edge functions and EC2-backed workloads.",
+              "reason": "None of these matching strategies, tag keys, or fallback categories appear in the provided source. This reads as authoritative backend behavior and could mislead readers about how attribution works.",
+              "suggestedFix": "Remove the strategy table unless backend source files are added. If keeping a section, describe only the visible result: stack-level rows come from `costAndUsageBreakdown.attributed.stacks`, and stage-level resource rows come from `costsAndUsageResourceBreakdown`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "const costAndUsageBreakdown = awsAccountCostReportsQuery?.data?.breakdown;\n  const filteredAttributedUsagePerStack = Object.entries(costAndUsageBreakdown?.attributed?.stacks ?? {})"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "const breakdown = resourcesBreakdownQuery.data || [];"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Costs that cannot be attributed to any Stacktape-managed stack appear separately as non-attributed costs.”",
+              "reason": "The provided Console page code only renders attributed stack rows. It does not render a non-attributed costs section or show any field for non-attributed costs.",
+              "suggestedFix": "Remove this claim, or narrow it to “The costs-per-stack table displays attributed stacks from the selected AWS account and month.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "rows={filteredAttributedUsagePerStack.map((item) => [\n          { label: item.serviceName! || (item as TODO).projectName!, value: (item as TODO).projectName! },\n          { label: item.stage!, value: item.stage! },\n          { label: item.region!, value: item.region! },\n          {\n            label: <b>{formatCurrency(item.total, { currencyCode: costAndUsageBreakdown?.currencyCode || 'USD' })}</b>,\n            value: item.total!\n          }\n        ])}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Month — choose the current month or any month going back roughly two years.”",
+              "reason": "The source builds selectable months from the current year-to-date plus all 12 months of the previous year. It is not roughly two full years; in January it would be 13 months, and in December it would be 24 months.",
+              "suggestedFix": "Say “choose the current month, earlier months in the current year, or any month from the previous year.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "for (let i = thisMonth + 1; i > 0; i--) {\n    result.push(`${i} / ${thisYear}`);\n  }\n  for (let i = 12; i > 0; i--) {\n    result.push(`${i} / ${thisYear - 1}`);\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The result is a per-resource cost breakdown available in the Console within a day of the charges being incurred” and “it typically takes up to one day for cost data to appear.”",
+              "reason": "The source says reports are generated daily and can take a while before they are available. It does not promise availability within one day or typical one-day timing.",
+              "suggestedFix": "Use the source wording: “Cost reports are generated daily, and it can take a while before they are available.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "<p>Please note that cost reports are generated daily and it can take a while before they are available.</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "No cost report is available for the selected time range. Note that cost reports are generated daily."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape applies the following cost allocation tags to every resource it manages… These tags are activated as AWS Cost Allocation Tags automatically.”",
+              "reason": "The provided source does not define applied tags, automatic activation of AWS Cost Allocation Tags, or Cost Explorer compatibility. These are Stacktape-specific behavior claims with no grounding in the supplied files.",
+              "suggestedFix": "Remove the cost allocation tags section unless tagging/backend source is provided. If retained, narrow to visible Console grouping by project name, stage, region, and cost.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "columnHeaders={['Project name', 'Stage', 'Region', 'Month-to-date costs', ['', 30]]}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When you click into a specific stack, the Console shows a per-resource cost table.”",
+              "reason": "The costs-per-stack page navigates to a project/stage costs route when a row action is invoked, and the stage costs page renders the resource table. The source does not explicitly show a clickable row UI label or “click into a specific stack” behavior, though row actions strongly imply navigation.",
+              "suggestedFix": "Narrow the wording to the source: “Opening a stack’s costs view shows a per-resource cost table.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "rowActions={filteredAttributedUsagePerStack.map((item) => () => {\n          navigate(`/projects/${item.serviceName || (item as TODO).projectName}/${item.stage}/costs`);\n        })}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "columnHeaders={['Resource name', 'Type', 'Costs']}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The cost breakdown uses whichever currency your AWS account is configured to bill in… if your account bills in EUR, GBP, or another currency, the Console reflects that.”",
+              "reason": "The costs-per-stack table formats using `costAndUsageBreakdown?.currencyCode || 'USD'`, but the per-resource stage costs hard-code a `$` prefix. The source does not establish that currency comes from AWS billing settings or that the per-resource view reflects non-USD currencies.",
+              "suggestedFix": "Say only what is visible: “The costs-per-stack table formats totals using the report currency code when present, falling back to USD. The per-resource table displays dollar-formatted costs.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "label: <b>{formatCurrency(item.total, { currencyCode: costAndUsageBreakdown?.currencyCode || 'USD' })}</b>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "{ label: <b>${roundNumber(resource.cost!, 4)}</b>, value: resource.cost! }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the visible costs-per-stack columns as project name, stage, region, and month-to-date costs.",
+            "The draft correctly states that the per-resource view shows resource name, resource type, and cost, and that resource costs are rounded to four decimal places.",
+            "The draft correctly distinguishes viewing cost data from budget alerts by linking to the budgets page, and the `/managing-costs/budgets` route exists in the navigation index.",
+            "The draft avoids forbidden Stacktape config patterns: there are no hand-authored YAML config blocks, no `StacktapeConfig` typed examples, and no fenced TypeScript Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft contains several unsupported Stacktape-specific implementation claims. The provided Console source supports the existence of a costs-per-stack table, a per-resource costs table, account/month filters, daily report messaging, sorting by cost, currency formatting from report data, and resource-cost rounding. It does not support the detailed attribution pipeline, tag list, screenshots, or several UI/navigation and retention claims.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically tags every AWS resource it creates with metadata including the project name, stage, and stack identifier… matches each cost line item back to the originating CloudFormation resource using these tags and resource identifiers.”",
+              "reason": "The provided source only shows the Console querying `awsAccountCostReports` and rendering returned stack breakdown data. It does not show resource tagging behavior, AWS Cost and Usage Report processing, CloudFormation matching, or any attribution pipeline internals.",
+              "suggestedFix": "Narrow this section to what the Console source proves: the Console requests cost reports for a selected AWS account, month, and year, then displays attributed stack and resource breakdown data returned by the backend. Remove or clearly avoid implementation details about tags, CUR line-item matching, and CloudFormation resource matching unless source for the backend attribution pipeline is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "const awsAccountCostReportsQuery = trpc.awsAccountCostReports.useQuery(\n    {\n      organizationId: selectedOrg.id,\n      awsAccountConnectionId: selectedAccountId!,\n      month: +selectedMonth.split(' / ')[0],\n      year: +selectedMonth.split(' / ')[1]\n    }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "const costAndUsageBreakdown = awsAccountCostReportsQuery?.data?.breakdown;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The attribution strategy table claims matching by Physical Resource ID, CloudFormation logical ID, ECS cluster tag, AutoScaling group tag, and stack-level fallback, including specific tag names like `aws:ecs:clusterName` and `stp:asg-name`.",
+              "reason": "None of these matching strategies or tag names appear in the provided source files. The Console code receives already-computed breakdown data and does not expose the matching algorithm.",
+              "suggestedFix": "Remove the strategy table, or replace it with a cautious statement that the Console displays attributed stack and resource cost data returned by Stacktape’s cost report API. Add this implementation detail only if backend source files for the attribution logic are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "const resourcesBreakdownQuery = trpc.costsAndUsageResourceBreakdown.useQuery({\n    accountConnectionId,\n    stackNameWithRegion: `${stackName}-${region}`,\n    organizationId: selectedOrg.id,\n    month: +selectedMonth.split(' / ')[0],\n    year: +selectedMonth.split(' / ')[1]\n  });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "const breakdown = resourcesBreakdownQuery.data || [];"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape applies the following cost allocation tags to every resource it manages… These tags are activated as AWS Cost Allocation Tags automatically.”",
+              "reason": "The provided Console source does not contain these tag names or any AWS cost allocation tag activation behavior. The claim that tags are activated automatically is a Stacktape-specific behavior that would affect how readers use AWS Cost Explorer, but it is not grounded in the supplied source.",
+              "suggestedFix": "Remove the cost allocation tags section unless source files for Stacktape resource tagging and cost allocation tag activation are provided. If retained from other source, state only the exact tags and activation behavior proven by that source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "rows={filteredAttributedUsagePerStack.map((item) => [\n          { label: item.serviceName! || (item as TODO).projectName!, value: (item as TODO).projectName! },\n          { label: item.stage!, value: item.stage! },\n          { label: item.region!, value: item.region! },\n          {\n            label: <b>{formatCurrency(item.total, { currencyCode: costAndUsageBreakdown?.currencyCode || 'USD' })}</b>,\n            value: item.total!\n          }\n        ])}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Month — choose the current month or any month going back roughly two years.”",
+              "reason": "The month selector returns months from the current year up to the current month plus all 12 months from the previous year. That is not consistently “roughly two years”; depending on the current month it ranges from 13 to 24 selectable months.",
+              "suggestedFix": "Say “choose the current month, earlier months in the current year, or any month from the previous year.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "for (let i = thisMonth + 1; i > 0; i--) {\n    result.push(`${i} / ${thisYear}`);\n  }\n  for (let i = 12; i > 0; i--) {\n    result.push(`${i} / ${thisYear - 1}`);\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The table is sorted by cost (highest first) by default… Click any row to drill into the per-resource breakdown for that stack.”",
+              "reason": "The default sort column is the cost column, and the data array is pre-sorted descending by total, but the source does not prove the visible row-click behavior described as “click any row.” It defines `rowActions`, which may be rendered as row actions by `ElevatedTable`, but the implementation of `ElevatedTable` is not provided.",
+              "suggestedFix": "Keep the sorted-by-cost claim, but narrow the navigation wording to “The Console provides a row action that opens that stack’s costs page” only if `ElevatedTable` source confirms row click behavior. Otherwise say “Open a stack to see its per-resource breakdown.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": ".sort((a, b) => b.total - a.total);"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "defaultSortColumnIndex={3}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "rowActions={filteredAttributedUsagePerStack.map((item) => () => {\n          navigate(`/projects/${item.serviceName || (item as TODO).projectName}/${item.stage}/costs`);\n        })}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The cost breakdown uses whichever currency your AWS account is configured to bill in… The currency is determined by your AWS billing settings, not by Stacktape.”",
+              "reason": "The source shows the Console formats stack costs with `costAndUsageBreakdown?.currencyCode || 'USD'`. It does not show where `currencyCode` comes from, whether it always matches AWS account billing currency, or whether non-USD account currencies are reflected. The per-resource table also hardcodes a dollar sign rather than using `currencyCode`.",
+              "suggestedFix": "Say “The stack cost table formats values using the currency code returned by the cost report, falling back to USD when no currency code is present.” Avoid claims about AWS billing settings unless backend source confirms them, and do not generalize this to the per-resource table unless the source is updated.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "label: <b>{formatCurrency(item.total, { currencyCode: costAndUsageBreakdown?.currencyCode || 'USD' })}</b>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "{ label: <b>${roundNumber(resource.cost!, 4)}</b>, value: resource.cost! }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Some AWS charges cannot be matched… Common examples include edge functions, data transfer, shared infrastructure… The stack total always includes both attributed resource costs and these unmatched stack-level costs.”",
+              "reason": "The provided source does not show an “other costs” row, unmatched stack-level costs, examples of unmatched cost categories, or that stack totals include unmatched stack-level costs. The costs-per-resource page totals only the returned resource breakdown rows.",
+              "suggestedFix": "Remove the specific examples and the “stack total always includes” claim unless backend cost-report source is provided. From the current source, you can only state that the per-resource page totals the resource breakdown rows returned for the selected stack and month.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "<h2 css={{ marginBottom: '10px' }}>\n                    ${roundNumber(breakdown.reduce((sum, curr) => sum + curr.cost, 0) || 0, 2)}\n                  </h2>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "rows={breakdown?.map((resource) => [\n              {\n                label: resource.resourceName,\n                value: resource.resourceName!\n              },\n              { label: resource.resourceType!, value: resource.resourceType! },\n              // { label: resource.resourcePhysicalId!, value: resource.resourcePhysicalId! },\n              { label: <b>${roundNumber(resource.cost!, 4)}</b>, value: resource.cost! }\n            ])}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft includes two `<ConsoleScreenshot>` components with screenshot paths and captions describing exact screenshots.",
+              "reason": "The provided source files do not include these screenshot assets or any evidence that a `ConsoleScreenshot` MDX component exists. This is a page-rendering and source-grounding risk because the draft depends on assets and a component not shown in the source list.",
+              "suggestedFix": "Remove the screenshot components unless the documentation source includes those assets and the MDX component registry confirms `ConsoleScreenshot`. The Console behavior can be described from the source without screenshots.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "<PageHeadline\n        headline=\"Costs per stack\"\n        icon={BiBarChartAlt2}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "<ElevatedTable\n            maxCellWidth={250}\n            isLoading={resourcesBreakdownQuery.isPending}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly states that the costs-per-stack view includes project name, stage, region, and month-to-date costs; those column headers are present in the Console source.",
+            "The draft correctly states that the costs-per-stack data is sorted by cost descending before rendering and uses the cost column as the default sort column.",
+            "The draft correctly states that the per-resource view includes resource name, resource type, and cost, and that the per-resource cost values are rounded to four decimal places.",
+            "The draft correctly distinguishes AWS infrastructure costs from the Stacktape subscription fee, which is required by the page instructions even though it is not visible in the Console source.",
+            "All checked markdown cross-links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page has no primary Stacktape config type, no union-typed config properties, and no `<CodeBlock intellisense>` examples to audit. I did not find API-completeness, union-coverage, or demonstrativeness issues within this auditor's scope.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft distinguishes viewing cost data from using budgets and optimization guidance, matching the managing-costs section instruction.",
+            "The Console table descriptions align with the available source at a high level: account and month selectors, stack rows with project/stage/region/month-to-date costs, and a per-resource table with resource name, type, and cost.",
+            "No forbidden Stacktape configuration patterns appear in the draft: there are no hand-authored YAML config examples, no `StacktapeConfig` typed examples, and no fenced TypeScript Stacktape config blocks."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\managing-costs__per-resource-breakdown\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clearly distinguishes viewing costs (this page), controlling costs (budgets), and reducing costs (optimization tips) — exactly what the section instructions require, and very helpful for readers who don't yet know which tool they need.",
+            "All numerical claims are directly grounded in source: 4 decimal places for individual resource costs (Costs.tsx `roundNumber(..., 4)`), 2 decimal places for the total (`roundNumber(..., 2)`), column names and sort order match the source `columnHeaders` and `defaultSortColumnIndex` values exactly.",
+            "The daily data-lag caveat is prominently surfaced in an Info callout at the top and repeated in the FAQ — the single most confusing thing a new user will hit, handled well.",
+            "FAQ spans all three required categories: Stacktape-specific (\"Why is no cost data showing?\"), AWS-service use-case (\"Why is my database the most expensive resource?\"), and comparison/choosing (\"How does the cost breakdown differ from AWS Cost Explorer?\"). Nine Q&A pairs is appropriate coverage for this page.",
+            "Currency fallback behavior (currency code from cost report, defaulting to USD) is correctly stated and matches `formatCurrency(item.total, { currencyCode: costAndUsageBreakdown?.currencyCode || 'USD' })` in the source.",
+            "Month selector range is accurately documented: current year from January through current month, plus all 12 months of the previous year — matches `getSelectableMonths()` logic exactly.",
+            "No mandatory style violations: no YAML Stacktape config, no StacktapeConfig plain-object pattern, no fenced TypeScript with defineConfig, no marketing language."
+          ],
+          "problems": [
+            "The 'Using cost data effectively' section contains advice that is not grounded in this page's source files. Recommendations like 'switching Lambda functions to ARM architecture', 'adjusting container CPU/memory to match actual utilization', and 'right-sizing database instances' are general AWS optimization tips, not behavior of the Console cost pages. The source files only support describing what the Console shows — not prescribing remediation strategies.",
+            "The <ConsoleScreenshot> component is used twice but is not mentioned in the style guide's component palette. The src paths (/static/screenshots/console-costs-per-stack.png, etc.) reference files that are not in the provided source list, making them speculative. If this component does not exist in the docs system, the page will render broken markup.",
+            "The page references '/observability/overview', '/managing-costs/dashboards', '/managing-costs/optimization-tips', and '/managing-costs/budgets' as cross-links but none of these routes appear in the source files provided — they are inferred. If any of these routes do not exist in the docs structure, the links will 404.",
+            "The prerequisite of connecting an AWS account is mentioned only as an aside in the filters section. A reader hitting this page cold (no AWS account connected) will not understand why they see an empty table. A brief 'before you start' note or a link to /stacktape-console/connecting-your-aws-account near the top would help.",
+            "The 'Using cost data effectively > Track cost trends month over month' subsection references '/observability/overview' (deployment history). That's a plausible link but completely ungrounded in this page's source — the Console cost pages in the source have no connection to deployment history views."
+          ],
+          "mandatoryFixes": [
+            "Trim the 'Using cost data effectively' section to advice that follows from the Console cost UI itself. Remove or relocate optimization prescriptions (ARM architecture, right-sizing, container CPU/memory tuning) that are not features of the cost breakdown pages — these belong on an optimization-tips page, not here. Replace them with observations grounded in what the per-resource table actually surfaces (e.g. comparing the cost row for a database vs. a Lambda function to decide where to investigate further).",
+            "Validate that <ConsoleScreenshot> is a real component in the Stacktape docs system before publishing. If it is not, replace with a standard <img> tag or whatever the docs system uses for Console screenshots. If the screenshot files do not yet exist, use a placeholder path that follows the docs system's convention rather than inventing paths."
+          ],
+          "optionalImprovements": [
+            "Add a one-sentence 'prerequisite' callout near the top (or in the intro paragraph) pointing readers to /stacktape-console/connecting-your-aws-account. A reader who hasn't connected an AWS account will see the empty-state message but won't know why or what to do.",
+            "The 'Viewing costs vs. controlling costs' section is strong but it would benefit from one concrete sentence about what to do first — e.g. 'Start with the per-resource table to find the expensive resources, then visit budgets to set a ceiling and optimization tips to act on what you find.' The current version lists the tools but doesn't give the reader a workflow.",
+            "Consider adding a note that the costs-per-stack page is scoped to attributed stacks — stacks whose resources Stacktape tagged. Resources deployed outside Stacktape will not appear. The source only shows 'attributed' stacks (`breakdown?.attributed?.stacks`), so unattributed spend is invisible in this view. This is a gotcha worth flagging for users who mix Stacktape and manually-deployed AWS resources.",
+            "The FAQ answer for 'Can I use AWS Cost Explorer alongside the Stacktape Console?' mentions that 'Stacktape tags the AWS resources it creates' — this is a useful fact but isn't visible in the provided source files. If accurate, consider adding a brief inline mention of the tag dimensions (project name, stage) so readers know what to filter on in Cost Explorer."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurately describes UI behavior grounded in the console-app source — column names, sort order, rounding precision, currency fallback, and the 'active accounts only' filter all match the source code exactly.",
+            "Correctly separates 'viewing' (this page) from 'controlling' (budgets) and 'reducing' (optimization tips) cost activities, which matches the section instructions.",
+            "The FAQ spans all three required categories: Stacktape-specific (subscription fee, data delay), AWS-service use-case (why databases are expensive), and comparison (vs. AWS Cost Explorer). Coverage and depth are good.",
+            "Month selector range ('13–24 months depending on current date') is correctly derived from the getSelectableMonths() logic in the source.",
+            "The opening paragraph is concise, self-contained, and correctly calls out that costs are billed by AWS to the user's account with the subscription fee separate.",
+            "No mandatory style violations: no YAML blocks, no StacktapeConfig type, no fenced TypeScript with defineConfig, no marketing language, no multi-command bash blocks."
+          ],
+          "problems": [
+            "Missing the 'attributed costs' distinction. The source uses `costAndUsageBreakdown?.attributed?.stacks` — the Console only shows costs for AWS resources that are tagged and attributed to a Stacktape stack. Untagged resources (manually created, imported, or from other tools sharing the account) do not appear. A production user who notices the Console total is lower than their AWS bill has no explanation. This is a meaningful accuracy gap.",
+            "The per-resource breakdown section describes columns as 'Stacktape resource name, the AWS resource type, and the cost' — the source column headers are 'Resource name', 'Type', 'Costs'. Calling 'Type' 'AWS resource type' is reasonable, but calling 'Resource name' specifically a 'Stacktape resource name' may be slightly misleading if the underlying physical resource name differs from the Stacktape logical name. Source shows `resource.resourceName` and `resource.resourceType` — clarify what 'resource name' refers to.",
+            "The page does not mention pagination (10 rows per page for costs-per-stack, 15 rows per page for per-resource). For large organizations with many stacks, this affects usability and is visible in the source (perPageAmount={10} and perPageAmount={15})."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a note that cost data is 'attributed' — the Console only shows costs for AWS resources tagged and tracked by Stacktape. Costs from untagged or non-Stacktape-managed resources in the same AWS account do not appear. Without this, users who cross-reference against their AWS bill will be confused by the discrepancy. One sentence in the 'Costs per stack' section is enough.",
+            "Clarify what 'resource name' means in the per-resource table — whether it is the Stacktape logical resource key or the underlying AWS physical resource name. The source renders `resource.resourceName` and `resource.resourceType` but does not show the mapping clearly in this file; if source is ambiguous, write cautiously ('the resource identifier') rather than asserting 'Stacktape resource name'.",
+            "Mention table pagination limits in the 'Costs per stack' and 'Per-resource breakdown' sections (10 and 15 rows per page respectively). Organizations with many stacks need to know whether they can see all stacks at once or need to paginate.",
+            "The FAQ answer for 'Why is no cost data showing?' could mention the 'attributed' concept as a cause — if the stack was not tagged correctly by Stacktape (e.g., manually created resources), it would not appear even if cost data is available.",
+            "Consider adding a brief mention of the 'No cost report found' vs 'No cost report is available' messages from the two source files — the distinction (selected account vs selected time range) is helpful to users troubleshooting missing data."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly separates AWS infrastructure charges from the Stacktape subscription fee.",
+            "H2 headings are compact and scannable, with a clear flow from stack-level costs to per-resource costs, then budget/optimization next steps.",
+            "The page correctly reflects several source-backed Console behaviors: active AWS account filtering, current-year plus previous-year month selector, stack table columns, per-resource table columns, daily report availability, and rounding behavior.",
+            "FAQ is useful and broad enough for search extraction, mixing Stacktape Console questions, AWS cost questions, and Cost Explorer comparison questions."
+          ],
+          "problems": [
+            "Several claims exceed the provided source files. The source says cost reports are generated daily and can take a while, but does not support 'AWS Cost and Usage Reports' or 'up to a day'.",
+            "The draft invents or over-specifies Console behavior not visible in the source, including screenshots, captions, 'individual resource costs rounded to four decimal places' as a caption claim, and possibly sort direction for the per-resource table.",
+            "The FAQ claim that Stacktape tags AWS resources and those tags are available in AWS Cost Explorer, AWS Budgets, and third-party tools is not grounded in the provided source files.",
+            "The FAQ and guidance sections include optimization claims not grounded in the provided source, such as switching Lambda functions to ARM architecture, Aurora Serverless v2 for variable workloads, and deployment-history correlation.",
+            "The 'Using cost data effectively' section is practical, but parts of it read like general cost advice rather than source-grounded documentation for the actual Console page.",
+            "Some wording is too definitive where the source is narrower. For example, 'month-to-date totals that update daily' is likely implied by the column label and daily reports, but the source does not explicitly say every selected month is month-to-date."
+          ],
+          "mandatoryFixes": [
+            "Replace 'AWS Cost and Usage Reports' with source-grounded wording such as 'cost reports' unless another provided source explicitly names AWS Cost and Usage Reports.",
+            "Replace 'up to a day' with the source-backed phrasing 'generated daily' and 'can take a while before they are available'.",
+            "Remove or source-ground the claim that Stacktape tags are available in AWS Cost Explorer, AWS Budgets, and third-party tools.",
+            "Remove or source-ground unsupported optimization examples: Lambda ARM architecture, Aurora Serverless v2, and deployment-history correlation.",
+            "Narrow the per-resource sorting claim unless the table component source confirms default sort direction; the provided page source only shows `defaultSortColumnIndex={2}`.",
+            "Keep Console workflow descriptions limited to what the provided `console-app` files show; do not describe UI behavior, screenshots, or navigation details beyond the routed costs views unless those sources are provided."
+          ],
+          "optionalImprovements": [
+            "Add a small table separating viewing costs, controlling costs, and reducing costs; this would match the section instruction and improve extractability.",
+            "Use 'Time range' consistently for the selector label, because the source labels the selector 'Time range' rather than 'Month'.",
+            "Clarify that the costs-per-stack view formats totals with `formatCurrency` and a report currency fallback to USD, while the per-resource view displays dollar-prefixed rounded numbers.",
+            "Add one sentence that the costs-per-stack page paginates 10 rows and the per-resource table paginates 15 rows only if that level of UI detail is useful to readers."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the two Console source files for cost tables, filtering, sorting, currency fallback, and month selection. The main factual risks are unsupported claims about AWS CUR as the data source, screenshots/components not present in the available MDX component list/source, and several operational recommendations that go beyond the provided Console code.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Cost reports are generated daily from AWS Cost and Usage Reports.”",
+              "reason": "The provided Console source supports that cost reports are generated daily, but it does not identify AWS Cost and Usage Reports as the source. That added AWS data-source claim is Stacktape-specific and not grounded in the provided files.",
+              "suggestedFix": "Narrow to: “Cost reports are generated daily. After deploying a new stack, it can take a while before cost data appears in the Console.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "<p>Please note that cost reports are generated daily and it can take a while before they are available.</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "No cost report is available for the selected time range. Note that cost reports are generated daily."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft uses `<ConsoleScreenshot ... />` twice.",
+              "reason": "The available MDX components list in the prompt does not include `ConsoleScreenshot`, and the provided source files do not establish that this component exists. Under the MDX sanity rules, an unlisted component should be flagged.",
+              "suggestedFix": "Remove these components or replace them with a supported component if the docs runtime has one that is included in the available component list.",
+              "evidence": []
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape tags the AWS resources it creates, and those tags are available in AWS Cost Explorer, AWS Budgets, and third-party cost tools. You can filter and group costs by project and stage outside the Console using the same dimensions.”",
+              "reason": "The provided source only shows Stacktape Console cost views and does not show AWS tags, Cost Explorer integration, AWS Budgets dimensions, or third-party tool behavior. This claim could change how readers investigate costs outside Stacktape Console.",
+              "suggestedFix": "Remove the tag/tooling claim, or rewrite cautiously as general guidance without Stacktape-specific behavior unless tag-generation source files are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "columnHeaders={['Project name', 'Stage', 'Region', 'Month-to-date costs', ['', 30]]}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "columnHeaders={['Resource name', 'Type', 'Costs']}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape Console's cost breakdown is pre-grouped by project, stage, and Stacktape resource.”",
+              "reason": "The sources support a costs-per-stack table grouped by project, stage, region and a separate per-resource table for a selected stack. They do not show one unified breakdown pre-grouped by project, stage, and resource at the same time.",
+              "suggestedFix": "Say: “The Stacktape Console first groups attributed costs by stack, showing project, stage, and region. From a stack row, you can open a resource-level table for that stack.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "columnHeaders={['Project name', 'Stage', 'Region', 'Month-to-date costs', ['', 30]]}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "columnHeaders={['Resource name', 'Type', 'Costs']}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Check your deployment history to identify what changed.” linked to `/observability/overview`.",
+              "reason": "The provided cost page sources do not expose deployment history behavior or show that cost changes correlate with deployment history. The link route exists, but the claim is not grounded in the cost sources and points to observability overview rather than a deployment/history page.",
+              "suggestedFix": "Remove this sentence or replace it with a grounded action, such as comparing the affected month in the Console and then checking your own deployment records.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "rowActions={filteredAttributedUsagePerStack.map((item) => () => {\n          navigate(`/projects/${item.serviceName || (item as TODO).projectName}/${item.stage}/costs`);\n        })}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "const resourcesBreakdownQuery = trpc.costsAndUsageResourceBreakdown.useQuery({\n    accountConnectionId,\n    stackNameWithRegion: `${stackName}-${region}`,\n    organizationId: selectedOrg.id,\n    month: +selectedMonth.split(' / ')[0],\n    year: +selectedMonth.split(' / ')[1]\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Common wins include right-sizing database instances, switching Lambda functions to ARM architecture, and adjusting container CPU/memory to match actual utilization.”",
+              "reason": "The provided source files show cost reporting UI only. They do not support these Stacktape-specific optimization actions, and switching Lambda functions to ARM is a concrete configuration recommendation not grounded in the source list for this page.",
+              "suggestedFix": "Keep the answer generic and link to optimization tips: “Use the expensive resource names as inputs to your optimization work; the optimization tips page covers specific strategies.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "const awsAccountCostReportsQuery = trpc.awsAccountCostReports.useQuery("
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "const resourcesBreakdownQuery = trpc.costsAndUsageResourceBreakdown.useQuery({"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“After deploying a new stack, it can take up to a day before cost data appears in the Console.”",
+              "reason": "The source says cost reports are generated daily and “it can take a while,” but it does not state “up to a day.” Daily generation makes the wording plausible, but the exact upper bound is not explicit.",
+              "suggestedFix": "Use the source wording: “After deploying a new stack, it can take a while before cost data appears in the Console.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“When no currency code is present” and “Most AWS accounts bill in USD.”",
+              "reason": "The currency fallback to USD is grounded, but the source does not say the absence case occurs in reports, and “Most AWS accounts bill in USD” is broad external context. This is low impact, but the wording can be narrower.",
+              "suggestedFix": "Keep the grounded behavior only: “The costs-per-stack table formats amounts using the report currency code and falls back to USD if the report does not provide one.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly states that the costs-per-stack page shows project name, stage, AWS region, and month-to-date costs.",
+            "The draft correctly describes the active AWS account filter and the month selector covering the current year plus the previous calendar year.",
+            "The draft correctly states that the costs-per-stack table sorts by the month-to-date cost column by default.",
+            "The draft correctly states that the per-resource table shows resource name, resource type, and cost, with a total displayed above the table.",
+            "The draft correctly states that per-resource costs are rounded to four decimal places and the per-resource total is rounded to two decimal places.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the Console source for the stack-level and resource-level cost tables, filters, sorting, and formatting. The main factual problems are unsupported specificity around the billing data source and freshness window, plus a few unsupported Console/UI and cost-attribution claims that go beyond the provided source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Cost reports are generated daily from AWS Cost and Usage Reports.”",
+              "reason": "The source confirms daily generated cost reports, but it does not say the reports come from AWS Cost and Usage Reports/CUR. The endpoint names contain “cost reports,” but the underlying AWS billing data source is not established in the provided source files.",
+              "suggestedFix": "Write only the grounded part: “Cost reports are generated daily.” If you need to mention the AWS data source, use cautious wording such as “AWS billing data” unless another source explicitly confirms Cost and Usage Reports.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "<p>Please note that cost reports are generated daily and it can take a while before they are available.</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "No cost report is available for the selected time range. Note that cost reports are generated daily."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After deploying a new stack, it can take up to a day before cost data appears in the Console.”",
+              "reason": "The source says reports are generated daily and “it can take a while,” but it does not define an upper bound of one day or tie the delay specifically to deploying a new stack.",
+              "suggestedFix": "Use the source wording more narrowly: “Cost reports are generated daily, so newly deployed stacks may not show cost data immediately.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "<p>Please note that cost reports are generated daily and it can take a while before they are available.</p>"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "No cost report is available for the selected time range. Note that cost reports are generated daily."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each row has an action that opens the per-resource cost breakdown for that stack.”",
+              "reason": "The source shows a row action that navigates to a project/stage costs route, but it does not prove what route content the action opens or that the target page is specifically the per-resource breakdown. The per-resource component source is separate and does not show route wiring.",
+              "suggestedFix": "Narrow the wording to what is visible: “Each row has an action that navigates to the selected project and stage costs view.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "rowActions={filteredAttributedUsagePerStack.map((item) => () => {\n          navigate(`/projects/${item.serviceName || (item as TODO).projectName}/${item.stage}/costs`);\n        })}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape tags the AWS resources it creates, and those tags are available in AWS Cost Explorer, AWS Budgets, and third-party cost tools. You can filter and group costs by project and stage outside the Console using the same dimensions.”",
+              "reason": "The provided source files do not show resource tagging behavior or integration with AWS Cost Explorer, AWS Budgets, or third-party tools. This is a Stacktape-specific claim about how resources are attributed outside the Console and needs source support.",
+              "suggestedFix": "Remove the claim or replace it with a narrower statement: “You can use AWS Cost Explorer alongside Stacktape Console for account-wide AWS billing analysis.” Only mention Stacktape tags if a source file explicitly documents the tag keys and availability.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx",
+                  "quote": "const costAndUsageBreakdown = awsAccountCostReportsQuery?.data?.breakdown;\n  const filteredAttributedUsagePerStack = Object.entries(costAndUsageBreakdown?.attributed?.stacks ?? {})"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "const resourcesBreakdownQuery = trpc.costsAndUsageResourceBreakdown.useQuery({\n    accountConnectionId,\n    stackNameWithRegion: `${stackName}-${region}`,\n    organizationId: selectedOrg.id,\n    month: +selectedMonth.split(' / ')[0],\n    year: +selectedMonth.split(' / ')[1]\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The per-resource breakdown shows you what you're actually spending, which makes it easier to set meaningful budget thresholds.”",
+              "reason": "The source confirms a per-resource cost table and total, but it does not show any budget-threshold workflow or integration from this view. The link to budgets is valid, but the causal claim about setting thresholds from this data is guidance rather than source-backed Console behavior.",
+              "suggestedFix": "Frame this as advice instead of product behavior: “Use the observed resource costs as input when choosing budget thresholds on the budgets page.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "columnHeaders={['Resource name', 'Type', 'Costs']}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx",
+                  "quote": "<p css={{ fontSize: '0.75rem', color: colors.fontColorLightGray }}>Total</p>"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Most AWS accounts bill in USD, but the costs-per-stack view reflects whichever currency code the report provides.”",
+              "reason": "The source supports the fallback to USD and use of a returned currency code, but the general claim that most AWS accounts bill in USD is not supported by the provided sources. This is low impact because it does not affect Stacktape configuration or Console behavior.",
+              "suggestedFix": "Keep the grounded Console behavior and remove the broad billing claim: “The costs-per-stack table uses the currency code returned by the cost report, falling back to USD when no currency code is present.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“In most stacks, one or two resources account for the majority of spend — often a relational database running continuously or a high-traffic container workload.”",
+              "reason": "This is plausible optimization guidance, but it is not grounded in the provided source files and reads like an empirical claim about Stacktape stacks. It may be acceptable as general guidance, but it should be softened to avoid implying product-derived evidence.",
+              "suggestedFix": "Rewrite as conditional guidance: “If one or two resources dominate the table, start optimization there; continuously running databases and high-traffic container workloads are common places to check first.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The costs-per-stack table columns, active AWS account filtering, month selector range, and default descending cost sort are grounded in CostsAndUsagePage.tsx.",
+            "The per-resource table columns, default descending cost sort, 15-row pagination, total display, two-decimal total rounding, and four-decimal resource cost rounding are grounded in ProjectsPage/StageDetails/Costs.tsx.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The draft correctly distinguishes viewing cost data from budgets and optimization pages, matching the human-maintained section instruction."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No API-completeness, union-variant, or code-example demonstrativeness issues found for this page. The page has no primary Stacktape config type and contains no Stacktape configuration examples, so the three auditor checks have little surface area here.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft clearly distinguishes viewing cost data from controlling costs with budgets and reducing costs with optimization guidance.",
+            "The draft explicitly states that AWS infrastructure costs are billed to the user's AWS account and that the Stacktape subscription fee is separate.",
+            "The documented filters, month range, active AWS account filtering, daily report timing, table columns, per-resource total, rounding behavior, and fallback currency behavior are grounded in the provided Console source files.",
+            "The page contains no forbidden hand-authored YAML, no plain-object StacktapeConfig examples, and no fenced Stacktape TypeScript config blocks."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\managing-costs\\per-resource-breakdown.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T17:32:50.586Z",
+  "inputHashes": {
+    "C:\\Projects\\console-app\\src\\pages\\CostsAndUsagePage\\CostsAndUsagePage.tsx": "7556c6f8e46a7484dd0e5c1eb0cd67b6dae3a66c",
+    "C:\\Projects\\console-app\\src\\pages\\ProjectsPage\\StageDetails\\Costs.tsx": "3d9419f9d00161463b4e47ae89fc6d1e134598a2"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

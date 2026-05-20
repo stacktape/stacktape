@@ -1,0 +1,378 @@
+---
+title: 'Web Application Firewall'
+order: 64
+seoTitle: 'Web Application Firewall (AWS WAF) | Stacktape Docs'
+seoDescription: 'Protect your APIs, load balancers, CDNs, and auth pools with AWS WAF in Stacktape. Default OWASP rules, rate limiting, and bot control with ~$5/month base pricing.'
+---
+
+# Web Application Firewall
+
+A Stacktape web application firewall (WAF) protects your load balancers, CDN distributions, SSR frontends, and auth pools from common web exploits — SQL injection, cross-site scripting (XSS), bad bots, and volumetric attacks. It uses AWS WAF underneath and ships with AWS-managed rule sets by default, giving you baseline protection with minimal configuration.
+
+**Pricing:** ~$5/month base + ~$1 per million requests inspected. Each additional rule group adds ~$1/month.
+
+## When to use
+
+Use a web application firewall when your stack exposes public endpoints that handle untrusted traffic. Common scenarios:
+
+- **Public APIs behind an [Application Load Balancer](/resources/networking/application-load-balancer)** — protect against SQL injection, XSS, and request flooding.
+- **SSR frontends** ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), etc.) — block bot scraping and abuse at the CloudFront edge before requests reach your origin.
+- **[Static hosting](/resources/frontend/static-hosting) with a CDN** — prevent DDoS and bad-bot traffic from inflating your bandwidth costs.
+- **[User auth pools](/resources/security/user-auth-pool)** — rate-limit brute-force login attempts and block known-bad IP ranges.
+- **Rate limiting** — cap requests per IP to prevent a single client from overloading your service.
+
+For most production stacks with public-facing resources, enabling a WAF is a low-effort, high-value security improvement.
+
+## When NOT to use
+
+- **Internal-only services** — a [private service](/resources/compute/private-service) or [worker service](/resources/compute/worker-service) with no public endpoint doesn't receive untrusted traffic. A WAF adds cost with no benefit.
+- **Low-traffic side projects** — the ~$5/month base cost may not be worth it for a personal project with negligible traffic. The default AWS rate limits and API Gateway throttling may be enough.
+- **Network-layer protection only** — AWS WAF operates at Layer 7 (HTTP/HTTPS). If you need Layer 3/4 protection (TCP flood, UDP reflection), AWS Shield (included free with all AWS accounts) handles that. WAF doesn't replace security groups or NACLs.
+- **[Network Load Balancers](/resources/networking/network-load-balancer)** — NLBs operate at Layer 4 and do not support AWS WAF attachment.
+
+## Basic example
+
+The simplest configuration creates a firewall with the two default AWS-managed rule sets (`AWSManagedRulesCommonRuleSet` and `AWSManagedRulesKnownBadInputsRuleSet`) and a default action of `Allow` — meaning all traffic passes unless a rule explicitly blocks it.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebAppFirewall, ApplicationLoadBalancer } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'regional'
+  });
+
+  const alb = new ApplicationLoadBalancer({
+    useFirewall: 'firewall'
+  });
+
+  return {
+    resources: { firewall, alb }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `scope` property is the only required field. Set it to `'regional'` for resources like [Application Load Balancers](/resources/networking/application-load-balancer) and [user auth pools](/resources/security/user-auth-pool), or `'cdn'` for CloudFront-based resources like [static hosting](/resources/frontend/static-hosting) and SSR frontends.
+
+## Scope
+
+The `scope` property determines which AWS service layer the firewall operates on. You must match the scope to the type of resource you're protecting — a mismatch causes a deployment error.
+
+| Scope | Protects | Use with |
+|---|---|---|
+| `regional` | Regional AWS resources in a single region | [Application Load Balancer](/resources/networking/application-load-balancer), [Web Service](/resources/compute/web-service) (requires ALB load balancing), [User Auth Pool](/resources/security/user-auth-pool) |
+| `cdn` | CloudFront distributions at the edge | [Static hosting](/resources/frontend/static-hosting), [CDN](/resources/networking/cdn), [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) |
+
+<Info>A `cdn`-scoped firewall must be deployed in `us-east-1` because AWS WAF for CloudFront requires that region. Stacktape handles this automatically when you deploy a CDN-scoped firewall.</Info>
+
+If you're protecting an ALB-backed [web service](/resources/compute/web-service) that also has a CDN enabled, you have two options: use a `regional`-scoped firewall on the service's top-level `useFirewall` to protect the ALB directly, or use a `cdn`-scoped firewall on the service's `cdn.useFirewall` to filter traffic at the CloudFront edge before it reaches the ALB. Edge filtering is generally more cost-effective for global traffic because malicious requests are blocked closer to the client.
+
+## Rules
+
+Stacktape web application firewall rules control which requests are allowed, blocked, or challenged. Three rule types are available: managed rule groups, custom rule groups, and rate-based rules. If you omit the `rules` property entirely, Stacktape applies two AWS-managed rule groups by default: `AWSManagedRulesCommonRuleSet` (covers OWASP Top 10) and `AWSManagedRulesKnownBadInputsRuleSet` (blocks Log4j, Java deserialization, and other known-bad payloads).
+
+Every rule requires a `priority` (number) and a `name` (string). Rules are evaluated in ascending priority order — lower numbers are evaluated first. Priorities must be unique across all rules in the firewall.
+
+### Managed rule groups
+
+Managed rule groups are pre-built sets of rules maintained by AWS or third-party vendors on the AWS Marketplace. They're the primary way to get broad protection without writing individual rules. AWS publishes rule groups for common threats — OWASP Top 10, bot control, IP reputation, and more.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebAppFirewall } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'regional',
+    rules: [
+      {
+        type: 'managed-rule-group',
+        properties: {
+          name: 'AWSManagedRulesCommonRuleSet',
+          vendorName: 'AWS',
+          priority: 1
+        }
+      },
+      {
+        type: 'managed-rule-group',
+        properties: {
+          name: 'AWSManagedRulesKnownBadInputsRuleSet',
+          vendorName: 'AWS',
+          priority: 2
+        }
+      },
+      {
+        type: 'managed-rule-group',
+        properties: {
+          name: 'AWSManagedRulesSQLiRuleSet',
+          vendorName: 'AWS',
+          priority: 3
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { firewall }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `vendorName` is `'AWS'` for all AWS-managed rule groups. For third-party rule groups from the AWS Marketplace, use the vendor's name as listed in the Marketplace.
+
+**Commonly used AWS-managed rule groups:**
+
+| Rule group | What it blocks |
+|---|---|
+| `AWSManagedRulesCommonRuleSet` | OWASP Top 10: XSS, path traversal, file inclusion, size constraints |
+| `AWSManagedRulesKnownBadInputsRuleSet` | Log4j/JNDI exploits, Java deserialization, known-bad request patterns |
+| `AWSManagedRulesSQLiRuleSet` | SQL injection patterns in query strings, body, cookies, headers |
+| `AWSManagedRulesAmazonIpReputationList` | IPs flagged by Amazon threat intelligence |
+| `AWSManagedRulesBotControlRuleSet` | Bot categories: scrapers, crawlers, HTTP libraries (~$10/month additional) |
+
+**Disabling individual rules within a group:** If a managed rule group produces false positives for your application, use `excludedRules` to disable specific rules by name without removing the entire group.
+
+**Dry-run mode:** Set `overrideAction` to `'Count'` to log matches without blocking. This is useful for testing a new rule group before enforcing it. The default (`'None'`) applies the group's built-in block/allow actions.
+
+### Rate-based rules
+
+Rate-based rules limit the number of requests a single IP address can make within a 5-minute window. When an IP exceeds the threshold, the configured action is applied (default: `Block`). Once the request rate drops back below the limit, the IP is automatically unblocked.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebAppFirewall } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'regional',
+    rules: [
+      {
+        type: 'managed-rule-group',
+        properties: {
+          name: 'AWSManagedRulesCommonRuleSet',
+          vendorName: 'AWS',
+          priority: 1
+        }
+      },
+      {
+        type: 'rate-based-rule',
+        properties: {
+          name: 'rateLimiter',
+          priority: 10,
+          limit: 2000,
+          action: 'Block'
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { firewall }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `limit` property sets the maximum requests per IP in a rolling 5-minute window. Valid range is 100 to 20,000,000. A value of `2000` means an IP can make roughly 6-7 requests per second sustained before being blocked.
+
+**Aggregation mode:** By default, rate limiting uses the direct client IP (`'IP'`). If your service sits behind a proxy or CDN, set `aggregateBasedOn` to `'FORWARDED_IP'` and configure `forwardedIPConfig` with the header name (typically `X-Forwarded-For`) and a `fallbackBehavior` (`'MATCH'` to apply the rule when the header is missing, `'NO_MATCH'` to skip).
+
+**Actions for rate-exceeded requests:** Besides the default `'Block'` (returns 403), you can use `'Count'` (log only — good for tuning the threshold), `'Captcha'` (present a CAPTCHA challenge), or `'Challenge'` (silent browser verification).
+
+### Custom rule groups
+
+Custom rule groups reference a pre-built WAF rule group by ARN. Use these when you have rule groups created outside of Stacktape — through the AWS Console, AWS CLI, or shared by another team via AWS WAF.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebAppFirewall } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'regional',
+    rules: [
+      {
+        type: 'custom-rule-group',
+        properties: {
+          name: 'teamSharedRules',
+          priority: 5,
+          arn: 'arn:aws:wafv2:eu-west-1:123456789012:regional/rulegroup/my-shared-rules/abc123'
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { firewall }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Like managed rule groups, custom rule groups support `overrideAction` — set to `'Count'` for dry-run mode or `'None'` (default) to apply the group's built-in actions.
+
+## Default action
+
+The `defaultAction` property controls what happens to requests that don't match any rule. Two options:
+
+- **`'Allow'`** (default) — all traffic passes through unless a rule explicitly blocks it. This is the recommended setting for most applications. Your rules act as a blocklist.
+- **`'Block'`** — all traffic is blocked (returns 403) unless a rule explicitly allows it. Use this for high-security scenarios where you want a strict allowlist. Requires careful rule configuration to avoid blocking legitimate traffic.
+
+Most teams should keep the default `'Allow'`. Switch to `'Block'` only when you have a well-defined set of allowed request patterns and want to reject everything else.
+
+## Attaching to resources
+
+A web application firewall is a standalone resource. To activate it, reference its name in the `useFirewall` property of the resource you want to protect. The firewall's `scope` must match the resource type.
+
+**Regional resources** (`scope: 'regional'`):
+
+| Resource | Where to set `useFirewall` | Notes |
+|---|---|---|
+| [Application Load Balancer](/resources/networking/application-load-balancer) | `useFirewall` on the ALB | Protects all traffic routed through the ALB |
+| [Web Service](/resources/compute/web-service) | `useFirewall` on the service | Requires `loadBalancing: 'application-load-balancer'` |
+| [User Auth Pool](/resources/security/user-auth-pool) | `useFirewall` on the pool | Rate-limits login attempts and blocks known-bad IPs |
+
+**CDN resources** (`scope: 'cdn'`):
+
+| Resource | Where to set `useFirewall` | Notes |
+|---|---|---|
+| [Static hosting](/resources/frontend/static-hosting) | `useFirewall` on the hosting bucket | Blocks bots and DDoS at edge |
+| [CDN](/resources/networking/cdn) | `useFirewall` on the CDN | Protects the CloudFront distribution |
+| SSR frontends ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)) | `useFirewall` on the frontend resource | Filters at CloudFront edge |
+
+<Warning>A web service with an ALB and CDN enabled has two attachment points: `useFirewall` (protects the ALB, requires `regional` scope) and `cdn.useFirewall` (protects the CloudFront distribution, requires `cdn` scope). These are separate paths — you can use one or both, with different firewall resources.</Warning>
+
+## Custom response bodies
+
+When a rule blocks a request, AWS WAF returns a generic 403 response by default. Use `customResponseBodies` to return structured error messages instead — useful for APIs that need JSON error responses or websites that want a branded block page.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebAppFirewall } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'regional',
+    customResponseBodies: {
+      blockedResponse: {
+        contentType: 'application/json',
+        content: '{"error": "Request blocked by firewall", "code": "WAF_BLOCKED"}'
+      }
+    }
+  });
+
+  return {
+    resources: { firewall }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Each entry maps a key to a content type and body. Supported content types are `application/json`, `text/plain`, and `text/html`. Custom response bodies are referenced by key in WAF rule actions (configured through [CloudFormation overrides](/configuration/overrides-and-escape-hatches) on individual rule actions).
+
+## CAPTCHA and challenge immunity
+
+When a rule uses a `'Captcha'` or `'Challenge'` action, the client receives a verification challenge. After solving it, a token is issued and the client doesn't need to re-verify for a configurable period.
+
+- **`captchaImmunityTime`** — seconds a solved CAPTCHA stays valid. Default: `300` (5 minutes).
+- **`challengeImmunityTime`** — seconds a solved silent challenge stays valid. Default: `300` (5 minutes).
+
+Lower values increase security but may annoy legitimate users on high-frequency pages. Higher values reduce friction but give a wider window for token reuse. The defaults work well for most applications.
+
+The `tokenDomains` property enables WAF token sharing across multiple domains — if your firewall protects both `api.example.com` and `app.example.com`, add both domains so a challenge solved on one is valid on the other.
+
+## Metrics and request sampling
+
+Stacktape web application firewall CloudWatch metrics are enabled by default. Set `disableMetrics: true` on the firewall or on individual rules to stop publishing metrics (not recommended for production).
+
+Request sampling (`sampledRequestsEnabled`) saves samples of matched requests for inspection in the AWS WAF console. Disabled by default. Enable it when debugging rule behavior — it shows which requests triggered which rules, including request headers and body snippets. Both settings are available at the firewall level and per-rule level.
+
+## Referenceable parameters
+
+<ReferenceableParams resource="web-app-firewall" />
+
+Use these with the [`$ResourceParam` directive](/configuration/directives) — for example, `$ResourceParam('firewall', 'arn')` returns the WAF ARN for use in [CloudFormation overrides](/configuration/overrides-and-escape-hatches) or [stack outputs](/configuration/variables-and-reuse).
+
+## API Reference
+
+<ApiReference definitionName="WebAppFirewallProps" />
+
+## FAQ
+
+### What rules does Stacktape apply by default?
+
+When you omit the `rules` property, Stacktape automatically configures two AWS-managed rule groups: `AWSManagedRulesCommonRuleSet` (OWASP Top 10 coverage including XSS, path traversal, and file inclusion) and `AWSManagedRulesKnownBadInputsRuleSet` (Log4j, Java deserialization, and other known-bad payloads). These provide broad baseline protection. Once you explicitly set `rules`, only your specified rules apply — the defaults are replaced entirely.
+
+### How much does AWS WAF cost?
+
+AWS WAF charges ~$5/month for the web ACL (firewall), ~$1/month per rule group, and ~$0.60 per million requests inspected. A typical setup with 2-3 rule groups costs $7-8/month plus request charges. The AWS Bot Control managed rule group has additional per-request pricing (~$1 per million requests for common bot controls, ~$10 for targeted bot mitigations). See the [managing costs overview](/managing-costs/overview) for broader optimization guidance.
+
+### Can I attach one firewall to multiple resources?
+
+Yes, as long as all resources match the firewall's scope. A single `regional` firewall can protect multiple ALBs and user auth pools. A single `cdn` firewall can protect multiple CloudFront-based resources. You reference the same firewall name from each resource's `useFirewall` property.
+
+### What's the difference between regional and cdn scope?
+
+A `regional` firewall inspects requests at the AWS region level — after they've arrived at an ALB or user auth pool. A `cdn` firewall inspects requests at CloudFront edge locations worldwide — before they reach your origin. CDN scope blocks malicious traffic closer to the attacker, reducing origin load and latency for legitimate users. Use `regional` for ALBs and user auth pools; use `cdn` for CloudFront-based resources.
+
+### How do I test WAF rules without blocking real traffic?
+
+Use the `overrideAction: 'Count'` setting on managed or custom rule groups. In count mode, matched requests are logged but not blocked, so you can review what would have been blocked before enforcing. For rate-based rules, set `action: 'Count'` for the same effect. Enable `sampledRequestsEnabled: true` to inspect matched request details in the AWS WAF console. Once you're confident the rules match correctly, switch to `'None'` (for rule groups) or `'Block'` (for rate-based rules).
+
+### Can I use third-party managed rule groups from AWS Marketplace?
+
+Yes. AWS Marketplace vendors publish managed rule groups for specific threat categories — GeoIP blocking, advanced bot detection, API abuse prevention, and more. Subscribe to the rule group in the AWS Marketplace, then reference it in your config with the vendor's name in `vendorName` and the rule group name in `name`. Third-party rule groups have additional subscription pricing set by the vendor.
+
+### Do I need a WAF if I'm using API Gateway?
+
+AWS [HTTP API Gateway](/resources/networking/http-api-gateway) includes built-in request throttling (10,000 requests/second default) and payload size limits, but it does not inspect request content for SQL injection, XSS, or other Layer 7 attacks. If your API processes user-submitted data (form fields, search queries, file metadata), a WAF adds meaningful protection. Note that Stacktape does not currently support attaching a WAF directly to an HTTP API Gateway — to use a WAF with API Gateway traffic, route through an [Application Load Balancer](/resources/networking/application-load-balancer) instead.
+
+### WAF vs security groups — when do I need each?
+
+Security groups operate at Layer 3/4 (IP addresses and ports) and control which network connections can reach your resources. AWS WAF operates at Layer 7 (HTTP) and inspects request content — headers, query strings, body, and URI paths. They serve different purposes and are complementary. Security groups block unauthorized network access; WAF blocks malicious HTTP requests from authorized network sources. Most production stacks benefit from both.
+
+### How do I handle false positives from managed rule groups?
+
+Use the `excludedRules` property on a managed rule group to disable specific rules by name without removing the entire group. First, enable `sampledRequestsEnabled` to identify which rule is triggering on legitimate requests. Then add that rule's name to `excludedRules`. You can find rule names in the AWS WAF documentation for each managed rule group, or in the sampled request details in the AWS WAF console.
+
+### How does the default action interact with rules?
+
+The `defaultAction` is a catch-all for requests that don't match any rule. With `'Allow'` (default), unmatched requests pass through — your rules are a blocklist. With `'Block'`, unmatched requests get a 403 — your rules must explicitly allow legitimate traffic. Most applications use `'Allow'` because writing a complete allowlist is error-prone. Use `'Block'` only in high-security contexts where you can precisely define every valid request pattern.

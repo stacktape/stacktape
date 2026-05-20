@@ -1,0 +1,799 @@
+{
+  "pageId": "configuration__triggers__sns-events",
+  "pageRoute": "configuration/triggers/sns-events",
+  "startedAt": "2026-05-17T10:58:35.824Z",
+  "updatedAt": "2026-05-17T11:15:50.459Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__sns-events\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clean 'When to use' / 'When NOT to use' split at peer H2 level — correct heading hierarchy and genuinely useful for first-time readers deciding between SNS, SQS, and EventBridge.",
+            "All three CodeBlock examples use the correct `<CodeBlock intellisense tabs={[...]} />` format with `label: 'TypeScript'`. No YAML Stacktape config blocks anywhere on the page.",
+            "Handler code example is placed immediately after the basic config example — the reader gets both the infrastructure wire-up and the runtime shape in one scroll.",
+            "Throughput / invocation behavior section accurately reflects what the source exposes: no `batchSize` or `maxBatchWindowSeconds` on `SnsIntegrationProps`, each message = one invocation.",
+            "FAQ covers all three required categories: Stacktape-specific (multiple subscribers, external topics, filter policies), AWS-service questions (message size limit, ordering), and choosing/comparison questions (SNS vs SQS, SNS vs EventBridge).",
+            "The `onDeliveryFailure` section includes a `<Warning>` callout explicitly flagging the message-loss risk — critical context for a first-time user who might skip this property.",
+            "No marketing language. Concise, confident prose throughout.",
+            "The filtering section clearly explains that filter policies match on message *attributes*, not body content — a common misconception that causes real bugs."
+          ],
+          "problems": [
+            "Missing `<ApiReference definitionName=\"SnsIntegrationProps\" />` — the page rhythm requires exactly one ApiReference component, and it is entirely absent. This is the primary navigation aid for readers who want to look up any property not covered in prose.",
+            "The FIFO topic restriction section claims 'Stacktape validates this at deploy time and raises an error if you attempt to subscribe a Lambda function to a FIFO topic.' This specific Stacktape-side validation behavior is not grounded in any of the provided source files. The source only exposes `SnsIntegrationProps` with no FIFO-related fields or validation logic visible.",
+            "The FAQ answer for 'How do I publish messages to an SNS topic from my function?' asserts that `connectTo` injects `STP_NOTIFICATION_TOPIC_ARN` and `STP_NOTIFICATION_TOPIC_NAME`. While the connectTo JSDoc is known to enumerate sns-topic, neither the injected parameter names nor their exact casing are visible in the provided source files — the claim is partially unsupported as written."
+          ],
+          "mandatoryFixes": [
+            "Add `<ApiReference definitionName=\"SnsIntegrationProps\" />` to the page. The standard page rhythm requires exactly one ApiReference; its absence means readers have no drillable reference for the full property set. Place it at the bottom of the page or after the 'Throughput and invocation behavior' section, before the FAQ."
+          ],
+          "optionalImprovements": [
+            "Soften or qualify the FIFO validation claim: instead of 'Stacktape validates this at deploy time and raises an error', write 'FIFO SNS topics do not support Lambda subscriptions at the AWS level — attempting this configuration will fail.' This frames it as an AWS constraint rather than an unsupported Stacktape-specific validation claim.",
+            "The connectTo FAQ answer would be stronger if it referenced the `$ResourceParam()` path as an alternative, or phrased the env-var injection more carefully: 'Stacktape injects the topic ARN and name as environment variables — see [connectTo](/configuration/connecting-resources) for the exact variable names based on your resource key.' This avoids asserting specific variable names without source grounding.",
+            "Consider adding a `<ReferenceableParams resource=\"sns-topic\" />` note or cross-link to the SnsTopic resource page — readers configuring an SNS trigger often also need to know what parameters the topic exposes for use in other resources (e.g., topic ARN for publishing).",
+            "The basic example uses `memory: 256` without any surrounding explanation of why that value was chosen or what alternatives exist. Per the property-value anchors rule, one short sentence ('256 MB is sufficient for lightweight processing; increase for CPU-bound handlers') would satisfy the guideline without adding significant length.",
+            "The 'Using external topics' section could benefit from one sentence explaining the cross-account access policy requirement in concrete terms — many first-time users hit this friction point and the current 'ensure the topic's access policy allows...' is vague enough to send them to AWS docs without a clear starting point."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The 'When to use' / 'When NOT to use' pairing is concrete, opinionated, and covers real tradeoffs (fan-out vs. retention vs. ordering) without marketing language.",
+            "All source-documented SnsIntegrationProps fields (snsTopicName, snsTopicArn, filterPolicy, onDeliveryFailure with both sqsQueueName/sqsQueueArn variants) are covered with working examples.",
+            "The handler event payload example in a plain fenced TypeScript block is correct form for application code and gives the reader enough structure to start writing.",
+            "The onDeliveryFailure section accurately reflects the JSDoc note about 'rare cases (e.g., if the target function cannot scale fast enough)' and correctly documents both sqsQueueName and sqsQueueArn variants.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service mechanics, choosing/comparison) and each answer is a self-contained 2-4 sentence paragraph.",
+            "CodeBlock examples use defineConfig + class-based resources correctly; no forbidden YAML blocks, no StacktapeConfig type imports, no fenced TypeScript with defineConfig."
+          ],
+          "problems": [
+            "Missing <ApiReference> entirely. The style guide requires exactly one <ApiReference definitionName=\"...\" /> on every resource/event page. The correct value is SnsIntegrationProps (matching the interface name in the source types). The absence of this component means readers cannot drill down to full property details from the page.",
+            "The FIFO section contains an unsupported Stacktape-specific claim: 'Stacktape validates this at deploy time and raises an error if you attempt to subscribe a Lambda function to a FIFO topic.' The source file (SnsIntegrationProps, events.d.ts) has no FIFO-related validation or property. This is stated as Stacktape behavior but is only grounded as well-known AWS behavior.",
+            "The FAQ entry 'Can container workloads subscribe to SNS topics?' claims 'SNS event triggers are available for Lambda functions and batch jobs.' The source does not enumerate which workload types support SnsIntegration — this is an unsupported positive claim about batch job eligibility.",
+            "The FAQ answer for 'How do I publish messages to an SNS topic from my function?' claims 'Stacktape injects STP_NOTIFICATION_TOPIC_ARN and STP_NOTIFICATION_TOPIC_NAME as environment variables' via connectTo. The provided source files do not include the connectTo JSDoc that enumerates SNS topic env-var injection — this claim pattern is explicitly called out as a risk in the forbidden claim list."
+          ],
+          "mandatoryFixes": [
+            "Add <ApiReference definitionName=\"SnsIntegrationProps\" /> to the page (top, middle, or bottom — pick what fits the flow). Without it the page violates the 'exactly one ApiReference' rule and completeness is materially harmed.",
+            "Rewrite the FIFO section to remove the unsupported Stacktape claim. Replace 'Stacktape validates this at deploy time and raises an error' with an AWS-framed fact: 'This is an AWS constraint — FIFO SNS topics cannot deliver to Lambda subscribers at all.' Do not claim Stacktape performs specific deploy-time validation unless the source confirms it.",
+            "Remove or caveat the batch job SNS trigger eligibility claim in the FAQ. Either replace 'Lambda functions and batch jobs' with 'Lambda functions' (which is directly supported by the source context) or source-ground the batch job claim before including it.",
+            "Rewrite the connectTo FAQ answer to avoid asserting specific env-var names (STP_NOTIFICATION_TOPIC_ARN, STP_NOTIFICATION_TOPIC_NAME) that require the connectTo JSDoc to be present in source. Instead, state that connectTo grants publish permissions and makes the topic's referenceable parameters available, and link to the connectTo documentation for the injected variable names — or verify the connectTo JSDoc enumerates SnsTopic before making the specific claim."
+          ],
+          "optionalImprovements": [
+            "Add <ReferenceableParams resource=\"sns-topic\" /> (or the appropriate resource key) if SNS topics expose referenceable parameters — the page references $ResourceParam usage elsewhere but doesn't link to a referenceable params section.",
+            "Shorten the 'Throughput and invocation behavior' H2 heading to 'Throughput' or 'Invocation behavior' — the current form is the longest heading on the page and violates the 1-5 word guidance (though not a hard violation).",
+            "The FIFO section, once corrected to AWS framing, could note that this constraint does not appear in the SnsIntegrationProps type — i.e., Stacktape does not currently expose a FIFO flag on the subscription — to set expectations for users who expect a fifoEnabled property on the integration side.",
+            "The handler type example could include MessageAttributes in the SNSRecord type stub to show that attributes (used for filter policies) are accessible, which ties the filtering section back to the handler code."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the right length for extractability.",
+            "H2 structure is compact and scannable, with practical sections for basic setup, filtering, external topics, failure handling, throughput, and FAQ.",
+            "Stacktape configuration examples use the required TypeScript class-based `<CodeBlock intellisense tabs={[...]}/>` form and avoid hand-authored YAML.",
+            "The page gives useful decision guidance for SNS vs SQS and SNS vs EventBridge, which fits how readers choose event sources."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided `events.d.ts` source, especially FIFO SNS restrictions, deploy-time validation, Lambda-only FIFO incompatibility, external topic policy requirements, and exact retry/drop behavior.",
+            "The page claims SNS triggers are available for batch jobs in the FAQ, but the provided source defines `SnsIntegration` as triggering a function and does not ground batch-job support.",
+            "The FAQ connectTo answer claims concrete injected env vars for SNS topics, but the provided source file does not include `ResourceAccessProps.connectTo` JSDoc or SNS referenceable parameter documentation, so the env-var claim is unsupported in this source set.",
+            "The handler payload example is narrower than the stated standard AWS SNS event shape and may imply only `Subject`, `Message`, `MessageId`, and `Timestamp` exist; source does not document payload shape beyond SNS integration configuration.",
+            "The page says SNS has no batching configuration and each message produces exactly one invocation. The lack of `batchSize` is grounded by the prop shape, but exact one-message-per-invocation behavior is stronger than the source states.",
+            "The external topic section says exactly one of `snsTopicName` or `snsTopicArn` is a validation error if violated. The source says 'must specify either', but does not explicitly ground the validation-error behavior.",
+            "The delivery-failure section states Stacktape configures the SNS subscription redrive policy and that messages land with delivery failure metadata. The source only says failed messages are sent to an SQS queue."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-narrow the FIFO SNS topic restriction section unless source files for `SnsTopic` FIFO behavior and deploy-time validation are provided. Do not claim Stacktape validates FIFO-to-Lambda subscriptions from the current source set.",
+            "Fix the FAQ claim that SNS event triggers are available for batch jobs. Based on the provided source, describe SNS integration as triggering functions only, or provide an authoritative batch-job source.",
+            "Remove the unsupported `connectTo` env-var names from the FAQ or replace with a source-grounded statement only if `ResourceAccessProps.connectTo` and SNS referenceable parameter sources are included.",
+            "Narrow retry and delivery-failure wording to what the source supports: `onDeliveryFailure` specifies an SQS queue where messages that fail delivery to the target are sent. Avoid claiming retry exhaustion, redrive policy internals, permanent drop behavior, or metadata unless sourced.",
+            "Change 'validation error' wording for `snsTopicName` / `snsTopicArn` to source-grounded wording such as 'configure either `snsTopicName` or `snsTopicArn`' unless runtime validator source is provided."
+          ],
+          "optionalImprovements": [
+            "Add a small comparison table for SNS vs SQS vs EventBridge to improve extraction and decision-making.",
+            "Add `<ApiReference definitionName=\"SnsIntegrationProps\" />` only if this route's docs pattern expects trigger prop references; otherwise keep the page conceptual as instructed.",
+            "Clarify that `filterPolicy` is typed as `any` in Stacktape and uses SNS subscription filter policy syntax, so Stacktape passes through AWS filter-policy structure rather than modeling every filter variant.",
+            "Make the handler example either use the AWS Lambda SNS event type from application dependencies or explicitly say it is a minimal shape used by the example, not a complete event contract.",
+            "Keep the warning about critical workflows, but phrase it less absolutely unless retry/drop behavior is included in source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft mostly follows the TypeScript-example requirements and correctly centers the page on `SnsIntegration`, `snsTopicName` / `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure`. The main factual risks are several Stacktape-specific claims that are not supported by the provided `events.d.ts` source, especially around FIFO validation, batch-job support, automatic permissions, and retry/drop behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“FIFO SNS topics ... cannot deliver to Lambda functions ... Stacktape validates this at deploy time and raises an error if you attempt to subscribe a Lambda function to a FIFO topic.”",
+              "reason": "The provided source for `SnsIntegration` does not document FIFO-topic behavior or any Stacktape validation for subscribing Lambda functions to FIFO SNS topics. This is a Stacktape-specific validation claim that would affect what users configure.",
+              "suggestedFix": "Remove the Stacktape validation claim unless a validator/runtime source is provided. If retaining AWS background, phrase it as general AWS guidance and avoid saying Stacktape validates it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {\n  /**\n   * #### The name of an SNS topic defined in your stack's resources.\n   *\n   * ---\n   *\n   * You must specify either `snsTopicName` or `snsTopicArn`.\n   */\n  snsTopicName?: string;\n  /**\n   * #### The ARN of an existing SNS topic.\n   *\n   * ---\n   *\n   * Use this to subscribe to a topic that is not managed by your stack.\n   * You must specify either `snsTopicName` or `snsTopicArn`.\n   */\n  snsTopicArn?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically creates the SNS subscription and grants the topic permission to invoke the function.”",
+              "reason": "The source documents that `SnsIntegration` triggers a function from an SNS topic, but it does not state that Stacktape automatically creates the subscription or grants invoke permissions. This may be true in implementation, but it is not grounded in the provided source.",
+              "suggestedFix": "Narrow the sentence to the sourced behavior: “The `SnsIntegration` configures the function to be triggered by messages from the referenced SNS topic.” Add the subscription/permission detail only if deployment/runtime source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when a new message is published to an SNS topic.\n *\n * ---\n *\n * SNS is a pub/sub messaging service. Reference a topic from your stack's `snsTopics` or use an external ARN.\n */\ninterface SnsIntegration {\n  type: 'sns';\n  properties: SnsIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“SNS event triggers are available for Lambda functions and batch jobs.”",
+              "reason": "The provided `SnsIntegration` source says SNS triggers a function. The source does not state that SNS triggers batch jobs. In the same file, `EventBusIntegration` is explicitly described as the integration that triggers a batch job, which makes the batch-job claim for SNS unsupported and likely misleading.",
+              "suggestedFix": "Change the answer to say the provided SNS trigger source documents function targets. Do not claim batch-job support unless a BatchJob source file for SNS triggers is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when a new message is published to an SNS topic.\n *\n * ---\n *\n * SNS is a pub/sub messaging service. Reference a topic from your stack's `snsTopics` or use an external ARN.\n */\ninterface SnsIntegration {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a batch job when an event matching a specified pattern is received by an event bus.\n *\n * ---\n *\n * You can use a custom event bus or the default AWS event bus.\n */\ninterface EventBusIntegration {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“For a topic resource named `notificationTopic`, Stacktape injects `STP_NOTIFICATION_TOPIC_ARN` and `STP_NOTIFICATION_TOPIC_NAME` as environment variables.”",
+              "reason": "The provided source file does not include `connectTo` behavior or SNS topic environment-variable injection rules. The verifier instructions require connectTo env-var claims to be grounded in the `ResourceAccessProps.connectTo` JSDoc, which is not among the provided sources.",
+              "suggestedFix": "Remove the concrete injected environment variable names from this page, or replace the claim with a link to `/configuration/connecting-resources` without asserting the exact variables unless the connectTo source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {\n  /**\n   * #### The name of an SNS topic defined in your stack's resources.\n   *\n   * ---\n   *\n   * You must specify either `snsTopicName` or `snsTopicArn`.\n   */\n  snsTopicName?: string;\n  /**\n   * #### The ARN of an existing SNS topic.\n   *\n   * ---\n   *\n   * Use this to subscribe to a topic that is not managed by your stack.\n   * You must specify either `snsTopicName` or `snsTopicArn`.\n   */\n  snsTopicArn?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You must specify exactly one of `snsTopicName` or `snsTopicArn` — providing both (or neither) is a validation error.”",
+              "reason": "The source says each property must be specified either with the other alternative, but it does not state “exactly one” or describe the validation error for both/neither. The exact-one rule is plausible, but the validation-error wording is stronger than the provided source.",
+              "suggestedFix": "Use the source wording: “Specify either `snsTopicName` for a Stacktape-managed topic or `snsTopicArn` for an existing topic.” Avoid the validation-error claim unless validator source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* You must specify either `snsTopicName` or `snsTopicArn`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `onDeliveryFailure` property accepts either `sqsQueueName` ... or `sqsQueueArn` ... Stacktape configures the SNS subscription's redrive policy so that failed messages land in the queue with delivery failure metadata, allowing you to inspect and reprocess them.”",
+              "reason": "The source supports that `onDeliveryFailure` specifies an SQS queue where failed messages will be sent. It does not mention a subscription redrive policy, delivery failure metadata, inspection, or reprocessing behavior.",
+              "suggestedFix": "Keep the supported part: “`onDeliveryFailure` specifies an SQS queue for messages that fail to be delivered.” Remove redrive-policy and metadata details unless implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* #### A destination for messages that fail to be delivered to the target.\n   *\n   * ---\n   *\n   * In rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered.\n   * This property specifies an SQS queue where failed messages will be sent.\n   */\n  onDeliveryFailure?: SnsOnDeliveryFailure;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without `onDeliveryFailure` configured, messages that fail all delivery attempts are dropped permanently.” and “If all retries are exhausted, the message routes to the `onDeliveryFailure` destination (if configured) or is dropped.”",
+              "reason": "The source says `onDeliveryFailure` provides an SQS queue for failed delivery, but it does not define retry exhaustion behavior or what happens when no failure destination is configured. These are specific delivery-lifecycle claims not grounded in the provided Stacktape source.",
+              "suggestedFix": "Write cautiously: “For critical workflows, configure `onDeliveryFailure` so failed deliveries have an SQS destination.” Avoid claiming permanent drop behavior unless AWS/Stacktape source for the retry policy is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "* #### A destination for messages that fail to be delivered to the target.\n   *\n   * ---\n   *\n   * In rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered.\n   * This property specifies an SQS queue where failed messages will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The handler receives the standard AWS SNS event structure with a `Records` array. Each record contains the message body, subject, message ID, and timestamp.”",
+              "reason": "The human-maintained instructions say to document payload shape only when present or non-obvious. The provided Stacktape source only says the function is triggered when a message is published; it does not document the event payload shape or record fields.",
+              "suggestedFix": "Either remove the payload-shape section or qualify it as AWS Lambda SNS event background and link to AWS docs. Do not present it as a Stacktape-sourced behavior from the provided files.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "/**\n * #### Triggers a function when a new message is published to an SNS topic.\n *\n * ---\n *\n * SNS is a pub/sub messaging service. Reference a topic from your stack's `snsTopics` or use an external ARN.\n */\ninterface SnsIntegration {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab, and the draft does not hand-author YAML Stacktape config.",
+            "The draft correctly uses `SnsIntegration` with the source-backed properties `snsTopicName`, `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure`.",
+            "The links checked against the provided navigation index point to existing routes, including Lambda function, SNS topic, SQS trigger, EventBridge trigger, Kinesis trigger, and S3 bucket pages."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided SNS integration type: it uses `SnsIntegration`, `snsTopicName`/`snsTopicArn`, `filterPolicy`, and `onDeliveryFailure` in the documented shape. The main issues are unsupported Stacktape-specific behavior claims that go beyond the provided source, plus one invalid cross-link.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft links to `[S3](/resources/storage/s3-bucket)` in the FAQ.",
+              "reason": "The navigation index does not contain `/resources/storage/s3-bucket`; the valid S3 bucket page route is `/resources/storage/s3-bucket`? Actually the provided navigation lists `/resources/storage/s3-bucket`? Wait check. It lists `/resources/storage/s3-bucket — S3 object storage.` This link is valid. No issue.",
+              "suggestedFix": "No change needed.",
+              "evidence": []
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically creates the SNS subscription and grants the topic permission to invoke the function.”",
+              "reason": "The provided source defines an SNS trigger and its properties, but it does not explicitly document subscription creation or Lambda invoke permission behavior. This may be true in implementation, but it is not grounded in the supplied source file.",
+              "suggestedFix": "Narrow the sentence to source-backed behavior, for example: “The `SnsIntegration` trigger connects the Lambda function to the referenced SNS topic.” Avoid claiming the exact subscription and permission resources unless implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a function when a new message is published to an SNS topic."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Reference a topic from your stack's `snsTopics` or use an external ARN."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You must specify exactly one of `snsTopicName` or `snsTopicArn` — providing both (or neither) is a validation error.”",
+              "reason": "The source says the user must specify either `snsTopicName` or `snsTopicArn`, but it does not state that both are rejected, nor that neither/both produce a validation error. The stronger validation-error claim is not grounded in the supplied type source.",
+              "suggestedFix": "Use the source wording: “Specify either `snsTopicName` or `snsTopicArn`.” Only mention both/neither validation if runtime validator source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "You must specify either `snsTopicName` or `snsTopicArn`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape configures the SNS subscription's redrive policy so that failed messages land in the queue with delivery failure metadata, allowing you to inspect and reprocess them.”",
+              "reason": "The source supports `onDeliveryFailure` as an SQS destination for failed deliveries, but it does not mention a redrive policy, delivery failure metadata, or reprocessing behavior. Those details go beyond the provided source.",
+              "suggestedFix": "Keep the grounded part: “The `onDeliveryFailure` property specifies an SQS queue where failed messages are sent.” Remove or qualify redrive-policy and metadata details unless implementation source is supplied.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "A destination for messages that fail to be delivered to the target."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "This property specifies an SQS queue where failed messages will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without `onDeliveryFailure` configured, messages that fail all delivery attempts are dropped permanently.”",
+              "reason": "The source supports configuring an SQS destination for failed delivery, but it does not state what happens when `onDeliveryFailure` is omitted. The drop-permanently behavior may be an AWS SNS behavior, but in this context it is presented as part of Stacktape trigger behavior and is not grounded in the supplied source.",
+              "suggestedFix": "Phrase cautiously: “For critical workflows, configure `onDeliveryFailure` so failed deliveries have an SQS destination.” Avoid asserting the no-DLQ terminal behavior unless AWS/implementation source is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "onDeliveryFailure?: SnsOnDeliveryFailure;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "In rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“SNS triggers invoke your Lambda function once per published message… each message produces a separate invocation.”",
+              "reason": "The source states that a function is triggered when a new message is published, and the SNS integration exposes no batching properties. It does not explicitly define invocation cardinality as exactly one Lambda invocation per message. This is likely AWS behavior, but the draft presents it as Stacktape trigger behavior.",
+              "suggestedFix": "Ground the statement more narrowly: “`SnsIntegrationProps` does not expose `batchSize` or `maxBatchWindowSeconds`; unlike SQS and Kinesis integrations, SNS integration is not configurable as a batch trigger in Stacktape.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a function when a new message is published to an SNS topic."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape validates this at deploy time and raises an error if you attempt to subscribe a Lambda function to a FIFO topic.”",
+              "reason": "The provided SNS integration source does not mention FIFO topics or any deploy-time validation for subscribing Lambda functions to FIFO topics. This is a concrete Stacktape validation behavior claim without source support.",
+              "suggestedFix": "Remove the Stacktape validation sentence, or replace it with AWS-level guidance: “AWS SNS FIFO topics are not a direct Lambda event source; use FIFO SQS between SNS FIFO and Lambda for ordered processing.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "snsTopicName?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“SNS event triggers are available for Lambda functions and batch jobs.”",
+              "reason": "The supplied source explicitly describes `SnsIntegration` as triggering a function. It does not show SNS triggers for batch jobs. The draft’s batch-job claim is a Stacktape-specific supported-resource claim that is not grounded in the provided file.",
+              "suggestedFix": "Say only that the provided `SnsIntegration` triggers a Lambda function, or cite the relevant batch-job trigger type source if batch jobs are actually supported.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a function when a new message is published to an SNS topic."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegration {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and `defineConfig`; there are no hand-authored YAML Stacktape config examples.",
+            "The draft correctly uses the documented `SnsIntegration` properties: `snsTopicName`, `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure` with `sqsQueueName`.",
+            "The draft correctly distinguishes SNS message-attribute filtering from EventBridge content-based filtering, matching the source guidance that `filterPolicy` uses SNS subscription filter policy syntax and that EventBridge should be used for content-based filtering."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers every important property in `SnsIntegrationProps` and its nested failure destination shape, and the code examples demonstrate the specific feature each section discusses. I found no API completeness, union-variant coverage, or code-example demonstrativeness issues within the requested audit scope.",
+          "issues": [],
+          "positiveFindings": [
+            "The page documents all primary SNS integration properties from the source: `snsTopicName`, `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure`.",
+            "The page names both supported failed-delivery destination reference forms: `sqsQueueName` and `sqsQueueArn`.",
+            "Each `<CodeBlock intellisense>` example is tied to the surrounding section topic: basic SNS trigger, filter policy, external topic ARN, and delivery failure queue.",
+            "The canonical event-binding example focuses the `triggers` property and uses `SnsIntegration`, matching the trigger-page instruction."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\configuration__triggers__sns-events\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Three well-grounded, realistic CodeBlock examples covering the primary scenarios (basic subscription, filter policy, external topic ARN, delivery failure) — each builds naturally on the last.",
+            "The comparison table (SNS vs SQS vs Kinesis) is concrete and actionable; differences in batching, retention, and ordering are exactly what a first-timer needs to choose correctly.",
+            "'When NOT to use' is unusually strong — the FIFO-to-Lambda restriction and the 'single consumer' SQS recommendation are honest, opinionated, and correct per source.",
+            "The handler code snippet showing the SNS Records payload shape is practical; most trigger pages skip this and leave readers guessing what arrives in the event object.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-general, and comparison) with 10 well-differentiated questions. No padding or near-duplicates.",
+            "The 'Throughput and invocation behavior' section explicitly grounds 'no batchSize / maxBatchWindowSeconds' in the source type, then explains the concurrency implication — this is high-signal content not present in many trigger pages.",
+            "The `onDeliveryFailure` motivation is sourced accurately from the JSDoc ('In rare cases, e.g., if the target function cannot scale fast enough') rather than invented."
+          ],
+          "problems": [
+            "The `<Warning>` callout at the end of 'Handling delivery failures' restates verbatim content from the prose paragraph immediately above it ('For critical workflows, always configure a dead-letter queue'). The callout adds no new information; it just repeats the conclusion the reader already read.",
+            "FAQ states 'The `SnsIntegration` trigger is available for Lambda functions and batch jobs.' The provided source JSDoc reads 'Triggers a **function** when a new message is published to an SNS topic' — no batch job mention. This is a positive claim about a resource type that the provided source does not confirm.",
+            "FAQ states 'connectTo injects `STP_NOTIFICATION_TOPIC_ARN` and `STP_NOTIFICATION_TOPIC_NAME`' as established fact. The connectTo injection table for SNS topics is not present in the provided source files (`__helpers.d.ts` is not included). Per the source-grounding rules, do not assert specific env-var names as confirmed unless the JSDoc for that resource type appears in the source list."
+          ],
+          "mandatoryFixes": [
+            "Remove or condense the `<Warning>` callout at the bottom of 'Handling delivery failures'. It restates the preceding paragraph. Either cut it or fold its content into the prose so the section doesn't end by repeating itself — this qualifies as a backbone section padded with restated content.",
+            "Verify the batch job claim in the FAQ ('SnsIntegration is available for Lambda functions and batch jobs') against the actual source. If the source only says 'function', either narrow the claim to Lambda functions only, or add a cautionary qualifier such as 'check the Batch job documentation for trigger support'.",
+            "Rewrite the connectTo FAQ answer to avoid asserting specific env-var names as confirmed fact. Replace the list of specific names with the pattern form: 'connectTo injects the topic's referenceable parameters as environment variables following the `STP_[RESOURCE_NAME]_[PARAM]` pattern. See [connecting resources](/configuration/connecting-resources) for the exact variables exposed by SNS topics.' Only list specific names if the connectTo JSDoc for SNS topics is confirmed in source."
+          ],
+          "optionalImprovements": [
+            "The 'Basic example' section mentions 'You can attach multiple functions to the same topic to build a fan-out pattern' — this is stated but not shown. A two-resource snippet (two Lambda functions both with SnsIntegration on the same topic) under a 'Fan-out pattern' subsection would make the fan-out concept tangible without requiring a second full section.",
+            "The 256 KB message size limit is currently FAQ-only. Surfacing it with one sentence in the 'Throughput and invocation behavior' section would help readers who skim sections rather than reading the FAQ.",
+            "The `filterPolicy` example uses non-trivial filter syntax (numeric range `['>=', 1000]`) without a link to a readable reference beyond the AWS docs URL. Adding a one-line note that Stacktape passes the policy through as-is (the `filterPolicy?: any` type confirms this) would set expectations about schema validation."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Three realistic, copy-ready CodeBlock examples covering the main use cases (basic subscription, filter policy, external ARN, delivery failure), each with surrounding prose that explains what the properties control and why to choose them.",
+            "The 'When NOT to use' section is genuinely opinionated and concrete — it names the right alternative for every anti-pattern (SQS for retention, EventBridge for content routing, SQS for single consumer, Kinesis/FIFO-SQS for ordering) instead of hedging.",
+            "The throughput comparison table (SNS vs SQS vs Kinesis) is a high-value AEO target and is grounded in the source types — batchSize limits for SQS and Kinesis match the JSDoc maximums.",
+            "FIFO topic restriction section correctly frames the constraint as an AWS-level limitation, not a Stacktape one, and gives the canonical workaround (FIFO SNS → FIFO SQS → SQS trigger).",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'`; no hand-authored YAML blocks present. The handler snippet is correctly in a fenced `typescript` block as application code.",
+            "FAQ mixes all three required categories (Stacktape-specific, AWS service mechanics, comparison/choosing), providing good AEO coverage.",
+            "No mandatory style violations: no StacktapeConfig type import, no YAML resource maps, no fenced TypeScript blocks wrapping defineConfig, no PropertiesTable, and exactly one ApiReference whose definitionName matches the source type."
+          ],
+          "problems": [
+            "Batch job support claim is not grounded in the source. The source JSDoc for `SnsIntegration` explicitly says 'Triggers a **function** when a new message is published to an SNS topic' — it does not mention batch jobs. The page asserts (in the 'When to use' section and the FAQ) that `SnsIntegration` is available for Lambda functions AND batch jobs. Compare with `EventBusIntegration`, whose JSDoc explicitly says 'Triggers a **batch job**…' — the SNS variant makes no such claim. This may be true at runtime but the provided source does not support it.",
+            "The `filterPolicy` code example shows a multi-key object with string arrays and a numeric comparison object (`{ numeric: ['>=', 1000] }`). The source types `filterPolicy` as `any`, so this specific syntax cannot be verified from the provided source. The page correctly links out to AWS docs for the full syntax, but the example value reads as authoritative Stacktape syntax rather than illustrative SNS filter policy syntax."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or hedge the batch job claim until it can be verified against the batch job source types. Change 'The `SnsIntegration` trigger covers the Lambda and batch job subscriber path' to 'The `SnsIntegration` trigger is configured on a Lambda function's `triggers` array' and update the FAQ answer for 'Which resource types support SNS triggers?' to remove the ungrounded batch job assertion. If you can confirm batch job support from the batch job type definitions, add a note like '(also supported on batch jobs — see [batch job docs])' with a source reference.",
+            "Add a brief inline note before the `filterPolicy` code example clarifying that the specific object syntax shown (string arrays, numeric operator objects) is SNS filter policy syntax defined by AWS — not a Stacktape-specific format — so readers know to check the linked AWS docs for the authoritative syntax reference rather than treating the example as exhaustive.",
+            "The 'Handling delivery failures' section has a `<Warning>` callout that directly repeats the previous paragraph's conclusion. Consider either removing the callout (the prose already covers it) or making the callout add new information (e.g., how to monitor queue depth or which alarm metric to use), to avoid the padded-section smell.",
+            "The 'Throughput and invocation behavior' section opens with the internal type name (`SnsIntegrationProps`) as its evidence anchor. Most readers won't find this meaningful. Replace with behavior-first phrasing: 'SNS delivers each message as a single invocation — there is no `batchSize` or `maxBatchWindowSeconds` to configure…'"
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and explains the SNS fan-out use case clearly.",
+            "Stacktape configuration examples use the required <CodeBlock intellisense> TypeScript pattern and avoid forbidden YAML/plain-object config forms.",
+            "The page has useful decision sections, practical examples for managed topics, external topics, filter policies, and delivery-failure queues.",
+            "The FAQ covers Stacktape-specific, AWS-use-case, and choosing/comparison questions instead of being Stacktape-only.",
+            "The API reference uses the correct root definitionName, SnsIntegrationProps, and appears exactly once."
+          ],
+          "problems": [
+            "Several important claims are not grounded in the provided source file: SNS retention behavior, exactly-once processing, standard vs FIFO SNS ordering, FIFO SNS not delivering to Lambda, SNS message size, AWS Free Tier pricing, and retry exhaustion details are not present in events.d.ts.",
+            "The draft claims SnsIntegration supports batch jobs, but the provided source defines SnsIntegration as triggering a function and does not show batch-job support for SNS.",
+            "The FAQ says connectTo injects STP_NOTIFICATION_TOPIC_ARN and STP_NOTIFICATION_TOPIC_NAME for SNS topics, but the provided source file does not include ResourceAccessProps/connectTo documentation, so this env-var claim is unsupported for this page source set.",
+            "The throughput comparison table includes SQS retention up to 14 days, Kinesis retention up to 365 days, and Kinesis/SQS batchSize limits. Some batch-size limits are grounded in the same source file, but the retention numbers are not.",
+            "The handler payload type is useful, but the provided source does not document the SNS event payload shape. The page should either cite a provided source that contains this shape or narrow the wording to say Lambda receives the AWS SNS event format without enumerating unsupported fields.",
+            "The external-topic section says the topic access policy must allow the stack's AWS account to create a subscription. That may be true AWS behavior, but it is not present in the provided source file.",
+            "The body includes some broad AWS-behavior claims outside the FAQ. The prompt allows some FAQ AWS background, but the page-level hard requirement says technical statements must be grounded in the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the claim that SnsIntegration supports batch jobs; based on the provided source, describe SnsIntegration as a function trigger only.",
+            "Remove the connectTo SNS environment-variable injection claim unless the page source set includes the connectTo JSDoc proving SNS topic injected parameters. If kept, ground it with the canonical STP_[RESOURCE_NAME]_[PARAM] source.",
+            "Revise unsupported AWS-specific assertions in the main guide body: SNS retention/no-retention, exactly-once, FIFO-to-Lambda restriction, ordering guarantees, retry exhaustion details, topic access-policy requirements, message size, and pricing/free-tier claims. Either add authoritative source files for these facts or phrase them more cautiously and move general AWS background to FAQ where appropriate.",
+            "Replace the retention values in the comparison table with source-grounded properties, or remove the table rows that depend on unsourced retention numbers.",
+            "Do not state concrete SNS event payload fields unless the provided source includes that payload shape. Keep the handler example generic or explicitly frame it as the AWS SNS Lambda event format with an external source included."
+          ],
+          "optionalImprovements": [
+            "Tighten the first paragraph of “Throughput and invocation behavior” to avoid overclaiming “one Lambda invocation per published message”; the source only proves SnsIntegration has no batch-size/window props, not exact invocation cardinality under all AWS behavior.",
+            "Add one sentence near the filtering example that `filterPolicy` is typed as `any` in SnsIntegrationProps and uses SNS subscription filter policy syntax, which is directly grounded in the source.",
+            "Consider reducing repeated dead-letter guidance in “Handling delivery failures”; the prose and Warning callout say nearly the same thing.",
+            "Keep comparison content focused on decisions supported by the source: SNS has filterPolicy and onDeliveryFailure, SQS/Kinesis have batch-size/window controls, and EventBridge supports eventPattern and payload transformation."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the SNS integration source: it uses the documented `SnsIntegrationProps` fields, keeps Stacktape config examples in `CodeBlock`, and correctly distinguishes `snsTopicName`, `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure`. The main problems are unsupported Stacktape-specific scope claims and a few over-specific batching/retry statements that the provided source does not establish.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `SnsIntegration` trigger covers the Lambda and batch job subscriber path.” and “The `SnsIntegration` trigger is available for Lambda functions and batch jobs.”",
+              "reason": "The provided source defines SNS integration as triggering a function. It does not state that SNS integrations are available for batch jobs. This is a Stacktape-specific resource-compatibility claim and would change what readers try to configure.",
+              "suggestedFix": "Narrow the page to Lambda functions unless a batch-job source is added. For example: “The provided SNS integration type triggers a function when a message is published to an SNS topic.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when a new message is published to an SNS topic."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegration {\n  type: 'sns';\n  properties: SnsIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“SNS integration is not configurable as a batch trigger — AWS SNS delivers each message to the subscriber individually, producing one Lambda invocation per published message.”",
+              "reason": "The source supports that `SnsIntegrationProps` has no `batchSize` or `maxBatchWindowSeconds`, but it does not establish the stronger one-message-per-invocation behavior. The draft can safely say Stacktape exposes no SNS batching knobs; the invocation payload details are not grounded in the provided source.",
+              "suggestedFix": "Replace with: “`SnsIntegrationProps` does not expose `batchSize` or `maxBatchWindowSeconds`, so Stacktape does not provide SNS batching controls on this integration.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {\n  /**\n   * #### The name of an SNS topic defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "filterPolicy?: any;\n  /**\n   * #### A destination for messages that fail to be delivered to the target."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Because each message triggers a separate invocation, your function's concurrency scales with the publish rate on the topic. Publishing 100 messages per second can produce up to 100 concurrent Lambda invocations.”",
+              "reason": "This depends on the unsupported one-message-per-invocation claim and adds a specific concurrency example that is not present in the source. It may be generally plausible AWS guidance, but as written it describes Stacktape trigger behavior too concretely for the provided source.",
+              "suggestedFix": "Keep the operational guidance but remove the numeric causal claim. For example: “SNS-triggered Lambda functions can scale with publish volume, so monitor concurrency and use Lambda concurrency controls when you need a hard ceiling.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when a new message is published to an SNS topic."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS SNS retries Lambda delivery using a backoff policy if the initial invocation attempt fails. If all retries are exhausted, the message routes to the `onDeliveryFailure` destination (if configured).” and “When the Lambda function returns an error, AWS SNS retries delivery using a backoff policy.”",
+              "reason": "The source only says `onDeliveryFailure` is for messages that fail to be delivered to the target, with an example of the target function not scaling fast enough. It does not describe Lambda handler errors, retry backoff, exhaustion behavior, or the relationship between handler errors and `onDeliveryFailure`.",
+              "suggestedFix": "Restrict the Stacktape-specific wording to what the source says: “`onDeliveryFailure` configures an SQS destination for messages that fail to be delivered to the target.” If you keep AWS retry behavior, frame it as general SNS/Lambda behavior and avoid tying handler errors to Stacktape’s `onDeliveryFailure` unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A destination for messages that fail to be delivered to the target.\n   *\n   * ---\n   *\n   * In rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered.\n   * This property specifies an SQS queue where failed messages will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Container-based workloads (web services, worker services, multi-container workloads) use HTTP-based or polling-based triggers instead. To process SNS messages in a container, subscribe an SQS queue to the SNS topic and poll the queue from your container application.”",
+              "reason": "The provided source lists several container workload integrations, but it does not state an exhaustive rule that containers use only HTTP-based or polling-based triggers, nor does it document polling SNS-via-SQS as Stacktape guidance. This is a broad Stacktape-specific compatibility claim beyond the source.",
+              "suggestedFix": "Remove the container-workload claim or narrow it to the page scope: “The SNS trigger type in the provided source is documented as a function trigger.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when a new message is published to an SNS topic."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface ContainerWorkloadHttpApiIntegration {\n  type: 'http-api-gateway';\n  properties: ContainerWorkloadHttpApiIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For a topic resource named `notificationTopic`, connectTo injects `STP_NOTIFICATION_TOPIC_ARN` and `STP_NOTIFICATION_TOPIC_NAME`.”",
+              "reason": "The provided source for this page does not include the `ResourceAccessProps.connectTo` JSDoc or any SNS topic connectTo environment-variable table. The statement may be true elsewhere, but it is not grounded in the supplied source list for this verification.",
+              "suggestedFix": "Either remove the concrete env-var injection claim from this page or cite it only on the connecting-resources page. A cautious replacement is: “Use `connectTo` to grant publish access; see connecting resources for the environment variables available for SNS topics.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {\n  /**\n   * #### The name of an SNS topic defined in your stack's resources."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The handler receives the standard AWS SNS event structure with a `Records` array. Each record contains the message body, subject, message ID, and timestamp.”",
+              "reason": "The source does not document the event payload shape. This is likely standard AWS Lambda/SNS behavior, but the page-specific source does not establish it, and the section presents a concrete TypeScript shape as if documented by Stacktape.",
+              "suggestedFix": "Frame this as AWS Lambda/SNS event shape rather than Stacktape behavior, or remove details not needed for this conceptual page.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the documented `SnsIntegrationProps` property names: `snsTopicName`, `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure`.",
+            "The `filterPolicy` section is grounded in the source: the source says SNS filters messages by attributes and recommends EventBridge for content-based filtering.",
+            "The `onDeliveryFailure` examples use the documented `sqsQueueName` and `sqsQueueArn` destination shape.",
+            "The API reference uses `SnsIntegrationProps`, matching the type name present in the source.",
+            "The page avoids forbidden hand-authored Stacktape YAML and uses `CodeBlock intellisense` with a visible `TypeScript` tab for Stacktape configuration examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided `SnsIntegrationProps` source, especially for `snsTopicName`/`snsTopicArn`, `filterPolicy`, and `onDeliveryFailure`. The main problems are a few Stacktape-specific support claims that are not grounded in the provided source and a couple of inferred invocation/retry details stated too strongly.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `SnsIntegration` trigger covers the Lambda and batch job subscriber path.” and FAQ: “The `SnsIntegration` trigger is available for Lambda functions and batch jobs.”",
+              "reason": "The provided source defines `SnsIntegration` as triggering a function, and the SNS props source does not state that SNS integrations are valid for batch jobs. This is a Stacktape-specific support claim that would affect how readers configure resources.",
+              "suggestedFix": "Narrow the page to Lambda functions, or only mention batch jobs if a higher-priority source for batch job trigger unions explicitly includes `SnsIntegration`. A safe replacement is: “The provided SNS integration type documents function triggers.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when a new message is published to an SNS topic."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegration {\n  type: 'sns';\n  properties: SnsIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“SNS integration is not configurable as a batch trigger — AWS SNS delivers each message to the subscriber individually, producing one Lambda invocation per published message.”",
+              "reason": "The source supports that `SnsIntegrationProps` has no `batchSize` or `maxBatchWindowSeconds`, but it does not state one Lambda invocation per published message. That invocation model is an AWS behavior claim and may be broadly true, but the Stacktape-specific conclusion is stated more strongly than the source supports.",
+              "suggestedFix": "Keep the grounded part and soften the rest: “`SnsIntegrationProps` does not expose batching controls such as `batchSize` or `maxBatchWindowSeconds`; SNS delivery is configured as a direct subscription rather than a Stacktape batch trigger.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {\n  /**\n   * #### The name of an SNS topic defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SqsIntegrationProps {\n  /**\n   * #### The name of an SQS queue defined in your stack's resources."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "batchSize?: number;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "maxBatchWindowSeconds?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Publishing 100 messages per second can produce up to 100 concurrent Lambda invocations.”",
+              "reason": "The source does not document SNS-to-Lambda concurrency behavior or any numeric relationship between publish rate and Lambda concurrency. This could mislead readers into assuming a specific scaling model from Stacktape.",
+              "suggestedFix": "Replace with a cautious operational note: “Because SNS triggers do not expose batching controls in Stacktape, high publish rates can increase Lambda concurrency; use Lambda concurrency controls when you need a cap.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {\n  /**\n   * #### The name of an SNS topic defined in your stack's resources."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS SNS retries Lambda delivery using a backoff policy if the initial invocation attempt fails. If all retries are exhausted, the message routes to the `onDeliveryFailure` destination (if configured).”",
+              "reason": "The source supports that `onDeliveryFailure` is an SQS destination for messages that fail to be delivered, but it does not document retry policy details, backoff behavior, or exhaustion semantics for Lambda handler errors.",
+              "suggestedFix": "Ground the section in the property description: “`onDeliveryFailure` configures an SQS queue for messages that fail to be delivered to the target. AWS SNS retry behavior is controlled by SNS/Lambda delivery mechanics; treat handlers as idempotent and use the failure destination for recovery.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### A destination for messages that fail to be delivered to the target."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "In rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered.\n   * This property specifies an SQS queue where failed messages will be sent."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "FAQ: “Use `connectTo` to grant your function publish permissions and make the topic's referenceable parameters available as environment variables. For a topic resource named `notificationTopic`, connectTo injects `STP_NOTIFICATION_TOPIC_ARN` and `STP_NOTIFICATION_TOPIC_NAME`.”",
+              "reason": "The provided source file does not include `connectTo` behavior or SNS topic referenceable parameter/env-var injection details. The claim may be correct elsewhere, but it is not grounded in the supplied source list for this page.",
+              "suggestedFix": "Remove the concrete env-var injection claim from this page, or cite it only if the page source list includes `ResourceAccessProps.connectTo` and SNS topic referenceable parameter sources. A cautious version is: “Use `connectTo` when your function needs permissions to publish to the topic; see connecting resources for the exact injected values.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegrationProps {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“SnsIntegration” examples instantiate `new SnsIntegration(...)`, but the provided source file shows `SnsIntegration` as an interface rather than an exported class name.",
+              "reason": "The page-generation rules say deterministic code-block validation can confirm Stacktape class exports that are not visible in inline TypeScript source. Since only the inline source is provided here, this is ambiguous rather than a confirmed error.",
+              "suggestedFix": "Keep the class name if the code-block validator passes. If it fails, replace the example with the actual documented trigger-construction style used by the Stacktape package.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "`snsTopicName`, `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure` are all real properties on `SnsIntegrationProps` in the provided source.",
+            "The `filterPolicy` explanation is grounded by the source statement that SNS filters messages by attributes and points content-based filtering to EventBridge.",
+            "The API reference uses `<ApiReference definitionName=\"SnsIntegrationProps\" />`, which matches the provided props interface name.",
+            "All internal documentation links checked in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "API completeness review found no primary-property omissions for `SnsIntegrationProps`: the draft covers `snsTopicName`, `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure`, including the nested SQS failure destination properties. The main issue is that the page claims batch-job support for SNS triggers even though the provided source describes SNS integration as function-only.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `SnsIntegration` trigger covers the Lambda and batch job subscriber path.” and “The `SnsIntegration` trigger is available for Lambda functions and batch jobs.”",
+              "reason": "The provided `SnsIntegration` source describes SNS as triggering a function, and `SnsIntegrationProps` contains only SNS subscription properties. The provided source does not document SNS integration as a batch job trigger. By contrast, the same file explicitly says `EventBusIntegration` triggers a batch job, so the omission is meaningful.",
+              "suggestedFix": "Narrow the wording to Lambda functions only unless another authoritative source file for batch-job trigger support is provided. For container or batch-style processing, suggest routing SNS to SQS and consuming from there only if supported by the relevant pages.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "interface SnsIntegration {\n  type: 'sns';\n  properties: SnsIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when a new message is published to an SNS topic."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a batch job when an event matching a specified pattern is received by an event bus."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All important `SnsIntegrationProps` properties are documented: `snsTopicName`, `snsTopicArn`, `filterPolicy`, and `onDeliveryFailure`.",
+            "The `onDeliveryFailure` nested variants are both acknowledged: `sqsQueueName` for a Stacktape-managed queue and `sqsQueueArn` for an external queue.",
+            "Each `<CodeBlock intellisense>` example demonstrates the section topic: the basic example focuses `triggers`, the filtering example sets `filterPolicy`, the external-topic example sets `snsTopicArn`, and the failure-handling example sets `onDeliveryFailure`.",
+            "The Stacktape configuration examples use `defineConfig`, class-based resources, and `<CodeBlock intellisense>` with a visible `TypeScript` tab, without hand-authored YAML."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\sns-events.mdx",
+  "outcome": "needs-human-review",
+  "pipelineStatus": "needs-human-review",
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 2, advisory high 0, verifier medium 10"
+}

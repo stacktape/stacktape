@@ -1,0 +1,182 @@
+---
+title: 'Budgets'
+order: 97
+seoTitle: 'AWS Budget Alerts with Stacktape | Stacktape Docs'
+seoDescription: 'Set up budget alerts to control AWS spending in Stacktape. Configure organization-wide or per-stack budgets with Slack, email, and webhook notifications when costs exceed your threshold.'
+---
+
+# Budgets
+
+Stacktape budgets alert you before AWS spending exceeds a threshold you define. Budgets track actual and forecasted spend at the organization or per-stack level, delivering alerts to Slack, email, Teams, Discord, or webhooks when costs cross a percentage of your limit. AWS bills infrastructure costs directly to your AWS account — budgets help you spot runaway spend before it becomes a surprise invoice.
+
+## Two approaches to budgets
+
+Stacktape supports two complementary ways to control spend with budgets:
+
+| Approach | Managed in | Scope | Alert delivery | Best for |
+|----------|-----------|-------|----------------|----------|
+| Console budgets | Stacktape Console | Organization-wide or per-stack (filtered by project/stage) | Alert channels (Slack, Teams, Email, Discord, Webhook) | Teams wanting centralized cost governance across many stacks |
+| Config-based budgets | `stacktape.ts` config | Single stack | Email (up to 10 addresses per notification) | Per-stack spend caps that ship with your infrastructure code |
+
+Most teams use Console budgets because they cover the whole organization from one place and deliver alerts through the same [alert channels](/observability/alert-channels) used for alarms and notifications. Config-based budgets are useful when you want the budget to travel with the stack — create it, deploy it, forget it.
+
+## Console budgets
+
+Console budgets are created and managed in the Stacktape Console. They support flexible scoping, multiple alert thresholds, and forecast-based alerts.
+
+### Creating a budget alert
+
+When creating a budget alert in the Console, you configure:
+
+- **Name** — a descriptive label (e.g. "Production budget limit")
+- **Scope** — either "Per organization" (monitors the entire AWS account) or "Per stack" (matches specific projects and stages)
+- **Monthly threshold (USD)** — the dollar limit (minimum $1)
+- **Alert at percentages** — comma-separated whole numbers between 1 and 100 (e.g. `50, 80, 100`). Each fires a separate alert when actual or forecasted spend crosses that fraction of the threshold
+- **Include forecast** — when enabled, also alerts if AWS predicts you will exceed the threshold by month-end
+- **AWS account** — which connected AWS account the budget is created in
+- **Alert channels** — where to deliver the alert (configured on the [alert channels](/observability/alert-channels) page)
+
+<Info>
+Organization-wide budget alerts are created in the selected AWS account immediately when you save them. Stack-scoped budgets depend on Stacktape deployment metadata — deploy matching stacks after creating or changing a stack-scoped alert so the Console can track their spend.
+</Info>
+
+### Scoping
+
+**Per organization** monitors total AWS account spend as a single number. Use this for an overall cost ceiling that catches any spike regardless of which project caused it.
+
+**Per stack** lets you filter by specific projects and/or stages. You can select individual project names or "All projects", and individual stage names or "All stages". This is how you set separate budgets for production vs. development workloads without creating budgets in every config file.
+
+### Forecast-based alerts
+
+When "Include forecast" is enabled, Stacktape delivers an additional `BUDGET_FORECASTED_OVERSPEND` alert when AWS predicts month-end spend will exceed your threshold — even if actual spend is still below it. AWS forecasts require approximately five weeks of usage history before they produce meaningful predictions. New stacks will not trigger forecast alerts until enough data accumulates.
+
+### Budget history
+
+The budget history page in the Console logs every budget alert event with its timestamp, source budget, event type, title, and delivery status. Two event types appear:
+
+- **Threshold exceeded** — actual spend passed a configured percentage
+- **Forecasted overspend** — AWS forecast predicts the threshold will be exceeded by month-end
+
+Use budget history to confirm alerts were delivered and to identify which stacks or time periods drove the overrun.
+
+## Config-based budgets
+
+For teams that prefer infrastructure-as-code, the `budgetControl` section in your Stacktape config deploys an AWS Budget resource inside the stack. The budget resets at the start of each calendar month and sends email alerts when spend crosses configured thresholds.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    memory: 512
+  });
+
+  return {
+    budgetControl: {
+      limit: 200,
+      notifications: [
+        {
+          thresholdPercentage: 80,
+          budgetType: 'ACTUAL',
+          emails: ['team-lead@example.com']
+        },
+        {
+          thresholdPercentage: 100,
+          budgetType: 'ACTUAL',
+          emails: ['team-lead@example.com', 'finance@example.com']
+        },
+        {
+          thresholdPercentage: 90,
+          budgetType: 'FORECASTED',
+          emails: ['team-lead@example.com']
+        }
+      ]
+    },
+    resources: { api }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+### Configuration reference
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `limit` | number | (required) | Monthly spending limit in USD. Notification thresholds are percentages of this amount. |
+| `notifications` | array | — | Up to 5 notification rules per budget. |
+| `notifications[].budgetType` | `'ACTUAL'` \| `'FORECASTED'` | `'ACTUAL'` | `ACTUAL` fires when you've already spent past the threshold. `FORECASTED` fires when AWS predicts you'll exceed it by month-end. |
+| `notifications[].thresholdPercentage` | number | `100` | Percentage of `limit` that triggers this alert. Example: limit = $200, threshold = 80 means the alert fires at $160. |
+| `notifications[].emails` | string[] | (required) | Email addresses that receive the alert. Maximum 10 per notification. |
+
+<Warning>
+Config-based budgets are not available in all AWS regions. The following regions do not support AWS Budgets: `ap-east-1`, `ap-northeast-3`, `af-south-1`, `eu-north-1`, `me-south-1`, `ap-southeast-3`. If you deploy to one of these regions, the budget will not be created.
+</Warning>
+
+### How it works
+
+When you deploy a stack with `budgetControl` configured, Stacktape creates an `AWS::Budgets::Budget` CloudFormation resource scoped to that stack's cost allocation tag. AWS evaluates the budget against actual and forecasted spend and sends email notifications directly — no alert channels or Console involvement required.
+
+After a successful deploy, the CLI displays month-to-date spend and forecasted spend for the stack alongside other stack info. This uses AWS Cost Explorer tags to attribute costs to the specific stack.
+
+## When to use budgets
+
+Set up at least one budget before going to production. AWS spend can increase quickly when traffic spikes, a runaway process loops, or someone deploys a resource larger than intended. Budgets are the fastest way to detect and respond to cost anomalies.
+
+- **Start with an organization-wide Console budget** at 80% and 100% of your expected monthly AWS bill. This catches any stack that misbehaves.
+- **Add per-stack budgets** for production stacks where you need tighter control or accountability per team/project.
+- **Use config-based budgets** when you want the spend cap to live in version control alongside the infrastructure definition.
+
+## When NOT to use budgets
+
+Budgets alert you — they do not stop spend. AWS Budgets cannot automatically scale down or terminate resources when a threshold is crossed. If you need hard cost limits, combine budgets with [guardrails](/guardrails/overview) that restrict resource sizes, or manually respond to alerts.
+
+Budgets are also not a substitute for right-sizing resources. If your baseline spend is already higher than it should be, see [optimization tips](/managing-costs/optimization-tips) for ways to reduce costs directly.
+
+## FAQ
+
+### Do budgets stop AWS from charging me?
+
+No. AWS Budgets is an alerting mechanism, not a spending cap. When a threshold is crossed, you receive a notification — AWS does not automatically shut down or throttle resources. You need to act on the alert by scaling down, deleting unused resources, or adjusting your configuration.
+
+### How quickly do budget alerts fire after a threshold is crossed?
+
+AWS evaluates budgets multiple times per day. In practice, expect alerts within a few hours of crossing a threshold. They are not real-time — a very fast-burning workload could overshoot significantly between evaluations.
+
+### What is the difference between ACTUAL and FORECASTED alerts?
+
+ACTUAL alerts fire when your cumulative spend for the current month has already passed the threshold percentage. FORECASTED alerts fire when AWS's machine-learning model predicts you will exceed the threshold by the end of the month, even though you haven't yet. Forecast alerts give you more lead time to react but require approximately five weeks of usage history before they produce predictions.
+
+### Can I set a budget for a single resource like one database?
+
+Console budgets scope to projects and stages (stacks), not individual resources within a stack. If you need per-resource cost visibility, use the [per-resource breakdown](/managing-costs/per-resource-breakdown) page in the Console. To budget a single expensive resource, consider placing it in its own project/stage so it gets its own stack-scoped budget.
+
+### How much do AWS Budgets cost?
+
+AWS Budgets itself is free for the first two budgets per account. Additional budgets cost $0.02/day each (approximately $0.62/month). The cost is negligible for most teams.
+
+### Should I use Console budgets or config-based budgets?
+
+Use Console budgets when you want centralized governance, rich alert channels (Slack, Teams, Discord, webhooks), and the ability to scope across multiple stacks from one place. Use config-based budgets when you want the budget definition to travel with your infrastructure code in version control. Many teams use both — a Console organization-wide budget for the overall ceiling, plus config-based budgets on critical production stacks.
+
+### How do I see budget alert history?
+
+In the Stacktape Console, navigate to the budget history page. It shows every threshold-exceeded and forecasted-overspend event with timestamps, the source budget name, and delivery status for each alert channel. For config-based budgets (email-only), check the inbox of the configured email addresses.
+
+### Do budgets reset automatically each month?
+
+Yes. Both Console and config-based budgets use a monthly time period that resets at the start of each calendar month. You do not need to manually reset or recreate them.
+
+### Why isn't my forecast alert firing?
+
+AWS forecasts require approximately five weeks of usage data before they produce meaningful predictions. If your stack is new or was recently redeployed with new cost allocation tags, forecast alerts will not fire until enough historical data accumulates. Additionally, config-based budgets are not supported in some regions — check the [regional availability note](#configuration-reference) above.

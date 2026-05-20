@@ -20,6 +20,9 @@ export type NavItem = {
   title: string;
   /** Page order from frontmatter; virtual nodes inherit min(descendant.order). */
   order: number;
+  /** Optional icon for virtual subgroup nodes; resolved from config.sidebar.groups[].subgroups
+   *  during tree construction. Null for real pages and virtual nodes without a configured icon. */
+  icon: any | null;
   children: NavItem[];
 };
 
@@ -55,8 +58,10 @@ const capitalizeSegment = (segment: string) =>
  *    sort sensibly relative to leaf siblings.
  */
 export const getNavigationTree = (allDocPages: MdxPageDataForNavigation[]): NavGroup[] => {
-  // Initialize groups from config
+  // Initialize groups from config + build a virtual-subgroup-path → icon lookup so virtual
+  // nodes in the tree can render with a meaningful icon next to their label.
   const groupMap = new Map<string, NavGroup>();
+  const subgroupIconByPath = new Map<string, any>();
   for (const g of config.sidebar.groups) {
     const id = g.path.replace(/^\//, '');
     groupMap.set(id, {
@@ -67,6 +72,9 @@ export const getNavigationTree = (allDocPages: MdxPageDataForNavigation[]): NavG
       defaultOpen: (g as any).defaultOpen ?? false,
       children: []
     });
+    for (const sub of (g as any).subgroups || []) {
+      subgroupIconByPath.set(sub.path, sub.icon);
+    }
   }
 
   // Catch-all for the root index page (and anything that fails to match a configured group).
@@ -116,6 +124,9 @@ export const getNavigationTree = (allDocPages: MdxPageDataForNavigation[]): NavG
       key: pathKey,
       title,
       order,
+      // Subgroup icons are only meaningful for virtual nodes (where url is null at create time).
+      // Real pages don't get a sidebar icon; only the level-2 grouping nodes do.
+      icon: !isLeaf ? subgroupIconByPath.get(pathKey) ?? null : null,
       children: []
     };
     nodeMap.set(pathKey, node);
@@ -126,7 +137,7 @@ export const getNavigationTree = (allDocPages: MdxPageDataForNavigation[]): NavG
   for (const page of allDocPages) {
     const url = page.url;
     if (url === '/') {
-      const node: NavItem = { url: '/', key: '/', title: page.title, order: page.order ?? 999, children: [] };
+      const node: NavItem = { url: '/', key: '/', title: page.title, order: page.order ?? 999, icon: null, children: [] };
       rootGroup.children.push(node);
       continue;
     }

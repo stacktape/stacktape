@@ -1,0 +1,1145 @@
+{
+  "pageId": "observability__alert-channels",
+  "pageRoute": "observability/alert-channels",
+  "startedAt": "2026-05-17T16:30:53.948Z",
+  "updatedAt": "2026-05-17T16:48:17.701Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\observability__alert-channels\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All five channel types (Slack, Microsoft Teams, Discord, Email, Webhook) are covered with concrete setup steps, accurately matching the `alertChannelOptions` array in `AlertChannelsPage.tsx`.",
+            "The 'Creating a channel in the Console' walkthrough matches the actual UI: the page headline 'Channels', the button label 'Alert channel', the table columns (Name, Type, Created), and the deletion error behavior are all directly grounded in the source component.",
+            "The deletion-prevention behavior is correctly described and grounded — `DeleteChannelError` in the source clearly handles the 'Can't delete this channel yet.' server message.",
+            "The comparison table (Channel | Best for | Latency | Setup effort) gives a new user enough context to make a quick decision without needing to read every sub-section.",
+            "The FAQ is well-structured, spans Stacktape-specific, AWS/service-level, and choosing/comparison questions, and each answer is a concise, self-contained paragraph."
+          ],
+          "problems": [
+            "Ungrounded claim: 'each request includes an X-Stacktape-Signature header with an HMAC-SHA256 signature of the payload'. The provided source only confirms that 'secret' is a sensitive field on webhook channels (see `sensitiveFields` in AlertChannelsPage.tsx). The specific header name and algorithm are not present in any provided source file.",
+            "Potentially inaccurate channel-count claims: The page asserts 'Each alarm rule can send alerts to **multiple** channels' and 'Each budget alert can send to **multiple** channels'. The authoritative Explanations.tsx text uses the singular in both cases: alarm rules say 'an alert is sent to the channel you specify' and budget alerts reference 'channel' as singular. The multi-channel claim is at best ungrounded.",
+            "The `headers` property on inline webhook `notificationTargets` in the code example is not confirmed in any provided source file. Showing an unverified property in a copyable example risks broken configs.",
+            "The `<ConsoleScreenshot>` component is used with a specific `src` path to a screenshot file. No such component appears in the provided source files and the screenshot path is invented. If the component or image doesn't exist, the page will render broken content.",
+            "References to the route `/observability/alert-history` and the `/observability/notifications` routes are not confirmed in the provided source files. The concepts exist (alertHistory and notifications explanations are in Explanations.tsx) but the specific routes are assumed, not grounded."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow the webhook signing claim. Replace the specific 'X-Stacktape-Signature header with HMAC-SHA256' language with what the source actually confirms: that a 'secret' field exists and that the Webhook channel accepts it as a configuration property. Do not document the algorithm or header name unless sourced.",
+            "Correct the multiple-vs-single-channel claims for alarm rules and budget alerts to match what Explanations.tsx actually says (singular 'channel'). If alarm/budget rules do support multiple channels, that fact must be sourced before claiming it; if uncertain, write 'one or more channels' and link to the alarm docs for confirmation.",
+            "Remove the `headers` property from the inline webhook `notificationTargets` code example — it is not confirmed in the provided source. Simplify the example to only the `url` property, which is the minimum required field implied by the webhook channel type.",
+            "Remove or replace the `<ConsoleScreenshot>` block. No such component is confirmed in the documentation system's source files, and the screenshot path is fabricated. Either remove the block entirely, use a standard Markdown image syntax if screenshots are in a known location, or replace with a short prose description of what the Channels page shows."
+          ],
+          "optionalImprovements": [
+            "The FAQ entry 'Is there a limit on how many alert channels I can create?' answers with an unsupported hedging sentence ('The source does not document a hard limit'). This reads like an internal note to the writer. Either drop the question or answer it with grounded behavior (e.g. 'No documented hard limit — practical usage is typically 3–10 channels').",
+            "The 'Using channels with notification rules' section says 'If you need the same event delivered to multiple destinations, create one rule per channel' — this is a useful actionable tip but could be strengthened with a one-line example of the use case (e.g. 'deploy-success event to both a Slack channel and a Webhook for PagerDuty').",
+            "The opening paragraph says 'You create channels once in the Stacktape Console, then attach them to alarm rules, notification rules, and budget alerts' — consider adding that channels are organization-wide (confirmed by `organizationId` in the trpc query), which is a useful fact for teams managing multiple projects.",
+            "The 'Inline notification targets in config' section is substantial enough that a short h3 called 'Console channels vs inline targets' comparison table would help the reader make the right choice quickly, rather than distributing the comparison across the prose of two separate sections."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Delete-prevention behavior is accurately sourced from the Console source (DeleteChannelError component confirms 'Can't delete this channel yet.' with referencing rule list).",
+            "The 'Alert channel' button label and top-right placement are confirmed by the AlertChannelsPage.tsx source.",
+            "Notification rules correctly described as single-channel per rule — consistent with Explanations.tsx ('Each rule specifies which events to watch and which channel to deliver the alert to.').",
+            "The five channel types (slack, ms-teams, discord, e-mail, webhook) are sourced from the alertChannelOptions array.",
+            "The distinction between Console-managed channels and inline notificationTargets is clearly framed and genuinely useful for production decision-making.",
+            "FAQ section is well-populated, mixes Stacktape-specific, AWS-use-case, and comparison questions, and answers are appropriately concise.",
+            "Channel-type comparison table is practical and covers setup effort — directly useful for a team choosing between options.",
+            "Code example uses the correct class-based defineConfig pattern with CodeBlock intellisense."
+          ],
+          "problems": [
+            "Multi-channel claim for alarm rules is not source-grounded: Explanations.tsx says 'an alert is sent to the channel you specify' (singular). The draft claims alarm rules support 'multiple channels simultaneously' — this contradicts the available source and could cause misconfiguration.",
+            "Multi-channel claim for budget alerts is equally unverified: the source confirms budget alerts exist but says nothing about multi-channel support.",
+            "The signing secret implementation details (HMAC-SHA256 algorithm, 'X-Stacktape-Signature' header name) appear nowhere in the provided source files. These are production-critical verification details and if wrong will break integrations.",
+            "'headers' property in the webhook notificationTargets code example is not confirmed in any provided source file. A reader who copies this example may get a config error.",
+            "'sender' property for email inline targets (mentioned in the prose after the code block) is not confirmed in the provided source.",
+            "The email channel type value is 'e-mail' in the alertChannelOptions source, not 'email'. The prose description of inline targets lists 'email' as the type string, which may be wrong.",
+            "Detailed third-party platform setup instructions (Slack OAuth scope, Teams Incoming Webhook steps, Discord webhook creation) are not in the provided source. They are reasonable background but presented as Stacktape-authoritative setup, which they are not.",
+            "The '/observability/alert-history' route is linked as if confirmed but is not present in the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Fix multi-channel alarm rule claim: Replace 'alarm rules support multiple channels simultaneously' with cautious wording sourced from the available evidence ('alarm rules send to the channel configured for the rule') or note that multi-channel support is not confirmed in current docs. The Explanations.tsx source uses the singular 'the channel you specify' — don't overclaim.",
+            "Fix multi-channel budget alert claim using the same approach as alarm rules — source is silent on this, so don't assert it.",
+            "Remove or clearly qualify the HMAC-SHA256 / 'X-Stacktape-Signature' signing details: these specific implementation facts are not in the provided source. Either link to external Stacktape docs where this is documented, or soften to 'a signature header is included — see the webhook channel detail view for verification instructions'.",
+            "Remove the 'headers' property from the inline webhook notificationTargets code example: it is not confirmed in the provided source. An unverified property in a copy-paste example will fail at deploy time.",
+            "Remove or hedge the 'sender' property for email inline targets: not confirmed in source.",
+            "Correct the email type string: source value is 'e-mail', not 'email'. Verify the correct inline-target type string before publishing and update all occurrences in prose and code."
+          ],
+          "optionalImprovements": [
+            "Add a note that third-party platform setup steps (Slack app, Teams connector, Discord webhook) are generic platform instructions, not Stacktape-specific, so readers can verify them against current platform docs.",
+            "The 'Creating a channel in the Console' section describes a 5-step modal flow but the CreateAlertChannelModal component is not in the provided source. Consider hedging the step ordering slightly or note that the exact form layout may change.",
+            "The FAQ entry on channel limits correctly acknowledges the source is silent — this is good practice and could be extended with a suggestion to check the Console or contact support rather than leaving the reader with only 'in practice, 3-10'.",
+            "Consider linking 'notification rules' in the 'Using channels with notification rules' section to the notifications page on first mention, consistent with the cross-page linking guidance.",
+            "The Tip callout about signing secrets is useful but relies on ungrounded claims about the header and algorithm. Once those facts are verified and corrected, the Tip itself is a good pattern to keep."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 5,
+            "scannability": 7,
+            "completeness": 4,
+            "practicalUsefulness": 4,
+            "audienceFit": 5
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and names the five alert destinations clearly.",
+            "The page is easy to scan: channel-type subsections, comparison table, Console workflow, inline-target section, and FAQ are organized in a logical order.",
+            "The draft avoids the forbidden Stacktape YAML/plain-object config patterns and uses a TypeScript <CodeBlock intellisense> for the Stacktape config example."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source files. The source only shows the Channels Console page, supported channel type labels/values, table columns, details modal behavior, delete error formatting, and Explanations text. It does not include CreateAlertChannelModal, alarm config types, notification rule forms, budget alert forms, webhook delivery code, or alert history delivery semantics.",
+            "The channel setup instructions and required-property tables are mostly unsupported by the provided source. Slack OAuth scopes, Teams connector setup, Discord webhook setup, email recipient format, and webhook URL/signing behavior are not visible in the source files.",
+            "Webhook claims are especially risky: signed JSON payloads, HTTP POST, X-Stacktape-Signature, HMAC-SHA256, and production verification guidance are not grounded in the provided source. The source only shows sensitive fields named webhookUrl and secret in a details modal.",
+            "The page invents or overstates Console flows. The source proves a Channels page, an Alert channel button, a details icon, a delete button, and a create modal opening via query param. It does not prove the create form fields, submit behavior, dropdown contents inside the modal, or that a channel is immediately available after submission.",
+            "The inline notificationTargets section is not grounded because the provided source files do not include types/stacktape-config/alarms.d.ts. The page claims supported inline target types and properties without the required source.",
+            "Several cardinality claims are unsupported or contradicted by available wording. The draft says alarm rules and budget alerts can send to multiple channels and notification rules send to one channel; the provided Explanations text only says notification rules specify a channel and alarm rules send to the channel you specify, while budget text does not establish channel cardinality.",
+            "The FAQ includes unsupported operational claims, including testing via deployment events, failed delivery status, invalid webhook behavior, alert history contents for webhook failures, and practical channel-count norms like “3-10 channels.”",
+            "The page blurs sourced Console behavior with inferred behavior from other pages not provided. Human-maintained observability instructions require distinguishing Console views and config-time definitions, but the draft discusses alarms, notifications, budgets, and inline config without the corresponding source files.",
+            "The comparison table uses vague, unsourced latency claims such as “Near-instant” and “Seconds to minutes.” These are not in the source and are poor AEO facts because they look concrete without support."
+          ],
+          "mandatoryFixes": [
+            "Remove or heavily qualify all unsupported channel setup details unless CreateAlertChannelModal or backend channel schema sources are provided. Keep only source-grounded channel types: Slack, Microsoft Teams, Discord, Email/e-mail, and Webhook.",
+            "Replace webhook signature claims with source-grounded wording. Do not mention signed JSON payloads, X-Stacktape-Signature, HMAC-SHA256, or verification unless delivery/signing source code is provided.",
+            "Remove or rewrite the inline notificationTargets section unless alarms.d.ts is available. If retained with the correct source, ground every target type and property in that source and keep the existing <CodeBlock intellisense> format.",
+            "Remove unsupported cardinality claims for alarm rules, notification rules, and budget alerts, or replace them with cautious wording grounded in Explanations.tsx: channels are used by notification rules, alarm rules, and budget alerts.",
+            "Rewrite the Console workflow to only state what AlertChannelsPage.tsx proves: the Channels page lists Name, Type, Created; it has an Alert channel button; details can be shown; channels can be deleted; delete errors may list blocking references. Do not describe unseen modal fields or immediate availability.",
+            "Delete FAQ answers that depend on unsupported delivery/runtime behavior, or revise them to source-grounded Console facts. Remove the invented “3-10 channels” practice claim.",
+            "Remove unsourced latency values from the channel comparison table. Replace with grounded decision criteria such as destination type and setup source only where supported, or omit the table until channel schema/setup sources are available."
+          ],
+          "optionalImprovements": [
+            "Add a short “What the Console shows” section grounded directly in AlertChannelsPage.tsx: name, type, creation time, details modal, and sensitive-value masking for webhookUrl/accessToken/secret.",
+            "Use the exact Console channel value distinction carefully: the Console option value for Email is e-mail in the provided source, while display label is Email. Do not conflate that with config target values unless config types are provided.",
+            "If the goal is a complete alert-channel guide, add the missing source files to the prompt: CreateAlertChannelModal, alert channel router/server types, notification/alarm/budget rule pages, alert history page, and alarms.d.ts.",
+            "Tighten FAQ scope to questions the provided source can answer, such as supported Console channel types, where channels are listed, what details are visible, what fields are treated as sensitive, and what happens when deletion is blocked by references."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is materially over-specified relative to the provided sources. The source files support the existence of a Console Channels page, five channel types, a create button, a table, details modal, deletion UI, and high-level reuse in notification rules, alarm rules, and budget alerts. The draft invents many channel schemas, setup procedures, delivery mechanics, webhook signing details, alert rule cardinality rules, and inline alarm-target configuration that are not grounded in the provided files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft defines required and optional properties for Slack, Microsoft Teams, Discord, Email, and Webhook channels, including fields like Conversation ID, Access Token, Webhook URL, Recipient emails, URL, and Signing secret.",
+              "reason": "The provided Console source only enumerates the five channel types and dynamically renders whatever properties exist on a channel. It does not define the required schema for each channel type, nor does it support the specific field names or required/optional status described in the draft.",
+              "suggestedFix": "Limit the channel-type section to the five supported channel types and cautiously say that each type has type-specific fields in the Console. Do not document required properties unless the modal/schema source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "export const alertChannelOptions = [\n  { label: 'Slack', value: 'slack', icon: SiSlack, iconSize: 17 },\n  { label: 'Microsoft Teams', value: 'ms-teams', icon: PiMicrosoftTeamsLogo, iconSize: 19 },\n  { label: 'Discord', value: 'discord', icon: SiDiscord, iconSize: 18 },\n  { label: 'Email', value: 'e-mail', icon: BiMailSend, iconSize: 21 },\n  { label: 'Webhook', value: 'webhook', icon: BiLink, iconSize: 20 }\n];"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{Object.entries(channelToShowDetailsFor.properties || {}).map(([propName, propValue]) =>\n                sensitiveFields.includes(propName) ? ("
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft claims webhook channels send a signed JSON payload via HTTP POST, use an optional signing secret, and include an `X-Stacktape-Signature` header with an HMAC-SHA256 signature.",
+              "reason": "The provided source does not document webhook delivery payloads, HTTP method, signing behavior, header names, or HMAC algorithm. It only treats `webhookUrl` and `secret` as sensitive fields when rendering stored channel details.",
+              "suggestedFix": "Remove the signing and payload details, or replace them with a narrow statement that webhook channels are one of the supported channel types. Keep `secret` unnamed unless supported by channel creation or delivery source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Webhook', value: 'webhook', icon: BiLink, iconSize: 20 }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft claims Console-managed channels are organization-wide and that any alarm rule, notification rule, or budget alert in the organization can send to them.",
+              "reason": "The source supports querying channels by selected organization and the explanation says channels are used in notification rules, alarm rules, and budget alerts. It does not establish the stronger claim that any rule in the organization can reference any channel, or that channels are organization-wide reusable objects in the exact way described.",
+              "suggestedFix": "Say channels are created for the selected organization and can be used in notification rules, alarm rules, and budget alerts. Avoid `any rule` and broad reuse guarantees unless backed by router/schema sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const selectedOrg = useGlobalStore((store) => store.selectedOrganization);\n  const channelsQuery = trpc.alertChannels.useQuery({ organizationId: selectedOrg!.id });"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts\n        where you need them."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft documents inline `notificationTargets` in Stacktape config, including supported target types, a Lambda alarm code example, `headers` for webhook targets, and Slack/Teams/Discord/Email field names.",
+              "reason": "No Stacktape config type source or alarms type source is provided for this page. The available files are Console page sources and explanations, and they do not mention inline `notificationTargets`, Lambda alarms, trigger shapes, or field names. The code example cannot be verified from the provided source list.",
+              "suggestedFix": "Remove the inline configuration section unless `types/stacktape-config/alarms.d.ts` or equivalent source is included. If kept after adding sources, verify the exact target type values and properties against the alarm config types.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API\n        latency."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "When a metric crosses your defined threshold, an alert is sent to the channel you specify."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft claims alarm rules and budget alerts can send to multiple channels, while notification rules send to one channel.",
+              "reason": "The provided source says notification rules specify which channel to deliver to, and alarm rules send to the channel you specify. It does not support multiple-channel cardinality for alarms or budgets, nor the one-channel limitation for notification rules beyond singular wording in a short explanation.",
+              "suggestedFix": "Avoid cardinality claims. Say rules can deliver to configured channels only if the relevant rule source/schema supports it, or use singular `a channel` where the source does.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Each rule specifies which events to watch and which channel to deliver the alert to."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "When a metric crosses your defined threshold, an alert is sent to the channel you specify."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Budget alerts can be scoped to specific projects or applied across your entire organization."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft claims Alert History records delivery results for invalid webhook URLs, shows failed delivery status, and can be used to confirm channel tests.",
+              "reason": "The provided explanations support alert history as a unified log of alerts and notification history as including delivery status, but they do not support webhook-specific delivery failure behavior or testing flows. The draft also blurs alert history behavior beyond what the source says.",
+              "suggestedFix": "Keep the supported statement that alert history is a unified log of alerts. Remove webhook failure-status and test-procedure claims unless alert-history implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "alertHistory: (\n    <>\n      <p>A unified log of all alerts across notifications, alarms, and budgets.</p>\n      <p>Use this to see a complete picture of every alert your organization has received.</p>\n    </>\n  ),"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "notificationHistory: (\n    <>\n      <p>A log of all notification alerts that were sent, including their delivery status.</p>\n      <p>Check here if you're not sure whether a notification was delivered.</p>\n    </>\n  ),"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft gives detailed Console setup flow: navigate in the sidebar, click the top-right Alert channel button, select a channel type from a dropdown, fill type-specific fields, submit the form, and the channel is immediately available.",
+              "reason": "The AlertChannels page source supports the page headline `Channels`, a primary `Alert channel` button, a create modal controlled by search params, and a table. It does not show sidebar navigation, dropdown controls, submit behavior, type-specific form fields, or immediate availability after submission.",
+              "suggestedFix": "Ground the Console section in visible source: `The Channels page lists configured channels and has an Alert channel button that opens the create modal.` Avoid unstated UI controls and immediacy claims without the modal/router source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<PageHeadline\n        headline=\"Channels\"\n        icon={BiMailSend}\n        tooltipText={explanations.channels}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "text=\"Alert channel\"\n            width={180}\n            onClick={() => setIsCreateModalOpen(true)}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<CreateAlertChannelModal\n        refetchFn={channelsQuery.refetch}\n        isOpen={isCreateModalOpen}\n        setIsOpen={setIsCreateModalOpen}\n      />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says Stacktape prevents deletion if a channel is still referenced by any notification rule, alarm rule, or budget alert.",
+              "reason": "The page contains an error-message transformer for an error beginning `Can't delete this channel yet.` and it renders rule lines from that error. The provided frontend source does not prove the backend prevention rule, the set of referencing entities, or that budget alerts are included.",
+              "suggestedFix": "Say deletion can fail when the Console reports that a channel is still referenced, and avoid listing exact referencing rule types unless backend delete source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "if (!lines[0]?.startsWith(`Can't delete this channel yet.`)) {\n    return errorMessage;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<DeleteButton\n                  refetchFn={channelsQuery.refetch}\n                  errorMessageTransformer={DeleteChannelError}\n                  deletedEntity={channel!}\n                  deleteMutation={deleteChannelMutation}\n                />"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the page route as an observability page about alert channels.",
+            "The five Console channel types in the draft match the provided `alertChannelOptions`: Slack, Microsoft Teams, Discord, Email, and Webhook.",
+            "The draft correctly links only to routes that exist in the provided documentation navigation index.",
+            "The draft avoids forbidden hand-authored YAML Stacktape configuration and uses a `<CodeBlock intellisense>` wrapper for the Stacktape config example, though the example's API facts are not verifiable from the provided sources."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is useful but substantially overreaches beyond the provided Console source. The largest risks are invented Console workflows, unsupported channel setup details, and inline Stacktape config claims that cannot be verified from the supplied alert-channel sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Alert channels are created and managed in the Stacktape Console under the Channels page\" followed by the step-by-step flow: navigate to the Channels page, click Alert channel, enter a name, select type, fill fields, submit.",
+              "reason": "The source supports the page headline, the create button text, and the modal opening flag, but it does not show the modal fields, submit behavior, sidebar navigation, or the exact creation workflow. Console UI flows must be grounded in console-app source, and CreateAlertChannelModal source is not provided.",
+              "suggestedFix": "Narrow this to what the source shows: the Console has a Channels page with an Alert channel button that opens channel creation. Remove or qualify the unverified step-by-step form details unless CreateAlertChannelModal source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<PageHeadline\n        headline=\"Channels\"\n        icon={BiMailSend}\n        tooltipText={explanations.channels}\n        rightSideItems={["
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "text=\"Alert channel\"\n            width={180}\n            onClick={() => setIsCreateModalOpen(true)}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft lists required setup fields and external setup steps for Slack, Microsoft Teams, Discord, Email, and Webhook channels.",
+              "reason": "The provided sources only enumerate channel labels and internal values, and show that webhookUrl, accessToken, and secret are sensitive fields. They do not define required creation properties, recipient formats, OAuth scopes, Teams connector setup, Discord setup, webhook signing behavior, or whether email accepts comma-separated recipients.",
+              "suggestedFix": "Keep the supported channel type list. Remove the required-property tables and external setup steps, or replace them with cautious wording only for fields visible in the source, such as noting that details can contain sensitive values like webhook URL, access token, and secret.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "export const alertChannelOptions = [\n  { label: 'Slack', value: 'slack', icon: SiSlack, iconSize: 17 },\n  { label: 'Microsoft Teams', value: 'ms-teams', icon: PiMicrosoftTeamsLogo, iconSize: 19 },\n  { label: 'Discord', value: 'discord', icon: SiDiscord, iconSize: 18 },\n  { label: 'Email', value: 'e-mail', icon: BiMailSend, iconSize: 21 },\n  { label: 'Webhook', value: 'webhook', icon: BiLink, iconSize: 20 }\n];"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Inline targets support the same five types: `slack`, `ms-teams`, `email`, `discord`, and `webhook`.\"",
+              "reason": "For Console alert channels, the supplied source uses the value `e-mail`, not `email`. The draft also claims inline target support and syntax, but no alarm config type source is provided to verify inline `notificationTargets` at all.",
+              "suggestedFix": "Do not state inline target enum values unless the alarm config type source is included. If discussing Console channel type values from the supplied source, use `e-mail` for Email or avoid exposing internal values.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Email', value: 'e-mail', icon: BiMailSend, iconSize: 21 }"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Stacktape config example with `LambdaFunction`, `alarms`, `notificationTargets`, `trigger.type: 'lambda-error-rate'`, `thresholdPercent`, webhook `headers`, and the prose explaining it.",
+              "reason": "No Stacktape config type source is provided for LambdaFunction alarms or inline notification targets. The supplied sources are Console alert-channel files only, so the config API, supported alarm trigger type, threshold property, and webhook headers behavior cannot be verified.",
+              "suggestedFix": "Remove the inline configuration section from this page, or only mention inline targets after adding and verifying the relevant `types/stacktape-config/alarms.d.ts` and Lambda resource type sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a\n        webhook."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts\n        where you need them."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Alarm rules and budget alerts support multiple channels per rule. Notification rules support one channel per rule.\"",
+              "reason": "The source says channels are used in notification rules, alarm rules, and budget alerts, and that notification rules specify which channel to deliver to. It does not document cardinality for alarm rules, budget alerts, or notification rules.",
+              "suggestedFix": "Avoid cardinality claims unless the notification, alarm-rule, and budget sources are provided. Say that channels can be used by notification rules, alarm rules, and budget alerts.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts\n        where you need them."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Each rule specifies which events to watch and which channel to deliver the alert to."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape prevents deletion if the channel is still referenced by any notification rule, alarm rule, or budget alert.\"",
+              "reason": "The source shows the UI can transform a delete error beginning with \"Can't delete this channel yet\" and render referenced rule lines, but it does not specify every referenced entity type or the full deletion-prevention rule.",
+              "suggestedFix": "Narrow the wording: deletion can fail when the Console reports that the channel is still referenced; the error lists the blocking rules. Avoid enumerating notification rules, alarm rules, and budget alerts unless server-side deletion source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "if (!lines[0]?.startsWith(`Can't delete this channel yet.`)) {\n    return errorMessage;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const ruleLines = lines.slice(2, -1);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Webhook channel requests are signed with `X-Stacktape-Signature` using HMAC-SHA256 when a signing secret is provided.",
+              "reason": "The source only shows `secret` is treated as a sensitive field in channel details. It does not define webhook payload format, signing algorithm, signature header name, or signing behavior.",
+              "suggestedFix": "Remove the signature header and HMAC-SHA256 details unless webhook delivery source is provided. A cautious source-grounded statement would be that channel details can include a sensitive `secret` field.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The FAQ claims alert history records webhook endpoint errors, unreachable endpoints, failed delivery status, and can be used to confirm channel test delivery.",
+              "reason": "The source defines alert history only as a unified log of alerts across notifications, alarms, and budgets. It does not document endpoint response handling, failed delivery statuses, or a test procedure using deployment events.",
+              "suggestedFix": "Limit alert-history wording to the sourced description, or add the alert-history implementation source before documenting delivery statuses and failure handling.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "alertHistory: (\n    <>\n      <p>A unified log of all alerts across notifications, alarms, and budgets.</p>\n      <p>Use this to see a complete picture of every alert your organization has received.</p>\n    </>\n  ),"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies the five Console channel labels shown in `alertChannelOptions`: Slack, Microsoft Teams, Discord, Email, and Webhook.",
+            "The draft correctly links only to routes present in the provided navigation index.",
+            "The draft correctly distinguishes Console-managed channels from CLI debug commands by not inventing CLI commands for alert channels."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the visible Console alert-channel surface reasonably well, but it makes several concrete claims that are not grounded in the provided source files. Because the primary typeName is unknown and the modal/server router source is not included, the main completeness risk is over-documenting unsupported channel properties, payload behavior, inline config APIs, and Console flows beyond what AlertChannelsPage.tsx and Explanations.tsx prove.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Inline targets support the same five types: `slack`, `ms-teams`, `email`, `discord`, and `webhook`.\"",
+              "reason": "The provided source files for this page only prove Console alert-channel option values: `slack`, `ms-teams`, `discord`, `e-mail`, and `webhook`. They do not include the alarm config type for inline `notificationTargets`, and the visible Console value for email is `e-mail`, not `email`. This is a code/API claim outside the provided source.",
+              "suggestedFix": "Remove the inline `notificationTargets` API section unless the alarm configuration source is added. If keeping only a cautious cross-link, say that alarm configuration can define inline notification targets and refer readers to `/observability/alarms` for the supported target schema.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "export const alertChannelOptions = [\n  { label: 'Slack', value: 'slack', icon: SiSlack, iconSize: 17 },\n  { label: 'Microsoft Teams', value: 'ms-teams', icon: PiMicrosoftTeamsLogo, iconSize: 19 },\n  { label: 'Discord', value: 'discord', icon: SiDiscord, iconSize: 18 },\n  { label: 'Email', value: 'e-mail', icon: BiMailSend, iconSize: 21 },\n  { label: 'Webhook', value: 'webhook', icon: BiLink, iconSize: 20 }\n];"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Sends a signed JSON payload via HTTP POST... each request includes an `X-Stacktape-Signature` header with an HMAC-SHA256 signature of the payload.\"",
+              "reason": "The provided alert-channel page source only shows that `secret` is treated as a sensitive field in the details modal. It does not document HTTP method, payload format, header name, or HMAC algorithm. Those are concrete webhook-delivery API claims and need server/runtime source.",
+              "suggestedFix": "Narrow the webhook section to what is visible from the provided source: Webhook is one of the supported channel types, and a `secret` property may exist and is hidden as sensitive in the Console. Remove POST, JSON, header, and HMAC-SHA256 claims unless delivery-source code is added.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Webhook', value: 'webhook', icon: BiLink, iconSize: 20 }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft lists required properties and setup steps for Slack, Teams, Discord, Email, and Webhook channels.",
+              "reason": "The provided source proves only the five channel labels/values and that stored channel `properties` are displayed generically in a details modal. The actual create modal source is imported but not provided, so required fields such as Slack `conversationId`, Slack `accessToken`, Teams `webhookUrl`, Discord `webhookUrl`, and Email recipient shape are not grounded here.",
+              "suggestedFix": "Either add `CreateAlertChannelModal` and relevant server validation source to the page source list, or rewrite the section to avoid required-field tables and external setup recipes. A grounded version can say each channel has type-specific properties visible in the details modal, with sensitive values masked.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "import { CreateAlertChannelModal } from './CreateAlertChannelModal';"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{Object.entries(channelToShowDetailsFor.properties || {}).map(([propName, propValue]) =>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Alert channels are created and managed in the Stacktape Console under the **Channels** page\" followed by sidebar/top-right/form-submit workflow steps.",
+              "reason": "The source supports a page headline of `Channels`, a create button labeled `Alert channel`, and a modal opened through the `isCreateNewOpen` search parameter. It does not prove sidebar navigation, top-right placement in rendered layout, dropdown behavior, form fields, submit wording, or immediate availability after submit.",
+              "suggestedFix": "Keep the flow to source-backed UI facts: open the Channels page, use the `Alert channel` button, and fill in the create modal. Avoid unsupported layout and form-control details unless `CreateAlertChannelModal` source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<PageHeadline\n        headline=\"Channels\"\n        icon={BiMailSend}\n        tooltipText={explanations.channels}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "text=\"Alert channel\"\n            width={180}\n            onClick={() => setIsCreateModalOpen(true)}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape prevents deletion if the channel is still referenced by any notification rule, alarm rule, or budget alert.\"",
+              "reason": "The client source only transforms a delete error message that starts with `Can't delete this channel yet.` and renders any rule lines from that message. It does not prove the server-side deletion rule or enumerate notification rules, alarm rules, and budget alerts as blockers.",
+              "suggestedFix": "Write cautiously: \"If deletion fails because the channel is still in use, the Console shows the referencing rules returned by Stacktape.\" Do not enumerate blocker types unless server delete logic is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "if (!lines[0]?.startsWith(`Can't delete this channel yet.`)) {\n    return errorMessage;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const ruleLines = lines.slice(2, -1);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Each alarm rule can send alerts to multiple channels\" and \"Each budget alert can send to multiple channels, just like alarm rules\" while \"Each notification rule sends to one channel.\"",
+              "reason": "The provided source explains that channels can be used in notification rules, alarm rules, and budget alerts, but it does not define cardinality for any rule type. These are important API/Console behavior claims and need the relevant Console rule pages or server schema.",
+              "suggestedFix": "Remove per-rule cardinality claims from this page, or add the notification, alarm, and budget rule source files. A cautious replacement is: \"Use alert channels from notification rules, alarm rules, and budget alerts; see those pages for how each rule selects destinations.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts\n        where you need them."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Each rule specifies which events to watch and which channel to deliver the alert to."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The `<CodeBlock intellisense>` example under \"Inline notification targets in config\" configures a Lambda alarm with `trigger.type: 'lambda-error-rate'`, `thresholdPercent`, webhook `headers`, and `notificationTargets`.",
+              "reason": "The code example may be demonstrative for inline alarm targets, but this page's provided source list contains no Stacktape config type, alarm definition type, Lambda alarm trigger source, or webhook target schema. The source-backed page is about Console alert channels, not resource alarm config.",
+              "suggestedFix": "Remove the Stacktape config example from this page unless `types/stacktape-config/alarms.d.ts` and the relevant Lambda alarm source are included. Link to `/observability/alarms` for inline alarm configuration instead.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "export const alertChannelOptions = [\n  { label: 'Slack', value: 'slack', icon: SiSlack, iconSize: 17 },"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a\n        webhook."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly names the five Console alert-channel types shown in `alertChannelOptions`: Slack, Microsoft Teams, Discord, Email, and Webhook.",
+            "The draft’s core positioning that channels are destinations used by notification rules, alarm rules, and budget alerts is grounded in `Explanations.tsx`.",
+            "The draft includes a practical comparison table and FAQ, which fits the page-quality and AEO guidance, but several entries need narrower source-grounded wording."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\observability__alert-channels\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All five channel types (Slack, Microsoft Teams, Discord, Email, Webhook) are correctly enumerated and match the `alertChannelOptions` array in the Console source — no invented types.",
+            "Console navigation claims are well-grounded: the 'Channels' headline, the 'Alert channel' button, and the delete-fails-when-referenced-by-rules behavior are all directly confirmed in AlertChannelsPage.tsx.",
+            "The comparison table is concise and decision-oriented — exactly what a first-time user needs to pick a channel type without reading every prose section.",
+            "CLI vs Console distinction is explicit and accurate: the FAQ clearly states there is no CLI command for channel management and correctly points to CLI observability commands like `stacktape debug:logs` and `stacktape debug:alarms`.",
+            "The FAQ covers all three required categories: Stacktape-specific questions (channel scope, testing, multiple Slack targets), AWS service questions (alarm routing mechanics), and comparison questions (channels vs inline notification targets).",
+            "The 'Deleting a channel' section accurately reflects the error behavior shown in the `DeleteChannelError` component — channels can't be deleted while still referenced, and the Console surfaces which rules are blocking deletion.",
+            "The organization-scoped nature of channels is correctly inferred from `{ organizationId: selectedOrg!.id }` in the trpc query.",
+            "No style violations: no YAML Stacktape config blocks, no `StacktapeConfig` type imports, no `defineConfig` in fenced TypeScript blocks, no marketing language, no multi-command shell blocks."
+          ],
+          "problems": [
+            "The Slack channel description claims 'Setting up Slack requires creating a Slack app with the appropriate OAuth scopes and inviting the bot to the target channel. You provide a conversation ID and an access token' — the source only confirms `accessToken` as a sensitive field. The 'conversation ID' field name and the OAuth/bot-invitation setup flow are not verified in any provided source file and could be wrong if the Console form uses a different field (e.g. a channel name, channel ID, or webhook URL).",
+            "The Microsoft Teams description claims 'Teams integration typically uses an Incoming Webhook connector, which you configure in the Teams channel settings' — this specific connector mechanism isn't grounded in the source. The source confirms `webhookUrl` as a sensitive field but doesn't specify the Teams integration mechanism.",
+            "The 'When NOT to use' section claims users can 'define notification targets inline in your alarm configuration instead' — inline `notificationTargets` on alarm config is referenced as a feature here and in the FAQ, but no alarm config source file was provided to verify this claim. If this feature doesn't exist or works differently, two separate sections on this page mislead the user.",
+            "The `sensitiveFields` array in the source is `['webhookUrl', 'accessToken', 'secret']` — but the page only mentions a `secret` field for the Webhook type specifically. The page doesn't note that `webhookUrl` is also masked as a sensitive value for Webhook and potentially Teams/Discord types. This is a minor omission but could confuse users who expect to see their URL in plain text after saving.",
+            "The page has no MDX components at all (no `<Info>`, `<Tip>`, `<Warning>` callouts). While not a hard violation without an example page to compare against, key gotchas — like the deletion-blocking behavior and the deploy-time activation of alarm rules — deserve callout treatment to prevent reader confusion."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Narrow the Slack setup description to what the source confirms: remove 'conversation ID', 'OAuth scopes', and 'inviting the bot' and replace with 'You provide a Slack access token and the target channel identifier when creating the channel in the Console' — or remove the setup detail entirely and let the Console form speak for itself.",
+            "Narrow the Teams setup description to what the source confirms: 'You provide a webhook URL when creating the channel in the Console' without claiming the specific Teams connector type used.",
+            "Verify and source-ground the inline `notificationTargets` claim or remove both references (the 'When NOT to use' section and the FAQ answer 'When should I use inline notification targets instead?'). If inline targets are a real feature, link to the alarm config page where they are documented.",
+            "Add a short note in the Webhook section that `webhookUrl` is masked as a sensitive value in the Console — consistent with the `sensitiveFields` source and useful for users who expect to retrieve their URL later.",
+            "Add an `<Info>` callout or a short note near 'Using channels with rules' that alarm rules activate on next deployment, not immediately — this is confirmed in `explanations.alarmRules` and is a common source of confusion for first-time users.",
+            "The channel detail modal (the eye-icon view) shows masked sensitive values and all properties — mentioning this briefly in the 'Creating a channel' section would help users understand they can review channel config without exposing secrets.",
+            "Consider adding an `<Info>` callout in the 'Deleting a channel' section to make the blocking-references error more visually prominent — users who try to delete a channel mid-cleanup frequently hit this and it's worth flagging before they try."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The comparison table (Slack / Teams / Discord / Email / Webhook with best-for and setup effort columns) is well-executed and directly answers the decision a production user faces.",
+            "FAQ section spans all three required categories — Stacktape-specific, underlying AWS service use-case, and comparison questions — and the 9 Q&A pairs are non-redundant.",
+            "Delete-failure behavior is correctly described and matches the source: the Console displays an error listing which rules still reference the channel when deletion is blocked.",
+            "Channels-as-organization-scope is called out correctly and is grounded in the source (the trpc query passes organizationId).",
+            "The page cleanly separates Console-managed channel operations from CLI debug commands (debug:logs, debug:alarms), satisfying the observability section instruction.",
+            "The three rule types (alarm rules, notification rules, budget alerts) are named and linked, with a source-grounded note that alarm and EventBridge wiring is applied on next deployment."
+          ],
+          "problems": [
+            "Sensitive-fields coverage is incomplete and partially incorrect. The source defines sensitiveFields = ['webhookUrl', 'accessToken', 'secret']. The draft correctly notes 'secret' as sensitive for webhook channels, but (a) it omits that 'webhookUrl' itself is the primary masked field for webhook channels, and (b) it omits that 'accessToken' is masked for Slack. A production user configuring Slack needs to know their token will be masked; a webhook user expects the URL to be masked too.",
+            "The Slack channel setup description ('creating a Slack app with appropriate OAuth scopes', 'inviting the bot to the target channel', 'conversation ID') is not grounded in the provided source files. The source only confirms 'accessToken' is a sensitive field for Slack; it says nothing about conversation IDs, OAuth scopes, or bot invitations. If Stacktape's integration uses a different field set or flow, this description misleads users at setup time.",
+            "The Microsoft Teams setup description ('Incoming Webhook connector') is general knowledge about Teams, not grounded in the provided source. The source shows Teams as an option ('ms-teams' value) but provides no implementation details. Asserting Incoming Webhook specifically could be wrong for Stacktape's implementation.",
+            "The 'When to use alert channels' section is near-verbatim repetition of the intro paragraph. Both say: channels are Console-managed destinations created once and attached to rules. The only marginal addition is 'without duplicating configuration', which is already implied by 'reuse'. This thin section adds scrolling overhead with minimal value.",
+            "The draft links to '/observability/alert-history' in three places (FAQ entries for testing and unreachable endpoints) as if that route is confirmed. The source's Explanations.tsx has an alertHistory entry but no route path is confirmed in the provided files. Low risk, but a production user who follows that link and gets a 404 loses trust."
+          ],
+          "mandatoryFixes": [
+            "No absolute forbidden patterns (YAML blocks, StacktapeConfig import, fenced TS with defineConfig, marketing language, multi-command bash blocks) are present. No mandatory style violations apply. All fixes below are actionable but non-mandatory."
+          ],
+          "optionalImprovements": [
+            "Fix the sensitive fields description: For Webhook, note that 'webhookUrl' is masked (it is in sensitiveFields), not just 'secret'. For Slack, note that 'accessToken' is masked. Remove or heavily qualify the Slack setup details (conversation ID, OAuth scopes, bot invitation) and the Teams setup details (Incoming Webhook connector) since neither is grounded in the provided source — narrow the wording to what is confirmed ('you provide the required credentials when creating the channel in the Console').",
+            "Collapse or remove the 'When to use alert channels' section. The intro paragraph already states the purpose. If you keep a 'When to use' section, it must add something new — e.g., contrast it with inline notificationTargets defined in config-time alarm definitions, which is a distinct decision the reader faces. The 'When NOT to use' section already does this better.",
+            "Verify the '/observability/alert-history' route before publishing. If it does not exist as a single unified page, replace those links with the specific history pages that do exist (alarm history, notification history, budget history) as separate links — the Explanations.tsx source shows all three exist as distinct entries.",
+            "The 'Creating a channel in the Console' section describes what happens after the form is submitted ('The channel becomes available for use in rules immediately after creation') — this behavior isn't explicitly grounded in source but is reasonable to state. If you want to narrow it, replace 'immediately' with 'after creation' to avoid implying a propagation delay claim."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "The page clearly names the five supported channel types that are visible in the Console source.",
+            "Structure is easy to scan, with practical sections for channel types, choosing a channel, creation, rule usage, deletion, and FAQ.",
+            "The delete-channel behavior is grounded well: the draft reflects that deletion can fail when rules still reference the channel.",
+            "The FAQ covers Stacktape-specific workflow questions and choosing questions without padding heavily."
+          ],
+          "problems": [
+            "Several channel setup details are not grounded in the provided source files: Slack OAuth scopes, conversation IDs, Teams Incoming Webhook setup, Discord integration settings, Email recipient behavior, PagerDuty/Opsgenie/Zapier examples, and webhook payload verification.",
+            "The draft describes exact Console flows beyond what the source proves. The source shows a Channels page, an Alert channel button, a details modal, and delete controls, but it does not include the creation modal fields or type-specific setup instructions.",
+            "The claim that alert channels are a Console-only feature and that there is no CLI command for managing channels is not grounded by the provided source list, which contains no CLI source for alert channels.",
+            "Some rule-scope claims are broader than the source supports, such as rules across the whole organization reusing channels and rules across the organization referencing them.",
+            "The FAQ includes unsupported operational claims about testing channels, unreachable endpoints, failed delivery status, multiple Slack channels, routing severities with threshold examples, and organization-wide channel behavior.",
+            "The page has useful comparison content, but the comparison table includes setup-effort judgments that are not grounded in the source files.",
+            "The page lacks source-grounded detail from CreateAlertChannelModal, so the most practical creation guidance is currently speculative rather than verified."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify unsupported provider setup details unless source files for CreateAlertChannelModal or server alert-channel validation are provided. Keep only the channel types and sensitive fields proven by the current source.",
+            "Replace unsupported Console-only and no-CLI claims with narrower wording grounded in the provided Console source, or add CLI/server source files that prove the absence of alert-channel CLI management.",
+            "Revise the FAQ so each Stacktape-specific claim is grounded in AlertChannelsPage.tsx or Explanations.tsx. Remove unsupported examples like 70%/90% severity routing unless alarm rule source proves that workflow.",
+            "Remove setup-effort ratings or replace them with source-grounded statements. The current source does not prove that Slack is medium effort, Teams is low effort, or Email has no setup.",
+            "Narrow creation-flow wording to what the source shows: the Channels page has an Alert channel button that opens a creation modal. Do not name modal fields unless the modal source proves them."
+          ],
+          "optionalImprovements": [
+            "Add a short sentence that sensitive channel properties displayed in the details modal are masked for webhookUrl, accessToken, and secret, since that is directly grounded in the source.",
+            "Move more grounded Console facts into the Channel types section, such as the exact internal channel values only if useful to readers: slack, ms-teams, discord, e-mail, webhook.",
+            "Consider shortening or removing provider-specific setup paragraphs until the relevant modal/server validation source is available.",
+            "The FAQ could add a grounded question about what details are visible after creation: name, type, created date, and type-specific properties in the details modal."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the Console source for the existence of alert channels, the five channel types, sensitive-value masking, deletion behavior, and use with notification rules, alarm rules, and budget alerts. The main problems are unsupported implementation/setup details for third-party integrations and several claims about inline config targets, rule scope, delivery failure behavior, and channel availability that are not grounded in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"If your alarm destinations live alongside your infrastructure code and you prefer version-controlled config, you can define notification targets inline in your alarm configuration instead.\" and related FAQ claims about inline `notificationTargets`.",
+              "reason": "The provided source files for this page only document Console-managed channels and Console alarm rules that send alerts to a selected channel. They do not include `types/stacktape-config/alarms.d.ts` or any config-time alarm target source, so the draft cannot claim an inline `notificationTargets` API or recommend when to use it.",
+              "suggestedFix": "Remove or narrow the inline-target comparison unless the page source list includes the alarm config type showing inline targets. A grounded replacement would be: \"Use alert channels when you want Console-managed destinations for notification rules, alarm rules, and budget alerts.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "When a metric crosses your defined threshold, an alert is sent to the channel you specify."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Slack channels deliver alert messages to a Slack channel or direct message using the Slack API. Setting up Slack requires creating a Slack app with the appropriate OAuth scopes and inviting the bot to the target channel. You provide a conversation ID and an access token when creating the channel in the Console.\"",
+              "reason": "The source confirms Slack is a supported alert channel type and that `accessToken` is treated as sensitive when present, but it does not show Slack setup requirements, OAuth scopes, bot invitation behavior, direct-message support, Slack API usage, or a `conversation ID` field.",
+              "suggestedFix": "Keep only what the source proves: Slack is one of the supported channel types, and sensitive properties such as access tokens are masked when displayed. Avoid setup instructions unless `CreateAlertChannelModal` or server validation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "export const alertChannelOptions = [\n  { label: 'Slack', value: 'slack', icon: SiSlack, iconSize: 17 }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Microsoft Teams integration typically uses an Incoming Webhook connector... You provide the webhook URL\" and \"Discord channels deliver alerts ... via a webhook.\"",
+              "reason": "The source confirms Microsoft Teams and Discord are supported channel types, and that a property named `webhookUrl` is masked when present. It does not prove Teams uses an Incoming Webhook connector, Discord uses a webhook, or which fields are required for either channel type.",
+              "suggestedFix": "State only that Microsoft Teams and Discord are supported alert channel types. If setup details are needed, add the modal/server schema source that defines type-specific fields.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Microsoft Teams', value: 'ms-teams', icon: PiMicrosoftTeamsLogo, iconSize: 19 },\n  { label: 'Discord', value: 'discord', icon: SiDiscord, iconSize: 18 }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Email channels deliver alerts to one or more email addresses. No external service setup is required — you provide the recipient addresses and Stacktape handles delivery.\"",
+              "reason": "The source confirms Email is a supported alert channel type, but it does not show whether an email channel accepts one address or multiple addresses, what setup is required, or how Stacktape performs delivery.",
+              "suggestedFix": "Narrow to: \"Email is one of the supported alert channel types.\" Add recipient-count and delivery details only if the channel creation schema or server implementation is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Email', value: 'e-mail', icon: BiMailSend, iconSize: 21 }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Webhook channels deliver alerts to any HTTP endpoint you control... integrate with PagerDuty, Opsgenie, custom dashboards, incident management tools... The channel configuration also supports a `secret` field ... which can be used for payload verification.\"",
+              "reason": "The source confirms Webhook is a supported channel type and that `secret` is masked if present, but it does not define webhook payload semantics, supported endpoint behavior, third-party compatibility, or that `secret` is used for payload verification.",
+              "suggestedFix": "Keep the generic integration guidance cautious: \"Webhook is the flexible channel type for HTTP-based integrations.\" Say `webhookUrl` and `secret` are masked as sensitive values when present, but do not claim verification semantics without source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Webhook', value: 'webhook', icon: BiLink, iconSize: 20 }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The channel becomes available for use in rules immediately after creation.\"",
+              "reason": "The page source shows the create modal is opened and the channel list is refetched, but it does not prove rule availability timing or transactional behavior after creation.",
+              "suggestedFix": "Use source-grounded wording: \"After creating a channel, the channel list is refreshed in the Console.\" If availability timing is important, cite server/router behavior for channel creation and rule selection.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<CreateAlertChannelModal\n        refetchFn={channelsQuery.refetch}\n        isOpen={isCreateModalOpen}\n        setIsOpen={setIsCreateModalOpen}\n      />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Rules that reference channels (alarm rules, notification rules, budget alerts) are also configured in the Console.\"",
+              "reason": "The provided source supports Console explanations for notification rules, alarm rules, and budget alerts, but the draft's absolute claim conflicts with its own unsupported inline alarm-target claims and is not fully provable for every rule surface from the channel page source alone.",
+              "suggestedFix": "Write narrowly: \"The Console uses channels in notification rules, alarm rules, and budget alerts.\" Avoid saying all related rules are Console-only unless the relevant rule pages or server sources are included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Budget alerts can be scoped to specific projects or applied across your entire organization."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If a channel's target endpoint returns an error or is unreachable, the alert shows a failed delivery status.\"",
+              "reason": "The source says alert history includes delivery status, but it does not define failure classification for unreachable endpoints or HTTP error responses.",
+              "suggestedFix": "Narrow to: \"Alert history shows delivery status for alerts.\" Avoid describing endpoint-error behavior unless alert delivery implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "A unified log of all alerts across notifications, alarms, and budgets."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "A log of all notification alerts that were sent, including their delivery status."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly names the five supported alert channel types shown in `alertChannelOptions`: Slack, Microsoft Teams, Discord, Email, and Webhook.",
+            "The draft correctly describes sensitive-value masking at a high level for `webhookUrl`, `accessToken`, and `secret`, matching the `sensitiveFields` list in the channel page source.",
+            "The draft correctly identifies the Console page headline as `Channels` and the create button text as `Alert channel`.",
+            "The draft correctly says deletion can fail when a channel is still referenced by rules; the source contains a deletion error renderer for messages starting with `Can't delete this channel yet.` and listing rule lines.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned on the existence of alert channels and the five channel types, but it makes several unsupported claims about channel setup fields, Console workflows, rule scoping, deletion behavior, and CLI availability that are not grounded in the provided source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Slack, Microsoft Teams, Discord, Email, and Webhook sections describe type-specific setup mechanics and required fields: Slack API/OAuth scopes/conversation ID/access token, Teams Incoming Webhook connector, Discord webhook setup, email recipient addresses, webhook HTTP endpoint behavior, and using `secret` for payload verification.",
+              "reason": "The provided source confirms the five channel type labels and that `webhookUrl`, `accessToken`, and `secret` are treated as sensitive fields when displayed. It does not show the create-modal implementation, required fields, external provider setup flow, delivery mechanism, or semantic use of the `secret` field for payload verification.",
+              "suggestedFix": "Keep the five channel types, but narrow setup prose to what the source proves. For example: state that the Console supports Slack, Microsoft Teams, Discord, Email, and Webhook channels, and that displayed properties named `webhookUrl`, `accessToken`, and `secret` are masked. Avoid claiming exact external setup steps or required fields unless CreateAlertChannelModal or server validation sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "export const alertChannelOptions = [\n  { label: 'Slack', value: 'slack', icon: SiSlack, iconSize: 17 },\n  { label: 'Microsoft Teams', value: 'ms-teams', icon: PiMicrosoftTeamsLogo, iconSize: 19 },\n  { label: 'Discord', value: 'discord', icon: SiDiscord, iconSize: 18 },\n  { label: 'Email', value: 'e-mail', icon: BiMailSend, iconSize: 21 },\n  { label: 'Webhook', value: 'webhook', icon: BiLink, iconSize: 20 }\n];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Once a channel exists, rules across your organization can deliver to it without duplicating configuration\" and \"Rules across your organization can reference them — you do not need to recreate channels for each project or stage.\"",
+              "reason": "The Console query fetches channels by selected organization, which supports organization-scoped listing. The provided source does not show the rule models or prove that all projects/stages/rules across the organization can reference every channel.",
+              "suggestedFix": "Narrow to: \"Channels are loaded for the selected organization in the Console.\" If rule-reference sources are provided, then document the exact scope.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const selectedOrg = useGlobalStore((store) => store.selectedOrganization);\n  const channelsQuery = trpc.alertChannels.useQuery({ organizationId: selectedOrg!.id });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Alert channels are created and managed on the Channels page in the Stacktape Console\" and \"Click the Alert channel button to open the channel creation form, where you select a channel type and fill in the type-specific fields. The channel becomes available for use in rules immediately after creation.\"",
+              "reason": "The provided source supports the page headline \"Channels\", the presence of an \"Alert channel\" button, and opening `CreateAlertChannelModal`. It does not show the modal contents, type-specific fields, save behavior, or immediate availability in rules.",
+              "suggestedFix": "Keep the grounded UI claim: \"The Channels page has an Alert channel button that opens the create-channel modal.\" Remove or qualify form-field and immediate-availability claims unless modal and server sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<PageHeadline\n        headline=\"Channels\"\n        icon={BiMailSend}\n        tooltipText={explanations.channels}\n        rightSideItems={[\n          <Button\n            key=\"create-new-alert-channel-button\""
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "text=\"Alert channel\"\n            width={180}\n            onClick={() => setIsCreateModalOpen(true)}"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<CreateAlertChannelModal\n        refetchFn={channelsQuery.refetch}\n        isOpen={isCreateModalOpen}\n        setIsOpen={setIsCreateModalOpen}\n      />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Alert channels are a Console-only feature — there is no CLI command for creating or managing channels. Rules that reference channels (alarm rules, notification rules, budget alerts) are also configured in the Console.\"",
+              "reason": "The provided source list contains Console files only and no CLI command source. It supports that alert channels exist in the Console, but it does not prove the negative claim that no CLI command exists or that all referenced rule types are configured only in the Console.",
+              "suggestedFix": "Write cautiously: \"The provided Console source shows channel creation and deletion in the Stacktape Console.\" Do not assert CLI absence unless CLI command source or navigation-derived command inventory is included as a source for this page.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts\n        where you need them."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const deleteChannelMutation = trpc.deleteAlertChannel.useMutation();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Alarm rules monitor AWS metrics (Lambda error rates, database CPU, API latency) and deliver an alert to the configured channel when a threshold is breached. The underlying CloudWatch alarms and EventBridge routing are created or updated on the next deployment of each matching stage.\"",
+              "reason": "The source supports alarm rules monitoring AWS metrics and next-deployment creation/update/removal of CloudWatch alarms and EventBridge routing, but the examples \"Lambda error rates, database CPU, API latency\" are not supported as written. The source says \"Lambda error rates, database CPU usage, or API latency,\" which is close but not identical for database CPU wording; the bigger issue is that the page presents this inside alert-channel usage as if channel sources also prove the full matching-stage behavior for all rules.",
+              "suggestedFix": "Quote the supported wording more closely or link to the alarms page without restating detailed alarm mechanics on the alert-channel page. Use: \"Alarm rules monitor AWS metrics and send alerts to the specified channel; Console source says underlying CloudWatch alarms and EventBridge routing change on the next deployment of each matching project and stage.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Alarm rules monitor AWS metrics for your resources — such as Lambda error rates, database CPU usage, or API\n        latency."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual\n        CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is\n        deployed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Deleting a channel can fail when the channel is still referenced by existing rules — the Console displays an error listing which rules still use the channel. Remove the channel from all referencing rules first, then delete it.\"",
+              "reason": "The source supports transforming a specific error message that starts with \"Can't delete this channel yet\" and rendering rule lines when present. It does not prove every deletion failure condition, the exact rule-reference semantics, or that removing the channel from all rules is the required remediation in all cases.",
+              "suggestedFix": "Narrow the claim to the observed behavior: \"When the backend returns a 'Can't delete this channel yet' error, the Console formats the message and lists referenced rule lines included in the error.\" Avoid universal remediation wording unless backend delete-validation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "if (!lines[0]?.startsWith(`Can't delete this channel yet.`)) {\n    return errorMessage;\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const ruleLines = lines.slice(2, -1);"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ruleLines.map((ruleLine) => (\n            <li key={ruleLine}>{ruleLine.replace(/^\\d+\\.\\s*/, '')}</li>\n          ))}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "FAQ claims about testing channels, endpoint failure behavior, failed delivery status, and alert history: \"Create a notification rule... run a deployment,\" \"If a channel's target endpoint returns an error or is unreachable, the alert shows a failed delivery status,\" and \"verify delivery resumes.\"",
+              "reason": "The provided source says alert history is a unified log of alerts and notification history includes delivery status. It does not document a test workflow, endpoint-unreachable semantics, retry/resume behavior, or exact failed-delivery status behavior for alert channels.",
+              "suggestedFix": "Limit the FAQ to the supported alert-history behavior: \"Alert history is a unified log of alerts across notifications, alarms, and budgets.\" Remove the test procedure and endpoint-failure specifics unless alert delivery/history implementation sources are provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "alertHistory: (\n    <>\n      <p>A unified log of all alerts across notifications, alarms, and budgets.</p>\n      <p>Use this to see a complete picture of every alert your organization has received.</p>\n    </>\n  ),"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "notificationHistory: (\n    <>\n      <p>A log of all notification alerts that were sent, including their delivery status.</p>\n      <p>Check here if you're not sure whether a notification was delivered.</p>\n    </>\n  ),"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"You can route different alert severities to different channels\" with examples of warning CPU threshold 70% to Slack and critical threshold 90% to PagerDuty webhook.",
+              "reason": "The source supports that alarm rules have thresholds and a channel, but it does not show a severity model, multiple thresholds for the same metric, PagerDuty-specific webhook behavior, or CPU threshold examples.",
+              "suggestedFix": "Remove the severity claim or reframe as a cautious pattern if supported by alarm-rule sources: \"If you create separate rules with different thresholds, each rule can specify its own channel.\" Do not mention severities or PagerDuty unless source supports them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "When a metric crosses your defined threshold, an alert is sent to the channel you specify."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Webhook', value: 'webhook'"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists the five channel types shown in `alertChannelOptions`: Slack, Microsoft Teams, Discord, Email, and Webhook.",
+            "The draft correctly states that `webhookUrl`, `accessToken`, and `secret` are sensitive fields masked in the Console details view.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The draft correctly distinguishes documented CLI debug commands from Console channel management in several places, though the negative claim about no CLI channel-management command needs stronger source support."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the channel-type union visible in the Console source and correctly distinguishes alert channels from CLI debug commands. The main gaps are unsupported setup details for individual integrations and one overbroad Console-only claim about rules.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Slack channels deliver alert messages to a Slack channel or direct message using the Slack API. Setting up Slack requires creating a Slack app with the appropriate OAuth scopes and inviting the bot to the target channel. You provide a conversation ID and an access token when creating the channel in the Console.",
+              "reason": "The provided source only proves that Slack is a supported alert channel type and that `accessToken` is treated as sensitive when present. It does not show Slack setup mechanics, direct-message support, OAuth scopes, bot invitation, or a `conversationId` field.",
+              "suggestedFix": "Narrow the Slack section to sourced facts: Slack is a supported channel type; channel details may include sensitive fields such as `accessToken`, which the Console masks. Avoid setup-step claims unless `CreateAlertChannelModal` or server schema source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Slack', value: 'slack', icon: SiSlack, iconSize: 17 }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Microsoft Teams integration typically uses an Incoming Webhook connector, which you configure in the Teams channel settings. You provide the webhook URL when creating the channel in the Console.",
+              "reason": "The source proves Microsoft Teams is a supported channel type and `webhookUrl` is a sensitive field generally, but it does not prove Teams uses an Incoming Webhook connector or that the Teams channel form requires/provides a webhook URL.",
+              "suggestedFix": "Say only that Microsoft Teams is a supported alert channel type. If you want to document the required fields, add source from the create-channel modal or backend router schema.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Microsoft Teams', value: 'ms-teams', icon: PiMicrosoftTeamsLogo, iconSize: 19 }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Discord channels deliver alerts to a Discord channel via a webhook. You create a webhook in the Discord channel's integration settings and provide the webhook URL when creating the channel in the Console.",
+              "reason": "The source proves Discord is one of the channel options, but it does not include Discord setup instructions or Discord-specific required fields.",
+              "suggestedFix": "Keep Discord listed as a supported channel type and remove the webhook setup procedure unless additional source files show the Discord channel form fields.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Discord', value: 'discord', icon: SiDiscord, iconSize: 18 }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Email channels deliver alerts to one or more email addresses. No external service setup is required — you provide the recipient addresses and Stacktape handles delivery.",
+              "reason": "The source proves Email is a channel type and the explanations mention an email address as an example destination, but it does not prove multiple recipients, no external setup, or delivery handling details.",
+              "suggestedFix": "Write cautiously: Email is a supported alert channel type for email-address destinations. Avoid recipient-count and delivery-mechanism claims without form or backend schema source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Email', value: 'e-mail', icon: BiMailSend, iconSize: 21 }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered — for example, a Slack channel, an email address, or a webhook."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Webhook channels deliver alerts to any HTTP endpoint you control... The channel configuration also supports a `secret` field... which can be used for payload verification on the receiving end.",
+              "reason": "The source proves Webhook is a channel type and `secret` is masked as sensitive when present. It does not prove that any HTTP endpoint is supported, that the field is part of webhook configuration specifically, or how the secret is used for payload verification.",
+              "suggestedFix": "Limit the section to: Webhook is a supported channel type; details may include sensitive values such as `webhookUrl` and `secret`, which are masked in the Console. Do not describe verification semantics without server-side source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "{ label: 'Webhook', value: 'webhook', icon: BiLink, iconSize: 20 }"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "const sensitiveFields = ['webhookUrl', 'accessToken', 'secret'];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Rules that reference channels (alarm rules, notification rules, budget alerts) are also configured in the Console.",
+              "reason": "The supplied explanations prove notification rules, alarm rules, and budget alerts exist in the Console context and use channels, but the statement is too broad for alarms because config-time alarm definitions are explicitly part of the observability instructions and the draft itself later discusses inline alarm notification targets.",
+              "suggestedFix": "Revise to: Alert channels are created and managed in the Console. Console notification rules, alarm rules, and budget alerts can reference those channels; alarm destinations can also be defined inline in Stacktape alarm configuration where documented.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Creating or changing a rule saves it in the Console. Stacktape creates, updates, or removes the actual CloudWatch alarms and EventBridge notification routing the next time each matching project and stage is deployed."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The channel becomes available for use in rules immediately after creation.",
+              "reason": "The source shows the create modal refetches channels and that explanations say channels are used in rules, but it does not establish immediate availability semantics after creation.",
+              "suggestedFix": "Use a narrower claim: after creating a channel, the Channels page lists it and rules can use channels as alert destinations. Avoid the word \"immediately\" unless backend or UI flow source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx",
+                  "quote": "<CreateAlertChannelModal refetchFn={channelsQuery.refetch} isOpen={isCreateModalOpen} setIsOpen={setIsCreateModalOpen} />"
+                },
+                {
+                  "file": "C:\\Projects\\console-app\\src\\Explanations.tsx",
+                  "quote": "Create channels here, then use them in notification rules, alarm rules, and budget alerts to receive alerts where you need them."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft names all five alert channel variants shown in `alertChannelOptions`: Slack, Microsoft Teams, Discord, Email, and Webhook.",
+            "The draft correctly states that webhook URLs, access tokens, and secrets are sensitive values masked in the Console details view.",
+            "The draft correctly describes the Channels page surface: it lists channel name, type, created time, and provides detail and delete actions.",
+            "No Stacktape configuration examples are present, so the draft avoids the forbidden YAML/plain-object/fenced TypeScript config patterns."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\alert-channels.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T16:48:17.701Z",
+  "inputHashes": {
+    "C:\\Projects\\console-app\\src\\pages\\AlertChannels\\AlertChannelsPage.tsx": "d21f98282d0d8ce140be3921c5a4d3ae021a0305",
+    "C:\\Projects\\console-app\\src\\Explanations.tsx": "3f2604010b1492917861d68a6940ceab8d04a693"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

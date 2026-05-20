@@ -1,0 +1,815 @@
+{
+  "pageId": "cli__debug__sql",
+  "pageRoute": "cli/debug-sql",
+  "startedAt": "2026-05-17T22:36:53.445Z",
+  "updatedAt": "2026-05-17T22:44:49.377Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__debug__sql\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All source-grounded facts check out: read-only prefixes (select, show, describe, explain, \\d) match the source array exactly; default limit (1000) and timeout (30000) match the code; agent-mode JSON fields (ok, resource, engine, sql, rows, fields, rowCount, truncated) match the source output exactly.",
+            "No forbidden style violations: no YAML config blocks, no StacktapeConfig type imports, no defineConfig in a fenced TypeScript block, no marketing language, no multiple alternative commands per bash block, no explanatory # comments inside bash blocks.",
+            "Examples section has four realistic, single-command bash blocks covering distinct use cases (basic query, SHOW TABLES, EXPLAIN, bastion tunnel). Each is genuinely copyable.",
+            "FAQ mixes all three required categories: Stacktape-specific (how does bastion tunneling work), AWS use-case (credentials source, reader endpoint), and comparison (when to use debug:sql vs bastion:tunnel). Eight pairs, all substantive.",
+            "Reader-endpoint routing behavior is accurately derived from the source (the code prefers readerConnectionString SSM param when present) and surfaced in both the Info callout and the FAQ.",
+            "When-to-use and when-not-to-use guidance is concrete and opinionated — points to bastion:tunnel for writes rather than just saying 'use another tool'."
+          ],
+          "problems": [
+            "Structural drift from the CLI page rhythm defined in the human-maintained section instructions. The prescribed order is: intro → usage example → auto-generated flags reference → examples → related commands. This page inserts a long 'Important flags' section (with four sub-sections and four individual bash examples) between 'When to use' and the examples, then places the auto-generated flags reference near the end. A developer who wants to quickly look up a flag must scroll past hundreds of words of prose before reaching the reference table.",
+            "The 'Important flags' section duplicates material already covered by the <CliCommandsApiReference> component. Both document --bastionResource, --limit, and --timeout with the same content, creating two places for the same information and making the page longer than the CLI audience needs.",
+            "The 'Important flags' heading reads like a half-complete API reference, not a guide. Each flag sub-section is structured as: bold flag name → description paragraph → single example. This pattern works better either as a 'Key patterns' prose section (no bash examples) or folded into the 'Examples' section as annotated command variants, not as a freestanding section that mimics the auto-generated reference."
+          ],
+          "mandatoryFixes": [
+            "Restructure the page to match the CLI page rhythm from the section instructions: intro paragraph → usage example → <CliCommandsApiReference> → examples (non-obvious patterns) → related commands. Move the unique prose context from 'Important flags' (the why, not the what) into the intro or the Examples section narrative. Delete the 'Important flags' section as a standalone H2 — its existence between the usage example and the examples creates a redundant middle layer that makes the flags reference harder to find."
+          ],
+          "optionalImprovements": [
+            "The 'Read-only enforcement' and 'VPC-only databases' sections contain solid content but could be folded into the intro or a single 'How it works' subsection to reduce the page's H2 count. Five middle H2s (When to use, Important flags, Read-only enforcement, VPC-only databases, Agent mode output) before the examples section is heavy for a CLI reference page.",
+            "The Info callout about reader endpoints is well-sourced but slightly buried in the VPC-only section where a reader encountering it is unlikely to be thinking about read replicas. Consider surfacing it as a brief note in the FAQ instead ('Does debug:sql use the reader or writer endpoint?'), which is already present — the callout could then be removed to reduce duplication.",
+            "Add a brief note that the command does not require a Stacktape config file to run (commandRequiresConfig: false in the source). This is useful context for teams running ad-hoc debug queries from CI without a local config present."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Grounded flag documentation: each flag gets its own block, explanation, and isolated example — no copy-button trap violations.",
+            "Read-only enforcement section accurately enumerates all five accepted prefixes (SELECT, SHOW, DESCRIBE, EXPLAIN, \\d) from source, including the PostgreSQL-specific \\d shorthand.",
+            "VPC-only databases section correctly explains the SSM port-forwarding tunnel mechanism and confirms no SSH keys or open ports are needed.",
+            "FAQ spans all three required categories: Stacktape-specific, underlying AWS/service behavior, and choosing/comparison questions. Eight entries is appropriate depth.",
+            "Defaults (limit=1000, timeout=30000) match the source exactly.",
+            "Connection credential retrieval via SSM Parameter Store is explained clearly and is source-grounded.",
+            "Reader endpoint routing (for Aurora read replicas) is documented accurately and matches the source logic."
+          ],
+          "problems": [
+            "Agent mode JSON payload is incompletely documented. The page lists `rows`, `fields`, `rowCount`, `truncated`, and 'engine type', but the source emits six fields: `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, `truncated`. The three omitted fields (`ok`, `resource`, `sql`) matter when users are parsing or validating the response programmatically.",
+            "The page states the command 'validates the query prefix before connecting to the database and rejects anything that could modify data' (and FAQ repeats 'before a database connection is opened'). The source shows the tunnel IS established before `validateReadOnlySql` is called — the SQL is rejected before the query runs, but after tunnel setup. Users with bastion resources will see a tunnel established even for an invalid query, which contradicts the page's claim.",
+            "The command uses `ssl: { rejectUnauthorized: false }` unconditionally (source line in the conn object). This means SSL is always enabled but certificate verification is disabled. Security-conscious readers targeting production databases should know this — the page is silent on SSL behavior entirely."
+          ],
+          "mandatoryFixes": [
+            "Fix agent mode JSON payload documentation: the full response object from source includes `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`. Update the prose in the 'Agent mode output' section and the corresponding FAQ answer to list all eight fields so script authors know the complete shape.",
+            "Correct the validation-timing claim: replace 'rejects anything that could modify data' / 'rejected before a connection to the database is opened' with wording that accurately reflects the source — the SQL prefix is validated before the query is sent to the database, but after a bastion tunnel (if configured) has been established."
+          ],
+          "optionalImprovements": [
+            "Add a brief note on SSL behavior: the command always connects with SSL enabled but `rejectUnauthorized: false` (to accept RDS self-signed certificates). One sentence in the 'VPC-only databases' or a new 'Security' section would help security-focused readers understand the trust model.",
+            "The page notes `commandRequiresConfig: false` implicitly but never states it explicitly. Adding one sentence — 'Unlike most commands, `debug:sql` does not require a Stacktape configuration file to be present; it operates entirely against the deployed stack' — removes a common point of confusion.",
+            "The FAQ answer for 'Do I need to provide database credentials?' mentions 'permissions to read SSM parameters'. It could be slightly more specific: the IAM principal needs `ssm:GetParameter` on the stack's SSM parameter namespace, which is a common least-privilege concern in production environments."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and within the target length.",
+            "Usage example includes all required flags: `--stage`, `--region`, `--resourceName`, and `--sql`.",
+            "The page uses the required `<CliCommandsApiReference command=\"debug:sql\" ... />` component instead of hand-authoring the full flags table in prose.",
+            "Examples are copyable, one command per shell block, and avoid forbidden shell comments.",
+            "FAQ covers Stacktape behavior, SQL-read-only constraints, VPC/bastion access, CI usage, and related database-client decisions."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are more specific than the provided source supports: AWS SSM Parameter Store credentials being stored during deployment, no SSH keys or inbound security group rules being needed, and permissions required to read SSM parameters.",
+            "The page states `--agent` outputs structured JSON and later says JSON includes certain fields, but the flags reference says `--agent` implies JSONL/NDJSON. The runtime source shows `tuiManager.info(JSON.stringify(..., null, 2))`, so the page should avoid overclaiming the exact transport format unless aligned with the command output system.",
+            "The `Read-only enforcement` section says any non-read statement is rejected before a connection is opened. The runtime validates after resolving the deployed resource, fetching the SSM parameter, and possibly establishing a bastion tunnel, so that wording is too broad.",
+            "The `Important flags` section duplicates much of the generated flags reference and partly reverses the required flow from the human instructions, which asked for usage, auto-generated reference, then examples when patterns are non-obvious.",
+            "FAQ is useful but lacks a broader choosing/comparison question such as when to use `debug:sql` versus `bastion:tunnel` or a local SQL client.",
+            "The source-backed engine support is protocol-based (`postgresql` and `mysql` connection strings), but the page phrases support as database engines without mentioning that unsupported protocols are rejected from the connection string."
+          ],
+          "mandatoryFixes": [
+            "Correct the read-only timing claim: say `debug:sql` rejects unsupported SQL before executing the query, not before any connection or tunnel setup occurs.",
+            "Revise unsupported SSM and networking claims to match the source narrowly: the command reads the connection string from the deployed resource's `connectionString` or `readerConnectionString` SSM parameter and fails if it cannot resolve it. Avoid claiming deployment-time storage details or exact IAM permissions unless sourced.",
+            "Align the `--agent` output wording with the source and generated flag description. Do not simultaneously describe it as generic JSON and strict JSONL/NDJSON unless the page explains the distinction accurately from source.",
+            "Reorder or simplify the page to match the CLI-page instruction: lead paragraph, usage example, `<CliCommandsApiReference>`, then examples/non-obvious patterns and related commands."
+          ],
+          "optionalImprovements": [
+            "Add a small table comparing `debug:sql`, `bastion:tunnel`, and external SQL clients for read-only inspection versus write/admin work.",
+            "Move the allowed read-only prefixes into a compact table with `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, and `\\d`, and note that the generated CLI description lists the main SQL statements while runtime also accepts `\\d`.",
+            "Add one FAQ entry on `debug:sql` vs `bastion:tunnel` to improve choosing/comparison coverage.",
+            "Use the phrase `relational-database resource` more consistently instead of alternating between deployed database, database, and SQL database when making Stacktape-specific claims."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided CLI source, but it overstates several implementation details around agent output and VPC connectivity. The highest-impact issue is describing `--agent` output as strict JSON/JSONL and listing a payload shape without matching the actual command output path.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“When running with `--agent` (or in a non-interactive environment), the command outputs structured JSON instead of a formatted table. The JSON payload includes `rows`, `fields`, `rowCount`, `truncated`, and the engine type.” The FAQ similarly says `--agent` returns structured JSON output for scripts.",
+              "reason": "The command switches to JSON only when `isAgentMode()` is true, not merely in any non-interactive environment. The payload is passed through `tuiManager.info(JSON.stringify(..., null, 2))`, so the command-specific code emits pretty-printed JSON text, not JSONL/NDJSON, and the actual payload also includes `ok`, `resource`, and `sql`. The generic `--agent` flag description says JSONL, but this command implementation does not show JSONL emission for the SQL payload.",
+              "suggestedFix": "Say that in agent mode, `debug:sql` prints a JSON-formatted result object with `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`. Remove “or in a non-interactive environment” unless separately grounded in the command path, and avoid promising JSONL for this command’s SQL result.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          ok: true,\n          resource: resourceName,\n          engine: isPostgres ? 'postgres' : 'mysql',\n          sql,\n          rows: result.rows,\n          fields: result.fields,\n          rowCount: result.rowCount,\n          truncated: result.truncated\n        },\n        null,\n        2\n      )\n    );"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "\"name\": \"agent\",\n    \"required\": false,\n    \"alias\": \"ag\",\n    \"allowedTypes\": [\n      \"boolean\"\n    ],"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Databases deployed without public accessibility require a bastion host to be reachable from your local machine.”",
+              "reason": "The source says VPC-only databases should use `--bastionResource`, but it does not establish the broader “without public accessibility” condition or say every such database categorically requires a bastion host to be reachable from the local machine. The implementation only creates an SSM tunnel when `bastionResource` is provided; it otherwise attempts the parsed host and port directly.",
+              "suggestedFix": "Narrow to the sourced behavior: “For VPC-only databases, pass `--bastionResource` so `debug:sql` can tunnel through a Stacktape bastion host. Without `--bastionResource`, the command uses the database host and port from the connection string directly.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "If the database is VPC-only, use --bastionResource to tunnel through a bastion host."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "// Try to establish tunnel if bastion is specified or if connection fails\n  if (bastionResource) {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No SSH keys or inbound security group rules are needed — the tunnel uses AWS Systems Manager.”",
+              "reason": "The implementation uses `startPortForwardingSessions`, which supports the Systems Manager part of the claim. The source does not state the security-group or SSH-key requirements for this command. Because that statement affects how readers prepare networking access, it should be narrowed or sourced elsewhere.",
+              "suggestedFix": "Keep the grounded part: “The tunnel is created through an SSM port-forwarding session.” Remove the SSH key and inbound security group rule claim unless source for the bastion tunneling implementation is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "import { startPortForwardingSessions, type SsmPortForwardingTunnel } from '@utils/ssm-session';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "tunnels = await startPortForwardingSessions({ targets: [selectedTarget] });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Any other statement (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, etc.) is rejected before a connection to the database is opened.”",
+              "reason": "`validateReadOnlySql` runs after the command has resolved the deployed resource, fetched the connection string from SSM, parsed it, and possibly started a bastion port-forwarding session. It is true that validation happens before `postgresQuery` or `mysqlQuery`, but “before a connection to the database is opened” is too broad when a tunnel to the database endpoint may already have been established.",
+              "suggestedFix": "Say: “Any other statement is rejected before the SQL query is executed.” If you want to be more precise, add that validation happens after the command has resolved the deployed resource and connection details.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (bastionResource) {\n    const allTargets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({\n      targetStpName: resourceName,\n      bastionStpName: bastionResource\n    });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "validateReadOnlySql({ sql });\n\n  let result: Awaited<ReturnType<typeof postgresQuery>>;\n  try {\n    const queryFn = isPostgres ? postgresQuery : mysqlQuery;\n    result = await queryFn(conn, { sql, limit, timeout });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Other database types like DynamoDB or Redis have their own dedicated debug commands.”",
+              "reason": "The provided command definitions include a `debug:dynamodb` command, but the Redis command is for a `redis-cluster`, not a generic database type. More importantly, the SQL command source only establishes support for `relational-database` and the command registry shows the sibling commands; the phrase is acceptable directionally, but should name the actual command targets precisely.",
+              "suggestedFix": "Write: “For DynamoDB tables, use `debug:dynamodb`; for Redis clusters, use `debug:redis`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const SUPPORTED_DB_TYPES = ['relational-database'] as const;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "'debug:redis': {\n    description: `Query a deployed Redis cluster."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The command connects to the database using credentials stored in AWS SSM Parameter Store during deployment.”",
+              "reason": "The runtime source clearly fetches an SSM parameter referenced by the deployed resource’s `connectionString` or `readerConnectionString`, and the error text says to ensure the database is deployed. The exact phrase “stored during deployment” is not directly shown in the provided source, so this should be worded from the runtime perspective rather than the deployment mechanism.",
+              "suggestedFix": "Say: “The command reads the deployed resource’s connection-string SSM parameter and resolves it locally before running the query.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“It supports PostgreSQL and MySQL engines.”",
+              "reason": "The implementation detects support from the connection string protocol, accepting `postgresql` and `mysql`. The source does not inspect or name the Stacktape database engine classes here, so “connection strings using `postgresql://` or `mysql://`” is more precise for this CLI page.",
+              "suggestedFix": "Prefer: “`debug:sql` supports relational-database resources whose connection string uses the `postgresql://` or `mysql://` protocol.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required flags in the usage example include `--stage`, `--region`, `--resourceName`, and `--sql`, matching the command definition.",
+            "The page uses `<CliCommandsApiReference command=\"debug:sql\" ... />`, which is the correct component for a CLI reference page.",
+            "The related links point to routes present in the provided documentation navigation index.",
+            "The draft correctly describes the read-only SQL prefixes supported by the runtime, including `\\d` in the detailed enforcement section.",
+            "The draft correctly states the default `--limit` value of 1000 and default `--timeout` value of 30000 milliseconds, both of which are present in the command implementation."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the command definition and implementation, but several operational details are overstated or contradicted by the source. The main problems are read-only enforcement being described as stronger than the implementation, agent output being described as a single JSON payload instead of CLI agent JSONL behavior, and unsupported claims about automatic tunneling/reader endpoint behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft says `--sql` validation \"rejects anything that could modify data\" and that any non-read-only statement is rejected before a connection is opened.",
+              "reason": "The implementation only lowercases/trims the SQL string and checks whether it starts with one of the allowed prefixes. That supports saying the command uses prefix-based validation, but not the stronger guarantee that anything capable of modifying data is rejected. The validation also happens after fetching the connection string and after a bastion tunnel may be opened, so \"before a connection is opened\" is too broad.",
+              "suggestedFix": "Narrow the wording to: \"The command performs a prefix check and only accepts SQL strings that start with `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, or `\\d`. The database query is not executed if the prefix check fails.\" Avoid claiming comprehensive SQL safety.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const validateReadOnlySql = ({ sql }: { sql: string }) => {\n  const sqlLower = sql.toLowerCase().trim();\n  if (!READ_ONLY_SQL_PREFIXES.some((prefix) => sqlLower.startsWith(prefix))) {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (bastionResource) {\n    const allTargets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({\n      targetStpName: resourceName,\n      bastionStpName: bastionResource\n    });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "validateReadOnlySql({ sql });"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"When running with `--agent` (or in a non-interactive environment), the command outputs structured JSON instead of a formatted table. The JSON payload includes `rows`, `fields`, `rowCount`, `truncated`, and the engine type.\"",
+              "reason": "The implementation switches to the JSON result branch only when `isAgentMode()` is true. The source does not show that a non-interactive environment alone enables this command-specific JSON result. The CLI flag reference says `--agent` implies JSONL/NDJSON output, while the command implementation prints a pretty-printed JSON object through `tuiManager.info`, so the draft's \"JSON payload\" wording conflicts with the documented CLI output mode and should be more cautious.",
+              "suggestedFix": "Say that `--agent` uses the agent-mode output path and includes `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`. Do not say non-interactive environments produce this same structured result unless source explicitly confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          ok: true,\n          resource: resourceName,\n          engine: isPostgres ? 'postgres' : 'mysql',\n          sql,\n          rows: result.rows,\n          fields: result.fields,\n          rowCount: result.rowCount,\n          truncated: result.truncated\n        },"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)</li>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"When the database has a reader endpoint (Aurora clusters with read replicas), `debug:sql` automatically routes through the reader endpoint to avoid placing load on the primary writer instance.\"",
+              "reason": "The source supports preferring `readerConnectionString` when that SSM parameter exists. It does not ground the parenthetical \"Aurora clusters with read replicas\" or the purpose statement \"to avoid placing load on the primary writer instance\" as Stacktape behavior. The draft should describe the exact implemented selection rule.",
+              "suggestedFix": "Write: \"If the deployed resource exposes a `readerConnectionString` SSM parameter, `debug:sql` uses that connection string; otherwise it uses `connectionString`.\" You may add that a reader endpoint can reduce read load on a writer as general database guidance, not as the command's documented intent.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const readerConnectionStringSsmParam = params.readerConnectionString?.ssmParameterName;\n  const primaryConnectionStringSsmParam = params.connectionString?.ssmParameterName;\n  const shouldUseReaderEndpoint = !!readerConnectionStringSsmParam;\n  const connectionStringSsmParam = readerConnectionStringSsmParam || primaryConnectionStringSsmParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"Try to establish tunnel if bastion is specified or if connection fails\" is reflected in the draft as VPC-only databases requiring `--bastionResource`, with the command tunneling automatically for VPC-only access.",
+              "reason": "The implementation only establishes an SSM tunnel when `bastionResource` is provided. Despite the comment in the source, there is no implemented retry-on-connection-failure behavior in the provided code. The draft is mostly fine when it says to pass `--bastionResource`, but claims like automatic handling for VPC-only databases should be kept tied to the flag.",
+              "suggestedFix": "Keep the guidance as: \"For VPC-only databases, pass `--bastionResource`; when that flag is present, the command resolves bastion tunnel targets and uses a local SSM port-forwarding tunnel.\" Avoid implying automatic fallback without the flag.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "// Try to establish tunnel if bastion is specified or if connection fails\n  if (bastionResource) {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "tunnels = await startPortForwardingSessions({ targets: [selectedTarget] });\n      connectionHost = '127.0.0.1';\n      connectionPort = tunnels[0].localPort;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The output indicates when results are truncated\" and FAQ wording says \"If the query returns more rows than the limit, the output is truncated and marked as such.\"",
+              "reason": "The command output marks truncation based on `result.truncated`, but the provided `debug-sql` source does not show how `postgresQuery` or `mysqlQuery` determine truncation. The claim is probably true, but it is not fully grounded in the provided command implementation beyond the display layer.",
+              "suggestedFix": "Phrase this narrowly: \"When the query helper reports `truncated`, the CLI shows `(truncated to <limit>)`; in agent mode the JSON includes `truncated`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "tuiManager.info(`${result.rowCount} row(s) returned${result.truncated ? ` (truncated to ${limit})` : ''}:\\n`);"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "truncated: result.truncated"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"No SSH keys or inbound security group rules are needed — the tunnel uses AWS Systems Manager.\"",
+              "reason": "The implementation imports and uses SSM port-forwarding helpers, which supports the AWS Systems Manager part. The source does not explicitly support the broader security-group and SSH-key claim for this command. That may be true for SSM sessions generally, but the draft states it as a Stacktape-specific operational guarantee.",
+              "suggestedFix": "Narrow to the sourced behavior: \"When `--bastionResource` is provided, `debug:sql` starts an SSM port-forwarding session through the bastion.\" If keeping the SSH/security-group sentence, frame it as general SSM port-forwarding context rather than a Stacktape guarantee.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "import { startPortForwardingSessions, type SsmPortForwardingTunnel } from '@utils/ssm-session';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "tunnels = await startPortForwardingSessions({ targets: [selectedTarget] });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The first paragraph says the command restricts queries to `SELECT`, `SHOW`, `DESCRIBE`, and `EXPLAIN`, but later sections also mention `\\d`.",
+              "reason": "The implementation includes `\\d` in `READ_ONLY_SQL_PREFIXES`, while the command definition and generated CLI summary list only `SELECT`, `SHOW`, `DESCRIBE`, and `EXPLAIN`. The page is internally inconsistent: the first paragraph omits `\\d`, while the read-only enforcement and FAQ include it.",
+              "suggestedFix": "Either include `\\d` consistently as an accepted PostgreSQL shorthand, or keep the top-level summary aligned with the public command description and mention `\\d` only in the detailed enforcement section as an additional accepted prefix.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const READ_ONLY_SQL_PREFIXES = ['select', 'show', 'describe', 'explain', '\\\\d'] as const;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "Supports PostgreSQL and MySQL databases. Only read-only queries (SELECT, SHOW, DESCRIBE, EXPLAIN) are allowed."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses the correct `<CliCommandsApiReference command=\"debug:sql\" ... />` component for the flags table.",
+            "Required flags in the usage examples include `--stage`, `--region`, `--resourceName`, and `--sql`, matching the command definition.",
+            "All markdown cross-links point to routes present in the provided documentation navigation index.",
+            "The draft avoids forbidden Stacktape config patterns; there are no hand-authored YAML config examples or fenced TypeScript Stacktape config blocks."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The page covers the required `debug:sql` flags, uses one-command shell blocks, includes the required API reference component, and gives demonstrative examples for `--sql`, `--bastionResource`, `--limit`, `--timeout`, and `--agent`. I found a small number of source-grounding and wording issues that should be fixed before publication.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When running with `--agent` (or in a non-interactive environment), the command outputs structured JSON instead of a formatted table.”",
+              "reason": "The `debug:sql` implementation switches to JSON output only when `isAgentMode()` returns true. The provided source does not show that a non-interactive environment alone enables agent mode for this command.",
+              "suggestedFix": "Narrow the sentence to: “When running with `--agent`, the command outputs structured JSON instead of a formatted table.” If you want to mention non-interactive output behavior, ground it in the shared `outputFormat` flag documentation instead of claiming JSON for `debug:sql`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify("
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "agent: agent.optional(),\n      outputFormat: outputFormat.optional()"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The JSON payload includes `rows`, `fields`, `rowCount`, `truncated`, and the engine type.”",
+              "reason": "The implementation emits additional top-level fields: `ok`, `resource`, and `sql`. The current wording is not false if read as non-exhaustive, but it reads like a complete payload description in a CLI reference page.",
+              "suggestedFix": "Write the payload list completely: “The JSON payload includes `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "{\n          ok: true,\n          resource: resourceName,\n          engine: isPostgres ? 'postgres' : 'mysql',\n          sql,\n          rows: result.rows,\n          fields: result.fields,\n          rowCount: result.rowCount,\n          truncated: result.truncated\n        }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“The `debug:sql` command executes read-only SQL queries…” and “Only read-only statements are accepted…”",
+              "reason": "The implementation enforces read-only behavior by checking the starting prefix of the trimmed query string. The source does not show SQL parsing or deeper statement analysis. The page later says prefix validation, but the opening overstates the safety mechanism.",
+              "suggestedFix": "Make the first paragraph precise: “The `debug:sql` command executes SQL queries whose trimmed text starts with `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, or `\\d` against a deployed relational database.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const READ_ONLY_SQL_PREFIXES = ['select', 'show', 'describe', 'explain', '\\\\d'] as const;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (!READ_ONLY_SQL_PREFIXES.some((prefix) => sqlLower.startsWith(prefix)))"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command connects to the database using credentials stored in AWS SSM Parameter Store during deployment.”",
+              "reason": "The command fetches a connection string from an SSM parameter referenced by the deployed resource overview. The provided source does not establish when the parameter was created or that credentials are stored there specifically “during deployment.”",
+              "suggestedFix": "Use source-grounded wording: “The command resolves the deployed database resource’s `connectionString` or `readerConnectionString` SSM parameter and uses that connection string to connect.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const readerConnectionStringSsmParam = params.readerConnectionString?.ssmParameterName;\n  const primaryConnectionStringSsmParam = params.connectionString?.ssmParameterName;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const connectionString = await locallyResolveSensitiveValue({ ssmParameterName: connectionStringSsmParam });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No SSH keys or inbound security group rules are needed — the tunnel uses AWS Systems Manager.”",
+              "reason": "The source shows Stacktape starts SSM port-forwarding sessions, but it does not document the broader networking/security-group claim. This is plausible AWS background, but it is not grounded in the provided source and could be over-read as a Stacktape guarantee.",
+              "suggestedFix": "Narrow it to the sourced mechanism: “The command uses an SSM port-forwarding session through the bastion resource.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "tunnels = await startPortForwardingSessions({ targets: [selectedTarget] });"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "If the database is VPC-only, use --bastionResource to tunnel through a bastion host."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page includes all required command arguments from the source: `--region`, `--stage`, `--resourceName`, and `--sql`.",
+            "The examples are demonstrative: each important optional section shows the relevant flag rather than repeating a bare scaffold.",
+            "The page uses `<CliCommandsApiReference command=\"debug:sql\" ... />` rather than hand-authoring the flags table.",
+            "The shell examples follow the one-command-per-block rule and include required flags in realistic invocations."
+          ]
+        }
+      ],
+      "status": "failed",
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\cli__debug__sql\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is concise (~57 words), self-contained, and accurately names the three key behaviors (read-only, PostgreSQL/MySQL, SSM credential retrieval) sourced directly from the implementation.",
+            "Multiple realistic, copy-pasteable examples cover distinct scenarios: basic query, EXPLAIN, bastion tunneling, SHOW TABLES, \\dt, and MySQL — not just variations of SELECT.",
+            "Agent mode output format is fully documented with exact field names (ok, resource, engine, sql, rows, fields, rowCount, truncated) matching the source code, making the section genuinely useful for scripting.",
+            "FAQ is comprehensive (10 entries) and covers important edge cases: WITH-clause rejection, SSM credential handling, CI usage, and the one-shot vs. persistent tunnel distinction.",
+            "All source-grounded facts check out: read-only prefixes match the source array, limit default (1000) and timeout default (30000) match the source defaults, reader endpoint logic matches the SSM param lookup.",
+            "Related commands section points to exactly the right siblings with accurate descriptions.",
+            "No mandatory style violations: no YAML config blocks, no StacktapeConfig import pattern, no fenced TypeScript defineConfig blocks, no multi-command bash blocks, no explanatory comments inside bash code blocks."
+          ],
+          "problems": [
+            "Page structure deviates from the CLI section instructions, which prescribe: lead paragraph → usage example → auto-generated flags reference → Examples → Related commands. Instead the flags reference is buried near the bottom after six feature sections and the full Examples block. A developer scanning for flags (common first action on a CLI reference page) has to scroll past most of the page.",
+            "FAQ lacks the required three-category mix. All 10 questions are either Stacktape-specific ('Can I run write queries?', 'How does it connect to VPC-only?') or a single comparison question ('debug:sql vs bastion:tunnel'). No AWS-service-level questions are present (e.g., 'What IAM permissions does debug:sql require?', 'Does debug:sql work through RDS Proxy?'). This misses high-intent searches about RDS/MySQL/Postgres operational concerns.",
+            "'Reader endpoint preference' section is a single explanatory paragraph with no code example. It explains a behavior that only applies to Aurora read-replica configurations, but gives readers no signal for whether this applies to them."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reorder the page to follow CLI section instruction structure: move the <CliCommandsApiReference> block to immediately after the ## Usage section, then put the feature sections (Read-only enforcement, VPC-only, etc.) and Examples after. This matches the prescribed lead → usage → reference → examples → related pattern and makes the flags table reachable without scrolling past the entire page.",
+            "Add 1-2 AWS-service-level FAQ entries to satisfy the three-category requirement. Concrete suggestions: 'What IAM permissions does my AWS profile need to run debug:sql?' (answer: SSM GetParameter on the stack's parameter namespace) and 'Does debug:sql work with RDS Proxy?' (answer: no special support; the command connects to the connection string stored in SSM, which may already point to a proxy endpoint if the stack is configured that way).",
+            "Add a one-sentence context note to the 'Reader endpoint preference' section explaining when reader endpoints exist — e.g. 'Aurora clusters with at least one read replica expose a readerConnectionString parameter' — so readers can immediately assess whether this applies to their setup without having to check the relational-database docs.",
+            "The 'Use debug:sql when…' guidance in the lead paragraph is currently buried in the second paragraph of the Usage section, not in the opening paragraph. Consider folding the most important when-to-use sentence ('for verifying migrations, checking row counts, or investigating production data') into the first paragraph so it reads as a complete AEO-extractable snippet on its own."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-accurate content throughout: required args, allowed prefixes, default limit (1000), default timeout (30000), agent mode JSON fields, and reader-endpoint preference logic all match src/commands/debug-sql/index.ts exactly.",
+            "Well-structured noun-form H2 headings. Each section is self-contained and addresses a discrete behavior. A busy developer can find bastion tunneling, reader endpoint logic, or agent mode without reading the full page.",
+            "Ten FAQ entries with genuine diversity: Stacktape-specific, AWS-service-behavior, and comparison questions. The CTE/WITH limitation callout in the last FAQ entry is a real gotcha that saves debugging time.",
+            "All shell examples are single commands per fenced block with explanatory prose placed before each — copy-button safe throughout.",
+            "Correctly uses <CliCommandsApiReference> for the flags table; no hand-authored flags documentation.",
+            "Reader endpoint preference section accurately reflects the code path: readerConnectionString SSM param checked first, falls back to connectionString."
+          ],
+          "problems": [
+            "The \\dt example in the Examples section is potentially misleading. PostgreSQL's \\d and \\dt are psql meta-commands, not valid SQL. The source validates the prefix with startsWith('\\d') and then submits the string directly to the pg/mysql driver, which does not interpret psql meta-commands. A user who copies this example will likely receive a syntax error from the database driver. The validation accepts it but execution will fail.",
+            "SSL behavior is not documented: the source connects with ssl: { rejectUnauthorized: false }, meaning all connections use SSL but skip certificate verification. This is relevant for users who hit SSL handshake errors or who have strict certificate-pinning requirements in their environment. Omitting it leaves a troubleshooting gap.",
+            "The 'Read-only enforcement' section repeats almost verbatim what the opening paragraph already states (prefix list, rejection before execution). The opening paragraph already covers this; the dedicated section adds no new technical detail and reads as padding."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or substantially trim the 'Read-only enforcement' H2 section. Its content (prefix list, before-execution rejection) is already in the opening paragraph. If kept, add only the new information that is NOT in the intro — e.g., exactly what error the user sees when a disallowed prefix is submitted.",
+            "Replace the \\dt example (or add a caveat) clarifying that \\d-prefixed strings pass the read-only prefix check but are psql meta-commands, not valid SQL, and will fail against the underlying pg/mysql driver. Either substitute a valid SQL equivalent (e.g., SELECT table_name FROM information_schema.tables WHERE table_schema = 'public') or explicitly state the limitation.",
+            "Add a one-sentence note under the VPC-only databases section or in a 'Troubleshooting' subsection that all connections use SSL with certificate verification disabled (rejectUnauthorized: false). Users hitting SSL errors in strict network environments will benefit from knowing this upfront.",
+            "The FAQ entry 'Why does debug:sql reject my query?' already mentions CTEs with WITH — consider also noting that this is a common pattern for read-heavy analytical queries, and link to bastion:tunnel as the alternative since WITH queries can be executed there with a full psql client."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and within the target length.",
+            "Command examples are realistic, copyable, and each shell block contains only one command.",
+            "The page explains the main operational paths: direct connection, bastion tunneling, reader endpoint preference, row limits, timeout, and agent output.",
+            "FAQ is broad enough for a CLI reference page and includes Stacktape-specific, operational, and comparison questions."
+          ],
+          "problems": [
+            "Page order does not follow the CLI-page instruction: the auto-generated <CliCommandsApiReference> should appear after the first usage example, before deeper examples or non-obvious patterns.",
+            "The draft claims PostgreSQL `\\d` shorthand can be used to list tables, but the provided runtime source only proves that SQL beginning with `\\d` passes the prefix validator; it does not prove the database query helper actually implements psql meta-commands like `\\dt`.",
+            "The page says `--agent` outputs structured JSON, but the flags reference says agent mode uses JSONL/NDJSON. The runtime source shows a pretty-printed JSON object passed to `tuiManager.info`, so the wording should avoid overclaiming JSONL behavior unless grounded elsewhere.",
+            "Related commands lists four siblings, while the CLI section instruction says link to the 1-3 closest siblings.",
+            "Several H2s are narrowly split flag-by-flag (`Reader endpoint preference`, `Agent mode output`, `Result limiting`, `Query timeout`), which makes the page longer to scan than a compact CLI reference needs.",
+            "The FAQ repeats details already covered in sections, especially read-only enforcement, bastion tunneling, reader endpoint preference, limit, timeout, and agent output."
+          ],
+          "mandatoryFixes": [
+            "Move <CliCommandsApiReference command=\"debug:sql\" ... /> directly after the initial Usage example, then place non-obvious Examples after the reference.",
+            "Replace or narrow the PostgreSQL `\\d` guidance. Do not say `\\dt` lists tables unless the query helper source proves psql meta-command handling; instead say the runtime validator allows SQL strings starting with `\\d`, or omit the example.",
+            "Reduce Related commands to the 1-3 closest siblings, per the CLI page instruction."
+          ],
+          "optionalImprovements": [
+            "Combine `Reader endpoint preference`, `Agent mode output`, `Result limiting`, and `Query timeout` under a compact `Behavior` or `Options` section to improve scan speed.",
+            "Mention the exact required flags near the first usage example: `--region`, `--stage`, `--resourceName`, and `--sql`.",
+            "Adjust agent-output wording to distinguish human table output from machine-readable output without promising JSONL unless the source for the output layer confirms it.",
+            "Trim the FAQ to avoid repeating the same operational details verbatim, or make the FAQ answers shorter and more search-oriented."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command source and runtime implementation. I found a few claims that overstate output format, credential permissions, and automatic command behavior beyond what the source proves.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“When running with `--agent`, the command outputs structured JSON instead of a formatted table.” and “Use the `--agent` flag to get structured JSON output instead of a formatted table.”",
+              "reason": "The runtime implementation prints pretty-printed multi-line JSON through `tuiManager.info`, while the generated flag reference says `--agent` uses JSONL/NDJSON. Calling this simply “structured JSON” is ambiguous and can mislead script users about parse format; the command source does not show a single JSON object written directly to stdout.",
+              "suggestedFix": "Narrow the prose to match the implementation: say that in agent mode the command logs a JSON-formatted result object with the listed fields. Avoid implying clean stdout JSON or NDJSON unless the command implementation guarantees it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          ok: true,\n          resource: resourceName,\n          engine: isPostgres ? 'postgres' : 'mysql',\n          sql,\n          rows: result.rows,\n          fields: result.fields,\n          rowCount: result.rowCount,\n          truncated: result.truncated\n        },\n        null,\n        2\n      )\n    );"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts",
+                  "quote": "<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You need permissions to read SSM parameters in the stack's region, which your Stacktape AWS profile provides by default.”",
+              "reason": "The command source only says failure may mean the caller lacks permission to read SSM parameters. It does not state that a Stacktape AWS profile provides those permissions by default.",
+              "suggestedFix": "Keep the actionable requirement and remove the default-permission claim: “The AWS credentials used by the command must be allowed to read the database connection-string SSM parameter.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "throw new ExpectedError(\n      'CLI',\n      'Could not fetch database connection string from SSM',\n      'Ensure you have permission to read SSM parameters'\n    );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When `--bastionResource` is provided, the command starts an SSM port-forwarding session through the bastion...”",
+              "reason": "The implementation starts a port-forwarding session only if `resolveBastionTunnelsForTarget` returns a selected target. If no target is selected, the command proceeds without establishing a tunnel. The draft states the tunnel is always started whenever the flag is provided.",
+              "suggestedFix": "Qualify the behavior: “When `--bastionResource` is provided and Stacktape can resolve a tunnel target for the database, the command starts an SSM port-forwarding session...”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const selectedTarget = allTargets.find(({ label }) => label === targetLabel) || allTargets[0];\n\n    if (selectedTarget) {\n      tunnels = await startPortForwardingSessions({ targets: [selectedTarget] });\n      connectionHost = '127.0.0.1';\n      connectionPort = tunnels[0].localPort;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“It supports PostgreSQL and MySQL engines” and FAQ: “The command supports PostgreSQL and MySQL databases deployed as a Stacktape relational database.”",
+              "reason": "The runtime support is based on connection string protocol (`postgresql` or `mysql`) for resources of type `relational-database`. The source does not prove every PostgreSQL/MySQL engine variant is supported; it proves only those protocols are accepted.",
+              "suggestedFix": "Use protocol-scoped wording: “`debug:sql` supports deployed relational-database resources whose connection string uses the `postgresql://` or `mysql://` protocol.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const protocol = url.protocol.replace(':', '');\n  if (protocol !== 'postgresql' && protocol !== 'mysql') {\n    throw new ExpectedError('CLI', `Unsupported SQL protocol in connection string: ${protocol}`);\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (!SUPPORTED_DB_TYPES.includes(resource.resourceType as (typeof SUPPORTED_DB_TYPES)[number])) {\n    throw new ExpectedError(\n      'CLI',\n      `Resource \"${resourceName}\" is not a SQL database (type: ${resource.resourceType})`,\n      'debug:sql supports relational-database resources only'\n    );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For Aurora clusters with read replicas, this means read queries route through the reader endpoint, which can reduce load on the primary writer instance.”",
+              "reason": "The command source supports preference for a `readerConnectionString` parameter when present, but it does not identify Aurora clusters, read replicas, or writer-load behavior. That extra explanation may be true AWS context, but the Stacktape-specific condition for when the parameter exists is not grounded in the provided sources.",
+              "suggestedFix": "Keep the grounded behavior and avoid naming Aurora/read replicas unless another source proves it: “If the deployed resource has a `readerConnectionString` SSM parameter, `debug:sql` uses it; otherwise it falls back to `connectionString`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const readerConnectionStringSsmParam = params.readerConnectionString?.ssmParameterName;\n  const primaryConnectionStringSsmParam = params.connectionString?.ssmParameterName;\n  const shouldUseReaderEndpoint = !!readerConnectionStringSsmParam;\n  const connectionStringSsmParam = readerConnectionStringSsmParam || primaryConnectionStringSsmParam;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Common triggers: leading whitespace before a comment...”",
+              "reason": "The implementation trims the full SQL string before checking prefixes, so leading whitespace alone is not a rejection trigger. A leading SQL comment before the first allowed prefix would be rejected, but the wording could be read as whitespace itself causing failure.",
+              "suggestedFix": "Clarify the example: “Common triggers include a SQL comment before the first statement, CTEs starting with `WITH`, or DDL/DML statements.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "Required flags and the `<CliCommandsApiReference command=\"debug:sql\" ... />` usage match the command definition.",
+            "The read-only prefix list, default `--limit` of 1000, and default `--timeout` of 30000 are grounded in `src/commands/debug-sql/index.ts`.",
+            "The bastion tunnel cleanup, reader-connection-string preference, and table-mode truncated output are represented consistently with the command implementation.",
+            "All internal documentation links used in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well grounded in the provided CLI source. The main problems are around unsupported precision in output-format wording, overclaiming automatic VPC detection, and a few claims about credentials/permissions that the source does not establish.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The JSON payload includes `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`.” and “The JSON result object includes ...”",
+              "reason": "The runtime emits that object through `tuiManager.info(JSON.stringify(..., null, 2))`, which is pretty-printed multi-line JSON. The generated flag description says agent mode uses JSONL/NDJSON generally, but this command implementation does not emit a single-line JSONL object for the SQL result. The draft should avoid implying JSONL shape for the result and call it structured JSON.",
+              "suggestedFix": "Say `--agent` prints a structured JSON result containing those fields. Avoid saying JSONL/NDJSON for the result unless the implementation changes.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          ok: true,\n          resource: resourceName,\n          engine: isPostgres ? 'postgres' : 'mysql',\n          sql,\n          rows: result.rows,\n          fields: result.fields,\n          rowCount: result.rowCount,\n          truncated: result.truncated\n        },\n        null,\n        2\n      )\n    );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Try to establish tunnel if bastion is specified or if connection fails” / draft wording: “For VPC-only databases, pass `--bastionResource`...” plus “optional bastion tunneling.”",
+              "reason": "The user-facing advice to pass `--bastionResource` is supported, but the implementation does not try a direct connection and then fall back to tunneling on failure. Tunneling only happens when `bastionResource` is provided. The draft should not imply automatic detection or fallback beyond the provided flag.",
+              "suggestedFix": "Keep the instruction to pass `--bastionResource` for private databases, and state narrowly that tunneling is attempted only when that flag is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "// Try to establish tunnel if bastion is specified or if connection fails\n  if (bastionResource) {\n    const allTargets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({\n      targetStpName: resourceName,\n      bastionStpName: bastionResource\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When `--bastionResource` is provided, the command starts an SSM port-forwarding session through the bastion, routes your query through `localhost`, and tears down the tunnel after the query completes.”",
+              "reason": "The implementation starts a tunnel only if a matching target is found. If no target is selected, the command continues with the parsed database host and port. The draft currently makes tunneling sound unconditional whenever `--bastionResource` is present.",
+              "suggestedFix": "Write: “When `--bastionResource` is provided and Stacktape resolves a matching bastion tunnel target, the command starts an SSM port-forwarding session and runs the query through `127.0.0.1`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const selectedTarget = allTargets.find(({ label }) => label === targetLabel) || allTargets[0];\n\n    if (selectedTarget) {\n      tunnels = await startPortForwardingSessions({ targets: [selectedTarget] });\n      connectionHost = '127.0.0.1';\n      connectionPort = tunnels[0].localPort;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You need permissions to read SSM parameters in the stack's region, which your Stacktape AWS profile provides by default.”",
+              "reason": "The source supports that failure can occur if SSM read permissions are missing, but it does not say a Stacktape AWS profile provides those permissions by default. That is an authorization claim not grounded in the provided files.",
+              "suggestedFix": "Say only: “The command fails if the credentials used by the CLI cannot read the SSM parameter.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "throw new ExpectedError(\n      'CLI',\n      'Could not fetch database connection string from SSM',\n      'Ensure you have permission to read SSM parameters'\n    );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“It supports PostgreSQL and MySQL engines...” and “The command supports PostgreSQL and MySQL databases deployed as a Stacktape relational database.”",
+              "reason": "The runtime supports connection strings whose URL protocol is `postgresql` or `mysql`. The provided source does not prove support for every Stacktape relational database engine variant that could be described as PostgreSQL or MySQL; it proves protocol-based driver selection. The wording is mostly correct but should be narrowed to match the implementation.",
+              "suggestedFix": "Say: “`debug:sql` supports deployed relational-database resources whose connection string uses the `postgresql://` or `mysql://` protocol.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const protocol = url.protocol.replace(':', '');\n  if (protocol !== 'postgresql' && protocol !== 'mysql') {\n    throw new ExpectedError('CLI', `Unsupported SQL protocol in connection string: ${protocol}`);\n  }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts",
+                  "quote": "const queryFn = isPostgres ? postgresQuery : mysqlQuery;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“For write operations (`INSERT`, `UPDATE`, `DELETE`), use `bastion:tunnel` to open a persistent tunnel and connect with a full-featured client like `psql` or `mysql`.”",
+              "reason": "The source supports that `bastion:tunnel` creates a tunnel to a resource through a bastion host, but it does not explicitly document using it for SQL write operations or external database clients. This is likely reasonable guidance, but it is broader than the provided source.",
+              "suggestedFix": "Narrow the claim: “For interactive database work, `bastion:tunnel` can open a persistent tunnel to the resource; then use your own database client.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“This prevents accidental writes...”",
+              "reason": "The implementation is a simple prefix check. The draft later includes an appropriate caveat that this is not a comprehensive SQL safety mechanism, but the opening paragraph is stronger than the runtime behavior warrants because some read-looking SQL can still have side effects depending on database functions and permissions.",
+              "suggestedFix": "Use narrower wording in the opening paragraph: “adds a convenience guard against obvious write statements.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required flags in the usage example include `--stage`, `--region`, `--resourceName`, and `--sql`, matching the command definition.",
+            "The draft correctly uses `<CliCommandsApiReference command=\"debug:sql\" ... />` for the generated flags table.",
+            "The read-only prefix list including `\\d` is grounded in the runtime command source, even though the generated CLI description omits `\\d`.",
+            "All internal documentation links used in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "api-completeness-auditor",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft covers the command's required flags, main optional behavior, and demonstrative examples well. I found no API-completeness, union-variant, or code-example demonstrativeness issues within this auditor's scope.",
+          "issues": [],
+          "positiveFindings": [
+            "The page documents the command's required arguments (`region`, `stage`, `resourceName`, `sql`) and shows them in the main usage example.",
+            "The important command-specific optional flags (`bastionResource`, `limit`, `timeout`, and `agent`) are documented with examples that exercise the corresponding behavior.",
+            "The page uses the required `<CliCommandsApiReference command=\"debug:sql\" ... />` component instead of hand-authoring a flags table.",
+            "There are no Stacktape config examples, so the forbidden YAML/plain-object/fenced-TypeScript config patterns are absent.",
+            "No union-variant coverage gaps were found for this CLI page based on the provided command sources."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
+    }
+  ],
+  "agentModelAssignments": {
+    "page-writer": "claude:cli-default",
+    "first-time-user-reviewer": "claude:claude-sonnet-4-6",
+    "production-engineer-reviewer": "claude:claude-sonnet-4-6",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
+    "source-grounding-verifier": "codex:cli-default",
+    "api-completeness-auditor": "codex:cli-default",
+    "code-block-validator": "local"
+  },
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\debug-sql.mdx",
+  "outcome": "passed",
+  "completedAt": "2026-05-17T22:44:49.377Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\src\\config\\cli\\commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "C:\\Projects\\stacktape\\src\\config\\cli\\utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "C:\\Projects\\stacktape\\src\\commands\\debug-sql\\index.ts": "98281fc088c0cdf4841e46cd917b3fd1918b86cf",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\cli-ref\\debug-sql.md": "afdfd6855e151a100f2fadb1c8576282ec7920b8"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
+}

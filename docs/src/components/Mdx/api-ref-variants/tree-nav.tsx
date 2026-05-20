@@ -78,7 +78,7 @@ function NodeRow({
   const indent = ROW_BASE_INDENT + depth * DEPTH_STEP;
 
   return (
-    <li css={{ listStyle: 'none', display: 'block', padding: 0, margin: 0 }}>
+    <div css={{ display: 'block' }}>
       <div
         role="button"
         tabIndex={0}
@@ -159,32 +159,22 @@ function NodeRow({
           />
         )}
       </div>
-    </li>
+    </div>
   );
 }
 
 function NestedGroup({ isOpen, children }: { isOpen: boolean; children: ReactNode }) {
   return (
-    <li
+    <div
       aria-hidden={!isOpen}
       css={{
-        listStyle: 'none',
         display: 'grid',
         gridTemplateRows: isOpen ? '1fr' : '0fr',
         transition: `grid-template-rows ${COLLAPSE_DURATION_MS}ms ease`
       }}
     >
-      <ul
-        css={{
-          overflow: 'hidden',
-          minHeight: 0,
-          padding: 0,
-          margin: 0
-        }}
-      >
-        {children}
-      </ul>
-    </li>
+      <div css={{ overflow: 'hidden', minHeight: 0 }}>{children}</div>
+    </div>
   );
 }
 
@@ -470,7 +460,7 @@ export function TreeNav({
           {emptyHint}
         </div>
       ) : (
-        <ul css={{ padding: 0, margin: 0 }}>
+        <div>
           {visible.map((property) => (
             <PropertyTreeItem
               key={property.name}
@@ -483,7 +473,7 @@ export function TreeNav({
               onSelect={onSelect}
             />
           ))}
-        </ul>
+        </div>
       )}
     </nav>
   );
